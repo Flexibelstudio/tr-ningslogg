@@ -1,0 +1,6 @@
+{
+  "name": "Flexibel Träningslogg",
+  "description": "En enkel träningsloggningsapp för Flexibel Hälsostudio-medlemmar att logga vikter, repetitioner och set för pass upplagda av coachen.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
