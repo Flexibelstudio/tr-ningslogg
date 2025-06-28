@@ -14,7 +14,7 @@
     "@google/genai": "latest",
     "react-confetti": "^6.4.0",
     "html2canvas": "^1.4.1",
-    "chart.js/auto": "^4.4.3",
+    "chart.js": "^4.4.3",
     "chartjs-adapter-date-fns": "^3.0.0",
     "chart.js": "^4.5.0"
   },
