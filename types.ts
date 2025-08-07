@@ -1,0 +1,483 @@
+
+
+export type BookingStatus = 'BOOKED' | 'WAITLISTED' | 'CANCELLED' | 'CHECKED-IN';
+
+export interface GroupClassDefinition {
+  id: string;
+  name: string;
+  description?: string;
+  defaultDurationMinutes?: number;
+}
+
+export interface GroupClassSchedule {
+  id: string;
+  locationId: string;
+  groupClassId: string;
+  coachId: string;
+  daysOfWeek: number[]; // 1 (Mon) - 7 (Sun)
+  startTime: string; // "HH:MM"
+  durationMinutes: number;
+  maxParticipants: number;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+}
+
+export interface ParticipantBooking {
+  id: string;
+  participantId: string;
+  scheduleId: string; // GroupClassSchedule.id
+  classDate: string; // YYYY-MM-DD
+  bookingDate: string; // ISO string
+  status: BookingStatus;
+}
+
+export interface OneOnOneSessionType {
+  id: string;
+  title: string;
+  description: string;
+  durationMinutes: number;
+}
+
+export interface OneOnOneSession {
+  id: string;
+  participantId: string;
+  coachId: string; // StaffMember.id
+  title: string;
+  purpose: string;
+  startTime: string; // ISO string
+  endTime: string; // ISO string
+  status: 'scheduled' | 'completed' | 'cancelled';
+  coachNotes?: string;
+  comments?: Comment[];
+}
+
+export interface WeeklyHighlightSettings {
+  isEnabled: boolean;
+  dayOfWeek: number; // 1 (Mon) - 7 (Sun)
+  time: string; // "HH:MM"
+  studioTarget: 'all' | 'salem' | 'karra' | 'separate';
+  lastGeneratedTimestamp?: string; // ISO string
+}
+
+export type WorkoutCategory = string;
+export interface WorkoutCategoryDefinition {
+  id: string;
+  name: string;
+}
+export type LoggableMetric = 'reps' | 'weight' | 'distance' | 'duration' | 'calories';
+
+export interface Exercise {
+  id: string;
+  name: string;
+  notes: string; // e.g., "3 set x 8 reps"
+  baseLiftType?: LiftType; // New field to link to a base lift
+  supersetIdentifier?: string; // New: To group exercises into a superset
+  isBodyweight?: boolean; // New: Indicates if it's primarily a bodyweight exercise
+  loggableMetrics?: LoggableMetric[]; // New: To guide logging UI, e.g., ['reps', 'weight']
+}
+
+export interface WorkoutBlock {
+  id: string;
+  name?: string; // Optional name for the block, e.g., "Block A", "Warm-up"
+  exercises: Exercise[];
+  isQuickLogEnabled?: boolean; // New: To enable quick round logging for finishers/AMRAPs
+}
+
+export interface Workout {
+  id: string;
+  title: string;
+  blocks: WorkoutBlock[];
+  isPublished: boolean;
+  category: WorkoutCategory;
+  coachNote?: string;
+  isModifiable?: boolean;
+  exerciseSelectionOptions?: {
+    list: LiftType[];
+    maxSelect: number;
+    instructions?: string;
+  };
+  assignedToParticipantId?: string;
+  intensityLevel?: number;
+  intensityInstructions?: string;
+}
+
+export interface SetDetail {
+  id: string; // For React key and removal
+  reps?: number | string; // Now optional
+  weight?: number | string;
+  distanceMeters?: number | string; // New
+  durationSeconds?: number | string; // New
+  caloriesKcal?: number | string; // New
+  isCompleted?: boolean; // New field to mark set as completed
+}
+
+export interface WorkoutExerciseLog {
+ exerciseId: string;
+ loggedSets: SetDetail[];
+ // Optional old fields for migration purposes. New logs should only use loggedSets.
+ sets?: number | string;
+ reps?: number | string;
+ weight?: number | string;
+}
+
+export interface NewPB {
+  exerciseName: string;
+  achievement: string; // e.g., "Nytt PB i vikt!", "Flest reps på X kg"
+  value: string; // e.g., "100 kg", "12 reps @ 50 kg"
+  previousBest?: string; // e.g. " (tidigare 95 kg)"
+  baseLiftType?: LiftType;
+}
+
+export interface NewBaseline {
+  exerciseName: string;
+  value: string; // e.g. "100 kg x 8 reps"
+}
+
+export interface WeightComparisonItem { // Renamed from AnimalWeight
+  name: string;
+  pluralName?: string; 
+  weightKg: number;
+  emoji?: string;
+  imageUrl?: string; 
+}
+
+export interface PostWorkoutSummaryData {
+  totalWeightLifted: number; 
+  totalDistanceMeters?: number; // New
+  totalDurationSeconds?: number; // New
+  totalCaloriesKcal?: number; // New
+  animalEquivalent?: { 
+    name: string;
+    count: number;
+    unitName: string; 
+    emoji?: string;
+  };
+  newPBs: NewPB[];
+  newBaselines?: NewBaseline[];
+  bodyweightRepsSummary?: {
+    exerciseName: string;
+    totalReps: number;
+  }[];
+}
+
+export interface Reaction {
+  participantId: string;
+  emoji: string;
+}
+
+export interface Comment {
+  id: string;
+  authorId: string;
+  authorName: string;
+  text: string;
+  createdDate: string; // ISO string
+}
+
+export interface WorkoutLog {
+  type: 'workout'; // Discriminating property
+  id: string; // Unique ID for the log itself
+  workoutId: string; // Pekar på Workout-mallens ID
+  participantId: string; // For future use, MVP is anonymous
+  entries: WorkoutExerciseLog[];
+  completedDate: string; // ISO string
+  postWorkoutComment?: string;
+  postWorkoutSummary?: PostWorkoutSummaryData; 
+  moodRating?: number; // Optional: 1-5 scale
+  selectedExercisesForModifiable?: Exercise[]; 
+  reactions?: Reaction[];
+  comments?: Comment[]; // New for comments feature
+}
+
+export interface GeneralActivityLog {
+  type: 'general'; // Discriminating property
+  id: string;
+  participantId: string;
+  activityName: string;
+  durationMinutes: number;
+  caloriesBurned?: number;
+  distanceKm?: number;
+  comment?: string;
+  completedDate: string; // ISO string
+  moodRating?: number; // Optional: 1-5 scale
+  reactions?: Reaction[];
+  comments?: Comment[]; // New for comments feature
+}
+
+export interface GoalCompletionLog {
+  type: 'goal_completion'; // Discriminating property
+  id: string;
+  participantId: string;
+  goalId: string;
+  goalDescription: string;
+  completedDate: string; // ISO string
+  moodRating?: undefined; // To make it compatible with ActivityLog but not used
+}
+
+export type ActivityLog = WorkoutLog | GeneralActivityLog | GoalCompletionLog;
+
+
+export interface ParticipantWorkoutNote {
+  workoutId: string;
+  note: string;
+  lastUpdated: string; // ISO string
+}
+
+export enum UserRole {
+  COACH = 'coach',
+  PARTICIPANT = 'participant',
+}
+
+export type GenderOption = 'Man' | 'Kvinna' | '-';
+
+export interface ParticipantProfile {
+  id: string; 
+  name?: string;
+  email?: string;
+  photoURL?: string;
+  isActive?: boolean;
+  isProspect?: boolean;
+  creationDate?: string;
+  age?: string; 
+  gender?: GenderOption;
+  bodyweightKg?: number;
+  muscleMassKg?: number; 
+  fatMassKg?: number;    
+  inbodyScore?: number;  
+  lastUpdated: string; // ISO string
+  enableLeaderboardParticipation?: boolean;
+  enableInBodySharing?: boolean;
+  isSearchable?: boolean; // New: For friend feature
+  locationId?: string; // FK to Location.id
+  membershipId?: string; // FK to Membership.id
+  startDate?: string; // ISO date string YYYY-MM-DD
+  endDate?: string; // ISO date string YYYY-MM-DD
+}
+
+export interface ParticipantPhysiqueStat {
+  id: string;
+  participantId: string;
+  bodyweightKg?: number;
+  muscleMassKg?: number; 
+  fatMassKg?: number;    
+  inbodyScore?: number;  
+  lastUpdated: string; // ISO string
+}
+
+export interface CoachNote {
+  id: string;
+  participantId: string;
+  noteText: string;
+  createdDate: string; // ISO string
+  noteType: 'check-in' | 'intro-session'; 
+}
+
+export interface ParticipantGoalData {
+  id: string; 
+  participantId: string;
+  fitnessGoals: string;
+  workoutsPerWeekTarget: number; 
+  currentWeeklyStreak: number; 
+  lastStreakUpdateEpochWeekId: string; 
+  preferences?: string; 
+  setDate: string; // ISO string for when this goal was set/updated
+  targetDate?: string; // ISO string for when the goal is targeted to be achieved
+  isCompleted?: boolean; 
+  completedDate?: string; 
+  aiPrognosis?: string; // New: To store the AI-generated prognosis and recommendations
+  coachPrescription?: string; // New: To store the coach's recommendation for the goal period
+}
+
+export interface ParticipantGamificationStats {
+  id: string; // Corresponds to participantId
+  longestStreakWeeks: number;
+  lastUpdated: string; // ISO string
+}
+
+export interface AchievementDefinition {
+  id: string;
+  name: string;
+  description: string;
+  icon: string; // Emoji
+}
+
+// Types for Strength Standards Feature
+export type StrengthLevel = 'Startklar' | 'På gång' | 'Stark' | 'Stabil' | 'Imponerande' | 'Toppform';
+export type LiftType = 
+  'Knäböj' | 
+  'Bänkpress' | 
+  'Marklyft' | 
+  'Axelpress' |
+  'Chins / Pullups' |
+  'Frontböj' |
+  'Clean' | // Frivändning
+  'Bulgarian Split Squat' |
+  'RDL' | // Rumänska marklyft
+  'Farmer’s Walk' |
+  'Snatch Grip Deadlift' | // Ryckmarklyft
+  'Clean & Press' | // Frivändning med Press/Stöt
+  'Push Press' |
+  'Hantelrodd' |
+  'Goblet Squat' |
+  'Thrusters' |
+  'Stående Rodd';
+
+export interface StrengthStandardDetail {
+  level: StrengthLevel;
+  weightKg: number; // 1RM for this level
+}
+
+export interface StrengthStandard {
+  lift: LiftType;
+  gender: 'Man' | 'Kvinna'; 
+  bodyweightCategoryKg: { min: number; max: number }; 
+  standards: StrengthStandardDetail[]; 
+}
+
+export interface UserStrengthStat {
+  id: string;
+  participantId: string;
+  bodyweightKg?: number;
+  squat1RMaxKg?: number;
+  benchPress1RMaxKg?: number;
+  deadlift1RMaxKg?: number;
+  overheadPress1RMaxKg?: number; // Added Axelpress
+  lastUpdated: string; // ISO string
+}
+
+// Types for User-Provided Strength Multipliers
+interface AgeAdjustment {
+  [ageRange: string]: number; // e.g., "30-39": 0.95
+}
+interface GenderStrengthMultipliers {
+  bas: number[]; // Array of 5 multipliers for the 5 strength levels
+  justering: AgeAdjustment;
+}
+export interface UserProvidedLiftMultipliers {
+  män: GenderStrengthMultipliers;
+  kvinnor: GenderStrengthMultipliers;
+}
+export interface AllUserProvidedStrengthMultipliers {
+  knäböj: UserProvidedLiftMultipliers;
+  marklyft: UserProvidedLiftMultipliers;
+  bänkpress: UserProvidedLiftMultipliers;
+  axelpress: UserProvidedLiftMultipliers; 
+  // Note: New LiftTypes are not added here as they don't have separate primary strength standard calculations
+}
+
+export type ConditioningMetric = 'airbike4MinKcal' | 'skierg4MinMeters' | 'rower2000mTimeSeconds' | 'rower4MinMeters' | 'treadmill4MinMeters';
+
+export interface ParticipantConditioningStat {
+    id: string; // unique id for this measurement entry
+    participantId: string;
+    airbike4MinKcal?: number;
+    skierg4MinMeters?: number;
+    rower4MinMeters?: number;
+    rower2000mTimeSeconds?: number;
+    treadmill4MinMeters?: number;
+    lastUpdated: string; // ISO string
+}
+
+export interface ParticipantMentalWellbeing {
+  id: string; 
+  participantId: string;
+  stressLevel?: number;    
+  energyLevel?: number;    
+  sleepQuality?: number;   
+  overallMood?: number;    
+  lastUpdated: string;     
+}
+
+// Leaderboard Types
+export interface ClubDefinition {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  type: 'LIFT' | 'SESSION_COUNT' | 'BODYWEIGHT_LIFT' | 'CONDITIONING';
+  liftType?: LiftType;
+  threshold?: number;
+  multiplier?: number;
+  conditioningMetric?: ConditioningMetric;
+  comparison?: 'GREATER_OR_EQUAL' | 'LESS_OR_EQUAL';
+}
+
+export interface ParticipantClubMembership {
+  clubId: string;
+  participantId: string;
+  achievedDate: string;
+}
+
+export interface LeaderboardSettings {
+    leaderboardsEnabled: boolean;
+    weeklyPBChallengeEnabled: boolean;
+    weeklySessionChallengeEnabled: boolean;
+}
+
+export interface CoachEvent {
+  id: string;
+  title: string;
+  description?: string;
+  type: 'event' | 'news';
+  eventDate?: string; // ISO string for the date, optional for news
+  createdDate: string; // ISO string for when the item was created
+  studioTarget: 'all' | 'salem' | 'karra';
+  reactions?: Reaction[];
+  comments?: Comment[];
+}
+
+// New: For Friend feature
+export interface Connection {
+  id: string;
+  requesterId: string;
+  receiverId: string;
+  status: 'pending' | 'accepted' | 'declined' | 'blocked';
+  createdDate: string; // ISO string
+}
+
+// New: For Settings
+export interface Location {
+  id: string;
+  name: string;
+}
+
+export interface Membership {
+  id: string;
+  name: string;
+  description?: string;
+  restrictedCategories?: WorkoutCategory[];
+}
+
+export interface IntegrationSettings {
+  enableQRCodeScanning: boolean;
+  isBookingEnabled: boolean;
+  bookingLeadTimeWeeks?: number;
+  cancellationCutoffHours?: number;
+}
+
+// New: For Staff Management
+export type StaffRole = 'Coach' | 'Admin';
+
+export interface StaffMember {
+  id: string;
+  name: string;
+  email?: string;
+  role: StaffRole;
+  locationId: string; // FK to Location.id
+  isActive: boolean;
+  startDate?: string; // ISO date string YYYY-MM-DD
+  endDate?: string; // ISO date string YYYY-MM-DD
+}
+
+// New: For Staff Availability
+export interface StaffAvailability {
+  id: string;
+  staffId: string;
+  startTime: string; // ISO string
+  endTime: string; // ISO string
+  type: 'available' | 'unavailable';
+  isRecurring?: boolean;
+  recurringDetails?: {
+    daysOfWeek: number[]; // 1 (Mon) - 7 (Sun)
+    recurringEndDate?: string; // ISO string
+  };
+}

@@ -1,0 +1,184 @@
+
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { Input, Select } from '../Input';
+import { ParticipantProfile, GenderOption, ParticipantGamificationStats, Location } from '../../types';
+import { GENDER_OPTIONS } from '../../constants';
+
+export interface ProfileFormRef {
+    submitForm: () => boolean;
+}
+
+interface ProfileFormProps {
+  currentProfile: ParticipantProfile | null;
+  onSave: (
+    profileData: { name?: string; age?: string; gender?: GenderOption; enableLeaderboardParticipation?: boolean; isSearchable?: boolean; locationId?: string; enableInBodySharing?: boolean; }
+  ) => void;
+  locations: Location[];
+}
+
+export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({
+  currentProfile,
+  onSave,
+  locations,
+}, ref) => {
+  const [name, setName] = useState('');
+  const [age, setAge] = useState('');
+  const [gender, setGender] = useState<GenderOption>('-');
+  const [locationId, setLocationId] = useState('');
+  const [enableLeaderboard, setEnableLeaderboard] = useState(false);
+  const [isSearchable, setIsSearchable] = useState(false);
+  const [enableInBodySharing, setEnableInBodySharing] = useState(false);
+  
+  const [ageError, setAgeError] = useState<string>('');
+
+  useEffect(() => {
+    setName(currentProfile?.name || '');
+    setAge(currentProfile?.age?.toString() || '');
+    setGender(currentProfile?.gender || '-');
+    setLocationId(currentProfile?.locationId || '');
+    setEnableLeaderboard(currentProfile?.enableLeaderboardParticipation || false);
+    setIsSearchable(currentProfile?.isSearchable || false);
+    setEnableInBodySharing(currentProfile?.enableInBodySharing || false);
+    setAgeError('');
+  }, [currentProfile]);
+
+  const handleAgeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setAge(value);
+    if (value === '') {
+        setAgeError('');
+        return;
+    }
+    if (isNaN(Number(value)) || Number(value) < 0 || Number(value) > 120 || !Number.isInteger(Number(value))) {
+      setAgeError('Ange en giltig ålder (heltal mellan 0-120).');
+    } else {
+      setAgeError('');
+    }
+  };
+
+  const handleSubmit = () => {
+    if (ageError) {
+        alert("Korrigera felen i formuläret innan du sparar.");
+        return false;
+    }
+    
+    const profileData = { 
+        name: name.trim(), 
+        age: age.trim(), 
+        gender, 
+        locationId: locationId,
+        enableLeaderboardParticipation: enableLeaderboard,
+        isSearchable: isSearchable,
+        enableInBodySharing: enableInBodySharing,
+    };
+    
+    onSave(profileData);
+    return true;
+  };
+
+  useImperativeHandle(ref, () => ({
+    submitForm: handleSubmit,
+  }));
+  
+  const locationOptions = locations.map(loc => ({ value: loc.id, label: loc.name }));
+
+  return (
+    <div className="space-y-6 py-4">
+      <p className="text-base text-gray-600">
+        Din profilinformation hjälper oss att ge dig mer relevanta jämförelser och rekommendationer.
+      </p>
+      <section className="space-y-4 pt-4 border-t">
+        <h3 className="text-xl font-semibold text-gray-700">Om Mig</h3>
+        <Input
+          label="Namn"
+          id="profileName"
+          name="profileName"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Ditt namn"
+        />
+        <Input
+          label="Ålder"
+          id="profileAge"
+          name="profileAge"
+          type="number"
+          value={age}
+          onChange={handleAgeChange}
+          placeholder="Din ålder i år"
+          error={ageError}
+        />
+        <Select
+          label="Kön"
+          id="profileGender"
+          name="profileGender"
+          value={gender}
+          onChange={(e) => setGender(e.target.value as GenderOption)}
+          options={GENDER_OPTIONS}
+        />
+        <Select
+            label="Primär Ort/Studio"
+            id="profileLocation"
+            name="profileLocation"
+            value={locationId}
+            onChange={(e) => setLocationId(e.target.value)}
+            options={[{ value: '', label: 'Välj en ort...' }, ...locationOptions]}
+        />
+      </section>
+      <section className="space-y-4 pt-4 border-t">
+          <h3 className="text-xl font-semibold text-gray-700">Inställningar</h3>
+          <label className="flex items-start space-x-3 p-3 bg-gray-100 rounded-md cursor-pointer">
+            <input
+              type="checkbox"
+              id="enableLeaderboard"
+              checked={enableLeaderboard}
+              onChange={(e) => setEnableLeaderboard(e.target.checked)}
+              className="h-6 w-6 mt-1 text-flexibel border-gray-300 rounded focus:ring-flexibel"
+            />
+            <div>
+                <span className="text-lg font-medium text-gray-700">
+                    Delta i Topplistor & Utmaningar
+                </span>
+                <p className="text-sm text-gray-500">
+                    Genom att kryssa i denna ruta godkänner du att ditt namn och dina resultat (t.ex. antal pass, personliga rekord) visas på interna topplistor som är synliga för andra medlemmar och coacher.
+                </p>
+            </div>
+          </label>
+           <label className="flex items-start space-x-3 p-3 bg-gray-100 rounded-md cursor-pointer">
+            <input
+              type="checkbox"
+              id="enableInBodySharing"
+              checked={enableInBodySharing}
+              onChange={(e) => setEnableInBodySharing(e.target.checked)}
+              className="h-6 w-6 mt-1 text-flexibel border-gray-300 rounded focus:ring-flexibel"
+            />
+            <div>
+                <span className="text-lg font-medium text-gray-700">
+                    Visa InBody-poäng på topplistor
+                </span>
+                <p className="text-sm text-gray-500">
+                    Tillåt att din InBody-poäng visas på "All-Time Topplistor" som är synlig för andra medlemmar och coacher.
+                </p>
+            </div>
+          </label>
+          <label className="flex items-start space-x-3 p-3 bg-gray-100 rounded-md cursor-pointer">
+            <input
+              type="checkbox"
+              id="isSearchable"
+              checked={isSearchable}
+              onChange={(e) => setIsSearchable(e.target.checked)}
+              className="h-6 w-6 mt-1 text-flexibel border-gray-300 rounded focus:ring-flexibel"
+            />
+            <div>
+                <span className="text-lg font-medium text-gray-700">
+                    Gör min profil sökbar för andra medlemmar
+                </span>
+                <p className="text-sm text-gray-500">
+                    Genom att aktivera detta kan andra medlemmar hitta dig via sökfunktionen och skicka en vänförfrågan för att kunna se varandras flöden.
+                </p>
+            </div>
+          </label>
+      </section>
+    </div>
+  );
+});
+ProfileForm.displayName = "ProfileForm";
