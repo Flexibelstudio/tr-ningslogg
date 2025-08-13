@@ -182,16 +182,36 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const updateParticipantProfile = useCallback(async (participantId: string, data: Partial<ParticipantProfile>) => {
         if (!organizationId) return;
 
-        const dataWithTimestamp = { ...data, lastUpdated: new Date().toISOString() };
+        // Clean up data to avoid sending empty strings for optional fields that could cause 400 Bad Request errors.
+        const cleanedData = { ...data };
+        if (cleanedData.name === '') delete cleanedData.name;
+        if ('age' in cleanedData && cleanedData.age === '') delete cleanedData.age;
+        if ('birthday' in cleanedData && (cleanedData as any).birthday === '') delete (cleanedData as any).birthday;
+        if (cleanedData.locationId === '') delete cleanedData.locationId;
 
-        // Optimistically update local state for immediate UI feedback
-        setParticipantDirectory(prev => prev.map(p =>
-            p.id === participantId ? { ...p, ...dataWithTimestamp } : p
-        ));
+
+        const dataWithTimestamp = { ...cleanedData, lastUpdated: new Date().toISOString() };
+
+        // Optimistically update local state for immediate UI feedback.
+        // This logic ensures that if a field was cleared (and thus deleted from cleanedData), it's also removed from the local state object.
+        setParticipantDirectory(prev =>
+            prev.map(p => {
+                if (p.id === participantId) {
+                    const updatedProfile = { ...p, ...dataWithTimestamp };
+                    // Manually delete keys if they were cleared
+                    if (data.name === '') delete updatedProfile.name;
+                    if ('age' in data && data.age === '') delete updatedProfile.age;
+                    if ('birthday' in data && (data as any).birthday === '') delete (updatedProfile as any).birthday;
+                    if (data.locationId === '') delete updatedProfile.locationId;
+                    return updatedProfile;
+                }
+                return p;
+            })
+        );
 
         try {
-            // Persist the change to Firebase
-            await firebaseService.updateDocInOrg(organizationId, 'participantDirectory', participantId, data);
+            // Persist the cleaned change to Firebase
+            await firebaseService.updateDocInOrg(organizationId, 'participantDirectory', participantId, cleanedData);
         } catch (error) {
             console.error("Failed to update profile, attempting to revert state.", error);
             // Revert on failure by refetching the single source of truth
