@@ -1,7 +1,7 @@
 import dataService from './dataService';
 import { MockDB, OrganizationData } from '../types';
 import { db, firebaseConfig } from '../firebaseConfig';
-import { collection, doc, getDoc, getDocs, setDoc, query, writeBatch, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, setDoc, query, writeBatch, deleteDoc, updateDoc, deleteField } from 'firebase/firestore';
 
 let isOffline = false;
 let initializationError: string | null = null;
@@ -104,7 +104,14 @@ const firebaseService = {
                 if (Array.isArray(collection)) {
                     const updatedCollection = collection.map((doc: any) => {
                         if (doc.id === docId) {
-                            return { ...doc, ...dataToUpdate, lastUpdated: new Date().toISOString() };
+                            const newDoc = { ...doc, ...dataToUpdate, lastUpdated: new Date().toISOString() };
+                            // Handle deletion for null values (our sentinel)
+                            for (const key in newDoc) {
+                                if (newDoc[key] === null) {
+                                    delete newDoc[key];
+                                }
+                            }
+                            return newDoc;
                         }
                         return doc;
                     });
@@ -116,8 +123,15 @@ const firebaseService = {
         }
 
         const docRef = doc(db, 'organizations', orgId, collectionKey as string, docId);
-        const finalData: any = { ...dataToUpdate, lastUpdated: new Date().toISOString() };
+        const finalData: { [key: string]: any } = { ...dataToUpdate, lastUpdated: new Date().toISOString() };
         delete finalData.id; // Do not write the ID field into the document data
+
+        // Convert null values to Firebase's deleteField sentinel
+        for (const key in finalData) {
+            if (finalData[key] === null) {
+                finalData[key] = deleteField();
+            }
+        }
         await updateDoc(docRef, finalData);
     },
 };

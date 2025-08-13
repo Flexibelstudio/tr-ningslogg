@@ -181,43 +181,43 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const updateParticipantProfile = useCallback(async (participantId: string, data: Partial<ParticipantProfile>) => {
         if (!organizationId) return;
-
-        // Clean up data to avoid sending empty strings for optional fields that could cause 400 Bad Request errors.
-        const cleanedData = { ...data };
-        if (cleanedData.name === '') delete cleanedData.name;
-        if ('age' in cleanedData && cleanedData.age === '') delete cleanedData.age;
-        if ('birthday' in cleanedData && (cleanedData as any).birthday === '') delete (cleanedData as any).birthday;
-        if (cleanedData.locationId === '') delete cleanedData.locationId;
-
-
-        const dataWithTimestamp = { ...cleanedData, lastUpdated: new Date().toISOString() };
-
-        // Optimistically update local state for immediate UI feedback.
-        // This logic ensures that if a field was cleared (and thus deleted from cleanedData), it's also removed from the local state object.
+    
+        // Prepare data for persistence. Empty strings mean "delete".
+        const updatePayload: { [key: string]: any } = { ...data };
+        for (const key in updatePayload) {
+            if (updatePayload[key as keyof typeof updatePayload] === '') {
+                // Use null as a sentinel value that the service layer understands means "delete".
+                updatePayload[key] = null; 
+            }
+        }
+        
+        const dataWithTimestamp = { ...updatePayload, lastUpdated: new Date().toISOString() };
+    
+        // Optimistically update local state.
         setParticipantDirectory(prev =>
             prev.map(p => {
                 if (p.id === participantId) {
                     const updatedProfile = { ...p, ...dataWithTimestamp };
-                    // Manually delete keys if they were cleared
-                    if (data.name === '') delete updatedProfile.name;
-                    if ('age' in data && data.age === '') delete updatedProfile.age;
-                    if ('birthday' in data && (data as any).birthday === '') delete (updatedProfile as any).birthday;
-                    if (data.locationId === '') delete updatedProfile.locationId;
+                    // After spreading, properties that were set to null should be deleted
+                    // to truly remove them from the object for local state consistency.
+                    for (const key in updatedProfile) {
+                        if (updatedProfile[key as keyof typeof updatedProfile] === null) {
+                            delete updatedProfile[key as keyof typeof updatedProfile];
+                        }
+                    }
                     return updatedProfile;
                 }
                 return p;
             })
         );
-
+    
         try {
-            // Persist the cleaned change to Firebase
-            await firebaseService.updateDocInOrg(organizationId, 'participantDirectory', participantId, cleanedData);
+            await firebaseService.updateDocInOrg(organizationId, 'participantDirectory', participantId, updatePayload);
         } catch (error) {
             console.error("Failed to update profile, attempting to revert state.", error);
             // Revert on failure by refetching the single source of truth
             const originalData = await firebaseService.getCollection(organizationId, 'participantDirectory');
             setParticipantDirectory(originalData);
-            // Re-throw the error so the UI layer can notify the user
             throw error;
         }
     }, [organizationId]);
