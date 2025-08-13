@@ -132,7 +132,7 @@ const firebaseService = {
                 finalData[key] = deleteField();
             }
         }
-        await updateDoc(docRef, finalData);
+        await setDoc(docRef, finalData, { merge: true });
     },
 };
 
