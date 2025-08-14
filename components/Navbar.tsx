@@ -53,6 +53,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenProfileInParticipantView }
   if (!user || (!user.roles.systemOwner && !user.roles.orgAdmin)) {
     return null;
   }
+  
+  const destinationView = isStaffViewingAsParticipant
+      ? `Till ${user.roles.systemOwner ? 'Systemägar-vy' : (loggedInStaff?.role + '-vy') || 'Admin-vy'}`
+      : 'Till Medlemsvy';
 
   const MenuItem: React.FC<{ onClick: () => void; children: React.ReactNode; }> = ({ onClick, children }) => (
     <button
@@ -108,18 +112,25 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenProfileInParticipantView }
                         </div>
                         {user.linkedParticipantProfileId && (
                             <MenuItem onClick={handleProfileClick}>
-                                <span className="text-lg" role="img" aria-label="profil">👤</span>
-                                Profil
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+                                  <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                                  <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
+                                </svg>
+                                Redigera Profil
                             </MenuItem>
                         )}
                         {user.linkedParticipantProfileId && (
                             <MenuItem onClick={handleSwitchView}>
-                                <span className="text-lg" role="img" aria-label="växla vy">🔄</span>
-                                {isStaffViewingAsParticipant ? 'Växla till Coachvy' : 'Växla till Medlemsvy'}
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                                </svg>
+                                {destinationView}
                             </MenuItem>
                         )}
                         <MenuItem onClick={logout}>
-                            <span className="text-lg" role="img" aria-label="logga ut">🚪</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
                             Logga ut
                         </MenuItem>
                     </div>
