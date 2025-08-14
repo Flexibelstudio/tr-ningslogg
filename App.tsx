@@ -343,6 +343,11 @@ const AppContent: React.FC = () => {
         }
     }, [auth.currentRole, auth.currentParticipantId, welcomeModalShown, participantDirectory]);
     
+    const handleOpenProfileInParticipantView = () => {
+        auth.viewAsParticipant();
+        setOpenProfileModalOnInit(true);
+    };
+
     const renderMainView = () => {
         if (auth.isLoading) {
             return (
@@ -416,7 +421,7 @@ const AppContent: React.FC = () => {
 
     return (
         <div className="bg-gray-50 min-h-screen">
-            <Navbar />
+            <Navbar onOpenProfileInParticipantView={handleOpenProfileInParticipantView} />
             <main>{renderMainView()}</main>
         </div>
     );
