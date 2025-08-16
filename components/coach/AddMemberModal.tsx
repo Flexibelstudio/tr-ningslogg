@@ -136,7 +136,7 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
         ...(memberToEdit || {}),
         id: memberToEdit?.id || crypto.randomUUID(),
         name: name.trim(),
-        email: isAdmin ? email.trim().toLowerCase() : memberToEdit?.email,
+        email: (isAdmin || !memberToEdit) ? email.trim().toLowerCase() : memberToEdit?.email,
         isProspect,
         isActive: finalIsActive,
         locationId: isAdmin ? locationId : memberToEdit?.locationId,
@@ -197,8 +197,8 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
           onChange={(e) => setEmail(e.target.value)}
           error={errors.email}
           required
-          readOnly={!isAdmin}
-          className={!isAdmin ? 'bg-gray-100 cursor-not-allowed' : ''}
+          readOnly={!isAdmin && !!memberToEdit}
+          className={!isAdmin && !!memberToEdit ? 'bg-gray-100 cursor-not-allowed' : ''}
         />
         <Select
           label="Ort *"
