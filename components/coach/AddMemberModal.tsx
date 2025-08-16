@@ -139,8 +139,7 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
         email: (isAdmin || !memberToEdit) ? email.trim().toLowerCase() : memberToEdit?.email,
         isProspect,
         isActive: finalIsActive,
-        locationId: isAdmin ? locationId : memberToEdit?.locationId,
-        
+        locationId: isAdmin ? locationId : (memberToEdit ? memberToEdit.locationId : loggedInStaff?.locationId),
         startDate: isProspect ? undefined : (startDate || undefined),
         
         membershipId: isAdmin ? (isProspect ? undefined : membershipId) : (isConvertingProspectByCoach ? (memberships.find(m => m.name === 'Medlemskap')?.id || memberships[0]?.id) : memberToEdit?.membershipId),
