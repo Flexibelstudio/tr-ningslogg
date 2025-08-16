@@ -46,7 +46,8 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
         setName('');
         setEmail('');
         setIsProspect(false);
-        setLocationId(locations[0]?.id || '');
+        const initialLocation = isAdmin ? (locations[0]?.id || '') : (loggedInStaff?.locationId || '');
+        setLocationId(initialLocation);
         setMembershipId(memberships[0]?.id || '');
         setStartDate('');
         setEndDate('');
@@ -55,7 +56,7 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
       }
       setErrors({});
     }
-  }, [isOpen, memberToEdit, locations, memberships]);
+  }, [isOpen, memberToEdit, locations, memberships, isAdmin, loggedInStaff]);
 
   const validate = () => {
     const newErrors: { name?: string, email?: string, locationId?: string, remainingClips?: string } = {};
@@ -136,10 +137,10 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
         ...(memberToEdit || {}),
         id: memberToEdit?.id || crypto.randomUUID(),
         name: name.trim(),
-        email: (isAdmin || !memberToEdit) ? email.trim().toLowerCase() : memberToEdit?.email,
+        email: email.trim().toLowerCase(),
         isProspect,
         isActive: finalIsActive,
-        locationId: isAdmin ? locationId : (memberToEdit ? memberToEdit.locationId : loggedInStaff?.locationId),
+        locationId: locationId,
         startDate: isProspect ? undefined : (startDate || undefined),
         
         membershipId: isAdmin ? (isProspect ? undefined : membershipId) : (isConvertingProspectByCoach ? (memberships.find(m => m.name === 'Medlemskap')?.id || memberships[0]?.id) : memberToEdit?.membershipId),
