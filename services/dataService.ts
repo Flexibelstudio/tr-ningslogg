@@ -4,7 +4,7 @@ import {
 } from '../types';
 import { LOCAL_STORAGE_KEYS, PREDEFINED_GROUP_CLASSES, PREDEFINED_MEMBERSHIPS, PREDEFINED_WORKOUT_CATEGORIES } from '../constants';
 
-const createInitialOrgData = (orgId: string): OrganizationData => {
+export const createInitialOrgData = (orgId: string): OrganizationData => {
     const loc1Id = 'loc-1-salem';
     const loc2Id = 'loc-2-karra';
     

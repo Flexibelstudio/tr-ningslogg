@@ -124,26 +124,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await signInWithEmailAndPassword(auth, email, password);
   }, []);
 
+  const stopImpersonating = useCallback(() => {
+    setLocalState(prev => ({ ...prev, impersonatingOrgId: null, isStaffViewingAsParticipant: false }));
+  }, [setLocalState]);
+
   const logout = useCallback(async () => {
-    // Reset local state first for immediate UI feedback
-    setLocalState({ impersonatingOrgId: null, isStaffViewingAsParticipant: false });
+    stopImpersonating();
     if (!firebaseService.isOffline()) {
         await signOut(auth);
     } else {
-        // In offline mode, "logging out" means clearing the user state
         setUser(null);
     }
-  }, [setLocalState]);
+  }, [stopImpersonating]);
   
   const impersonate = useCallback((orgId: string) => {
     if (user?.roles.systemOwner) {
         setLocalState(prev => ({ ...prev, impersonatingOrgId: orgId, isStaffViewingAsParticipant: false }));
     }
   }, [user, setLocalState]);
-
-  const stopImpersonating = useCallback(() => {
-    setLocalState(prev => ({ ...prev, impersonatingOrgId: null, isStaffViewingAsParticipant: false }));
-  }, [setLocalState]);
   
   const viewAsParticipant = useCallback(() => {
     if (user?.linkedParticipantProfileId) {
@@ -152,8 +150,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [user, setLocalState]);
 
   const stopViewingAsParticipant = useCallback(() => {
-    setLocalState(prev => ({ ...prev, isStaffViewingAsParticipant: false }));
-  }, [setLocalState]);
+    if (user?.roles.systemOwner) {
+      // A system owner should always return to the system overview, not an impersonated org view.
+      stopImpersonating(); 
+    } else {
+      setLocalState(prev => ({ ...prev, isStaffViewingAsParticipant: false }));
+    }
+  }, [user, setLocalState, stopImpersonating]);
 
   const value = {
     user,

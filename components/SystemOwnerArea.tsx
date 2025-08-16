@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Button } from './Button';
 import { useAuth } from '../context/AuthContext';
 import firebaseService from '../services/firebaseService';
-import dataService from '../services/dataService'; // To get the seed data
+import dataService from '../services/dataService';
+import { createInitialOrgData } from '../services/dataService';
 import { Organization, User, OrganizationData } from '../types';
-import { db } from '../firebaseConfig'; // We need the db instance for writes
+import { db } from '../firebaseConfig';
 import { collection, doc, writeBatch, getDocs } from 'firebase/firestore';
+import { AddOrgModal } from './AddOrgModal';
 
 // DataSeeder Component - Only shown when online and DB is empty.
 const DataSeeder: React.FC<{ onSeedComplete: () => void }> = ({ onSeedComplete }) => {
@@ -30,15 +32,17 @@ const DataSeeder: React.FC<{ onSeedComplete: () => void }> = ({ onSeedComplete }
             // have UIDs that match the 'id' fields in this mock data for the app to work correctly.
             const users: User[] = mockDb.users;
             users.forEach(user => {
-                const userRef = doc(db, 'users', user.id);
-                batch.set(userRef, user);
+                const { id, ...userData } = user; // Separate id from the rest of the data
+                const userRef = doc(db, 'users', id);
+                batch.set(userRef, userData);
             });
 
             // 2. Seed Organizations collection
             const organizations: Organization[] = mockDb.organizations;
             organizations.forEach(org => {
-                const orgRef = doc(db, 'organizations', org.id);
-                batch.set(orgRef, { name: org.name, id: org.id });
+                const { id, ...orgData } = org;
+                const orgRef = doc(db, 'organizations', id);
+                batch.set(orgRef, orgData);
             });
 
             // 3. Seed OrganizationData subcollections
@@ -108,17 +112,16 @@ export const SystemOwnerArea: React.FC = () => {
     const { impersonate } = useAuth();
     const [organizations, setOrganizations] = useState<Organization[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isAddOrgModalOpen, setIsAddOrgModalOpen] = useState(false);
 
-    // Fetch organizations from the correct source (Firebase or mock)
     const fetchOrganizations = async () => {
         setIsLoading(true);
         try {
-            // Using firebaseService.get() which correctly handles online/offline mode
             const orgs = await firebaseService.get('organizations');
             setOrganizations(orgs);
         } catch (error) {
             console.error("Failed to fetch organizations:", error);
-            setOrganizations([]); // Set to empty on error
+            setOrganizations([]);
         }
         setIsLoading(false);
     };
@@ -126,6 +129,21 @@ export const SystemOwnerArea: React.FC = () => {
     useEffect(() => {
         fetchOrganizations();
     }, []);
+
+    const handleSaveOrganization = async (name: string) => {
+        const newOrgId = crypto.randomUUID();
+        const newOrg: Organization = { id: newOrgId, name };
+        const newOrgData = createInitialOrgData(newOrgId);
+
+        try {
+            await firebaseService.addNewOrganization(newOrg, newOrgData);
+            await fetchOrganizations(); // Refresh the list
+            setIsAddOrgModalOpen(false);
+        } catch (error) {
+            console.error("Failed to save new organization:", error);
+            alert(`Kunde inte spara organisationen: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    };
 
     const isDbEmpty = !isLoading && organizations.length === 0;
 
@@ -140,8 +158,16 @@ export const SystemOwnerArea: React.FC = () => {
     
     return (
         <div className="container mx-auto p-8">
-            <h1 className="text-4xl font-bold text-gray-800">Systemöversikt</h1>
-            <p className="text-lg text-gray-600 mt-2">Hantera din organisation.</p>
+            <div className="flex justify-between items-center flex-wrap gap-4">
+                <div>
+                    <h1 className="text-4xl font-bold text-gray-800">Systemöversikt</h1>
+                    <p className="text-lg text-gray-600 mt-2">Hantera dina organisationer.</p>
+                </div>
+                <Button onClick={() => setIsAddOrgModalOpen(true)}>
+                    Lägg till Organisation
+                </Button>
+            </div>
+
 
             {organizations.length > 0 ? (
                  <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -169,6 +195,13 @@ export const SystemOwnerArea: React.FC = () => {
                     <p>Appen körs i offlineläge med testdata. Funktioner för databas-initiering är inte tillgängliga.</p>
                  </div>
             )}
+            
+            <AddOrgModal
+                isOpen={isAddOrgModalOpen}
+                onClose={() => setIsAddOrgModalOpen(false)}
+                onSave={handleSaveOrganization}
+                existingOrgNames={organizations.map(o => o.name)}
+            />
         </div>
     );
 };

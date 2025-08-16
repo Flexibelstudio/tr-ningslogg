@@ -1,5 +1,5 @@
 import dataService from './dataService';
-import { MockDB, OrganizationData } from '../types';
+import { MockDB, OrganizationData, Organization } from '../types';
 import { db, firebaseConfig } from '../firebaseConfig';
 import { collection, doc, getDoc, getDocs, setDoc, query, writeBatch, deleteDoc, updateDoc, deleteField } from 'firebase/firestore';
 
@@ -27,7 +27,7 @@ const firebaseService = {
             return (async () => {
                 const collectionRef = collection(db, key);
                 const snapshot = await getDocs(collectionRef);
-                return snapshot.docs.map(d => d.data()) as MockDB[K];
+                return snapshot.docs.map(d => ({ ...d.data(), id: d.id })) as MockDB[K];
             })();
         }
     },
@@ -54,7 +54,9 @@ const firebaseService = {
         const singleDocKeys: (keyof OrganizationData)[] = ['leaderboardSettings', 'lastFlowViewTimestamp', 'weeklyHighlightSettings', 'integrationSettings'];
         if (singleDocKeys.includes(collectionKey)) {
              if (snapshot.docs.length > 0) {
-                return snapshot.docs[0].data() as OrganizationData[K];
+                const data = snapshot.docs[0].data();
+                // Handle the case where timestamp was saved as { value: '...' }
+                return (data.hasOwnProperty('value') ? data.value : data) as OrganizationData[K];
              }
              // Return default if not found
              return Promise.resolve(dataService.getOrgData(orgId)?.[collectionKey] as any);
@@ -87,6 +89,9 @@ const firebaseService = {
             // Handle single-document objects
             const docRef = doc(collectionRef, 'settings'); // Use a consistent ID for single-doc collections
             batch.set(docRef, data);
+        } else if (data !== null && data !== undefined) {
+             const docRef = doc(collectionRef, 'settings');
+             batch.set(docRef, { value: data });
         }
         
         await batch.commit();
@@ -133,6 +138,49 @@ const firebaseService = {
             }
         }
         await setDoc(docRef, finalData, { merge: true });
+    },
+
+    async addNewOrganization(org: Organization, orgData: OrganizationData): Promise<void> {
+        if (isOffline) {
+            dataService.set('organizations', prev => [...prev, org]);
+            dataService.set('organizationData', prev => ({ ...prev, [org.id]: orgData }));
+            return Promise.resolve();
+        }
+
+        const batch = writeBatch(db);
+        
+        // 1. Add to 'organizations' collection
+        const orgRef = doc(db, 'organizations', org.id);
+        batch.set(orgRef, org);
+        
+        // 2. Add all the subcollections for organizationData
+        const singleDocKeys: (keyof OrganizationData)[] = ['leaderboardSettings', 'lastFlowViewTimestamp', 'weeklyHighlightSettings', 'integrationSettings'];
+
+        for (const collectionKey in orgData) {
+            const collectionData = orgData[collectionKey as keyof OrganizationData];
+            const subCollectionRef = collection(db, 'organizations', org.id, collectionKey);
+
+            if (singleDocKeys.includes(collectionKey as keyof OrganizationData)) {
+                if(collectionData !== null && collectionData !== undefined) {
+                    const docRef = doc(subCollectionRef, 'settings');
+                    if (typeof collectionData === 'object') {
+                        batch.set(docRef, collectionData as any);
+                    } else {
+                        batch.set(docRef, { value: collectionData });
+                    }
+                }
+            } else if (Array.isArray(collectionData)) {
+                (collectionData as any[]).forEach(item => {
+                    if (item && item.id) {
+                        const { id, ...itemData } = item;
+                        const docRef = doc(subCollectionRef, id);
+                        batch.set(docRef, itemData);
+                    }
+                });
+            }
+        }
+        
+        await batch.commit();
     },
 };
 
