@@ -78,7 +78,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenProfileInParticipantView }
             {isImpersonating && currentOrganization && (
                 <div className="hidden sm:flex items-center gap-2 bg-yellow-100 text-yellow-800 text-sm font-semibold px-3 py-1 rounded-full">
                     <span>Adminvy för: {currentOrganization.name}</span>
-                    <button onClick={stopImpersonating} className="font-bold underline hover:text-yellow-900">Avsluta</button>
                 </div>
             )}
         </div>
@@ -107,9 +106,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenProfileInParticipantView }
                         <div className="px-4 py-3 border-b">
                             <p className="text-sm font-semibold text-gray-800 truncate">{user.name}</p>
                             <p className="text-xs text-gray-500">
-                                {isStaffViewingAsParticipant ? 'Medlemsvy' : (user.roles.systemOwner ? 'Systemägare' : loggedInStaff?.role)}
+                                {isStaffViewingAsParticipant ? 'Medlemsvy' : (user.roles.systemOwner ? (isImpersonating ? 'Adminvy' : 'Systemägare') : loggedInStaff?.role)}
                             </p>
                         </div>
+                        {user.roles.systemOwner && isImpersonating && !isStaffViewingAsParticipant && (
+                            <MenuItem onClick={() => { stopImpersonating(); setIsMenuOpen(false); }}>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                                </svg>
+                                Till systemägar-vy
+                            </MenuItem>
+                        )}
                         {user.linkedParticipantProfileId && (
                             <MenuItem onClick={handleProfileClick}>
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
