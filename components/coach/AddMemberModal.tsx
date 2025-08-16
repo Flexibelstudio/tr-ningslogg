@@ -46,7 +46,8 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
         setName('');
         setEmail('');
         setIsProspect(false);
-        const initialLocation = isAdmin ? (locations[0]?.id || '') : (loggedInStaff?.locationId || '');
+        // Admin must choose, Coach defaults to their location.
+        const initialLocation = isAdmin ? '' : (loggedInStaff?.locationId || '');
         setLocationId(initialLocation);
         setMembershipId(memberships[0]?.id || '');
         setStartDate('');
@@ -56,7 +57,7 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
       }
       setErrors({});
     }
-  }, [isOpen, memberToEdit, locations, memberships, isAdmin, loggedInStaff]);
+  }, [isOpen, memberToEdit, memberships, isAdmin, loggedInStaff]);
 
   const validate = () => {
     const newErrors: { name?: string, email?: string, locationId?: string, remainingClips?: string } = {};
@@ -208,8 +209,8 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
           options={[{ value: '', label: 'Välj en ort...' }, ...locationOptions]}
           error={errors.locationId}
           required
-          disabled={!isAdmin}
-          className={!isAdmin ? 'bg-gray-100 cursor-not-allowed' : ''}
+          disabled={!isAdmin && !!memberToEdit}
+          className={!isAdmin && !!memberToEdit ? 'bg-gray-100 cursor-not-allowed' : ''}
         />
 
         {/* Admin-only: Membership Type */}
