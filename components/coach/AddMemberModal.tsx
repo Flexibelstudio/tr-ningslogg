@@ -134,7 +134,7 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
         clipCardStatus = undefined;
     }
 
-    const memberData: ParticipantProfile = {
+    const memberData: any = {
         ...(memberToEdit || {}),
         id: memberToEdit?.id || crypto.randomUUID(),
         name: name.trim(),
@@ -142,15 +142,23 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
         isProspect,
         isActive: finalIsActive,
         locationId: locationId,
-        startDate: isProspect ? undefined : (startDate || undefined),
-        
-        membershipId: isAdmin ? (isProspect ? undefined : membershipId) : (isConvertingProspectByCoach ? (memberships.find(m => m.name === 'Medlemskap')?.id || memberships[0]?.id) : memberToEdit?.membershipId),
-        endDate: isAdmin ? (isProspect ? undefined : (endDate || undefined)) : (memberToEdit?.endDate),
-        
         creationDate: memberToEdit?.creationDate || new Date().toISOString(),
         lastUpdated: new Date().toISOString(),
-        clipCardStatus,
     };
+    
+    // Conditionally add fields to avoid sending `undefined` to Firestore
+    if (!isProspect) {
+        memberData.startDate = startDate || '';
+        memberData.membershipId = isAdmin ? (membershipId || '') : (isConvertingProspectByCoach ? (memberships.find(m => m.name === 'Medlemskap')?.id || memberships[0]?.id) : memberToEdit?.membershipId);
+        memberData.endDate = isAdmin ? (endDate || '') : memberToEdit?.endDate;
+        memberData.clipCardStatus = clipCardStatus;
+    } else {
+        // Ensure prospect-related fields are removed if they existed on memberToEdit
+        delete memberData.startDate;
+        delete memberData.endDate;
+        delete memberData.membershipId;
+        delete memberData.clipCardStatus;
+    }
 
     onSaveMember(memberData);
     onClose();
