@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { 
     UserRole, Workout, WorkoutLog, ActivityLog, ParticipantGamificationStats, ParticipantGoalData, 
     GeneralActivityLog, GoalCompletionLog, ParticipantConditioningStat, ParticipantProfile, 
@@ -9,21 +9,28 @@ import {
 } from './types';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { Navbar } from './components/Navbar';
-import { CoachArea } from './components/coach/CoachArea';
-import { ParticipantArea } from './components/participant/ParticipantArea';
-import { LOCAL_STORAGE_KEYS, CLUB_DEFINITIONS } from './constants'; 
+import { LOCAL_STORAGE_KEYS } from './constants'; 
 import { GoogleGenAI } from '@google/genai';
 import { WelcomeModal } from './components/participant/WelcomeModal'; 
 import { AppProvider, useAppContext } from './context/AppContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Login } from './components/Login';
-import { SystemOwnerArea } from './components/SystemOwnerArea';
 import { Register } from './components/Register';
 import { Button } from './components/Button';
 import { NetworkStatusProvider } from './context/NetworkStatusContext';
 import { OfflineBanner } from './components/OfflineBanner';
 
+const CoachArea = lazy(() => import('./components/coach/CoachArea').then(m => ({ default: m.CoachArea })));
+const ParticipantArea = lazy(() => import('./components/participant/ParticipantArea').then(m => ({ default: m.ParticipantArea })));
+const SystemOwnerArea = lazy(() => import('./components/SystemOwnerArea').then(m => ({ default: m.SystemOwnerArea })));
+
 const API_KEY = process.env.API_KEY;
+
+const LoadingSpinner = () => (
+    <div className="fixed inset-0 flex items-center justify-center bg-gray-100 bg-opacity-75 z-50">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-t-4 border-flexibel"></div>
+    </div>
+);
 
 const AppContent: React.FC = () => {
     const {
@@ -564,7 +571,11 @@ const AppContent: React.FC = () => {
         <div className="bg-gray-50 min-h-screen">
             <Navbar onOpenProfile={handleOpenProfile} />
             <OfflineBanner />
-            <main>{renderMainView()}</main>
+            <main>
+                <Suspense fallback={<LoadingSpinner />}>
+                    {renderMainView()}
+                </Suspense>
+            </main>
         </div>
     );
 }
