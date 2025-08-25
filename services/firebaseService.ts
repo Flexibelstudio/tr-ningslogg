@@ -81,22 +81,22 @@ const firebaseService = {
             return Promise.resolve();
         }
     
-        // 1. Create the user in Firebase Authentication first. This authenticates them for subsequent Firestore writes.
+        // 1. Create the user in Firebase Authentication first. This makes them authenticated for subsequent Firestore writes.
         const userCredential = await auth.createUserWithEmailAndPassword(email, password);
         const firebaseUser = userCredential.user;
 
         if (!firebaseUser) {
             throw new Error("Failed to create user account in authentication service.");
         }
+        
+        // At this point, the user is signed IN, which allows the Firestore `create` rules to pass.
 
         // 2. Prepare the documents to be created in Firestore.
-        // We use the new user's UID as the document ID for both their user profile and participant profile for easy linking.
         const newParticipantProfile = {
-            // The 'id' field is not stored in the document, it's the document's name/ID.
             name: name,
             email: email.toLowerCase(),
-            isActive: false, // Must be approved by a coach
-            isProspect: false, // A direct registration is for a full membership, pending approval
+            isActive: false,
+            isProspect: false,
             approvalStatus: 'pending',
             isSearchable: true,
             locationId: locationId,
@@ -108,25 +108,33 @@ const firebaseService = {
             name: name,
             email: email.toLowerCase(),
             roles: { participant: orgId },
-            linkedParticipantProfileId: firebaseUser.uid, // Link to the participant profile
+            linkedParticipantProfileId: firebaseUser.uid,
         };
 
         // 3. Use a batch write to create both documents atomically.
         const batch = db.batch();
-
         const participantRef = db.collection('organizations').doc(orgId).collection('participantDirectory').doc(firebaseUser.uid);
         const userRef = db.collection('users').doc(firebaseUser.uid);
-
-        // This write is validated by: allow create: if ... subcollection == 'participantDirectory'
         batch.set(participantRef, sanitizeDataForFirebase(newParticipantProfile));
-        
-        // This write is validated by: allow create: if request.auth != null;
         batch.set(userRef, sanitizeDataForFirebase(newUserDoc));
         
-        await batch.commit();
-
-        // The onAuthStateChanged listener will not be triggered here, as we sign the user out immediately
-        // to enforce the approval workflow. The user will see the success message from Register.tsx.
+        try {
+            await batch.commit();
+            // 4. IMPORTANT: If Firestore writes succeed, sign the user out immediately.
+            // This enforces the "pending approval" workflow and prevents a race condition
+            // with the onAuthStateChanged listener.
+            await auth.signOut();
+        } catch (error) {
+            // 5. If Firestore writes fail, delete the orphaned Auth user to allow them to try again.
+            console.error("Firestore write failed during registration. Deleting orphaned auth user.", error);
+            try {
+                await firebaseUser.delete();
+            } catch (deleteError) {
+                console.error("Failed to delete orphaned auth user. Manual cleanup may be required.", deleteError);
+            }
+            // Rethrow the original Firestore error to be handled by the UI.
+            throw error;
+        }
     },
     
     async getAllOrgData(orgId: string): Promise<OrganizationData> {
