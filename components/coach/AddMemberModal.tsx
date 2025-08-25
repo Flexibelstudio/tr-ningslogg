@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Modal } from '../Modal';
 import { Input, Select } from '../Input';
 import { Button } from '../Button';
-import { ParticipantProfile, Location, Membership, StaffMember, StaffRole } from '../../types';
+import { ParticipantProfile, Location, Membership, StaffMember, StaffRole, User } from '../../types';
 import { addDays } from '../../utils/dateUtils';
 import { useAppContext } from '../../context/AppContext';
 import { STAFF_ROLE_OPTIONS } from '../../constants';
@@ -204,73 +204,92 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
         memberData.isProspect = false;
     }
     
-    if (isAdmin && memberToEdit && organizationId) {
-        const existingStaff = staffMembers.find(s => s.linkedParticipantProfileId === memberToEdit.id || s.email?.toLowerCase() === memberToEdit.email?.toLowerCase());
-        const targetUser = allUsers.find(u => u.email.toLowerCase() === memberToEdit.email!.toLowerCase());
+    try {
+        await onSaveMember(memberData);
 
-        if (isStaff) {
-            // Add or update staff member in staffMembers collection
-            if (existingStaff) {
-                const updatedStaff = { ...existingStaff, role: staffRole, name: memberData.name, locationId: memberData.locationId };
-                setStaffMembersData(prev => prev.map(s => s.id === existingStaff.id ? updatedStaff : s));
-            } else {
-                const newStaff: StaffMember = {
-                    id: crypto.randomUUID(),
-                    name: memberData.name,
-                    email: memberData.email,
-                    role: staffRole,
-                    locationId: memberData.locationId,
-                    isActive: true,
-                    linkedParticipantProfileId: memberData.id,
-                    startDate: new Date().toISOString().split('T')[0],
-                };
-                setStaffMembersData(prev => [...prev, newStaff]);
-            }
-            
-            // Sync user's main role in users collection
-            if (targetUser) {
-                const hasAdminRole = targetUser.roles.orgAdmin?.includes(organizationId);
-                const shouldBeAdmin = staffRole === 'Admin';
+        // --- Robust Staff & User Synchronization ---
+        if (isAdmin && memberToEdit && organizationId) {
+            const existingStaff = staffMembers.find(s => s.linkedParticipantProfileId === memberToEdit.id || s.email?.toLowerCase() === memberToEdit.email?.toLowerCase());
+            const targetUser = allUsers.find(u => u.email.toLowerCase() === memberToEdit.email!.toLowerCase());
+            const editedParticipantId = memberData.id;
 
-                if (shouldBeAdmin && !hasAdminRole) {
-                    // Add admin role
-                    const newRoles = {
-                        ...targetUser.roles,
-                        orgAdmin: [...(targetUser.roles.orgAdmin || []), organizationId]
-                    };
-                    await updateUser(targetUser.id, { roles: newRoles });
-                } else if (!shouldBeAdmin && hasAdminRole) {
-                    // Remove admin role (demotion from Admin to Coach)
-                    const newRoles = {
-                        ...targetUser.roles,
-                        orgAdmin: (targetUser.roles.orgAdmin || []).filter(id => id !== organizationId)
-                    };
-                    await updateUser(targetUser.id, { roles: newRoles });
+            if (isStaff) {
+                // Sync User document first, if it exists
+                if (targetUser) {
+                    const updatesForUser: Partial<Omit<User, 'id'>> = {};
+                    const currentRoles = targetUser.roles || {};
+                    const currentOrgAdmins = currentRoles.orgAdmin || [];
+                    const hasAdminRole = currentOrgAdmins.includes(organizationId);
+                    const shouldBeAdmin = staffRole === 'Admin';
+                    
+                    // Sync orgAdmin role
+                    if (shouldBeAdmin && !hasAdminRole) {
+                        updatesForUser.roles = { ...currentRoles, orgAdmin: [...currentOrgAdmins, organizationId] };
+                    } else if (!shouldBeAdmin && hasAdminRole) {
+                        updatesForUser.roles = { ...currentRoles, orgAdmin: currentOrgAdmins.filter(id => id !== organizationId) };
+                    }
+
+                    // Sync linkedParticipantProfileId on User doc
+                    if (targetUser.linkedParticipantProfileId !== editedParticipantId) {
+                        updatesForUser.linkedParticipantProfileId = editedParticipantId;
+                    }
+
+                    // Sync name on User doc
+                    if (targetUser.name !== memberData.name) {
+                        updatesForUser.name = memberData.name;
+                    }
+                    
+                    // Apply updates if there are any
+                    if (Object.keys(updatesForUser).length > 0) {
+                        await updateUser(targetUser.id, updatesForUser);
+                    }
                 }
-            }
-        } else {
-            // If isStaff is unchecked, remove them from staffMembers and their admin role
-            if (existingStaff) {
-                setStaffMembersData(prev => prev.filter(s => s.id !== existingStaff.id));
-            }
 
-            if (targetUser) {
-                const hasAdminRole = targetUser.roles.orgAdmin?.includes(organizationId);
-                if (hasAdminRole) {
-                    // Remove admin role
-                    const newRoles = {
-                        ...targetUser.roles,
-                        orgAdmin: (targetUser.roles.orgAdmin || []).filter(id => id !== organizationId)
+                // Now sync StaffMember document
+                if (existingStaff) {
+                    const updatedStaff = { 
+                        ...existingStaff, 
+                        role: staffRole, 
+                        name: memberData.name, 
+                        locationId: memberData.locationId,
+                        email: memberData.email,
+                        linkedParticipantProfileId: editedParticipantId,
+                        isActive: true
                     };
-                    await updateUser(targetUser.id, { roles: newRoles });
+                    setStaffMembersData(prev => prev.map(s => s.id === existingStaff.id ? updatedStaff : s));
+                } else {
+                    const newStaff: StaffMember = {
+                        id: crypto.randomUUID(),
+                        name: memberData.name,
+                        email: memberData.email,
+                        role: staffRole,
+                        locationId: memberData.locationId,
+                        isActive: true,
+                        linkedParticipantProfileId: editedParticipantId,
+                        startDate: new Date().toISOString().split('T')[0],
+                    };
+                    setStaffMembersData(prev => [...prev, newStaff]);
+                }
+            } else { // isStaff is unchecked, so we're demoting/removing them
+                if (existingStaff) {
+                    setStaffMembersData(prev => prev.filter(s => s.id !== existingStaff.id));
+                }
+                if (targetUser) {
+                    const currentRoles = targetUser.roles || {};
+                    const currentOrgAdmins = currentRoles.orgAdmin || [];
+                    const hasAdminRole = currentOrgAdmins.includes(organizationId);
+                    if (hasAdminRole) {
+                        const newRoles = {
+                            ...currentRoles,
+                            orgAdmin: currentOrgAdmins.filter(id => id !== organizationId)
+                        };
+                        await updateUser(targetUser.id, { roles: newRoles });
+                    }
                 }
             }
         }
-    }
+        // --- End of Sync Logic ---
 
-
-    try {
-        await onSaveMember(memberData);
         setHasSaved(true);
         setTimeout(() => {
             onClose();
