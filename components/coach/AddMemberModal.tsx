@@ -209,6 +209,7 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
         const targetUser = allUsers.find(u => u.email.toLowerCase() === memberToEdit.email!.toLowerCase());
 
         if (isStaff) {
+            // Add or update staff member in staffMembers collection
             if (existingStaff) {
                 const updatedStaff = { ...existingStaff, role: staffRole, name: memberData.name, locationId: memberData.locationId };
                 setStaffMembersData(prev => prev.map(s => s.id === existingStaff.id ? updatedStaff : s));
@@ -226,17 +227,29 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
                 setStaffMembersData(prev => [...prev, newStaff]);
             }
             
+            // Sync user's main role in users collection
             if (targetUser) {
                 const hasAdminRole = targetUser.roles.orgAdmin?.includes(organizationId);
-                if (!hasAdminRole) {
+                const shouldBeAdmin = staffRole === 'Admin';
+
+                if (shouldBeAdmin && !hasAdminRole) {
+                    // Add admin role
                     const newRoles = {
                         ...targetUser.roles,
                         orgAdmin: [...(targetUser.roles.orgAdmin || []), organizationId]
                     };
                     await updateUser(targetUser.id, { roles: newRoles });
+                } else if (!shouldBeAdmin && hasAdminRole) {
+                    // Remove admin role (demotion from Admin to Coach)
+                    const newRoles = {
+                        ...targetUser.roles,
+                        orgAdmin: (targetUser.roles.orgAdmin || []).filter(id => id !== organizationId)
+                    };
+                    await updateUser(targetUser.id, { roles: newRoles });
                 }
             }
         } else {
+            // If isStaff is unchecked, remove them from staffMembers and their admin role
             if (existingStaff) {
                 setStaffMembersData(prev => prev.filter(s => s.id !== existingStaff.id));
             }
@@ -244,6 +257,7 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
             if (targetUser) {
                 const hasAdminRole = targetUser.roles.orgAdmin?.includes(organizationId);
                 if (hasAdminRole) {
+                    // Remove admin role
                     const newRoles = {
                         ...targetUser.roles,
                         orgAdmin: (targetUser.roles.orgAdmin || []).filter(id => id !== organizationId)
@@ -253,6 +267,7 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
             }
         }
     }
+
 
     try {
         await onSaveMember(memberData);
@@ -409,7 +424,7 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
                     </div>
                 )}
                 <p className="text-xs text-gray-500 italic px-2">
-                    När du gör en medlem till personal får de automatiskt behörighet att se coach-vyn.
+                    När du gör en medlem till personal får de automatiskt behörighet att se coach-vyn. 'Admin'-rollen ger full behörighet.
                 </p>
             </div>
         )}
