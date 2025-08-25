@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
     UserRole, Workout, WorkoutLog, ActivityLog, ParticipantGamificationStats, ParticipantGoalData, 
     GeneralActivityLog, GoalCompletionLog, ParticipantConditioningStat, ParticipantProfile, 
@@ -9,7 +9,10 @@ import {
 } from './types';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { Navbar } from './components/Navbar';
+import { CoachArea } from './components/coach/CoachArea';
+import { ParticipantArea } from './components/participant/ParticipantArea';
 import { LOCAL_STORAGE_KEYS, CLUB_DEFINITIONS } from './constants'; 
+import { GoogleGenAI } from '@google/genai';
 import { WelcomeModal } from './components/participant/WelcomeModal'; 
 import { AppProvider, useAppContext } from './context/AppContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -19,10 +22,8 @@ import { Register } from './components/Register';
 import { Button } from './components/Button';
 import { NetworkStatusProvider } from './context/NetworkStatusContext';
 import { OfflineBanner } from './components/OfflineBanner';
-import { LoadingSpinner } from './components/LoadingSpinner';
 
-const ParticipantArea = lazy(() => import('./components/participant/ParticipantArea').then(module => ({ default: module.ParticipantArea })));
-const CoachArea = lazy(() => import('./components/coach/CoachArea').then(module => ({ default: module.CoachArea })));
+const API_KEY = process.env.API_KEY;
 
 const AppContent: React.FC = () => {
     const {
@@ -43,6 +44,7 @@ const AppContent: React.FC = () => {
     const [view, setView] = useState<'login' | 'register'>('login');
     const [registrationPendingMessage, setRegistrationPendingMessage] = useState(false);
 
+    const [ai, setAi] = useState<GoogleGenAI | null>(null);
     const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
     const [welcomeModalShown, setWelcomeModalShown] = useLocalStorage<boolean>(
         LOCAL_STORAGE_KEYS.WELCOME_MESSAGE_SHOWN_PARTICIPANT,
@@ -383,6 +385,19 @@ const AppContent: React.FC = () => {
         }
     }, [auth.currentParticipantId, setWorkoutLogsData, setGeneralActivityLogsData, setCoachEventsData, setOneOnOneSessionsData]);
 
+
+    useEffect(() => {
+        if (API_KEY) {
+        try {
+            setAi(new GoogleGenAI({ apiKey: API_KEY }));
+        } catch (e) {
+            console.error("Failed to initialize GoogleGenAI:", e);
+        }
+        } else {
+        console.warn("API_KEY for Gemini not found. AI features will be disabled.");
+        }
+    }, []);
+
     const prospectModalShownKey = auth.currentParticipantId ? `flexibel_prospectProfileModalShown_${auth.currentParticipantId}` : null;
 
     useEffect(() => {
@@ -491,23 +506,22 @@ const AppContent: React.FC = () => {
         }
 
         if (auth.user.roles.systemOwner && !auth.isImpersonating) {
-            return <Suspense fallback={<LoadingSpinner />}><SystemOwnerArea /></Suspense>;
+            return <SystemOwnerArea />;
         }
 
         if (auth.currentRole === UserRole.COACH) {
             return (
                 <div className="container mx-auto p-4 sm:p-6">
-                    <Suspense fallback={<LoadingSpinner />}>
-                        <CoachArea
-                            onAddComment={handleAddComment}
-                            onDeleteComment={handleDeleteComment}
-                            onToggleCommentReaction={handleToggleCommentReaction}
-                            onCheckInParticipant={handleCheckInParticipant}
-                            onBookClass={handleBookClass}
-                            onCancelBooking={handleCancelBooking}
-                            onPromoteFromWaitlist={handlePromoteFromWaitlist}
-                        />
-                    </Suspense>
+                    <CoachArea
+                        ai={ai}
+                        onAddComment={handleAddComment}
+                        onDeleteComment={handleDeleteComment}
+                        onToggleCommentReaction={handleToggleCommentReaction}
+                        onCheckInParticipant={handleCheckInParticipant}
+                        onBookClass={handleBookClass}
+                        onCancelBooking={handleCancelBooking}
+                        onPromoteFromWaitlist={handlePromoteFromWaitlist}
+                    />
                 </div>
             );
         }
@@ -515,24 +529,22 @@ const AppContent: React.FC = () => {
         if (auth.currentRole === UserRole.PARTICIPANT && auth.currentParticipantId) {
             return (
                 <>
-                    <Suspense fallback={<LoadingSpinner />}>
-                        <ParticipantArea
-                            currentParticipantId={auth.currentParticipantId}
-                            onSetRole={auth.logout}
-                            onToggleReaction={handleToggleReaction}
-                            onAddComment={handleAddComment}
-                            onDeleteComment={handleDeleteComment}
-                            onToggleCommentReaction={handleToggleCommentReaction}
-                            openProfileModalOnInit={openProfileModalOnInit}
-                            onProfileModalOpened={handleProfileModalOpened}
-                            isStaffViewingSelf={auth.isStaffViewingAsParticipant}
-                            onSwitchToStaffView={auth.stopViewingAsParticipant}
-                            onCheckInParticipant={handleCheckInParticipant}
-                            onBookClass={handleBookClass}
-                            onCancelBooking={handleCancelBooking}
-                            setProfileOpener={setProfileOpener}
-                        />
-                    </Suspense>
+                    <ParticipantArea
+                        currentParticipantId={auth.currentParticipantId}
+                        onSetRole={auth.logout}
+                        onToggleReaction={handleToggleReaction}
+                        onAddComment={handleAddComment}
+                        onDeleteComment={handleDeleteComment}
+                        onToggleCommentReaction={handleToggleCommentReaction}
+                        openProfileModalOnInit={openProfileModalOnInit}
+                        onProfileModalOpened={handleProfileModalOpened}
+                        isStaffViewingSelf={auth.isStaffViewingAsParticipant}
+                        onSwitchToStaffView={auth.stopViewingAsParticipant}
+                        onCheckInParticipant={handleCheckInParticipant}
+                        onBookClass={handleBookClass}
+                        onCancelBooking={handleCancelBooking}
+                        setProfileOpener={setProfileOpener}
+                    />
                     <WelcomeModal 
                         isOpen={isWelcomeModalOpen}
                         onClose={() => {

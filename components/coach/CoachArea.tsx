@@ -1,27 +1,27 @@
-import React, { useState, useMemo, Suspense, lazy, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Workout, WorkoutLog, ParticipantProfile, ParticipantGoalData, GeneralActivityLog, GoalCompletionLog, CoachNote, UserStrengthStat, ParticipantClubMembership, LeaderboardSettings, CoachEvent, Location, StaffMember, Membership, WeeklyHighlightSettings, OneOnOneSession, Comment, WorkoutCategoryDefinition, StaffAvailability, IntegrationSettings, GroupClassDefinition, GroupClassSchedule, ParticipantBooking, User } from '../../types';
+import { MemberManagement } from './MemberManagement';
+import { ParticipantActivityOverview } from './ParticipantActivityOverview'; 
+import { WorkoutManagement } from './WorkoutManagement';
 import { GoogleGenAI } from '@google/genai';
+import { LeaderboardManagement } from './LeaderboardManagement';
+import { EventManagement } from './EventManagement';
+import { SettingsManagement } from './SettingsManagement';
+import { StaffManagement } from './StaffManagement';
+import { BookOneOnOneModal } from './BookOneOnOneModal';
+import { AIBusinessInsights } from './AIBusinessInsights';
+import { ClientJourneyView } from './ClientJourneyView';
+import { MeetingDetailsModal } from '../participant/MeetingDetailsModal';
+import { EngagementOpportunities } from './EngagementOpportunities';
 import { ConfirmationModal } from '../ConfirmationModal';
+import { CalendarView } from './CalendarView';
+import { ScheduleManagement } from './ScheduleManagement';
+import { ClassManagementModal } from './ClassCheckinModal';
 import { useAppContext } from '../../context/AppContext';
+import * as dateUtils from '../../utils/dateUtils';
+import { Button } from '../Button';
 import { useAuth } from '../../context/AuthContext';
 import { useNetworkStatus } from '../../context/NetworkStatusContext';
-import { LoadingSpinner } from '../LoadingSpinner';
-
-const MemberManagement = lazy(() => import('./MemberManagement').then(module => ({ default: module.MemberManagement })));
-const ParticipantActivityOverview = lazy(() => import('./ParticipantActivityOverview').then(module => ({ default: module.ParticipantActivityOverview })));
-const WorkoutManagement = lazy(() => import('./WorkoutManagement').then(module => ({ default: module.WorkoutManagement })));
-const LeaderboardManagement = lazy(() => import('./LeaderboardManagement').then(module => ({ default: module.LeaderboardManagement })));
-const EventManagement = lazy(() => import('./EventManagement').then(module => ({ default: module.EventManagement })));
-const SettingsManagement = lazy(() => import('./SettingsManagement').then(module => ({ default: module.SettingsManagement })));
-const StaffManagement = lazy(() => import('./StaffManagement').then(module => ({ default: module.StaffManagement })));
-const BookOneOnOneModal = lazy(() => import('./BookOneOnOneModal').then(module => ({ default: module.BookOneOnOneModal })));
-const AIBusinessInsights = lazy(() => import('./AIBusinessInsights').then(module => ({ default: module.AIBusinessInsights })));
-const ClientJourneyView = lazy(() => import('./ClientJourneyView').then(module => ({ default: module.ClientJourneyView })));
-const MeetingDetailsModal = lazy(() => import('../participant/MeetingDetailsModal').then(module => ({ default: module.MeetingDetailsModal })));
-const EngagementOpportunities = lazy(() => import('./EngagementOpportunities').then(module => ({ default: module.EngagementOpportunities })));
-const CalendarView = lazy(() => import('./CalendarView').then(module => ({ default: module.CalendarView })));
-const ScheduleManagement = lazy(() => import('./ScheduleManagement').then(module => ({ default: module.ScheduleManagement })));
-const ClassManagementModal = lazy(() => import('./ClassCheckinModal').then(module => ({ default: module.ClassManagementModal })));
 
 type CoachTab = 'overview' | 'klientresan' | 'programs' | 'bookings' | 'insights' | 'leaderboards' | 'events' | 'personal' | 'settings';
 
@@ -105,7 +105,7 @@ const TodaysClassesView: React.FC<TodaysClassesViewProps> = ({ schedules, defini
                         <p className="font-bold text-xl text-gray-800">{instance.startDateTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })} - {instance.className}</p>
                         <p className="text-sm text-gray-600">Coach: {instance.coachName}</p>
                         <p className="text-sm text-gray-500">{instance.bookedCount}/{instance.maxParticipants} bokade {instance.waitlistCount > 0 ? `(${instance.waitlistCount} i kö)` : ''}</p>
-                        <button onClick={() => onManageClick(instance)} className="mt-auto pt-3 w-full bg-flexibel text-white px-4 py-2 rounded-lg font-semibold hover:bg-flexibel/90 transition-colors">Hantera Pass</button>
+                        <Button onClick={() => onManageClick(instance)} className="mt-auto pt-3 w-full">Hantera Pass</Button>
                     </div>
                 ))}
             </div>
@@ -114,6 +114,7 @@ const TodaysClassesView: React.FC<TodaysClassesViewProps> = ({ schedules, defini
 };
 
 interface CoachAreaProps {
+  ai: GoogleGenAI | null;
   onAddComment: (logId: string, logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session', text: string) => void;
   onDeleteComment: (logId: string, logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session', commentId: string) => void;
   onToggleCommentReaction: (logId: string, logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session', commentId: string) => void;
@@ -124,6 +125,7 @@ interface CoachAreaProps {
 }
 
 export const CoachArea: React.FC<CoachAreaProps> = ({ 
+  ai,
   onAddComment,
   onDeleteComment,
   onToggleCommentReaction,
@@ -135,6 +137,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   const {
     participantDirectory, 
     staffMembers,
+    // ... all other app data from context
     workouts, 
     workoutLogs,
     participantGoals,
@@ -154,6 +157,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     groupClassDefinitions,
     groupClassSchedules,
     participantBookings,
+    // ... all updater functions
     setOneOnOneSessionsData,
     setGroupClassSchedulesData,
     setClubMembershipsData,
@@ -166,17 +170,6 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
 
   const { user, isImpersonating } = useAuth();
   const { isOnline } = useNetworkStatus();
-  const [ai, setAi] = useState<GoogleGenAI | null>(null);
-
-  useEffect(() => {
-    if (process.env.API_KEY) {
-      try {
-        setAi(new GoogleGenAI({apiKey: process.env.API_KEY}));
-      } catch (e) {
-        console.error("Failed to initialize GoogleGenAI in CoachArea:", e);
-      }
-    }
-  }, []);
   
   const loggedInStaff = useMemo(() => {
     if (!user) return null;
@@ -389,207 +382,206 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
                 ))}
             </nav>
         </div>
-        <Suspense fallback={<LoadingSpinner />}>
-            <div role="tabpanel" hidden={activeTab !== 'overview'}>
-                {activeTab === 'overview' && (
-                    <>
-                        <EngagementOpportunities 
-                            ai={ai}
-                            participants={participantsForView}
-                            workoutLogs={workoutLogsForView}
-                            oneOnOneSessions={oneOnOneSessionsForView}
-                            isOnline={isOnline}
-                        />
-                        <MemberManagement 
-                            participants={participantsForView}
-                            allParticipantGoals={participantGoalsForView}
-                            allActivityLogs={allActivityLogsForView}
-                            coachNotes={coachNotesForView}
-                            ai={ai}
-                            oneOnOneSessions={oneOnOneSessionsForView}
-                            loggedInStaff={loggedInStaff}
-                            isOnline={isOnline}
-                        />
-                    </>
-                )}
-            </div>
-            
-            <div role="tabpanel" hidden={activeTab !== 'klientresan'}>
-                {activeTab === 'klientresan' && loggedInStaff && (
-                    <ClientJourneyView
+
+        <div role="tabpanel" hidden={activeTab !== 'overview'}>
+            {activeTab === 'overview' && (
+                <>
+                    <EngagementOpportunities 
                         ai={ai}
                         participants={participantsForView}
+                        workoutLogs={workoutLogsForView}
+                        oneOnOneSessions={oneOnOneSessionsForView}
+                        isOnline={isOnline}
+                    />
+                    <MemberManagement 
+                        participants={participantsForView}
+                        allParticipantGoals={participantGoalsForView}
                         allActivityLogs={allActivityLogsForView}
+                        coachNotes={coachNotesForView}
+                        ai={ai}
                         oneOnOneSessions={oneOnOneSessionsForView}
                         loggedInStaff={loggedInStaff}
-                        allParticipantGoals={participantGoalsForView}
-                        coachNotes={coachNotesForView}
                         isOnline={isOnline}
                     />
-                )}
-            </div>
-
-            <div role="tabpanel" hidden={activeTab !== 'programs'}>
-                {activeTab === 'programs' && (
-                    <WorkoutManagement 
-                        ai={ai}
-                        participants={participantsForView}
-                        isOnline={isOnline}
-                    />
-                )}
-            </div>
-
-            <div role="tabpanel" hidden={activeTab !== 'bookings'}>
-                {activeTab === 'bookings' && loggedInStaff && (
-                <div className="space-y-8">
-                    <TodaysClassesView 
-                        schedules={groupClassSchedules}
-                        definitions={groupClassDefinitions}
-                        bookings={participantBookings}
-                        coaches={staffMembers}
-                        onManageClick={(instance) => setManagedClassInfo({ scheduleId: instance.scheduleId, date: instance.date })}
-                    />
-                    <ScheduleManagement 
-                    schedules={groupClassSchedules}
-                    setSchedules={setGroupClassSchedulesData}
-                    classDefinitions={groupClassDefinitions}
-                    locations={locations}
-                    coaches={staffMembers}
-                    />
-                    <div className="pt-8 border-t">
-                    <h3 className="text-2xl font-bold text-gray-800 mb-4">Kalenderöversikt</h3>
-                    <CalendarView 
-                        sessions={oneOnOneSessionsForView}
-                        participants={participantDirectory}
-                        coaches={staffMembers}
-                        onSessionClick={handleOpenMeetingModal}
-                        onDayClick={handleDayClick}
-                        onSessionEdit={handleOpenEditModal}
-                        onSessionDelete={setSessionToDelete}
-                        groupClassSchedules={groupClassSchedules}
-                        groupClassDefinitions={groupClassDefinitions}
-                        bookings={participantBookings}
-                        onGroupClassClick={(instance) => setManagedClassInfo({ scheduleId: instance.scheduleId, date: instance.date })}
-                    />
-                    <BookOneOnOneModal
-                        isOpen={isBookingModalOpen}
-                        onClose={() => { setIsBookingModalOpen(false); setSessionToEdit(null); setInitialDateForBooking(null); }}
-                        onSave={handleSaveOrUpdateSession}
-                        sessionToEdit={sessionToEdit}
-                        participants={participantsForView}
-                        coaches={staffMembers}
-                        loggedInCoachId={loggedInStaff.id}
-                        initialDate={initialDateForBooking}
-                        staffAvailability={staffAvailability}
-                    />
-                    {selectedSessionForModal && (
-                        <MeetingDetailsModal
-                            isOpen={isMeetingModalOpen}
-                            onClose={() => setIsMeetingModalOpen(false)}
-                            session={selectedSessionForModal}
-                            coach={loggedInStaff}
-                            currentUserId={loggedInStaff.id}
-                            onAddComment={onAddComment}
-                            onDeleteComment={onDeleteComment}
-                            onToggleCommentReaction={onToggleCommentReaction}
-                        />
-                    )}
-                    {classInstanceForManagement && (
-                        <ClassManagementModal
-                            isOpen={!!managedClassInfo}
-                            onClose={() => setManagedClassInfo(null)}
-                            classInstance={classInstanceForManagement}
-                            participants={participantDirectory}
-                            onCheckIn={onCheckInParticipant}
-                            onBookClass={onBookClass}
-                            onCancelBooking={onCancelBooking}
-                            onPromoteFromWaitlist={onPromoteFromWaitlist}
-                        />
-                    )}
-                    <ConfirmationModal
-                        isOpen={!!sessionToDelete}
-                        onClose={() => setSessionToDelete(null)}
-                        onConfirm={handleConfirmDeleteSession}
-                        title="Ta bort 1-on-1 Session"
-                        message={`Är du säker på att du vill ta bort sessionen "${sessionToDelete?.title}" med ${participantDirectory.find(p => p.id === sessionToDelete?.participantId)?.name}? Detta kan inte ångras.`}
-                        confirmButtonText="Ja, ta bort"
-                    />
-                    </div>
-                </div>
-                )}
-            </div>
-
-            <div role="tabpanel" hidden={activeTab !== 'insights'}>
-                {activeTab === 'insights' && (
-                    <>
-                        <ParticipantActivityOverview 
-                            workoutLogs={workoutLogsForView} 
-                            workouts={workouts} 
-                            ai={ai} 
-                            isOnline={isOnline}
-                        />
-                        <AIBusinessInsights
-                            ai={ai}
-                            locations={locations}
-                            participants={participantsForView}
-                            allActivityLogs={allActivityLogsForView}
-                            workouts={workouts}
-                            oneOnOneSessions={oneOnOneSessionsForView}
-                            staffMembers={staffMembers}
-                            isOnline={isOnline}
-                        />
-                    </>
-                )}
-            </div>
-
-            <div role="tabpanel" hidden={activeTab !== 'leaderboards'}>
-                {activeTab === 'leaderboards' && (
-                    <LeaderboardManagement
+                </>
+            )}
+        </div>
+        
+        <div role="tabpanel" hidden={activeTab !== 'klientresan'}>
+            {activeTab === 'klientresan' && loggedInStaff && (
+                <ClientJourneyView
+                    ai={ai}
                     participants={participantsForView}
                     allActivityLogs={allActivityLogsForView}
-                    workoutLogs={workoutLogsForView}
-                    userStrengthStats={userStrengthStatsForView}
-                    clubMemberships={clubMembershipsForView}
-                    setClubMemberships={setClubMembershipsData}
-                    leaderboardSettings={leaderboardSettings}
-                    setLeaderboardSettings={setLeaderboardSettingsData}
-                    />
-                )}
-            </div>
+                    oneOnOneSessions={oneOnOneSessionsForView}
+                    loggedInStaff={loggedInStaff}
+                    allParticipantGoals={participantGoalsForView}
+                    coachNotes={coachNotesForView}
+                    isOnline={isOnline}
+                />
+            )}
+        </div>
 
-            <div role="tabpanel" hidden={activeTab !== 'events'}>
-                {activeTab === 'events' && (
-                    <EventManagement
-                        events={coachEvents}
-                        setEvents={setCoachEventsData}
-                        participants={participantDirectory}
-                        workoutLogs={workoutLogs}
+        <div role="tabpanel" hidden={activeTab !== 'programs'}>
+            {activeTab === 'programs' && (
+                <WorkoutManagement 
+                    ai={ai}
+                    participants={participantsForView}
+                    isOnline={isOnline}
+                />
+            )}
+        </div>
+
+        <div role="tabpanel" hidden={activeTab !== 'bookings'}>
+            {activeTab === 'bookings' && loggedInStaff && (
+              <div className="space-y-8">
+                <TodaysClassesView 
+                    schedules={groupClassSchedules}
+                    definitions={groupClassDefinitions}
+                    bookings={participantBookings}
+                    coaches={staffMembers}
+                    onManageClick={(instance) => setManagedClassInfo({ scheduleId: instance.scheduleId, date: instance.date })}
+                />
+                <ScheduleManagement 
+                  schedules={groupClassSchedules}
+                  setSchedules={setGroupClassSchedulesData}
+                  classDefinitions={groupClassDefinitions}
+                  locations={locations}
+                  coaches={staffMembers}
+                />
+                <div className="pt-8 border-t">
+                  <h3 className="text-2xl font-bold text-gray-800 mb-4">Kalenderöversikt</h3>
+                  <CalendarView 
+                      sessions={oneOnOneSessionsForView}
+                      participants={participantDirectory}
+                      coaches={staffMembers}
+                      onSessionClick={handleOpenMeetingModal}
+                      onDayClick={handleDayClick}
+                      onSessionEdit={handleOpenEditModal}
+                      onSessionDelete={setSessionToDelete}
+                      groupClassSchedules={groupClassSchedules}
+                      groupClassDefinitions={groupClassDefinitions}
+                      bookings={participantBookings}
+                      onGroupClassClick={(instance) => setManagedClassInfo({ scheduleId: instance.scheduleId, date: instance.date })}
+                  />
+                  <BookOneOnOneModal
+                      isOpen={isBookingModalOpen}
+                      onClose={() => { setIsBookingModalOpen(false); setSessionToEdit(null); setInitialDateForBooking(null); }}
+                      onSave={handleSaveOrUpdateSession}
+                      sessionToEdit={sessionToEdit}
+                      participants={participantsForView}
+                      coaches={staffMembers}
+                      loggedInCoachId={loggedInStaff.id}
+                      initialDate={initialDateForBooking}
+                      staffAvailability={staffAvailability}
+                  />
+                  {selectedSessionForModal && (
+                       <MeetingDetailsModal
+                          isOpen={isMeetingModalOpen}
+                          onClose={() => setIsMeetingModalOpen(false)}
+                          session={selectedSessionForModal}
+                          coach={loggedInStaff}
+                          currentUserId={loggedInStaff.id}
+                          onAddComment={onAddComment}
+                          onDeleteComment={onDeleteComment}
+                          onToggleCommentReaction={onToggleCommentReaction}
+                      />
+                  )}
+                  {classInstanceForManagement && (
+                      <ClassManagementModal
+                          isOpen={!!managedClassInfo}
+                          onClose={() => setManagedClassInfo(null)}
+                          classInstance={classInstanceForManagement}
+                          participants={participantDirectory}
+                          onCheckIn={onCheckInParticipant}
+                          onBookClass={onBookClass}
+                          onCancelBooking={onCancelBooking}
+                          onPromoteFromWaitlist={onPromoteFromWaitlist}
+                      />
+                  )}
+                  <ConfirmationModal
+                      isOpen={!!sessionToDelete}
+                      onClose={() => setSessionToDelete(null)}
+                      onConfirm={handleConfirmDeleteSession}
+                      title="Ta bort 1-on-1 Session"
+                      message={`Är du säker på att du vill ta bort sessionen "${sessionToDelete?.title}" med ${participantDirectory.find(p => p.id === sessionToDelete?.participantId)?.name}? Detta kan inte ångras.`}
+                      confirmButtonText="Ja, ta bort"
+                  />
+                </div>
+              </div>
+            )}
+        </div>
+
+        <div role="tabpanel" hidden={activeTab !== 'insights'}>
+            {activeTab === 'insights' && (
+                <>
+                    <ParticipantActivityOverview 
+                        workoutLogs={workoutLogsForView} 
+                        workouts={workouts} 
+                        ai={ai} 
+                        isOnline={isOnline}
+                    />
+                    <AIBusinessInsights
                         ai={ai}
-                        weeklyHighlightSettings={weeklyHighlightSettings}
-                        setWeeklyHighlightSettings={setWeeklyHighlightSettingsData}
-                    />
-                )}
-            </div>
-            <div role="tabpanel" hidden={activeTab !== 'personal'}>
-                {activeTab === 'personal' && loggedInStaff && (
-                    <StaffManagement
-                        staff={staffMembers}
-                        setStaff={setStaffMembersData}
                         locations={locations}
-                        availability={staffAvailability}
-                        setAvailability={setStaffAvailabilityData}
-                        loggedInStaff={loggedInStaff}
+                        participants={participantsForView}
+                        allActivityLogs={allActivityLogsForView}
+                        workouts={workouts}
+                        oneOnOneSessions={oneOnOneSessionsForView}
+                        staffMembers={staffMembers}
+                        isOnline={isOnline}
                     />
-                )}
-            </div>
-            <div role="tabpanel" hidden={activeTab !== 'settings'}>
-                {activeTab === 'settings' && (
-                    <SettingsManagement
-                        loggedInStaff={loggedInStaff}
-                    />
-                )}
-            </div>
-        </Suspense>
+                </>
+            )}
+        </div>
+
+        <div role="tabpanel" hidden={activeTab !== 'leaderboards'}>
+            {activeTab === 'leaderboards' && (
+                <LeaderboardManagement
+                  participants={participantsForView}
+                  allActivityLogs={allActivityLogsForView}
+                  workoutLogs={workoutLogsForView}
+                  userStrengthStats={userStrengthStatsForView}
+                  clubMemberships={clubMembershipsForView}
+                  setClubMemberships={setClubMembershipsData}
+                  leaderboardSettings={leaderboardSettings}
+                  setLeaderboardSettings={setLeaderboardSettingsData}
+                />
+            )}
+        </div>
+
+         <div role="tabpanel" hidden={activeTab !== 'events'}>
+            {activeTab === 'events' && (
+                <EventManagement
+                    events={coachEvents}
+                    setEvents={setCoachEventsData}
+                    participants={participantDirectory}
+                    workoutLogs={workoutLogs}
+                    ai={ai}
+                    weeklyHighlightSettings={weeklyHighlightSettings}
+                    setWeeklyHighlightSettings={setWeeklyHighlightSettingsData}
+                />
+            )}
+        </div>
+         <div role="tabpanel" hidden={activeTab !== 'personal'}>
+            {activeTab === 'personal' && loggedInStaff && (
+                <StaffManagement
+                    staff={staffMembers}
+                    setStaff={setStaffMembersData}
+                    locations={locations}
+                    availability={staffAvailability}
+                    setAvailability={setStaffAvailabilityData}
+                    loggedInStaff={loggedInStaff}
+                />
+            )}
+        </div>
+        <div role="tabpanel" hidden={activeTab !== 'settings'}>
+            {activeTab === 'settings' && (
+                <SettingsManagement
+                    loggedInStaff={loggedInStaff}
+                />
+            )}
+        </div>
     </div>
   );
 };
