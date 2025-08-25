@@ -46,8 +46,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     if (firebaseService.isOffline()) {
-        // In offline mode, use mock data for a default user for previewing.
-        // We'll log in as the admin by default.
         const defaultUser = dataService.get('users').find(u => u.id === 'user-id-admin1');
         setUser(defaultUser || null);
         setIsLoading(false);
@@ -58,36 +56,35 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (firebaseUser) {
             const isNewUser = firebaseUser.metadata.creationTime === firebaseUser.metadata.lastSignInTime;
             const userDocRef = db.collection('users').doc(firebaseUser.uid);
-            const userDocSnap = await userDocRef.get();
+            let userDocSnap = await userDocRef.get();
+
+            // If it's a new user and their doc doesn't exist yet, wait a moment and retry.
+            // This is to account for Firestore replication delay during the registration transaction.
+            if (isNewUser && !userDocSnap.exists) {
+                await new Promise(resolve => setTimeout(resolve, 2500));
+                userDocSnap = await userDocRef.get();
+            }
 
             if (userDocSnap.exists) {
                 const userData = userDocSnap.data();
                 const { roles, linkedParticipantProfileId } = userData;
                 
-                // This check runs for every auth state change, including right after registration.
                 if (roles?.participant && linkedParticipantProfileId) {
                     const orgId = roles.participant;
                     const participantDocRef = db.collection('organizations').doc(orgId).collection('participantDirectory').doc(linkedParticipantProfileId);
                     let participantDocSnap = await participantDocRef.get();
 
-                    // If the participant doc doesn't exist yet, but it's a brand new user,
-                    // it's likely the registration Firestore write hasn't propagated yet. Wait and retry.
                     if (!participantDocSnap.exists && isNewUser) {
                         await new Promise(resolve => setTimeout(resolve, 1500));
                         participantDocSnap = await participantDocRef.get();
                     }
 
                     if (participantDocSnap.exists && participantDocSnap.data().approvalStatus === 'pending') {
-                        // User is pending approval. Sign them out. This covers both registration
-                        // and subsequent login attempts by unapproved users.
                         await auth.signOut();
-                        // The signOut() will trigger this listener again with a null user,
-                        // which will correctly set the user state to null and isLoading to false.
-                        return; // Exit early.
+                        return;
                     }
                 }
                 
-                // If we get here, user is approved or not a participant. Set the user state.
                 setUser({
                     id: firebaseUser.uid,
                     name: userData.name,
@@ -96,8 +93,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     linkedParticipantProfileId: userData.linkedParticipantProfileId,
                 });
             } else {
-                // If user exists in Auth but not in our 'users' collection, it's an invalid state. Sign out.
-                // This can happen if registration succeeded in Auth but failed in Firestore.
                 console.error(`User ${firebaseUser.uid} not found in Firestore. Signing out.`);
                 await auth.signOut();
             }
@@ -162,8 +157,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await auth.signOut();
         throw new Error('AUTH_NO_USER_PROFILE');
     }
-
-    // Check for approval status
+    
     const userDocRef = db.collection('users').doc(firebaseUser.uid);
     const userDocSnap = await userDocRef.get();
 
@@ -175,7 +169,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const userData = userDocSnap.data();
     const { roles, linkedParticipantProfileId } = userData;
 
-    // Only perform this check for participants
     if (roles?.participant && linkedParticipantProfileId) {
         const orgId = roles.participant;
         const participantDocRef = db.collection('organizations').doc(orgId).collection('participantDirectory').doc(linkedParticipantProfileId);
@@ -186,13 +179,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             throw new Error('AUTH_APPROVAL_PENDING');
         }
     }
-    // If approved or not a standard participant (e.g., coach), the onAuthStateChanged listener will handle the rest.
   }, []);
 
   const register = useCallback(async (email: string, password: string, orgId: string, locationId: string) => {
-    const name = "Ny användare"; // Default name, admin can edit later
+    const name = "Ny användare";
     if (firebaseService.isOffline()) {
-      // Mock registration logic
       const newUserId = `user-id-${Math.random()}`;
       const newParticipantId = `participant-${Math.random()}`;
       
@@ -221,15 +212,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         ...prev,
         participantDirectory: [...prev.participantDirectory, newParticipant]
       }));
-
-      // In mock mode, we don't handle auth state change. User just sees success message.
       return;
     }
-    // Online registration logic
     await firebaseService.registerUserAndCreateProfiles({
         name, email, password, orgId, locationId
     });
-    // onAuthStateChanged will now handle signing out pending users.
   }, []);
 
   const stopImpersonating = useCallback(() => {
@@ -260,7 +247,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const stopViewingAsParticipant = useCallback(() => {
     if (user?.roles.systemOwner) {
-      // A system owner should always return to the system overview, not an impersonated org view.
       stopImpersonating(); 
     } else {
       setLocalState(prev => ({ ...prev, isStaffViewingAsParticipant: false }));

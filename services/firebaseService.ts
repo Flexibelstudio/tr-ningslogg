@@ -81,7 +81,6 @@ const firebaseService = {
             return Promise.resolve();
         }
     
-        // 1. Create the user in Firebase Authentication first. This makes them authenticated for subsequent Firestore writes.
         const userCredential = await auth.createUserWithEmailAndPassword(email, password);
         const firebaseUser = userCredential.user;
 
@@ -89,9 +88,6 @@ const firebaseService = {
             throw new Error("Failed to create user account in authentication service.");
         }
         
-        // At this point, the user is signed IN, which allows the Firestore `create` rules to pass.
-
-        // 2. Prepare the documents to be created in Firestore.
         const newParticipantProfile = {
             name: name,
             email: email.toLowerCase(),
@@ -111,7 +107,6 @@ const firebaseService = {
             linkedParticipantProfileId: firebaseUser.uid,
         };
 
-        // 3. Use a batch write to create both documents atomically.
         const batch = db.batch();
         const participantRef = db.collection('organizations').doc(orgId).collection('participantDirectory').doc(firebaseUser.uid);
         const userRef = db.collection('users').doc(firebaseUser.uid);
@@ -120,19 +115,18 @@ const firebaseService = {
         
         try {
             await batch.commit();
-            // 4. IMPORTANT: If Firestore writes succeed, sign the user out immediately.
-            // This enforces the "pending approval" workflow and prevents a race condition
-            // with the onAuthStateChanged listener.
-            await auth.signOut();
+            // NOTE: We no longer sign out here. The onAuthStateChanged listener is now responsible
+            // for reading the 'pending' status and signing the user out, which avoids a race condition.
         } catch (error) {
-            // 5. If Firestore writes fail, delete the orphaned Auth user to allow them to try again.
             console.error("Firestore write failed during registration. Deleting orphaned auth user.", error);
             try {
-                await firebaseUser.delete();
+                // Ensure the user is still signed in before attempting to delete.
+                if (auth.currentUser && auth.currentUser.uid === firebaseUser.uid) {
+                    await firebaseUser.delete();
+                }
             } catch (deleteError) {
                 console.error("Failed to delete orphaned auth user. Manual cleanup may be required.", deleteError);
             }
-            // Rethrow the original Firestore error to be handled by the UI.
             throw error;
         }
     },
