@@ -166,6 +166,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     setWeeklyHighlightSettingsData,
     setStaffMembersData,
     setStaffAvailabilityData,
+    orgDataError,
   } = useAppContext();
 
   const { user, isImpersonating } = useAuth();
@@ -373,6 +374,16 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     setSessionToDelete(null);
   };
 
+  if (orgDataError) {
+    return (
+        <div className="container mx-auto p-4 sm:p-6">
+            <div className="p-6 bg-red-50 border-l-4 border-red-500 rounded-r-lg">
+                <h2 className="text-2xl font-bold text-red-800">Fel vid datainläsning</h2>
+                <p className="mt-2 text-lg text-red-700">{orgDataError}</p>
+            </div>
+        </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

@@ -32,6 +32,7 @@ interface AppContextType extends Omit<OrganizationData, 'workouts' | 'branding'>
   branding: BrandingSettings | undefined;
   isOrgDataLoading: boolean;
   isGlobalDataLoading: boolean;
+  orgDataError: string | null;
   // Updater for a single participant document
   addParticipant: (participant: ParticipantProfile) => Promise<void>;
   updateParticipantProfile: (participantId: string, data: Partial<ParticipantProfile>) => Promise<void>;
@@ -135,6 +136,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [branding, setBranding] = useState<BrandingSettings | undefined>(undefined);
     const [isGlobalDataLoading, setIsGlobalDataLoading] = useState(true);
     const [isOrgDataLoading, setIsOrgDataLoading] = useState(true);
+    const [orgDataError, setOrgDataError] = useState<string | null>(null);
 
 
     useEffect(() => {
@@ -189,6 +191,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     useEffect(() => {
         if (organizationId) {
             setIsOrgDataLoading(true);
+            setOrgDataError(null);
             const loadAllDataFromFirestore = async () => {
                 try {
                     // PHASE 3: This is the new primary read path
@@ -238,7 +241,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 
                 } catch (error) {
                     console.error("Failed to load organization data from Firestore:", error);
-                    // Consider adding user-facing error handling here in the future
+                    if (error instanceof Error && (error.message.includes('permission') || error.message.includes('PERMISSION_DENIED'))) {
+                        setOrgDataError("Kunde inte ladda organisationsdata. Du verkar sakna behörighet för denna organisation. Om du är systemägare, se till att säkerhetsreglerna i Firebase är korrekt konfigurerade. Kontakta support om problemet kvarstår.");
+                    } else {
+                        setOrgDataError("Ett oväntat fel uppstod vid hämtning av organisationsdata. Kontrollera din anslutning och försök igen.");
+                    }
                 } finally {
                     setIsOrgDataLoading(false);
                 }
@@ -248,6 +255,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         } else {
             // If no organizationId (e.g., logged out), reset all data to prevent showing stale info.
             setIsOrgDataLoading(false);
+            setOrgDataError(null);
             setParticipantDirectory([]);
             setWorkouts([]);
             setWorkoutLogs([]);
@@ -462,6 +470,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     branding,
     isOrgDataLoading,
     isGlobalDataLoading,
+    orgDataError,
 
     addParticipant,
     updateParticipantProfile,
