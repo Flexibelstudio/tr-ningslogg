@@ -56,24 +56,38 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     const unsubscribe = auth.onAuthStateChanged(async (firebaseUser: firebase.User | null) => {
         if (firebaseUser) {
-            // Check if this is a new user who just registered.
-            // New users have identical creation and last sign-in times upon creation.
             const isNewUser = firebaseUser.metadata.creationTime === firebaseUser.metadata.lastSignInTime;
-            
             const userDocRef = db.collection('users').doc(firebaseUser.uid);
-            let userDocSnap = await userDocRef.get();
-
-            // If the user doc doesn't exist, and it's a brand new user account,
-            // it's likely a registration in progress. Wait a moment to allow the
-            // Firestore write to complete.
-            if (!userDocSnap.exists && isNewUser) {
-                console.log("User doc not found for new user, waiting to retry for registration write...");
-                await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
-                userDocSnap = await userDocRef.get();
-            }
+            const userDocSnap = await userDocRef.get();
 
             if (userDocSnap.exists) {
                 const userData = userDocSnap.data();
+                const { roles, linkedParticipantProfileId } = userData;
+                
+                // This check runs for every auth state change, including right after registration.
+                if (roles?.participant && linkedParticipantProfileId) {
+                    const orgId = roles.participant;
+                    const participantDocRef = db.collection('organizations').doc(orgId).collection('participantDirectory').doc(linkedParticipantProfileId);
+                    let participantDocSnap = await participantDocRef.get();
+
+                    // If the participant doc doesn't exist yet, but it's a brand new user,
+                    // it's likely the registration Firestore write hasn't propagated yet. Wait and retry.
+                    if (!participantDocSnap.exists && isNewUser) {
+                        await new Promise(resolve => setTimeout(resolve, 1500));
+                        participantDocSnap = await participantDocRef.get();
+                    }
+
+                    if (participantDocSnap.exists && participantDocSnap.data().approvalStatus === 'pending') {
+                        // User is pending approval. Sign them out. This covers both registration
+                        // and subsequent login attempts by unapproved users.
+                        await auth.signOut();
+                        // The signOut() will trigger this listener again with a null user,
+                        // which will correctly set the user state to null and isLoading to false.
+                        return; // Exit early.
+                    }
+                }
+                
+                // If we get here, user is approved or not a participant. Set the user state.
                 setUser({
                     id: firebaseUser.uid,
                     name: userData.name,
@@ -82,10 +96,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     linkedParticipantProfileId: userData.linkedParticipantProfileId,
                 });
             } else {
-                // User authenticated but no profile in Firestore, treat as logged out.
+                // If user exists in Auth but not in our 'users' collection, it's an invalid state. Sign out.
+                // This can happen if registration succeeded in Auth but failed in Firestore.
                 console.error(`User ${firebaseUser.uid} not found in Firestore. Signing out.`);
-                setUser(null);
-                await auth.signOut(); // Sign them out of Firebase Auth as well
+                await auth.signOut();
             }
         } else {
             setUser(null);
@@ -215,8 +229,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await firebaseService.registerUserAndCreateProfiles({
         name, email, password, orgId, locationId
     });
-    // Immediately sign the new user out so they have to wait for approval.
-    await auth.signOut();
+    // onAuthStateChanged will now handle signing out pending users.
   }, []);
 
   const stopImpersonating = useCallback(() => {
