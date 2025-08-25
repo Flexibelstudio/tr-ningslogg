@@ -10,6 +10,7 @@ export const LOCAL_STORAGE_KEYS = {
   LAST_FEEDBACK_PROMPT_TIME: 'flexibel_lastFeedbackPromptTime', 
   AUTH_STATE: 'flexibel_authState_v3', // Persist auth state
   LAST_USED_ORG_ID: 'flexibel_lastOrgId_v1',
+  INSTALL_PROMPT_DISMISSED_UNTIL: 'flexibel_installPromptDismissedUntil_v1',
 };
 
 // PREDEFINED data is now part of the seed data in dataService.ts

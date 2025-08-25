@@ -51,6 +51,7 @@ import { useAppContext } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { FlowModal } from './FlowModal';
 import { useNetworkStatus } from '../../context/NetworkStatusContext';
+import { InstallPwaBanner } from './InstallPwaBanner';
 
 
 const API_KEY = process.env.API_KEY;
@@ -600,6 +601,25 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     }
   }, [myUpcomingSessions]);
 
+  // APP BADGING LOGIC
+  useEffect(() => {
+    if ('setAppBadge' in navigator) {
+      const pendingRequestCount = connections.filter(
+        c => c.receiverId === currentParticipantId && c.status === 'pending'
+      ).length;
+
+      try {
+        if (pendingRequestCount > 0) {
+          (navigator as any).setAppBadge(pendingRequestCount);
+        } else {
+          (navigator as any).clearAppBadge();
+        }
+      } catch (error) {
+        console.error('App Badging API error:', error);
+      }
+    }
+  }, [connections, currentParticipantId]);
+
   const allActivityLogs = useMemo<ActivityLog[]>(() => {
     return [...myWorkoutLogs, ...myGeneralActivityLogs, ...myGoalCompletionLogs].sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime());
   }, [myWorkoutLogs, myGeneralActivityLogs, myGoalCompletionLogs]);
@@ -1070,14 +1090,14 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             integrationSettings={integrationSettings}
             />
         ) : (
-            <div className="pb-24">
+            <div className="pb-40">
                 <FixedHeaderAndTools
                     onOpenGoalModal={() => setIsGoalModalOpen(true)}
                     onOpenCommunity={() => setIsCommunityModalOpen(true)}
                     aiRecept={latestActiveGoal?.aiPrognosis}
                     onOpenAiRecept={() => setIsAiReceptModalOpen(true)}
                     newFlowItemsCount={0} // Placeholder
-                    pendingRequestsCount={0} // Placeholder
+                    pendingRequestsCount={connections.filter(c => c.receiverId === currentParticipantId && c.status === 'pending').length}
                     onOpenFlowModal={() => setIsFlowModalOpen(true)}
                 />
                 <div ref={mainContentRef} className="container mx-auto p-4 space-y-6">
@@ -1458,6 +1478,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             onDecline={() => setShowFeedbackPrompt(false)}
             message="Vill du ha personlig feedback från vår AI-coach på din senaste träningsperiod?"
         />
+        <InstallPwaBanner participantProfile={participantProfile} />
       </div>
     );
 };
