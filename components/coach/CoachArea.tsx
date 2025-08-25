@@ -173,20 +173,29 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   
   const loggedInStaff = useMemo(() => {
     if (!user) return null;
-    
+
+    const actualStaffProfile = staffMembers.find(s => s.email === user.email);
+
     if (user.roles.systemOwner) {
+        // If a system owner is also a staff member in this org, use their profile but grant Admin rights.
+        if (actualStaffProfile) {
+            return {
+                ...actualStaffProfile,
+                role: 'Admin' as const, // Override role to Admin
+            };
+        }
+        // Otherwise, create a generic Admin profile for the system owner.
         return {
             id: 'system-owner',
             name: user.name,
             email: user.email,
-            role: 'Admin' as StaffMember['role'],
-            locationId: locations[0]?.id || 'N/A', 
+            role: 'Admin' as const,
+            locationId: locations[0]?.id || 'all', // Give access to all locations
             isActive: true,
         };
     }
 
-    const staffProfile = staffMembers.find(s => s.email === user.email);
-    return staffProfile || null;
+    return actualStaffProfile || null;
   }, [user, staffMembers, locations]);
 
   const allTabs: { id: CoachTab, label: string }[] = [
@@ -202,12 +211,12 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   ];
 
   const visibleTabs = useMemo(() => {
-    if (isImpersonating || user?.roles.systemOwner || loggedInStaff?.role === 'Admin') {
-      return allTabs; // Show all tabs
+    if (loggedInStaff?.role === 'Admin') {
+      return allTabs; // Admins and impersonating System Owners see all tabs
     }
     // For a regular coach, show a limited set
     return allTabs.filter(tab => ['overview', 'klientresan', 'bookings'].includes(tab.id));
-  }, [isImpersonating, user, loggedInStaff]);
+  }, [loggedInStaff]);
 
 
   const tabsToShow = useMemo(() =>
@@ -233,26 +242,19 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
 
   // Filter all data based on logged-in staff's role and location
   const participantsForView = useMemo(() => {
-    // System Owners or anyone impersonating an org admin should see all participants.
-    if (user?.roles.systemOwner || isImpersonating) {
+    // Admins (including impersonating System Owners) see all participants.
+    if (loggedInStaff?.role === 'Admin') {
       return participantDirectory;
     }
     
-    // If the user is a staff member of the current organization...
-    if (loggedInStaff) {
-      // ...and they are an Admin, they see all participants.
-      if (loggedInStaff.role === 'Admin') {
-        return participantDirectory;
-      }
-      // ...and they are a Coach, filter participants to their location.
-      if (loggedInStaff.role === 'Coach') {
-        return participantDirectory.filter(p => p.locationId === loggedInStaff.locationId);
-      }
+    // Coaches see participants in their location.
+    if (loggedInStaff?.role === 'Coach') {
+      return participantDirectory.filter(p => p.locationId === loggedInStaff.locationId);
     }
     
-    // Fallback for any other case (e.g., user with no valid role for this view)
+    // Fallback for any other case
     return [];
-  }, [participantDirectory, loggedInStaff, user, isImpersonating]);
+  }, [participantDirectory, loggedInStaff]);
 
   const visibleParticipantIds = useMemo(() => new Set(participantsForView.map(p => p.id)), [participantsForView]);
 
@@ -265,17 +267,22 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   
   const oneOnOneSessionsForView = useMemo(() => {
     if (!loggedInStaff) return [];
-    if (isImpersonating || user?.roles.systemOwner || loggedInStaff.role === 'Admin') {
+    
+    // Admins (including impersonating System Owners) see all sessions.
+    if (loggedInStaff.role === 'Admin') {
       return oneOnOneSessions;
     }
+    
+    // Coaches see sessions linked to them or to members at their location.
     if (loggedInStaff.role === 'Coach') {
         const coachSessionIds = new Set(oneOnOneSessions.filter(s => s.coachId === loggedInStaff.id).map(s => s.id));
         const memberSessionIds = new Set(oneOnOneSessions.filter(s => visibleParticipantIds.has(s.participantId)).map(s => s.id));
         const allVisibleSessionIds = new Set([...coachSessionIds, ...memberSessionIds]);
         return oneOnOneSessions.filter(s => allVisibleSessionIds.has(s.id));
     }
+    
     return [];
-  }, [oneOnOneSessions, loggedInStaff, user, isImpersonating, visibleParticipantIds]);
+  }, [oneOnOneSessions, loggedInStaff, visibleParticipantIds]);
 
   const coachNotesForView = useMemo(() => coachNotes.filter(note => visibleParticipantIds.has(note.participantId)), [coachNotes, visibleParticipantIds]);
   
