@@ -8,7 +8,7 @@ import {
 } from '../../types';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-import { LOCAL_STORAGE_KEYS } from '../../constants';
+import { LOCAL_STORAGE_KEYS, STRESS_LEVEL_OPTIONS, ENERGY_LEVEL_OPTIONS, SLEEP_QUALITY_OPTIONS, OVERALL_MOOD_OPTIONS } from '../../constants';
 import * as dateUtils from '../../utils/dateUtils';
 import { calculateUpdatedStreakAndGamification } from '../../services/gamificationService';
 import { calculatePostWorkoutSummary, findAndUpdateStrengthStats } from '../../services/workoutService';
@@ -17,6 +17,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNetworkStatus } from '../../context/NetworkStatusContext';
 import { LoadingSpinner } from '../LoadingSpinner';
 import { Modal } from '../Modal';
+import { Button } from '../Button';
 
 const WorkoutLogForm = lazy(() => import('./WorkoutLogForm').then(module => ({ default: module.WorkoutLogForm })));
 const AIProgressFeedbackModal = lazy(() => import('./AIProgressFeedbackModal').then(module => ({ default: module.AIProgressFeedbackModal })));
@@ -43,10 +44,14 @@ const CheckinConfirmationModal = lazy(() => import('./CheckinConfirmationModal')
 const AIAssistantModal = lazy(() => import('./AIAssistantModal').then(module => ({ default: module.AIAssistantModal })));
 const FlowModal = lazy(() => import('./FlowModal').then(module => ({ default: module.FlowModal })));
 const InstallPwaBanner = lazy(() => import('./InstallPwaBanner').then(module => ({ default: module.InstallPwaBanner })));
+const NextBookingCard = lazy(() => import('./NextBookingCard').then(module => ({ default: module.NextBookingCard })));
+const UpcomingMeetingCard = lazy(() => import('./UpcomingMeetingCard').then(module => ({ default: module.UpcomingMeetingCard })));
 
 import { ParticipantActivityView } from './ParticipantActivityView';
 import { FixedHeaderAndTools } from './FixedHeaderAndTools';
 import { AiWorkoutTips } from './AIAssistantModal';
+import { calculateFlexibelStrengthScoreInternal, getFssScoreInterpretation } from './StrengthComparisonTool';
+
 
 const API_KEY = process.env.API_KEY;
 
@@ -66,6 +71,35 @@ interface ParticipantAreaProps {
   onCheckInParticipant: (bookingId: string) => void;
   setProfileOpener: (opener: { open: () => void } | null) => void;
 }
+
+const StatCard: React.FC<{
+    icon: React.ReactNode;
+    title: string;
+    value: string;
+    subValue?: string;
+    level?: string;
+    levelColor?: string;
+    onClick: () => void;
+    buttonText: string;
+  }> = ({ icon, title, value, subValue, level, levelColor = 'text-gray-800', onClick, buttonText }) => (
+    <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-200 flex flex-col h-full">
+      <div className="flex items-start justify-between">
+        <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-lg bg-flexibel/10 text-flexibel">
+          {icon}
+        </div>
+        <div className="text-right">
+          <p className="text-sm font-semibold uppercase tracking-wider text-gray-400">{title}</p>
+          <p className="text-3xl font-bold text-gray-800">{value}</p>
+          {level && <p className={`text-xl font-bold ${levelColor}`}>{level}</p>}
+        </div>
+      </div>
+      {subValue && <p className="mt-2 text-base text-gray-500">{subValue}</p>}
+      <div className="mt-auto pt-4">
+        <Button onClick={onClick} fullWidth variant="outline" size="sm">{buttonText}</Button>
+      </div>
+    </div>
+);
+
 
 // Main ParticipantArea Component
 export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
@@ -344,6 +378,23 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     return [...myStrengthStats].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
   }, [myStrengthStats]);
 
+  const latestConditioningStats = useMemo(() => {
+    if (myConditioningStats.length === 0) return null;
+    return [...myConditioningStats].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
+  }, [myConditioningStats]);
+
+  const latestPhysiqueStats = useMemo(() => {
+    if (myPhysiqueHistory.length === 0) return null;
+    return [...myPhysiqueHistory].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
+  }, [myPhysiqueHistory]);
+
+  const fssData = useMemo(() => {
+    if (!latestStrengthStats || !participantProfile) return null;
+    return calculateFlexibelStrengthScoreInternal(latestStrengthStats, participantProfile);
+  }, [latestStrengthStats, participantProfile]);
+  
+  const fssInterpretation = getFssScoreInterpretation(fssData?.totalScore);
+
   const openMentalCheckinIfNeeded = useCallback(() => {
     const wasLoggedThisWeek = () => {
         if (!myMentalWellbeing?.lastUpdated) return false;
@@ -610,6 +661,32 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         setTimeout(() => { setIsPhysiqueModalOpen(true); }, 150);
     };
 
+    const myNextBooking = useMemo(() => {
+        const myUpcomingBookings = allParticipantBookings
+            .filter(b => b.participantId === currentParticipantId && (b.status === 'BOOKED' || b.status === 'WAITLISTED'))
+            .map(booking => {
+                const schedule = groupClassSchedules.find(s => s.id === booking.scheduleId);
+                if (!schedule) return null;
+
+                const [year, month, day] = booking.classDate.split('-').map(Number);
+                const [hour, minute] = schedule.startTime.split(':').map(Number);
+                const startDateTime = new Date(year, month - 1, day, hour, minute);
+
+                if (startDateTime < new Date()) return null;
+
+                const classDef = groupClassDefinitions.find(d => d.id === schedule.groupClassId);
+                const coach = staffMembers.find(s => s.id === schedule.coachId);
+
+                if (!classDef || !coach) return null;
+                
+                return { booking, schedule, classDef, coach, startDateTime };
+            })
+            .filter((b): b is NonNullable<typeof b> => b !== null)
+            .sort((a,b) => a.startDateTime.getTime() - b.startDateTime.getTime());
+        
+        return myUpcomingBookings[0] || null;
+    }, [allParticipantBookings, currentParticipantId, groupClassSchedules, groupClassDefinitions, staffMembers]);
+
     return (
         <div className="bg-gray-100 min-h-screen">
         {isLogFormOpen && currentWorkoutForForm ? (
@@ -632,7 +709,65 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                     onOpenFlowModal={() => setIsFlowModalOpen(true)}
                 />
                 <div ref={mainContentRef} className="container mx-auto p-4 space-y-6">
-                    {/* Main content here */}
+                    <Suspense fallback={<div className="h-24" />}>
+                        <UpcomingMeetingCard sessions={myUpcomingSessions} staff={staffMembers} onOpenModal={setSelectedSessionForModal} />
+                    </Suspense>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-200">
+                            <h3 className="text-base font-semibold uppercase tracking-wider text-gray-400">Veckomål & Streak</h3>
+                            <div className="flex items-end justify-between mt-2">
+                                <div>
+                                    <p className="text-5xl font-bold text-gray-800">{myWorkoutLogs.filter(log => dateUtils.isSameWeek(new Date(log.completedDate), new Date())).length}
+                                    <span className="text-2xl text-gray-500 font-semibold ml-2">/ {latestActiveGoal?.workoutsPerWeekTarget || 0} pass</span>
+                                    </p>
+                                    <p className="text-lg text-gray-600 mt-1">{latestActiveGoal?.fitnessGoals || "Inget aktivt mål satt."}</p>
+                                </div>
+                                <p className="text-5xl font-bold" title={`Längsta streak: ${myGamificationStats?.longestStreakWeeks || 0} veckor`}>
+                                    🔥 {latestActiveGoal?.currentWeeklyStreak || 0}
+                                </p>
+                            </div>
+                        </div>
+                         <Suspense fallback={<div className="h-24 bg-gray-200 rounded-xl" />}>
+                            <NextBookingCard nextBooking={myNextBooking} />
+                        </Suspense>
+                    </div>
+
+                     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
+                        <StatCard 
+                            icon={<span className="text-3xl">💪</span>}
+                            title="Relativ Styrka (FSS)"
+                            value={fssData?.totalScore?.toString() ?? '-'}
+                            level={fssInterpretation?.label}
+                            levelColor={fssInterpretation?.color}
+                            onClick={() => setIsStrengthModalOpen(true)}
+                            buttonText="Styrkeverktyg"
+                        />
+                        <StatCard 
+                            icon={<span className="text-3xl">🧬</span>}
+                            title="InBody Score"
+                            value={latestPhysiqueStats?.inbodyScore?.toString() ?? '-'}
+                            subValue={`Vikt: ${latestPhysiqueStats?.bodyweightKg ?? '-'} kg`}
+                            onClick={() => setIsPhysiqueModalOpen(true)}
+                            buttonText="Hantera Kroppsdata"
+                        />
+                         <StatCard 
+                            icon={<span className="text-3xl">💨</span>}
+                            title="Kondition"
+                            value={latestConditioningStats?.airbike4MinKcal ? `${latestConditioningStats.airbike4MinKcal} kcal` : '-'}
+                            subValue="Airbike 4 min"
+                            onClick={() => setIsConditioningModalOpen(true)}
+                            buttonText="Konditionstester"
+                        />
+                        <StatCard 
+                            icon={<span className="text-3xl">{myMentalWellbeing?.overallMood ? OVERALL_MOOD_OPTIONS.find(o => o.value === myMentalWellbeing.overallMood)?.emoji : '😊'}</span>}
+                            title="Mentalt Välbefinnande"
+                            value={myMentalWellbeing?.overallMood ? `${OVERALL_MOOD_OPTIONS.find(o => o.value === myMentalWellbeing.overallMood)?.label}` : '-'}
+                            subValue={myMentalWellbeing?.lastUpdated ? `Loggat ${dateUtils.formatRelativeTime(myMentalWellbeing.lastUpdated)}` : "Logga för att se"}
+                            onClick={() => setIsMentalCheckinOpen(true)}
+                            buttonText="Veckans Check-in"
+                        />
+                    </div>
+
                     <div ref={activityViewRef} className="scroll-mt-4">
                         <ParticipantActivityView
                             allActivityLogs={allActivityLogs} allLogsForLeaderboards={allActivityLogsForLeaderboard}
