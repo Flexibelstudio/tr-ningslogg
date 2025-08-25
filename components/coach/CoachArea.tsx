@@ -173,30 +173,31 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   
   const loggedInStaff = useMemo(() => {
     if (!user) return null;
-
     const actualStaffProfile = staffMembers.find(s => s.email === user.email);
 
-    if (user.roles.systemOwner) {
-        // If a system owner is also a staff member in this org, use their profile but grant Admin rights.
+    // If the user is a system owner AND is currently impersonating an organization,
+    // they should have full Admin rights for UI purposes.
+    if (user.roles.systemOwner && isImpersonating) {
+        // If we found their actual staff profile (e.g., they are also a coach),
+        // we use it but ensure the role is elevated to 'Admin' for this session.
         if (actualStaffProfile) {
-            return {
-                ...actualStaffProfile,
-                role: 'Admin' as const, // Override role to Admin
-            };
+            return { ...actualStaffProfile, role: 'Admin' as const };
         }
-        // Otherwise, create a generic Admin profile for the system owner.
+        // If they are not a staff member in this org, create a temporary, in-memory
+        // Admin profile. This allows the UI to render correctly (e.g., show all tabs),
+        // even if data lists might be empty due to underlying data permissions.
         return {
-            id: 'system-owner',
+            id: 'system-owner-impersonating',
             name: user.name,
             email: user.email,
             role: 'Admin' as const,
-            locationId: locations[0]?.id || 'all', // Give access to all locations
+            locationId: locations[0]?.id || 'all',
             isActive: true,
         };
     }
 
     return actualStaffProfile || null;
-  }, [user, staffMembers, locations]);
+  }, [user, staffMembers, isImpersonating, locations]);
 
   const allTabs: { id: CoachTab, label: string }[] = [
     { id: 'overview', label: 'Medlemmar' },
