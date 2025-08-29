@@ -90,7 +90,6 @@ export const ConditioningStatsForm = forwardRef<ConditioningStatsFormRef, Condit
     setErrors({});
   }, [statsHistory]);
 
-  // FIX: Narrow the key type to ConditioningMetric to avoid type conflicts with non-numeric properties like 'comments'.
   const findPreviousValue = useCallback((key: ConditioningMetric) => {
     for (let i = statsHistory.length - 1; i >= 0; i--) {
         const stat = statsHistory[i][key];

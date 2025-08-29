@@ -60,8 +60,8 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   const [hasSaved, setHasSaved] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [setToRemove, setSetToRemove] = useState<{ exerciseId: string; setId: string } | null>(null);
+  const [isDirty, setIsDirty] = useState(false); // New state to track changes reliably
   
-  const initialLogState = useRef<string | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
   const storageKey = useMemo(() => 
@@ -146,41 +146,29 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
     setLogEntries(newLogEntries);
     setPostWorkoutComment(logForEdit?.postWorkoutComment || '');
     setMoodRating(logForEdit?.moodRating || null);
-
-    initialLogState.current = JSON.stringify({
-      entries: Array.from(newLogEntries.entries()),
-      comment: logForEdit?.postWorkoutComment || '',
-      mood: logForEdit?.moodRating || null
-    });
+    setIsDirty(false); // Reset dirty state on load
   }, [workout, logForEdit, exercisesForThisSession]);
 
   // Autosave logic
   useEffect(() => {
-    if (!storageKey) return;
+    if (!storageKey || !isDirty) return;
     
-    const currentState = JSON.stringify({
-      entries: Array.from(logEntries.entries()),
-      comment: postWorkoutComment,
-      mood: moodRating
-    });
-    
-    if (currentState !== initialLogState.current) {
-        const inProgressData: InProgressWorkout = {
-            participantId: participantProfile!.id,
-            workoutId: workout.id,
-            workoutTitle: workout.title,
-            startedAt: new Date().toISOString(),
-            logEntries: Array.from(logEntries.entries()),
-            postWorkoutComment: postWorkoutComment,
-            moodRating: moodRating ?? undefined,
-            selectedExercisesForModifiable: workout.isModifiable ? exercisesForThisSession : undefined,
-        };
-        localStorage.setItem(storageKey, JSON.stringify(inProgressData));
-    }
+    const inProgressData: InProgressWorkout = {
+        participantId: participantProfile!.id,
+        workoutId: workout.id,
+        workoutTitle: workout.title,
+        startedAt: new Date().toISOString(),
+        logEntries: Array.from(logEntries.entries()),
+        postWorkoutComment: postWorkoutComment,
+        moodRating: moodRating ?? undefined,
+        selectedExercisesForModifiable: workout.isModifiable ? exercisesForThisSession : undefined,
+    };
+    localStorage.setItem(storageKey, JSON.stringify(inProgressData));
 
-  }, [logEntries, postWorkoutComment, moodRating, storageKey, workout, participantProfile, exercisesForThisSession]);
+  }, [logEntries, postWorkoutComment, moodRating, storageKey, workout, participantProfile, exercisesForThisSession, isDirty]);
 
   const handleUpdateSet = useCallback((exerciseId: string, setId: string, field: keyof SetDetail, value: any) => {
+    setIsDirty(true);
     setLogEntries(prevMap => {
       const newMap = new Map(prevMap);
       const sets = newMap.get(exerciseId);
@@ -193,6 +181,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   }, []);
 
   const handleAddSet = useCallback((exerciseId: string) => {
+    setIsDirty(true);
     setLogEntries(prevMap => {
       const newMap = new Map(prevMap);
       const sets = newMap.get(exerciseId) || [];
@@ -213,6 +202,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   
   const handleConfirmRemoveSet = () => {
     if (setToRemove) {
+      setIsDirty(true);
       const { exerciseId, setId } = setToRemove;
       setLogEntries(prevMap => {
         const newMap = new Map(prevMap);
@@ -230,17 +220,8 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
     }
   };
 
-  const hasUnsavedChanges = useMemo(() => {
-    const currentState = JSON.stringify({
-      entries: Array.from(logEntries.entries()),
-      comment: postWorkoutComment,
-      mood: moodRating
-    });
-    return currentState !== initialLogState.current;
-  }, [logEntries, postWorkoutComment, moodRating, initialLogState]);
-
   const handleClose = () => {
-    if (hasUnsavedChanges) {
+    if (isDirty) {
       setShowExitConfirm(true);
     } else {
       onClose();
@@ -347,20 +328,20 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
             <Textarea
                 label="Kommentar (valfri)"
                 value={postWorkoutComment}
-                onChange={e => setPostWorkoutComment(e.target.value)}
+                onChange={e => { setPostWorkoutComment(e.target.value); setIsDirty(true); }}
                 placeholder="Hur kändes passet? Något speciellt att notera?"
                 rows={4}
             />
             <MoodSelectorInput
                 currentRating={moodRating}
-                onSelectRating={setMoodRating}
+                onSelectRating={(rating) => { setMoodRating(rating); setIsDirty(true); }}
             />
         </div>
 
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-sm border-t z-20">
             <div className="container mx-auto flex justify-end items-center gap-3">
                 <Button onClick={handleClose} variant="secondary">
-                    {hasUnsavedChanges ? 'Avbryt & Radera' : 'Stäng'}
+                    {isDirty ? 'Avbryt & Radera' : 'Stäng'}
                 </Button>
                 <Button onClick={handleSave} variant="primary" disabled={isSaving}>
                     {saveButtonText}
@@ -380,6 +361,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
             title="Avbryta passet?"
             message="Är du säker? Alla osparade ändringar och loggade set för detta pass kommer att raderas."
             confirmButtonText="Ja, avbryt"
+            cancelButtonText="Nej, stanna kvar"
             confirmButtonVariant="danger"
         />
         <ConfirmationModal
@@ -389,6 +371,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
             title="Ta bort set?"
             message="Är du säker på att du vill ta bort detta set?"
             confirmButtonText="Ja, ta bort"
+            cancelButtonText="Nej"
             confirmButtonVariant="danger"
         />
     </div>
