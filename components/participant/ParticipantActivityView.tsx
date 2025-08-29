@@ -111,9 +111,11 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
     let currentDay = dateUtils.getStartOfWeek(monthStart);
     const today = new Date();
     
-    const goalTargetDates = allParticipantGoals
-        .filter(g => g.targetDate)
-        .map(g => new Date(g.targetDate!));
+    const latestGoal = allParticipantGoals.length > 0
+        ? [...allParticipantGoals].sort((a, b) => new Date(b.setDate).getTime() - new Date(a.setDate).getTime())[0]
+        : null;
+
+    const goalTargetDate = latestGoal && latestGoal.targetDate ? new Date(latestGoal.targetDate) : null;
 
     const isChallengeActive = leaderboardSettings.weeklyPBChallengeEnabled || leaderboardSettings.weeklySessionChallengeEnabled;
     const startOfThisWeek = dateUtils.getStartOfWeek(new Date());
@@ -197,7 +199,7 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
         });
       });
 
-      if (goalTargetDates.some(goalDate => dateUtils.isSameDay(currentDay, goalDate))) {
+      if (goalTargetDate && dateUtils.isSameDay(currentDay, goalTargetDate)) {
         dayEvents.push({ type: 'GOAL_TARGET', icon: '🎯', description: 'Måldatum!' });
       }
 

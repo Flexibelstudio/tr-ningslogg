@@ -180,7 +180,11 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
 
   const hasGoalTargetForDay = useMemo(() => {
     if (!selectedDate) return false;
-    return allParticipantGoals.some(g => g.targetDate && dateUtils.isSameDay(new Date(g.targetDate), selectedDate));
+    const latestGoal = allParticipantGoals.length > 0 
+        ? [...allParticipantGoals].sort((a, b) => new Date(b.setDate).getTime() - new Date(a.setDate).getTime())[0] 
+        : null;
+    if (!latestGoal || !latestGoal.targetDate) return false;
+    return dateUtils.isSameDay(new Date(latestGoal.targetDate), selectedDate);
   }, [selectedDate, allParticipantGoals]);
 
 
