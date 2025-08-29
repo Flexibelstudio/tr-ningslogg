@@ -22,7 +22,6 @@ import {
     LEVEL_COLORS_HEADER, MAIN_LIFTS_CONFIG_HEADER, MOOD_OPTIONS, CLUB_DEFINITIONS
 } from '../../constants';
 import * as dateUtils from '../../utils/dateUtils';
-import { FixedHeaderAndTools } from './FixedHeaderAndTools';
 import { calculateFlexibelStrengthScoreInternal, getFssScoreInterpretation as getFssScoreInterpretationFromTool } from './StrengthComparisonTool';
 import { FeedbackPromptToast } from './FeedbackPromptToast';
 import { InfoModal } from './InfoModal';
@@ -349,6 +348,16 @@ const GoalProgressCard: React.FC<{ goal: ParticipantGoalData | null, logs: Activ
 
 type FlowItemLogType = 'workout' | 'general' | 'coach_event' | 'one_on_one_session' | 'goal_completion' | 'participant_club_membership' | 'user_strength_stat' | 'participant_physique_stat' | 'participant_goal_data' | 'participant_conditioning_stat';
 
+export interface ParticipantNavbarActions {
+  onOpenGoalModal: () => void;
+  onOpenCommunity: () => void;
+  aiRecept?: string | null;
+  onOpenAiRecept: () => void;
+  newFlowItemsCount: number;
+  pendingRequestsCount: number;
+  onOpenFlowModal: () => void;
+}
+
 interface ParticipantAreaProps {
   currentParticipantId: string;
   onSetRole: (role: UserRole | null) => void;
@@ -364,6 +373,7 @@ interface ParticipantAreaProps {
   onCancelBooking: (bookingId: string) => void;
   onCheckInParticipant: (bookingId: string) => void;
   setProfileOpener: (opener: { open: () => void } | null) => void;
+  setNavbarActions: (actions: ParticipantNavbarActions | null) => void;
 }
 
 // Main ParticipantArea Component
@@ -382,6 +392,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   onCancelBooking,
   onCheckInParticipant,
   setProfileOpener,
+  setNavbarActions,
 }) => {
     const {
         participantDirectory,
@@ -1227,6 +1238,31 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         }
 
     }, [allActivityLogs, myStrengthStats, myConditioningStats, participantProfile, myClubMemberships, workouts, setClubMembershipsData, isNewUser]);
+    
+    const onOpenGoalModal = useCallback(() => setIsGoalModalOpen(true), []);
+    const onOpenCommunity = useCallback(() => setIsCommunityModalOpen(true), []);
+    const onOpenAiRecept = useCallback(() => setIsAiReceptModalOpen(true), []);
+    const onOpenFlowModal = useCallback(() => setIsFlowModalOpen(true), []);
+    const pendingRequestsCount = useMemo(() => connections.filter(c => c.receiverId === currentParticipantId && c.status === 'pending').length, [connections, currentParticipantId]);
+    
+    useEffect(() => {
+        setNavbarActions({
+            onOpenGoalModal,
+            onOpenCommunity,
+            aiRecept: latestActiveGoal?.aiPrognosis,
+            onOpenAiRecept,
+            newFlowItemsCount: 0, // This logic is not implemented yet
+            pendingRequestsCount,
+            onOpenFlowModal
+        });
+        
+        return () => {
+            setNavbarActions(null);
+        };
+    }, [
+        setNavbarActions, onOpenGoalModal, onOpenCommunity, latestActiveGoal, 
+        onOpenAiRecept, pendingRequestsCount, onOpenFlowModal
+    ]);
 
     return (
         <div className="bg-gray-100 bg-dotted-pattern bg-dotted-size bg-fixed min-h-screen">
@@ -1250,15 +1286,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             />
         ) : (
             <div className="pb-40">
-                <FixedHeaderAndTools
-                    onOpenGoalModal={() => setIsGoalModalOpen(true)}
-                    onOpenCommunity={() => setIsCommunityModalOpen(true)}
-                    aiRecept={latestActiveGoal?.aiPrognosis}
-                    onOpenAiRecept={() => setIsAiReceptModalOpen(true)}
-                    newFlowItemsCount={0} // Placeholder
-                    pendingRequestsCount={connections.filter(c => c.receiverId === currentParticipantId && c.status === 'pending').length}
-                    onOpenFlowModal={() => setIsFlowModalOpen(true)}
-                />
                 <div ref={mainContentRef} className="container mx-auto p-4 space-y-6">
                     {inProgressWorkout && (
                         <div className="p-4 bg-yellow-100 border-l-4 border-yellow-500 rounded-r-lg flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade-in-down">

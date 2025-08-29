@@ -19,6 +19,7 @@ import { Register } from './components/Register';
 import { Button } from './components/Button';
 import { NetworkStatusProvider } from './context/NetworkStatusContext';
 import { OfflineBanner } from './components/OfflineBanner';
+import { ParticipantNavbarActions } from './components/participant/ParticipantArea';
 
 const CoachArea = lazy(() => import('./components/coach/CoachArea').then(m => ({ default: m.CoachArea })));
 const ParticipantArea = lazy(() => import('./components/participant/ParticipantArea').then(m => ({ default: m.ParticipantArea })));
@@ -75,6 +76,13 @@ const AppContent: React.FC = () => {
         }
         return null;
     });
+    const [participantNavbarActions, setParticipantNavbarActions] = useState<ParticipantNavbarActions | null>(null);
+
+    useEffect(() => {
+        if (auth.currentRole !== UserRole.PARTICIPANT) {
+            setParticipantNavbarActions(null);
+        }
+    }, [auth.currentRole]);
 
     useEffect(() => {
         if (auth.organizationId) {
@@ -566,6 +574,7 @@ const AppContent: React.FC = () => {
                         onBookClass={handleBookClass}
                         onCancelBooking={handleCancelBooking}
                         setProfileOpener={setProfileOpener}
+                        setNavbarActions={setParticipantNavbarActions}
                     />
                     <WelcomeModal 
                         isOpen={isWelcomeModalOpen}
@@ -584,7 +593,7 @@ const AppContent: React.FC = () => {
 
     return (
         <div className="bg-gray-50 min-h-screen">
-            <Navbar onOpenProfile={handleOpenProfile} />
+            <Navbar onOpenProfile={handleOpenProfile} participantActions={participantNavbarActions} />
             <OfflineBanner />
             <main>
                 <Suspense fallback={<LoadingSpinner />}>
