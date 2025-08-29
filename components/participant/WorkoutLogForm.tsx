@@ -59,7 +59,6 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [hasSaved, setHasSaved] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
-  // FIX: Renamed state variable to avoid conflict with setter function.
   const [setToRemove, setSetToRemove] = useState<{ exerciseId: string; setId: string } | null>(null);
   
   const initialLogState = useRef<string | null>(null);
@@ -70,8 +69,6 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
     [participantProfile]
   );
   
-  // FIX: Create a memoized variable to correctly determine the exercises for this session,
-  // whether from an edited log or a new workout template.
   const exercisesForThisSession = useMemo(() => {
     return (logForEdit?.selectedExercisesForModifiable && logForEdit.selectedExercisesForModifiable.length > 0)
         ? logForEdit.selectedExercisesForModifiable
@@ -125,7 +122,6 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
 
   useEffect(() => {
     const newLogEntries = new Map<string, SetDetail[]>();
-    // FIX: Use the memoized exercisesForThisSession instead of trying to access a non-existent property on `workout`.
     const exercises = exercisesForThisSession;
         
     exercises.forEach(exercise => {
@@ -177,7 +173,6 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
             logEntries: Array.from(logEntries.entries()),
             postWorkoutComment: postWorkoutComment,
             moodRating: moodRating ?? undefined,
-            // FIX: Correctly get the exercises for a modifiable workout from the derived list.
             selectedExercisesForModifiable: workout.isModifiable ? exercisesForThisSession : undefined,
         };
         localStorage.setItem(storageKey, JSON.stringify(inProgressData));
@@ -217,7 +212,6 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   }, []);
   
   const handleConfirmRemoveSet = () => {
-    // FIX: Use the correct state variable `setToRemove`.
     if (setToRemove) {
       const { exerciseId, setId } = setToRemove;
       setLogEntries(prevMap => {
@@ -269,7 +263,6 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
       completedDate: logForEdit?.completedDate || new Date().toISOString(),
       postWorkoutComment,
       moodRating: moodRating ?? undefined,
-      // FIX: Correctly get exercises for modifiable workouts, preserving existing data if editing.
       selectedExercisesForModifiable: logForEdit?.selectedExercisesForModifiable ?? (workout.isModifiable ? exercisesForThisSession : undefined),
     };
     
@@ -390,7 +383,6 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
             confirmButtonVariant="danger"
         />
         <ConfirmationModal
-            // FIX: Use the correct state variable `setToRemove`.
             isOpen={!!setToRemove}
             onClose={() => setSetToRemove(null)}
             onConfirm={handleConfirmRemoveSet}
