@@ -146,19 +146,30 @@ export const OVERALL_MOOD_OPTIONS = [
 ];
 
 export const WEIGHT_COMPARISONS: WeightComparisonItem[] = [
+    { name: 'Papegoja', pluralName: 'Papegojor', weightKg: 1.5, emoji: '🦜', article: 'en' },
     { name: 'Katt', pluralName: 'Katter', weightKg: 5, emoji: '🐈', article: 'en' },
-    { name: 'Mikrovågsugn', pluralName: 'Mikrovågsugnar', weightKg: 15, emoji: ' microwave ', article: 'en' },
+    { name: 'Räv', pluralName: 'Rävar', weightKg: 7, emoji: '🦊', article: 'en' },
+    { name: 'Mikrovågsugn', pluralName: 'Mikrovågsugnar', weightKg: 15, imageUrl: 'data:image/svg+xml;utf8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23475569\' stroke-width=\'1.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpath d=\'M2 5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5z\'%3E%3C/path%3E%3Cpath d=\'M15 5v14\'%3E%3C/path%3E%3Cpath d=\'M19 6h2\'%3E%3C/path%3E%3Cpath d=\'M19 10h2\'%3E%3C/path%3E%3Cpath d=\'M19 14h2\'%3E%3C/path%3E%3Cpath d=\'M5 8h6\'%3E%3C/path%3E%3Cpath d=\'M5 12h6\'%3E%3C/path%3E%3C/svg%3E', article: 'en' },
     { name: 'Golden Retriever', pluralName: 'Golden Retrievers', weightKg: 30, emoji: '🐕', article: 'en' },
+    { name: 'Pingvin', pluralName: 'Pingviner', weightKg: 35, emoji: '🐧', article: 'en' },
     { name: 'Jättesäck potatis', pluralName: 'Jättesäckar potatis', weightKg: 50, emoji: '🥔', article: 'en' },
     { name: 'Full öl-kagge', pluralName: 'Fulla öl-kaggar', weightKg: 60, emoji: '🍺', article: 'ett' },
     { name: 'Varg', pluralName: 'Vargar', weightKg: 70, emoji: '🐺', article: 'en' },
+    { name: 'Tvättmaskin', pluralName: 'Tvättmaskiner', weightKg: 70, imageUrl: 'data:image/svg+xml;utf8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23475569\' stroke-width=\'1.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Crect x=\'3\' y=\'3\' width=\'18\' height=\'18\' rx=\'2\' ry=\'2\'%3E%3C/rect%3E%3Ccircle cx=\'12\' cy=\'13\' r=\'5\'%3E%3C/circle%3E%3Cline x1=\'15\' y1=\'6\' x2=\'18\' y2=\'6\'%3E%3C/line%3E%3Cline x1=\'15\' y1=\'9\' x2=\'17\' y2=\'9\'%3E%3C/line%3E%3C/svg%3E', article: 'en' },
+    { name: 'Moped', pluralName: 'Mopeder', weightKg: 80, emoji: '🛵', article: 'en' },
     { name: 'Genomsnittlig man', pluralName: 'Genomsnittliga män', weightKg: 85, emoji: '👨', article: 'en' },
+    { name: 'Säl', pluralName: 'Sälar', weightKg: 100, imageUrl: 'data:image/svg+xml;utf8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23475569\' stroke-width=\'1.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpath d=\'M3.5 10.5c3.92-3.92 13.08-3.92 17 0V17c-4-2-10-2-14 0-1.78 0-2.89-.04-4-.5v-6Z\'%3E%3C/path%3E%3Cpath d=\'M2.5 10.5C2.5 9 5 8 5 8\'%3E%3C/path%3E%3Cpath d=\'M19 8s2.5 1 2.5 2.5\'%3E%3C/path%3E%3C/svg%3E', article: 'en' },
+    { name: 'Lama', pluralName: 'Lamor', weightKg: 150, emoji: '🦙', article: 'en' },
     { name: 'Gorilla', pluralName: 'Gorillor', weightKg: 160, emoji: '🦍', article: 'en' },
     { name: 'Lejon', pluralName: 'Lejon', weightKg: 190, emoji: '🦁', article: 'ett' },
     { name: 'Grizzlybjörn', pluralName: 'Grizzlybjörnar', weightKg: 270, emoji: '🐻', article: 'en' },
     { name: 'Häst', pluralName: 'Hästar', weightKg: 400, emoji: '🐎', article: 'en' },
+    { name: 'Älg', pluralName: 'Älgar', weightKg: 500, emoji: '🦌', article: 'en' },
     { name: 'Isbjörn', pluralName: 'Isbjörnar', weightKg: 600, emoji: '🐻‍❄️', article: 'en' },
+    { name: 'Smart Car', pluralName: 'Smart Cars', weightKg: 750, emoji: '🚗', article: 'en' },
     { name: 'Personbil', pluralName: 'Personbilar', weightKg: 1500, emoji: '🚗', article: 'en' },
+    { name: 'Narval', pluralName: 'Narvalar', weightKg: 1500, emoji: '🐋', article: 'en' },
+    { name: 'Elefant', pluralName: 'Elefanter', weightKg: 6000, emoji: '🐘', article: 'en' },
 ];
 
 export const FSS_CONFIG = {

@@ -169,10 +169,18 @@ export const PostWorkoutSummaryModal: React.FC<PostWorkoutSummaryModalProps> = (
             <p className="text-xl text-gray-500 font-semibold">Pass Slutfört!</p>
 
             {summaryData.animalEquivalent && (
-              <div className="my-6 animate-fade-in-down">
-                <span className="text-9xl" role="img" aria-label={summaryData.animalEquivalent.name}>
+              <div className="my-6 animate-fade-in-down flex items-center justify-center h-40">
+                {animalWeightDetails?.imageUrl ? (
+                  <img
+                    src={animalWeightDetails.imageUrl}
+                    alt={summaryData.animalEquivalent.name}
+                    className="max-w-full max-h-full object-contain"
+                  />
+                ) : (
+                  <span className="text-9xl" role="img" aria-label={summaryData.animalEquivalent.name}>
                     {summaryData.animalEquivalent.emoji || '💪'}
-                </span>
+                  </span>
+                )}
               </div>
             )}
 
