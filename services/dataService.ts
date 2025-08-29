@@ -99,6 +99,7 @@ const getInitialDB = (): MockDB => {
         users: [
             { id: 'user-id-owner', name: 'System Owner', email: 'owner@system.com', roles: { systemOwner: true } },
             { id: 'user-id-admin1', name: 'Sanna Admin', email: 'sanna.admin@flexibel.se', roles: { orgAdmin: [mainOrgId], participant: mainOrgId }, linkedParticipantProfileId: 'user-id-admin1-profile' },
+            // FIX: Erik was a staff member but lacked the orgAdmin role required for staff privileges. This aligns his user data with his staff record.
             { id: 'user-id-participant1', name: 'Erik Svensson', email: 'erik@test.com', roles: { orgAdmin: [mainOrgId], participant: mainOrgId }, linkedParticipantProfileId: 'user-id-participant1-profile' },
             { id: 'user-id-participant2', name: 'Anna Andersson', email: 'anna@test.com', roles: { participant: mainOrgId }, linkedParticipantProfileId: 'user-id-participant2-profile' },
         ],

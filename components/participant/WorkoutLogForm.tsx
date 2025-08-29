@@ -59,9 +59,10 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [hasSaved, setHasSaved] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  // FIX: Renamed state variable to avoid conflict with setter function.
   const [setToRemove, setSetToRemove] = useState<{ exerciseId: string; setId: string } | null>(null);
-  const [isDirty, setIsDirty] = useState(false); // New state to track changes reliably
   
+  const initialLogState = useRef<string | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
   const storageKey = useMemo(() => 
@@ -69,6 +70,8 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
     [participantProfile]
   );
   
+  // FIX: Create a memoized variable to correctly determine the exercises for this session,
+  // whether from an edited log or a new workout template.
   const exercisesForThisSession = useMemo(() => {
     return (logForEdit?.selectedExercisesForModifiable && logForEdit.selectedExercisesForModifiable.length > 0)
         ? logForEdit.selectedExercisesForModifiable
@@ -122,6 +125,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
 
   useEffect(() => {
     const newLogEntries = new Map<string, SetDetail[]>();
+    // FIX: Use the memoized exercisesForThisSession instead of trying to access a non-existent property on `workout`.
     const exercises = exercisesForThisSession;
         
     exercises.forEach(exercise => {
@@ -146,29 +150,42 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
     setLogEntries(newLogEntries);
     setPostWorkoutComment(logForEdit?.postWorkoutComment || '');
     setMoodRating(logForEdit?.moodRating || null);
-    setIsDirty(false); // Reset dirty state on load
+
+    initialLogState.current = JSON.stringify({
+      entries: Array.from(newLogEntries.entries()),
+      comment: logForEdit?.postWorkoutComment || '',
+      mood: logForEdit?.moodRating || null
+    });
   }, [workout, logForEdit, exercisesForThisSession]);
 
   // Autosave logic
   useEffect(() => {
-    if (!storageKey || !isDirty) return;
+    if (!storageKey) return;
     
-    const inProgressData: InProgressWorkout = {
-        participantId: participantProfile!.id,
-        workoutId: workout.id,
-        workoutTitle: workout.title,
-        startedAt: new Date().toISOString(),
-        logEntries: Array.from(logEntries.entries()),
-        postWorkoutComment: postWorkoutComment,
-        moodRating: moodRating ?? undefined,
-        selectedExercisesForModifiable: workout.isModifiable ? exercisesForThisSession : undefined,
-    };
-    localStorage.setItem(storageKey, JSON.stringify(inProgressData));
+    const currentState = JSON.stringify({
+      entries: Array.from(logEntries.entries()),
+      comment: postWorkoutComment,
+      mood: moodRating
+    });
+    
+    if (currentState !== initialLogState.current) {
+        const inProgressData: InProgressWorkout = {
+            participantId: participantProfile!.id,
+            workoutId: workout.id,
+            workoutTitle: workout.title,
+            startedAt: new Date().toISOString(),
+            logEntries: Array.from(logEntries.entries()),
+            postWorkoutComment: postWorkoutComment,
+            moodRating: moodRating ?? undefined,
+            // FIX: Correctly get the exercises for a modifiable workout from the derived list.
+            selectedExercisesForModifiable: workout.isModifiable ? exercisesForThisSession : undefined,
+        };
+        localStorage.setItem(storageKey, JSON.stringify(inProgressData));
+    }
 
-  }, [logEntries, postWorkoutComment, moodRating, storageKey, workout, participantProfile, exercisesForThisSession, isDirty]);
+  }, [logEntries, postWorkoutComment, moodRating, storageKey, workout, participantProfile, exercisesForThisSession]);
 
   const handleUpdateSet = useCallback((exerciseId: string, setId: string, field: keyof SetDetail, value: any) => {
-    setIsDirty(true);
     setLogEntries(prevMap => {
       const newMap = new Map(prevMap);
       const sets = newMap.get(exerciseId);
@@ -181,7 +198,6 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   }, []);
 
   const handleAddSet = useCallback((exerciseId: string) => {
-    setIsDirty(true);
     setLogEntries(prevMap => {
       const newMap = new Map(prevMap);
       const sets = newMap.get(exerciseId) || [];
@@ -201,8 +217,8 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   }, []);
   
   const handleConfirmRemoveSet = () => {
+    // FIX: Use the correct state variable `setToRemove`.
     if (setToRemove) {
-      setIsDirty(true);
       const { exerciseId, setId } = setToRemove;
       setLogEntries(prevMap => {
         const newMap = new Map(prevMap);
@@ -220,8 +236,17 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
     }
   };
 
+  const hasUnsavedChanges = useMemo(() => {
+    const currentState = JSON.stringify({
+      entries: Array.from(logEntries.entries()),
+      comment: postWorkoutComment,
+      mood: moodRating
+    });
+    return currentState !== initialLogState.current;
+  }, [logEntries, postWorkoutComment, moodRating, initialLogState]);
+
   const handleClose = () => {
-    if (isDirty) {
+    if (hasUnsavedChanges) {
       setShowExitConfirm(true);
     } else {
       onClose();
@@ -244,6 +269,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
       completedDate: logForEdit?.completedDate || new Date().toISOString(),
       postWorkoutComment,
       moodRating: moodRating ?? undefined,
+      // FIX: Correctly get exercises for modifiable workouts, preserving existing data if editing.
       selectedExercisesForModifiable: logForEdit?.selectedExercisesForModifiable ?? (workout.isModifiable ? exercisesForThisSession : undefined),
     };
     
@@ -328,20 +354,20 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
             <Textarea
                 label="Kommentar (valfri)"
                 value={postWorkoutComment}
-                onChange={e => { setPostWorkoutComment(e.target.value); setIsDirty(true); }}
+                onChange={e => setPostWorkoutComment(e.target.value)}
                 placeholder="Hur kändes passet? Något speciellt att notera?"
                 rows={4}
             />
             <MoodSelectorInput
                 currentRating={moodRating}
-                onSelectRating={(rating) => { setMoodRating(rating); setIsDirty(true); }}
+                onSelectRating={setMoodRating}
             />
         </div>
 
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-sm border-t z-20">
             <div className="container mx-auto flex justify-end items-center gap-3">
                 <Button onClick={handleClose} variant="secondary">
-                    {isDirty ? 'Avbryt & Radera' : 'Stäng'}
+                    {hasUnsavedChanges ? 'Avbryt & Radera' : 'Stäng'}
                 </Button>
                 <Button onClick={handleSave} variant="primary" disabled={isSaving}>
                     {saveButtonText}
@@ -361,17 +387,16 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
             title="Avbryta passet?"
             message="Är du säker? Alla osparade ändringar och loggade set för detta pass kommer att raderas."
             confirmButtonText="Ja, avbryt"
-            cancelButtonText="Nej, stanna kvar"
             confirmButtonVariant="danger"
         />
         <ConfirmationModal
+            // FIX: Use the correct state variable `setToRemove`.
             isOpen={!!setToRemove}
             onClose={() => setSetToRemove(null)}
             onConfirm={handleConfirmRemoveSet}
             title="Ta bort set?"
             message="Är du säker på att du vill ta bort detta set?"
             confirmButtonText="Ja, ta bort"
-            cancelButtonText="Nej"
             confirmButtonVariant="danger"
         />
     </div>

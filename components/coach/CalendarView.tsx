@@ -82,11 +82,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
     return groupClassSchedules
       .filter(schedule => {
+        // FIX: Parse date strings as local time to avoid timezone issues.
+        // new Date('YYYY-MM-DD') parses as UTC midnight, which can cause off-by-one day errors.
         const [startYear, startMonth, startDay] = schedule.startDate.split('-').map(Number);
         const startDate = new Date(startYear, startMonth - 1, startDay);
         
         const [endYear, endMonth, endDay] = schedule.endDate.split('-').map(Number);
         const endDate = new Date(endYear, endMonth - 1, endDay);
+        // Set end date to the very end of the day for inclusive check
         endDate.setHours(23, 59, 59, 999);
 
         return schedule.daysOfWeek.includes(dayOfWeek) && day >= startDate && day <= endDate;
