@@ -46,7 +46,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
             </button>
             </div>
         )}
-        <div className="p-6 overflow-y-auto">
+        <div className="py-6 px-4 sm:px-6 overflow-y-auto">
           {children}
         </div>
       </div>
