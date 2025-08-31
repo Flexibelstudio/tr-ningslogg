@@ -43,8 +43,8 @@ export const Login: React.FC<LoginProps> = ({ onSwitchToRegister }) => {
 
   return (
     <div className="min-h-screen grid grid-rows-[1fr_auto] bg-dotted-pattern bg-dotted-size bg-gray-100 p-4">
-      <main className="flex items-center justify-center overflow-y-auto py-8">
-        <div className="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-md space-y-4 animate-fade-in-down" style={{ animationDelay: '0.1s' }}>
+      <main className="flex items-center justify-center overflow-y-auto pt-8 pb-16">
+        <div className="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-md space-y-4 my-auto animate-fade-in-down" style={{ animationDelay: '0.1s' }}>
           <div className="text-center mb-8 space-y-4">
               <img src="/icon-180x180.png" alt="Logotyp" className="h-20 w-20 mx-auto" />
               <h1 className="text-3xl font-bold text-gray-800">Välkommen tillbaka</h1>
