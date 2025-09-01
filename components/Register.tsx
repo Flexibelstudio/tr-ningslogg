@@ -2,12 +2,10 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './Button';
 import { Input, Select } from './Input';
-import { APP_NAME } from '../constants';
 import { useAppContext } from '../context/AppContext';
-import { Location, Organization } from '../types';
-import firebaseService from '../services/firebaseService';
-import { useNetworkStatus } from '../context/NetworkStatusContext';
+import { Location } from '../types';
 import dataService from '../services/dataService';
+import { useNetworkStatus } from '../context/NetworkStatusContext';
 
 interface RegisterProps {
     onSwitchToLogin: () => void;
@@ -33,16 +31,13 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
     
     useEffect(() => {
         if (selectedOrgId) {
-            const fetchLocations = async () => {
+            const fetchLocations = () => {
                 setIsLoadingLocations(true);
                 setSelectedLocationId('');
                 setError('');
                 try {
-                    // ALWAYS use the local data service for locations on the public registration page.
-                    // An unauthenticated user cannot fetch subcollections from Firestore.
-                    const mockOrgData = dataService.getOrgData(selectedOrgId);
-                    const locs = mockOrgData?.locations || [];
-
+                    const orgData = dataService.getOrgData(selectedOrgId);
+                    const locs = orgData?.locations || [];
                     setLocationsForOrg(locs);
 
                     if (locs.length === 0) {
@@ -50,7 +45,6 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
                         setError(`'${orgName}' har inga konfigurerade studios/orter. Välj en annan organisation.`);
                     }
                 } catch (err) {
-                    // This catch block is less likely to be hit now, but good to keep as a safeguard.
                     console.error("Failed to fetch locations from dataService:", err);
                     setError('Ett fel uppstod vid hämtning av orter.');
                     setLocationsForOrg([]);
@@ -79,15 +73,12 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
         }
         setIsLoading(true);
         try {
-            await register(email.replace(/\s/g, ''), password, selectedOrgId, selectedLocationId);
+            const sanitizedEmail = email.trim().toLowerCase();
+            await register(sanitizedEmail, password, selectedOrgId, selectedLocationId);
             onRegistrationSuccess();
         } catch (err: any) {
-            if (err.message === 'AUTH_NO_PREEXISTING_PROFILE') {
-                setError('Det finns inget konto att aktivera för denna e-post. Kontakta din coach för att bli tillagd i systemet.');
-            } else if (err.message === 'AUTH_REGISTRATION_DECLINED') {
-                setError('Din registrering har nekats. Kontakta din coach för mer information.');
-            } else if (err.code === 'auth/email-already-in-use') {
-                setError('Denna e-postadress är redan registrerad och aktiverad. Prova att logga in.');
+            if (err.code === 'auth/email-already-in-use') {
+                setError('Denna e-postadress är redan registrerad. Prova att logga in.');
             } else if (err.code === 'auth/weak-password') {
                 setError('Lösenordet måste vara minst 6 tecken långt.');
             } else {
@@ -137,7 +128,7 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
                             />
                         )}
 
-                        <Button type="submit" fullWidth size="lg" disabled={isLoading || !isOnline}>
+                        <Button type="submit" fullWidth size="lg" disabled={isLoading || !isOnline || !selectedLocationId}>
                             {isLoading ? 'Registrerar...' : (isOnline ? 'Skapa konto' : 'Offline')}
                         </Button>
                     </form>
