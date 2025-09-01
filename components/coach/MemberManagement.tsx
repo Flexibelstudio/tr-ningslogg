@@ -78,7 +78,6 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({ isOpen, onClose, particip
         let updates: Partial<ParticipantProfile> = {
             approvalStatus: 'approved',
             isActive: true,
-            locationId: participant.locationId, // Ensure locationId is preserved
         };
 
         if (isInStartProgram) {
