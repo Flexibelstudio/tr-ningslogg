@@ -28,7 +28,7 @@ const getInitials = (name: string): string => {
 };
 
 interface AvatarProps {
-  name?: string | null;
+  name?: string;
   photoURL?: string;
   size?: 'sm' | 'md' | 'lg';
   className?: string;

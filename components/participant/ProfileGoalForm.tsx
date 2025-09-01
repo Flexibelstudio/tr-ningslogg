@@ -12,7 +12,7 @@ export interface ProfileFormRef {
 interface ProfileFormProps {
   currentProfile: ParticipantProfile | null;
   onSave: (
-    profileData: { firstName?: string; lastName?: string; age?: string; gender?: GenderOption; enableLeaderboardParticipation?: boolean; isSearchable?: boolean; locationId?: string; enableInBodySharing?: boolean; enableFssSharing?: boolean; photoURL?: string; }
+    profileData: { name?: string; age?: string; gender?: GenderOption; enableLeaderboardParticipation?: boolean; isSearchable?: boolean; locationId?: string; enableInBodySharing?: boolean; enableFssSharing?: boolean; photoURL?: string; }
   ) => void;
   locations: Location[];
 }
@@ -38,8 +38,9 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setFirstName(currentProfile?.firstName || '');
-    setLastName(currentProfile?.lastName || '');
+    const nameParts = currentProfile?.name?.split(' ') || [''];
+    setFirstName(nameParts[0] || '');
+    setLastName(nameParts.slice(1).join(' ') || '');
     setAge(currentProfile?.age?.toString() || '');
     setGender(currentProfile?.gender || '-');
     setLocationId(currentProfile?.locationId || '');
@@ -112,8 +113,7 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({
     }
     
     const profileData: Parameters<typeof onSave>[0] = { 
-        firstName: firstName.trim(), 
-        lastName: lastName.trim(),
+        name: `${firstName.trim()} ${lastName.trim()}`.trim(),
         age: age.trim(), 
         gender, 
         locationId: locationId,
@@ -136,7 +136,7 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({
   }));
   
   const locationOptions = locations.map(loc => ({ value: loc.id, label: loc.name }));
-  const fullName = `${firstName || ''} ${lastName || ''}`.trim();
+  const combinedName = `${firstName} ${lastName}`.trim();
 
   return (
     <div className="space-y-6 py-4">
@@ -147,7 +147,7 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({
       <section className="space-y-4 pt-4 border-t">
         <h3 className="text-lg font-semibold text-gray-700">Profilbild</h3>
         <div className="flex items-center gap-4">
-            <Avatar photoURL={imagePreview || currentProfile?.photoURL} name={fullName} size="lg" />
+            <Avatar photoURL={imagePreview || currentProfile?.photoURL} name={combinedName} size="lg" />
             <input
                 type="file"
                 ref={fileInputRef}
@@ -172,7 +172,7 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({
               onChange={(e) => setFirstName(e.target.value)}
               placeholder="Ditt förnamn"
             />
-             <Input
+            <Input
               label="Efternamn"
               id="profileLastName"
               name="profileLastName"
