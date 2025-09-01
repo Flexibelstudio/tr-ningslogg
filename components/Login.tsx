@@ -24,7 +24,7 @@ export const Login: React.FC<LoginProps> = ({ onSwitchToRegister }) => {
     setError('');
     setIsLoading(true);
     try {
-      await login(email, password);
+      await login(email.trim(), password);
       // AuthProvider will handle the redirect/UI change
     } catch (err: any) {
       console.error(err);
