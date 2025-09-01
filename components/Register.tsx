@@ -79,7 +79,7 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
         }
         setIsLoading(true);
         try {
-            await register(email.trim(), password, selectedOrgId, selectedLocationId);
+            await register(email.replace(/\s/g, ''), password, selectedOrgId, selectedLocationId);
             onRegistrationSuccess();
         } catch (err: any) {
             if (err.message === 'AUTH_NO_PREEXISTING_PROFILE') {
