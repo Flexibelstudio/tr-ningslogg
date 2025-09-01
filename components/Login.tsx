@@ -1,10 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './Button';
 import { Input } from './Input';
-import { APP_NAME } from '../constants';
-import dataService from '../services/dataService';
-import { User } from '../types';
 import { useNetworkStatus } from '../context/NetworkStatusContext';
 
 interface LoginProps {
@@ -24,16 +21,15 @@ export const Login: React.FC<LoginProps> = ({ onSwitchToRegister }) => {
     setError('');
     setIsLoading(true);
     try {
-      await login(email.replace(/\s/g, ''), password);
-      // AuthProvider will handle the redirect/UI change
+      const sanitizedEmail = email.trim().toLowerCase();
+      await login(sanitizedEmail, password);
     } catch (err: any) {
       console.error(err);
       if (err.message === 'AUTH_APPROVAL_PENDING') {
         setError('Ditt konto väntar på godkännande av en coach. Du kan inte logga in än.');
       } else if (err.message === 'OFFLINE_LOGIN_ATTEMPT') {
-          setError('Inloggning misslyckades. Appen körs i offlineläge eftersom den inte kan ansluta till Firebase. Kontrollera att Firebase-variablerna är korrekt konfigurerade i driftsättningsmiljön.');
+          setError('Inloggning misslyckades. Appen körs i offlineläge. Kontrollera din anslutning.');
       } else {
-        // Map Firebase error codes to user-friendly messages
         setError('Fel e-post eller lösenord. Försök igen.');
       }
     } finally {
