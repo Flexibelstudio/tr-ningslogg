@@ -1,7 +1,8 @@
 // --- Core Multi-Tenant Types ---
 export interface User {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   roles: {
     systemOwner?: boolean;
@@ -298,7 +299,8 @@ export type GenderOption = 'Man' | 'Kvinna' | '-';
 
 export interface ParticipantProfile {
   id: string; 
-  name?: string;
+  firstName?: string;
+  lastName?: string;
   email?: string;
   photoURL?: string;
   isActive?: boolean;
@@ -558,7 +560,8 @@ export type StaffRole = 'Coach' | 'Admin';
 
 export interface StaffMember {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   email?: string;
   role: StaffRole;
   locationId: string; // FK to Location.id

@@ -39,6 +39,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenProfile, participantAction
   
   const loggedInStaff = staffMembers.find(s => s.email === user?.email);
   const currentOrganization = allOrganizations.find(o => o.id === organizationId);
+  
+  const userFullName = useMemo(() => {
+      if (currentUserProfile) {
+        return `${currentUserProfile.firstName || ''} ${currentUserProfile.lastName || ''}`.trim();
+      }
+      if (user) {
+        return `${user.firstName} ${user.lastName}`.trim();
+      }
+      return 'Användare';
+  }, [currentUserProfile, user]);
+
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -71,7 +82,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenProfile, participantAction
   }
   
   const destinationView = isStaffViewingAsParticipant
-      ? `Till ${user.roles.systemOwner ? 'Systemägar-vy' : (loggedInStaff?.role + '-vy') || 'Admin-vy'}`
+      ? `Till ${user.roles.systemOwner ? 'Systemägar-vy' : (`${loggedInStaff?.firstName || ''} ${loggedInStaff?.lastName || 'Admin'}`.trim() + '-vy')}`
       : 'Till Medlemsvy';
 
   const MenuItem: React.FC<{ onClick: () => void; children: React.ReactNode; }> = ({ onClick, children }) => (
@@ -100,7 +111,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenProfile, participantAction
             )}
             {currentRole === UserRole.PARTICIPANT && (
                  <h1 className="text-2xl font-bold text-gray-800 hidden md:block">
-                    {currentUserProfile?.name ? `, ${currentUserProfile.name.split(' ')[0]}!` : ''}
+                    {currentUserProfile?.firstName ? `, ${currentUserProfile.firstName}!` : ''}
                  </h1>
             )}
         </div>
@@ -142,7 +153,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenProfile, participantAction
                     aria-label="Öppna användarmeny"
                 >
                     <Avatar 
-                        name={currentUserProfile?.name || user.name} 
+                        name={userFullName}
                         photoURL={currentUserProfile?.photoURL} 
                         size="md"
                         className="!h-8 !w-8"
@@ -156,7 +167,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenProfile, participantAction
                      >
                         <div className="py-1">
                             <div className="px-4 py-3 border-b">
-                                <p className="text-sm font-semibold text-gray-800 truncate">{user.name}</p>
+                                <p className="text-sm font-semibold text-gray-800 truncate">{userFullName}</p>
                                 <p className="text-xs text-gray-500">
                                     {currentRole === UserRole.PARTICIPANT ? 'Medlem' : 
                                      (user.roles.systemOwner ? (isImpersonating ? 'Adminvy' : 'Systemägare') : 

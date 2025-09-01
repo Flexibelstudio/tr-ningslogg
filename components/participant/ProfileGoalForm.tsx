@@ -12,7 +12,7 @@ export interface ProfileFormRef {
 interface ProfileFormProps {
   currentProfile: ParticipantProfile | null;
   onSave: (
-    profileData: { name?: string; age?: string; gender?: GenderOption; enableLeaderboardParticipation?: boolean; isSearchable?: boolean; locationId?: string; enableInBodySharing?: boolean; enableFssSharing?: boolean; photoURL?: string; }
+    profileData: { firstName?: string; lastName?: string; age?: string; gender?: GenderOption; enableLeaderboardParticipation?: boolean; isSearchable?: boolean; locationId?: string; enableInBodySharing?: boolean; enableFssSharing?: boolean; photoURL?: string; }
   ) => void;
   locations: Location[];
 }
@@ -22,7 +22,8 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({
   onSave,
   locations,
 }, ref) => {
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [age, setAge] = useState('');
   const [gender, setGender] = useState<GenderOption>('-');
   const [locationId, setLocationId] = useState('');
@@ -37,7 +38,8 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setName(currentProfile?.name || '');
+    setFirstName(currentProfile?.firstName || '');
+    setLastName(currentProfile?.lastName || '');
     setAge(currentProfile?.age?.toString() || '');
     setGender(currentProfile?.gender || '-');
     setLocationId(currentProfile?.locationId || '');
@@ -110,7 +112,8 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({
     }
     
     const profileData: Parameters<typeof onSave>[0] = { 
-        name: name.trim(), 
+        firstName: firstName.trim(), 
+        lastName: lastName.trim(),
         age: age.trim(), 
         gender, 
         locationId: locationId,
@@ -133,6 +136,7 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({
   }));
   
   const locationOptions = locations.map(loc => ({ value: loc.id, label: loc.name }));
+  const fullName = `${firstName || ''} ${lastName || ''}`.trim();
 
   return (
     <div className="space-y-6 py-4">
@@ -143,7 +147,7 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({
       <section className="space-y-4 pt-4 border-t">
         <h3 className="text-lg font-semibold text-gray-700">Profilbild</h3>
         <div className="flex items-center gap-4">
-            <Avatar photoURL={imagePreview || currentProfile?.photoURL} name={name} size="lg" />
+            <Avatar photoURL={imagePreview || currentProfile?.photoURL} name={fullName} size="lg" />
             <input
                 type="file"
                 ref={fileInputRef}
@@ -159,14 +163,24 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({
 
       <section className="space-y-4 pt-4 border-t">
         <h3 className="text-lg font-semibold text-gray-700">Om Mig</h3>
-        <Input
-          label="Namn"
-          id="profileName"
-          name="profileName"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Ditt namn"
-        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Förnamn"
+              id="profileFirstName"
+              name="profileFirstName"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="Ditt förnamn"
+            />
+             <Input
+              label="Efternamn"
+              id="profileLastName"
+              name="profileLastName"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Ditt efternamn"
+            />
+        </div>
         <Input
           label="Ålder"
           id="profileAge"

@@ -9,7 +9,7 @@ interface ProfileModalProps {
   onClose: () => void;
   currentProfile: ParticipantProfile | null;
   onSave: (
-    profileData: { name?: string; age?: string; gender?: GenderOption; enableLeaderboardParticipation?: boolean; isSearchable?: boolean; locationId?: string; enableInBodySharing?: boolean; enableFssSharing?: boolean; photoURL?: string; }
+    profileData: { firstName?: string; lastName?: string; age?: string; gender?: GenderOption; enableLeaderboardParticipation?: boolean; isSearchable?: boolean; locationId?: string; enableInBodySharing?: boolean; enableFssSharing?: boolean; photoURL?: string; }
   ) => void;
   locations: Location[];
 }

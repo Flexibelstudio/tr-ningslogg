@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from './Button';
 import { Input, Select } from './Input';
 import { APP_NAME } from '../constants';
-import { useAppContext } from '../context/AppContext';
+import { useAppContext } from './AppContext';
 import { Location, Organization } from '../types';
 import firebaseService from '../services/firebaseService';
 import { useNetworkStatus } from '../context/NetworkStatusContext';
@@ -19,6 +19,8 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
     const { allOrganizations } = useAppContext();
     const { isOnline } = useNetworkStatus();
 
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -69,6 +71,10 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        if (!firstName.trim() || !lastName.trim()) {
+            setError('För- och efternamn måste fyllas i.');
+            return;
+        }
         if (password !== confirmPassword) {
             setError('Lösenorden matchar inte.');
             return;
@@ -79,7 +85,7 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
         }
         setIsLoading(true);
         try {
-            await register(email, password, selectedOrgId, selectedLocationId);
+            await register(firstName, lastName, email, password, selectedOrgId, selectedLocationId);
             onRegistrationSuccess();
         } catch (err: any) {
             if (err.message === 'AUTH_NO_PREEXISTING_PROFILE') {
@@ -113,6 +119,10 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
                     </div>
                     {error && <p className="text-center bg-red-100 text-red-700 p-3 rounded-lg">{error}</p>}
                     <form onSubmit={handleSubmit} className="space-y-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <Input label="Förnamn *" id="reg-firstname" type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+                            <Input label="Efternamn *" id="reg-lastname" type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+                        </div>
                         <Input label="E-post" id="reg-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
                         <Input label="Lösenord" id="reg-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
                         <Input label="Bekräfta Lösenord" id="reg-confirm-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
