@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from './Button';
 import { Input, Select } from './Input';
 import { APP_NAME } from '../constants';
-import { useAppContext } from '../context/AppContext';
+import { useAppContext } from './AppContext';
 import { Location, Organization } from '../types';
 import firebaseService from '../services/firebaseService';
 import { useNetworkStatus } from '../context/NetworkStatusContext';
@@ -109,7 +109,7 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
             } else if (err.code === 'auth/weak-password') {
                 setFormErrors(prev => ({ ...prev, password: 'Lösenordet måste vara minst 6 tecken långt.' }));
             } else if (err.code === 'auth/invalid-email') {
-                setFormErrors(prev => ({ ...prev, email: 'E-postadressen är ogiltig eller felaktigt formaterad.' }));
+                setFormErrors(prev => ({ ...prev, email: 'E-postadressen är ogiltig eller felaktigt formaterad. (Om felet kvarstår, kontrollera API-nyckelns domänrestriktioner i Google Cloud Console.)' }));
             } else {
                 setApiError('Ett oväntat fel uppstod vid registrering. Försök igen.');
             }
