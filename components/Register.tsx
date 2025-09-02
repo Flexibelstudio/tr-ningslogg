@@ -109,7 +109,7 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
             } else if (err.code === 'auth/weak-password') {
                 setFormErrors(prev => ({ ...prev, password: 'Lösenordet måste vara minst 6 tecken långt.' }));
             } else if (err.code === 'auth/invalid-email') {
-                setFormErrors(prev => ({ ...prev, email: 'E-postadressen är ogiltig eller felaktigt formaterad. (Om felet kvarstår, kontrollera API-nyckelns domänrestriktioner i Google Cloud Console.)' }));
+                setFormErrors(prev => ({ ...prev, email: 'E-postadressen är ogiltig eller så har ett tekniskt fel inträffat. Kontrollera adressen och försök igen.' }));
             } else {
                 setApiError('Ett oväntat fel uppstod vid registrering. Försök igen.');
             }
