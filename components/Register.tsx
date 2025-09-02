@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from './Button';
 import { Input, Select } from './Input';
 import { APP_NAME } from '../constants';
-import { useAppContext } from './AppContext';
+import { useAppContext } from '../context/AppContext';
 import { Location, Organization } from '../types';
 import firebaseService from '../services/firebaseService';
 import { useNetworkStatus } from '../context/NetworkStatusContext';
