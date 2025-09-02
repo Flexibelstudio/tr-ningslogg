@@ -20,6 +20,8 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
     const { isOnline } = useNetworkStatus();
 
     const [email, setEmail] = useState('');
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [selectedOrgId, setSelectedOrgId] = useState('');
@@ -74,6 +76,12 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
 
         // Validering görs här för att använda den trimmade e-postadressen direkt
         const newErrors: { [key: string]: string } = {};
+        if (!firstName.trim()) {
+            newErrors.firstName = 'Förnamn är obligatoriskt.';
+        }
+        if (!lastName.trim()) {
+            newErrors.lastName = 'Efternamn är obligatoriskt.';
+        }
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
             newErrors.email = 'Vänligen ange en giltig e-postadress.';
         }
@@ -97,7 +105,7 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
 
         setIsLoading(true);
         try {
-            await register(trimmedEmail, password, selectedOrgId, selectedLocationId);
+            await register(trimmedEmail, password, selectedOrgId, selectedLocationId, `${firstName.trim()} ${lastName.trim()}`);
             onRegistrationSuccess();
         } catch (err: any) {
             if (err.message === 'AUTH_NO_PREEXISTING_PROFILE') {
@@ -132,8 +140,28 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
                     </div>
                     {apiError && <p className="text-center bg-red-100 text-red-700 p-3 rounded-lg">{apiError}</p>}
                     <form onSubmit={handleSubmit} className="space-y-6">
+                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <Input
+                                label="Förnamn *"
+                                id="reg-firstname"
+                                type="text"
+                                value={firstName}
+                                onChange={(e) => setFirstName(e.target.value)}
+                                required
+                                error={formErrors.firstName}
+                            />
+                            <Input
+                                label="Efternamn *"
+                                id="reg-lastname"
+                                type="text"
+                                value={lastName}
+                                onChange={(e) => setLastName(e.target.value)}
+                                required
+                                error={formErrors.lastName}
+                            />
+                        </div>
                         <Input
-                          label="E-post"
+                          label="E-post *"
                           id="reg-email"
                           type="email"
                           value={email}
@@ -142,8 +170,8 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
                           required
                           error={formErrors.email}
                         />
-                        <Input label="Lösenord" id="reg-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required error={formErrors.password} />
-                        <Input label="Bekräfta Lösenord" id="reg-confirm-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required error={formErrors.confirmPassword} />
+                        <Input label="Lösenord *" id="reg-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required error={formErrors.password} />
+                        <Input label="Bekräfta Lösenord *" id="reg-confirm-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required error={formErrors.confirmPassword} />
                         
                         <Select 
                             label="Välj Organisation *" 

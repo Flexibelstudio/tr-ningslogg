@@ -24,7 +24,7 @@ interface AuthContextType {
   isStaffViewingAsParticipant: boolean; 
   
   login: (email: string, password: string) => Promise<void>;
-  register: (firstName: string, lastName: string, email: string, password: string, orgId: string, locationId: string) => Promise<void>;
+  register: (email: string, password: string, orgId: string, locationId: string, name: string) => Promise<void>;
   logout: () => void;
   impersonate: (orgId: string) => void;
   stopImpersonating: () => void;
@@ -77,8 +77,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 
                 setUser({
                     id: firebaseUser.uid,
-                    firstName: userData.firstName,
-                    lastName: userData.lastName,
+                    name: userData.name,
                     email: userData.email,
                     roles: userData.roles,
                     linkedParticipantProfileId: userData.linkedParticipantProfileId,
@@ -181,15 +180,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
 
-  const register = useCallback(async (firstName: string, lastName: string, email: string, password: string, orgId: string, locationId: string) => {
+  const register = useCallback(async (email: string, password: string, orgId: string, locationId: string, name: string) => {
     if (firebaseService.isOffline()) {
       const newUserId = `user-id-${Math.random()}`;
       const newParticipantId = `participant-${Math.random()}`;
       
       const newUser: User = {
         id: newUserId,
-        firstName,
-        lastName,
+        name: name,
         email: email,
         roles: { participant: orgId },
         linkedParticipantProfileId: newParticipantId,
@@ -198,8 +196,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       const newParticipant: ParticipantProfile = {
         id: newParticipantId,
-        firstName,
-        lastName,
+        name: name,
         email: email,
         isActive: false,
         isProspect: false,
@@ -216,7 +213,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
     await firebaseService.registerUserAndCreateProfiles({
-        firstName, lastName, email, password, orgId, locationId
+        name, email, password, orgId, locationId
     });
   }, []);
 
