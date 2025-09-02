@@ -1,5 +1,5 @@
-const STATIC_CACHE_NAME = 'traningslogg-static-v9';
-const DYNAMIC_CACHE_NAME = 'traningslogg-dynamic-v4';
+const STATIC_CACHE_NAME = 'traningslogg-static-v10';
+const DYNAMIC_CACHE_NAME = 'traningslogg-dynamic-v5';
 const URLS_TO_CACHE = [
   '/',
   '/index.html',
