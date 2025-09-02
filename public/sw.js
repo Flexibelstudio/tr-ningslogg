@@ -45,35 +45,10 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Strategy for Firestore API calls
-  if (url.hostname === 'firestore.googleapis.com') {
-    // For non-GET requests (like saving data), go to the network directly.
-    // Do not attempt to cache POST, PUT, DELETE.
-    if (event.request.method !== 'GET') {
-      return; // Let the browser handle the request without interception.
-    }
-    
-    // For GET requests (reading data), use a network-first strategy.
-    // This ensures data is fresh, but provides an offline fallback.
-    event.respondWith(
-      fetch(event.request)
-        .then(networkResponse => {
-          // If the network request is successful, cache the response for offline use.
-          if (networkResponse.ok) {
-            return caches.open(DYNAMIC_CACHE_NAME).then(cache => {
-              cache.put(event.request, networkResponse.clone());
-              return networkResponse;
-            });
-          }
-          // If network response is not ok, just return it without caching.
-          return networkResponse;
-        })
-        .catch(() => {
-          // If the network request fails (e.g., offline), try to serve from cache.
-          return caches.match(event.request);
-        })
-    );
-    return;
+  // Strategy: Let the browser/Firebase SDK handle its own requests.
+  // Do not intercept calls to Firebase services as the SDK has its own robust offline handling.
+  if (url.hostname.includes('googleapis.com')) {
+    return; // Do not handle the request, let it pass through to the network.
   }
 
   // Strategy for all other requests (app shell, fonts, scripts, images)
