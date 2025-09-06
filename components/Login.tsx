@@ -42,8 +42,8 @@ export const Login: React.FC<LoginProps> = ({ onSwitchToRegister }) => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-dotted-pattern bg-dotted-size bg-gray-100 p-4">
-      <main className="flex-grow flex items-center justify-center p-4 overflow-y-auto">
+    <div className="min-h-screen flex flex-col bg-dotted-pattern bg-dotted-size bg-gray-100">
+      <main className="flex-grow flex sm:items-center justify-center py-12 px-4 overflow-y-auto">
         <div className="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-md space-y-4 animate-fade-in-down" style={{ animationDelay: '0.1s' }}>
           <div className="text-center mb-8">
               <h1 className="text-3xl font-bold text-gray-800">Välkommen tillbaka</h1>
@@ -84,9 +84,6 @@ export const Login: React.FC<LoginProps> = ({ onSwitchToRegister }) => {
           </div>
         </div>
       </main>
-       <footer className="flex-shrink-0 py-6 text-center text-gray-500 text-base animate-fade-in" style={{ animationDelay: '0.3s' }}>
-        Powered by Flexibel Hälsostudio.
-      </footer>
     </div>
   );
 };

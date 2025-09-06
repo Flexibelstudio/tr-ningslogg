@@ -132,7 +132,7 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
 
     return (
         <div className="min-h-screen flex flex-col bg-dotted-pattern bg-dotted-size bg-gray-100">
-            <main className="flex-grow flex items-center justify-center py-12 px-4 overflow-y-auto">
+            <main className="flex-grow flex sm:items-center justify-center py-12 px-4 overflow-y-auto">
                 <div className="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-lg space-y-4 animate-fade-in-down" style={{ animationDelay: '0.1s' }}>
                     <div className="text-center mb-8">
                         <h2 className="text-3xl font-bold text-gray-800">Välkommen till din <span className="text-flexibel">Träningslogg</span></h2>
