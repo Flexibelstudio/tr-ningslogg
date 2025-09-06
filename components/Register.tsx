@@ -131,7 +131,7 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
     const locationOptions = locationsForOrg.map(loc => ({ value: loc.id, label: loc.name }));
 
     return (
-        <div className="h-screen flex flex-col bg-dotted-pattern bg-dotted-size bg-gray-100 p-4 overflow-hidden">
+        <div className="min-h-screen flex flex-col bg-dotted-pattern bg-dotted-size bg-gray-100 p-4">
             <main className="flex-grow flex items-center justify-center">
                 <div className="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-lg space-y-4 animate-fade-in-down" style={{ animationDelay: '0.1s' }}>
                     <div className="text-center mb-8">
