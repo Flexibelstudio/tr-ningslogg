@@ -1,0 +1,24 @@
+[build]
+command = "npm run build"
+publish = "dist"
+
+# ===== Production (byggen från main) =====
+[context.production.environment]
+VITE_FB_API_KEY = "AIzaSyAYIyG3Vufbc6MLpb48xLgJpF8zsZa2iHk"
+VITE_FB_AUTH_DOMAIN = "smartstudio-da995.firebaseapp.com"
+VITE_FB_PROJECT_ID = "smartstudio-da995"
+VITE_FB_STORAGE_BUCKET = "smartstudio-da995.appspot.com"
+VITE_FB_MESSAGING_SENDER_ID = "704268843753"
+VITE_FB_APP_ID = "1:704268843753:web:743a263e46774a178c0e78"
+# VITE_FB_MEASUREMENT_ID = "G-XXXXX"   # om ni har Analytics i prod
+
+# ===== Endast för branchen 'staging' =====
+[context.staging.environment]
+VITE_FB_API_KEY = "AIzaSyD1ljydQDKDrKs8_d-EzBT5eeMzjTtVA90"
+VITE_FB_AUTH_DOMAIN = "traningslogg-staging.firebaseapp.com"
+VITE_FB_PROJECT_ID = "traningslogg-staging"
+# OBS: bucket heter nästan alltid .appspot.com (kolla i Firebase → Storage)
+VITE_FB_STORAGE_BUCKET = "traningslogg-staging.appspot.com"
+VITE_FB_MESSAGING_SENDER_ID = "1015312147966"
+VITE_FB_APP_ID = "1:1015312147966:web:8019a7bff2f34577974caf"
+# VITE_FB_MEASUREMENT_ID = "G-XXXXX"   # om ni har Analytics i staging
