@@ -90,38 +90,46 @@ export const GoalModal: React.FC<GoalModalProps> = ({
 
   const modalTitle = "Mål & Plan";
 
-  let saveButtonText = "Spara Mål & Plan";
-  if (isSaving && !hasSaved) saveButtonText = "Sparar...";
-  if (hasSaved) saveButtonText = "Sparat! ✓";
+  let saveButtonContent: React.ReactNode = "Spara Mål & Plan";
+  if (isSaving && !hasSaved) {
+    saveButtonContent = (
+      <>
+        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+        Sparar...
+      </>
+    );
+  }
+  if (hasSaved) {
+    saveButtonContent = "Sparat! ✓";
+  }
+
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={modalTitle} size="xl">
-      <div className="flex flex-col max-h-[70vh]">
-        <div className="flex-grow overflow-y-auto pr-2 -mr-2">
-            {currentGoalForForm && currentGoalForForm.fitnessGoals !== "Inga specifika mål satta" && (
-                <div className="mb-6 p-4 bg-violet-50 border border-violet-200 rounded-lg animate-fade-in-down">
-                    <h3 className="text-xl font-semibold text-gray-800 mb-2">Din Aktuella Plan</h3>
-                    <p className="text-base text-gray-700"><strong>Mål:</strong> {currentGoalForForm.fitnessGoals}</p>
-                    {currentGoalForForm.coachPrescription && (
-                        <div className="mt-3 pt-3 border-t border-violet-200">
-                            <h4 className="text-lg font-semibold text-violet-700">Coach Recept:</h4>
-                            <p className="text-base text-gray-700 italic mt-1 whitespace-pre-wrap">"{currentGoalForForm.coachPrescription}"</p>
-                        </div>
-                    )}
-                </div>
-            )}
-            <GoalForm
-              ref={formRef}
-              currentGoalForForm={currentGoalForForm}
-              allParticipantGoals={allParticipantGoals}
-              onSave={onSave}
-              isOnline={isOnline}
-            />
-        </div>
-        <div className="flex-shrink-0 flex justify-end space-x-3 pt-4 border-t mt-6">
+      <div>
+        {currentGoalForForm && currentGoalForForm.fitnessGoals !== "Inga specifika mål satta" && (
+            <div className="mb-6 p-4 bg-violet-50 border border-violet-200 rounded-lg animate-fade-in-down">
+                <h3 className="text-xl font-semibold text-gray-800 mb-2">Din Aktuella Plan</h3>
+                <p className="text-base text-gray-700"><strong>Mål:</strong> {currentGoalForForm.fitnessGoals}</p>
+                {currentGoalForForm.coachPrescription && (
+                    <div className="mt-3 pt-3 border-t border-violet-200">
+                        <h4 className="text-lg font-semibold text-violet-700">Coach Recept:</h4>
+                        <p className="text-base text-gray-700 italic mt-1 whitespace-pre-wrap">"{currentGoalForForm.coachPrescription}"</p>
+                    </div>
+                )}
+            </div>
+        )}
+        <GoalForm
+          ref={formRef}
+          currentGoalForForm={currentGoalForForm}
+          allParticipantGoals={allParticipantGoals}
+          onSave={onSave}
+          isOnline={isOnline}
+        />
+        <div className="flex justify-end space-x-3 pt-4 border-t mt-6">
           <Button onClick={onClose} variant="secondary" disabled={isSaving}>Avbryt</Button>
           <Button onClick={handleSaveAndClose} variant="primary" disabled={isSaving}>
-            {saveButtonText}
+            {saveButtonContent}
           </Button>
         </div>
       </div>
