@@ -1,4 +1,7 @@
 // public/sw.js
+// PWA-cache: index.html alltid färsk via headers (Netlify), assets cacheas länge.
+// SW uppdaterar sig själv (skipWaiting + clients.claim) och stör inte API/Firebase.
+
 const STATIC_CACHE_NAME = 'traningslogg-static-v12';
 const DYNAMIC_CACHE_NAME = 'traningslogg-dynamic-v7';
 const MAX_DYNAMIC_ENTRIES = 80;
@@ -14,24 +17,19 @@ const URLS_TO_CACHE = [
 
 // Externa värdar vi inte cachar (Firebase/Google m.fl.)
 const BYPASS_HOSTS = [
-  'googleapis.com',
-  'gstatic.com',
-  'firebaseapp.com',
-  'firebasestorage.googleapis.com',
-  'storage.googleapis.com',
-  'appspot.com',
-  'identitytoolkit.googleapis.com',
-  'securetoken.googleapis.com',
-  'firebasedatabase.app',
-  'apis.google.com',
+  'googleapis.com','gstatic.com','firebaseapp.com',
+  'firebasestorage.googleapis.com','storage.googleapis.com','appspot.com',
+  'identitytoolkit.googleapis.com','securetoken.googleapis.com',
+  'firebasedatabase.app','apis.google.com',
 ];
 
-// Egna paths vi inte cachar (API/functions)
-const SAME_ORIGIN_BYPASS_PATH_PREFIXES = ['/.netlify/', '/api/'];
+// Egna paths att hoppa över (Netlify Functions, egna API:er)
+const SAME_ORIGIN_BYPASS_PATH_PREFIXES = ['/.netlify/','/api/'];
 
+// Endast tydligt statiska filer cachas
 const STATIC_ASSET_REGEX = /\.(?:js|mjs|css|ico|png|jpg|jpeg|gif|webp|svg|woff2?)$/i;
 
-// Ta emot meddelande från appen (för direkt uppdatering)
+// Ta emot meddelande från appen för att direkt aktivera ny SW
 self.addEventListener('message', (e) => {
   if (e?.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
@@ -41,7 +39,6 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE_NAME).then((cache) =>
       Promise.all(URLS_TO_CACHE.map((u) => cache.add(new Request(u, { cache: 'reload' }))))
-        .catch((err) => console.error('Install: cache misslyckades', err))
     )
   );
 });
@@ -50,9 +47,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const names = await caches.keys();
     await Promise.all(
-      names.map((n) =>
-        [STATIC_CACHE_NAME, DYNAMIC_CACHE_NAME].includes(n) ? undefined : caches.delete(n)
-      )
+      names.map((n) => [STATIC_CACHE_NAME, DYNAMIC_CACHE_NAME].includes(n) ? undefined : caches.delete(n))
     );
     await self.clients.claim();
   })());
@@ -68,7 +63,7 @@ self.addEventListener('fetch', (event) => {
   // Bypass externa värdar
   if (BYPASS_HOSTS.some((h) => url.hostname.includes(h))) return;
 
-  // HTML/navigering: network-first, fallback till index
+  // HTML/navigering: network-first, offline-fallback till index
   const isHTML = req.mode === 'navigate' || accept.includes('text/html');
   if (isHTML) {
     event.respondWith((async () => {
@@ -84,18 +79,20 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Samma origin: cacha bara tydligt statiska assets, aldrig API/functions
+  // Samma origin: cacha bara statiska assets, aldrig API/functions
   if (url.origin === self.location.origin) {
     if (SAME_ORIGIN_BYPASS_PATH_PREFIXES.some((p) => url.pathname.startsWith(p))) return;
+
     const isStaticAsset = STATIC_ASSET_REGEX.test(url.pathname) || url.pathname.startsWith('/assets/');
     if (isStaticAsset) {
       event.respondWith(cacheFirst(req));
       return;
     }
-    return; // övrigt går direkt till nätet (utan SW-cache)
+    // Övrigt: låt gå direkt till nätet (ingen SW-cache)
+    return;
   }
 
-  // Cross-origin: nätet först, fallback cache (lagra inte nya opaque-svar)
+  // Cross-origin: nätet först, fallback cache (lagra inte nya opaque)
   event.respondWith(fetch(req).catch(() => caches.match(req)));
 });
 
