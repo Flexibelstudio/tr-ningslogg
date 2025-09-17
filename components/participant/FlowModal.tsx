@@ -27,7 +27,7 @@ import { useAppContext } from '../../context/AppContext';
 import { getHighestClubAchievements } from '../../services/gamificationService';
 
 // --- NEW EXPANDED TYPES ---
-type FlowItemLogType = 'workout' | 'general' | 'coach_event' | 'goal_completion' | 'participant_club_membership' | 'user_strength_stat' | 'participant_physique_stat' | 'participant_goal_data' | 'participant_conditioning_stat';
+type FlowItemLogType = 'workout' | 'general' | 'coach_event' | 'one_on_one_session' | 'goal_completion' | 'participant_club_membership' | 'user_strength_stat' | 'participant_physique_stat' | 'participant_goal_data' | 'participant_conditioning_stat';
 type FlowItemLog = WorkoutLog | GeneralActivityLog | CoachEvent | GoalCompletionLog | ParticipantClubMembership | UserStrengthStat | ParticipantPhysiqueStat | ParticipantGoalData | ParticipantConditioningStat;
 
 interface FlowModalProps {
@@ -436,8 +436,23 @@ export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUs
             }
         });
         
-        data.clubMemberships.forEach(membership => {
-            if (!allowedParticipantIds.has(membership.participantId)) return;
+        const allVisibleMemberships = data.clubMemberships.filter(m => allowedParticipantIds.has(m.participantId));
+        const membershipsByParticipant = allVisibleMemberships.reduce((acc, membership) => {
+            if (!acc[membership.participantId]) {
+                acc[membership.participantId] = [];
+            }
+            acc[membership.participantId].push(membership);
+            return acc;
+        }, {} as Record<string, ParticipantClubMembership[]>);
+
+        const highestMembershipsToDisplay: ParticipantClubMembership[] = [];
+        for (const participantId in membershipsByParticipant) {
+            const participantMemberships = membershipsByParticipant[participantId];
+            const highest = getHighestClubAchievements(participantMemberships);
+            highestMembershipsToDisplay.push(...highest);
+        }
+        
+        highestMembershipsToDisplay.forEach(membership => {
             const club = CLUB_DEFINITIONS.find(c => c.id === membership.clubId);
             if (!club) return;
             const author = data.allParticipants.find(p => p.id === membership.participantId);
