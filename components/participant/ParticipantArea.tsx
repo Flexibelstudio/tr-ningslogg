@@ -22,6 +22,7 @@ import {
     LEVEL_COLORS_HEADER, MAIN_LIFTS_CONFIG_HEADER, MOOD_OPTIONS, CLUB_DEFINITIONS
 } from '../../constants';
 import * as dateUtils from '../../utils/dateUtils';
+import { FixedHeaderAndTools } from './FixedHeaderAndTools';
 import { calculateFlexibelStrengthScoreInternal, getFssScoreInterpretation as getFssScoreInterpretationFromTool } from './StrengthComparisonTool';
 import { FeedbackPromptToast } from './FeedbackPromptToast';
 import { InfoModal } from './InfoModal';
@@ -270,12 +271,12 @@ const GoalProgressCard: React.FC<{ goal: ParticipantGoalData | null, logs: Activ
         const weeklyTarget = goal.workoutsPerWeekTarget > 0 ? goal.workoutsPerWeekTarget : 0;
         
         const startOfWeek = dateUtils.getStartOfWeek(new Date());
-        const logsThisWeek = logs.filter(log => log.type !== 'goal_completion' && new Date(log.completedDate) >= startOfWeek).length;
+        const logsThisWeek = logs.filter(log => new Date(log.completedDate) >= startOfWeek).length;
         const weeklyPercentage = weeklyTarget > 0 ? Math.min(100, (logsThisWeek / weeklyTarget) * 100) : 0;
 
         const totalWeeks = Math.max(1, totalDays / 7);
         const targetWorkouts = weeklyTarget > 0 ? Math.round(totalWeeks * weeklyTarget) : 0;
-        const completedWorkouts = logs.filter(log => log.type !== 'goal_completion' && new Date(log.completedDate) >= startDate && new Date(log.completedDate) <= targetDate).length;
+        const completedWorkouts = logs.filter(log => new Date(log.completedDate) >= startDate && new Date(log.completedDate) <= targetDate).length;
         const workoutPercentage = targetWorkouts > 0 ? Math.min(100, (completedWorkouts / targetWorkouts) * 100) : 0;
 
 
@@ -323,7 +324,7 @@ const GoalProgressCard: React.FC<{ goal: ParticipantGoalData | null, logs: Activ
     const progress = useMemo(() => {
         if (!goal || !goal.workoutsPerWeekTarget || goal.workoutsPerWeekTarget <= 0) return null;
         const startOfWeek = dateUtils.getStartOfWeek(new Date());
-        const logsThisWeek = logs.filter(log => log.type !== 'goal_completion' && new Date(log.completedDate) >= startOfWeek).length;
+        const logsThisWeek = logs.filter(log => new Date(log.completedDate) >= startOfWeek).length;
         return { completed: logsThisWeek, target: goal.workoutsPerWeekTarget };
     }, [goal, logs]);
 
@@ -348,16 +349,6 @@ const GoalProgressCard: React.FC<{ goal: ParticipantGoalData | null, logs: Activ
 
 type FlowItemLogType = 'workout' | 'general' | 'coach_event' | 'one_on_one_session' | 'goal_completion' | 'participant_club_membership' | 'user_strength_stat' | 'participant_physique_stat' | 'participant_goal_data' | 'participant_conditioning_stat';
 
-export interface ParticipantNavbarActions {
-  onOpenGoalModal: () => void;
-  onOpenCommunity: () => void;
-  aiRecept?: string | null;
-  onOpenAiRecept: () => void;
-  newFlowItemsCount: number;
-  pendingRequestsCount: number;
-  onOpenFlowModal: () => void;
-}
-
 interface ParticipantAreaProps {
   currentParticipantId: string;
   onSetRole: (role: UserRole | null) => void;
@@ -373,7 +364,6 @@ interface ParticipantAreaProps {
   onCancelBooking: (bookingId: string) => void;
   onCheckInParticipant: (bookingId: string) => void;
   setProfileOpener: (opener: { open: () => void } | null) => void;
-  setNavbarActions: (actions: ParticipantNavbarActions | null) => void;
 }
 
 // Main ParticipantArea Component
@@ -392,7 +382,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   onCancelBooking,
   onCheckInParticipant,
   setProfileOpener,
-  setNavbarActions,
 }) => {
     const {
         participantDirectory,
@@ -941,31 +930,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   };
 
   const isAiEnabled = useMemo(() => {
-    if (!myMembership) {
-      return false;
-    }
-  
-    // For modern memberships, the 'type' field is the source of truth.
-    if (myMembership.type === 'subscription') {
-      return true;
-    }
-    if (myMembership.type === 'clip_card') {
-      return false;
-    }
-
-    // For legacy memberships (where 'type' is undefined), we infer.
-    // A membership is considered a subscription if it LACKS any clip-card-specific properties.
-    if (myMembership.type === undefined) {
-      const isLegacyClipCard = 
-        (myMembership.clipCardClips && myMembership.clipCardClips > 0) || 
-        (myMembership.clipCardValidityDays && myMembership.clipCardValidityDays > 0) || 
-        (myMembership.clipCardCategories && myMembership.clipCardCategories.length > 0);
-      
-      return !isLegacyClipCard;
-    }
-
-    // Fallback for any other unexpected case
-    return false;
+    return myMembership?.type === 'subscription';
   }, [myMembership]);
   
   const handleStartWorkout = (workout: Workout, isEditing: boolean = false, logToEdit?: WorkoutLog) => {
@@ -1238,31 +1203,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         }
 
     }, [allActivityLogs, myStrengthStats, myConditioningStats, participantProfile, myClubMemberships, workouts, setClubMembershipsData, isNewUser]);
-    
-    const onOpenGoalModal = useCallback(() => setIsGoalModalOpen(true), []);
-    const onOpenCommunity = useCallback(() => setIsCommunityModalOpen(true), []);
-    const onOpenAiRecept = useCallback(() => setIsAiReceptModalOpen(true), []);
-    const onOpenFlowModal = useCallback(() => setIsFlowModalOpen(true), []);
-    const pendingRequestsCount = useMemo(() => connections.filter(c => c.receiverId === currentParticipantId && c.status === 'pending').length, [connections, currentParticipantId]);
-    
-    useEffect(() => {
-        setNavbarActions({
-            onOpenGoalModal,
-            onOpenCommunity,
-            aiRecept: latestActiveGoal?.aiPrognosis,
-            onOpenAiRecept,
-            newFlowItemsCount: 0, // This logic is not implemented yet
-            pendingRequestsCount,
-            onOpenFlowModal
-        });
-        
-        return () => {
-            setNavbarActions(null);
-        };
-    }, [
-        setNavbarActions, onOpenGoalModal, onOpenCommunity, latestActiveGoal, 
-        onOpenAiRecept, pendingRequestsCount, onOpenFlowModal
-    ]);
 
     return (
         <div className="bg-gray-100 bg-dotted-pattern bg-dotted-size bg-fixed min-h-screen">
@@ -1286,6 +1226,15 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             />
         ) : (
             <div className="pb-40">
+                <FixedHeaderAndTools
+                    onOpenGoalModal={() => setIsGoalModalOpen(true)}
+                    onOpenCommunity={() => setIsCommunityModalOpen(true)}
+                    aiRecept={latestActiveGoal?.aiPrognosis}
+                    onOpenAiRecept={() => setIsAiReceptModalOpen(true)}
+                    newFlowItemsCount={0} // Placeholder
+                    pendingRequestsCount={connections.filter(c => c.receiverId === currentParticipantId && c.status === 'pending').length}
+                    onOpenFlowModal={() => setIsFlowModalOpen(true)}
+                />
                 <div ref={mainContentRef} className="container mx-auto p-4 space-y-6">
                     {inProgressWorkout && (
                         <div className="p-4 bg-yellow-100 border-l-4 border-yellow-500 rounded-r-lg flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade-in-down">
@@ -1388,7 +1337,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                             allStrengthStatsForLeaderboards={userStrengthStats}
                             conditioningStatsHistory={myConditioningStats}
                             physiqueHistory={myPhysiqueHistory}
-                            clubMemberships={clubMemberships}
+                            clubMemberships={myClubMemberships}
                             participantProfile={participantProfile}
                             leaderboardSettings={leaderboardSettings}
                             allParticipantGoals={myParticipantGoals}
