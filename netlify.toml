@@ -1,70 +1,85 @@
+# netlify.toml – EN källa (prod & staging samma Firebase: smartstudio-da995)
+
 [build]
-command = "npm run build"
-publish = "dist"
+  command = "npm run build"
+  publish = "dist"
+
+# (valfritt) lås node för stabila builds
+[build.environment]
+  NODE_VERSION = "20"
 
 # ===== Production (byggen från main) =====
 [context.production.environment]
-VITE_FB_API_KEY = "AIzaSyAYIyG3Vufbc6MLpb48xLgJpF8zsZa2iHk"
-VITE_FB_AUTH_DOMAIN = "smartstudio-da995.firebaseapp.com"
-VITE_FB_PROJECT_ID = "smartstudio-da995"
-VITE_FB_STORAGE_BUCKET = "smartstudio-da995.appspot.com"
-VITE_FB_MESSAGING_SENDER_ID = "704268843753"
-VITE_FB_APP_ID = "1:704268843753:web:743a263e46774a178c0e78"
-# VITE_FB_MEASUREMENT_ID = "G-XXXXX"   # om ni har Analytics i prod
+  VITE_FB_API_KEY             = "AIzaSyAYIyG3Vufbc6MLpb48xLgJpF8zsZa2iHk"
+  VITE_FB_AUTH_DOMAIN         = "smartstudio-da995.firebaseapp.com"
+  VITE_FB_PROJECT_ID          = "smartstudio-da995"
+  VITE_FB_STORAGE_BUCKET      = "smartstudio-da995.appspot.com"
+  VITE_FB_MESSAGING_SENDER_ID = "704268843753"
+  VITE_FB_APP_ID              = "1:704268843753:web:743a263e46774a178c0e78"
+  # VITE_FB_MEASUREMENT_ID    = "G-XXXXXXX" # om ni använder Analytics
 
-# ===== Endast för branchen 'staging' =====
-[context.staging.environment]
-VITE_FB_API_KEY = "AIzaSyD1ljydQDKDrKs8_d-EzBT5eeMzjTtVA90"
-VITE_FB_AUTH_DOMAIN = "traningslogg-staging.firebaseapp.com"
-VITE_FB_PROJECT_ID = "traningslogg-staging"
-# OBS: bucket heter nästan alltid .appspot.com (kolla i Firebase → Storage)
-VITE_FB_STORAGE_BUCKET = "traningslogg-staging.appspot.com"
-VITE_FB_MESSAGING_SENDER_ID = "1015312147966"
-VITE_FB_APP_ID = "1:1015312147966:web:8019a7bff2f34577974caf"
-# VITE_FB_MEASUREMENT_ID = "G-XXXXX"   # om ni har Analytics i staging
+# ===== Branch deploys för exakt grenen "staging" =====
+[context."branch:staging".environment]
+  # Samma nycklar som prod => samma databas
+  VITE_FB_API_KEY             = "AIzaSyAYIyG3Vufbc6MLpb48xLgJpF8zsZa2iHk"
+  VITE_FB_AUTH_DOMAIN         = "smartstudio-da995.firebaseapp.com"
+  VITE_FB_PROJECT_ID          = "smartstudio-da995"
+  VITE_FB_STORAGE_BUCKET      = "smartstudio-da995.appspot.com"
+  VITE_FB_MESSAGING_SENDER_ID = "704268843753"
+  VITE_FB_APP_ID              = "1:704268843753:web:743a263e46774a178c0e78"
+  # VITE_FB_MEASUREMENT_ID    = "G-XXXXXXX"
 
-# --- HTTP headers / cachepolicy ---
+# ===== Deploy Previews (PR-bygg) – också samma som prod =====
+[context.deploy-preview.environment]
+  VITE_FB_API_KEY             = "AIzaSyAYIyG3Vufbc6MLpb48xLgJpF8zsZa2iHk"
+  VITE_FB_AUTH_DOMAIN         = "smartstudio-da995.firebaseapp.com"
+  VITE_FB_PROJECT_ID          = "smartstudio-da995"
+  VITE_FB_STORAGE_BUCKET      = "smartstudio-da995.appspot.com"
+  VITE_FB_MESSAGING_SENDER_ID = "704268843753"
+  VITE_FB_APP_ID              = "1:704268843753:web:743a263e46774a178c0e78"
+  # VITE_FB_MEASUREMENT_ID    = "G-XXXXXXX"
+
+# ===== Cache/headers (behåll – bra för PWA/SPA) =====
 [[headers]]
-for = "/index.html"
+  for = "/index.html"
   [headers.values]
-  Cache-Control = "no-cache, no-store, must-revalidate"
-  Pragma = "no-cache"
-  Expires = "0"
-
-# (säkerhetsnät för rot-URLen)
-[[headers]]
-for = "/"
-  [headers.values]
-  Cache-Control = "no-cache, no-store, must-revalidate"
-  Pragma = "no-cache"
-  Expires = "0"
-
-[[headers]]
-for = "/assets/*"
-  [headers.values]
-  Cache-Control = "public, max-age=31536000, immutable"
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Pragma        = "no-cache"
+    Expires       = "0"
 
 [[headers]]
-for = "/*.js"
+  for = "/"
   [headers.values]
-  Cache-Control = "public, max-age=31536000, immutable"
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Pragma        = "no-cache"
+    Expires       = "0"
 
 [[headers]]
-for = "/*.css"
+  for = "/assets/*"
   [headers.values]
-  Cache-Control = "public, max-age=31536000, immutable"
+    Cache-Control = "public, max-age=31536000, immutable"
 
 [[headers]]
-for = "/*.woff2"
+  for = "/*.js"
   [headers.values]
-  Cache-Control = "public, max-age=31536000, immutable"
+    Cache-Control = "public, max-age=31536000, immutable"
 
 [[headers]]
-for = "/*.svg"
+  for = "/*.css"
   [headers.values]
-  Cache-Control = "public, max-age=31536000, immutable"
+    Cache-Control = "public, max-age=31536000, immutable"
 
 [[headers]]
-for = "/*.png"
+  for = "/*.woff2"
   [headers.values]
-  Cache-Control = "public, max-age=31536000, immutable"
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.svg"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.png"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
