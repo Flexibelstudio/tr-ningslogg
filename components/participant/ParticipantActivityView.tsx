@@ -243,14 +243,14 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
   return (
     <div className="bg-white p-4 sm:p-6 rounded-xl shadow-xl mb-8 border border-gray-200">
       <div className="border-b border-gray-200">
-          <nav className="-mb-px flex flex-wrap gap-x-4" aria-label="Tabs">
-              <button onClick={() => setActiveTab('calendar')} className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('calendar')}`}>
+          <nav className="-mb-px flex" aria-label="Tabs">
+              <button onClick={() => setActiveTab('calendar')} className={`flex-1 text-center whitespace-nowrap py-3 px-2 border-b-2 font-medium text-sm sm:text-base rounded-t-lg ${getTabButtonStyle('calendar')}`}>
                   🗓️ Kalender
               </button>
-              <button onClick={() => setActiveTab('klubbar')} className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('klubbar')}`}>
+              <button onClick={() => setActiveTab('klubbar')} className={`flex-1 text-center whitespace-nowrap py-3 px-2 border-b-2 font-medium text-sm sm:text-base rounded-t-lg ${getTabButtonStyle('klubbar')}`}>
                   🏅 Klubbar
               </button>
-              <button onClick={() => setActiveTab('leaderboards')} className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('leaderboards')}`}>
+              <button onClick={() => setActiveTab('leaderboards')} className={`flex-1 text-center whitespace-nowrap py-3 px-2 border-b-2 font-medium text-sm sm:text-base rounded-t-lg ${getTabButtonStyle('leaderboards')}`}>
                   🏆 Topplistor
               </button>
           </nav>
