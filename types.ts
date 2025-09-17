@@ -1,21 +1,25 @@
 // Fix for `import.meta.env` TypeScript errors.
 // Replaced `/// <reference types="vite/client" />` with manual declaration
 // because the type definition file could not be found by the compiler.
-interface ImportMetaEnv {
-    readonly VITE_FB_API_KEY: string | undefined;
-    readonly VITE_FB_AUTH_DOMAIN: string | undefined;
-    readonly VITE_FB_PROJECT_ID: string | undefined;
-    readonly VITE_FB_STORAGE_BUCKET: string | undefined;
-    readonly VITE_FB_MESSAGING_SENDER_ID: string | undefined;
-    readonly VITE_FB_APP_ID: string | undefined;
-    readonly VITE_FB_MEASUREMENT_ID?: string;
-    readonly DEV: boolean;
-    readonly PROD: boolean;
-  }
+// FIX: Wrap ambient type declarations in `declare global` to make them available globally.
+declare global {
+  interface ImportMetaEnv {
+      readonly VITE_FB_API_KEY: string | undefined;
+      readonly VITE_FB_AUTH_DOMAIN: string | undefined;
+      readonly VITE_FB_PROJECT_ID: string | undefined;
+      readonly VITE_FB_STORAGE_BUCKET: string | undefined;
+      readonly VITE_FB_MESSAGING_SENDER_ID: string | undefined;
+      readonly VITE_FB_APP_ID: string | undefined;
+      readonly VITE_FB_MEASUREMENT_ID?: string;
+      readonly DEV: boolean;
+      readonly PROD: boolean;
+    }
+    
+    interface ImportMeta {
+      readonly env: ImportMetaEnv;
+    }
+}
   
-  interface ImportMeta {
-    readonly env: ImportMetaEnv;
-  }
 
 // --- Core Multi-Tenant Types ---
 export interface User {

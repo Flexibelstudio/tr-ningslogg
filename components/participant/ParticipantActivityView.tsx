@@ -6,6 +6,8 @@ import { DayActivitiesModal } from './DayActivitiesModal';
 import { CLUB_DEFINITIONS, DEFAULT_COACH_EVENT_ICON, STUDIO_TARGET_OPTIONS } from '../../constants';
 import { LeaderboardView } from './LeaderboardView';
 import { getHighestClubAchievements } from '../../services/gamificationService';
+import { AICoachActivitySummaryModal } from '../coach/AICoachActivitySummaryModal';
+import { ClubsView } from './ClubsView';
 
 interface ParticipantActivityViewProps {
   allActivityLogs: ActivityLog[]; 
@@ -56,7 +58,7 @@ interface CalendarDayItem {
   isChallengeWeek?: boolean;
 }
 
-type ActivityViewTab = 'calendar' | 'leaderboards';
+type ActivityViewTab = 'calendar' | 'klubbar' | 'leaderboards';
 
 export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = ({ 
   allActivityLogs, 
@@ -111,11 +113,9 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
     let currentDay = dateUtils.getStartOfWeek(monthStart);
     const today = new Date();
     
-    const latestGoal = allParticipantGoals.length > 0
-        ? [...allParticipantGoals].sort((a, b) => new Date(b.setDate).getTime() - new Date(a.setDate).getTime())[0]
-        : null;
-
-    const goalTargetDate = latestGoal && latestGoal.targetDate ? new Date(latestGoal.targetDate) : null;
+    const goalTargetDates = allParticipantGoals
+        .filter(g => g.targetDate)
+        .map(g => new Date(g.targetDate!));
 
     const isChallengeActive = leaderboardSettings.weeklyPBChallengeEnabled || leaderboardSettings.weeklySessionChallengeEnabled;
     const startOfThisWeek = dateUtils.getStartOfWeek(new Date());
@@ -199,7 +199,7 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
         });
       });
 
-      if (goalTargetDate && dateUtils.isSameDay(currentDay, goalTargetDate)) {
+      if (goalTargetDates.some(goalDate => dateUtils.isSameDay(currentDay, goalDate))) {
         dayEvents.push({ type: 'GOAL_TARGET', icon: '🎯', description: 'Måldatum!' });
       }
 
@@ -245,7 +245,10 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
       <div className="border-b border-gray-200">
           <nav className="-mb-px flex flex-wrap gap-x-4" aria-label="Tabs">
               <button onClick={() => setActiveTab('calendar')} className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('calendar')}`}>
-                  🗓️ Kalender
+                  🗓️ Kalender & Loggbok
+              </button>
+              <button onClick={() => setActiveTab('klubbar')} className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('klubbar')}`}>
+                  🏅 Klubbar
               </button>
               <button onClick={() => setActiveTab('leaderboards')} className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('leaderboards')}`}>
                   🏆 Topplistor
@@ -328,6 +331,19 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
               })}
             </div>
           </div>
+        )}
+        
+        {activeTab === 'klubbar' && participantProfile && (
+            <ClubsView
+                participantProfile={participantProfile}
+                allActivityLogs={allActivityLogs}
+                strengthStatsHistory={strengthStatsHistory}
+                conditioningStatsHistory={conditioningStatsHistory}
+                clubMemberships={clubMemberships}
+                workouts={workouts}
+                allParticipants={allParticipants}
+                allClubMemberships={clubMemberships}
+            />
         )}
 
         {activeTab === 'leaderboards' && (
