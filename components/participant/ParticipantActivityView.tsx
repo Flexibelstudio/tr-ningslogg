@@ -245,7 +245,7 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
       <div className="border-b border-gray-200">
           <nav className="-mb-px flex flex-wrap gap-x-4" aria-label="Tabs">
               <button onClick={() => setActiveTab('calendar')} className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('calendar')}`}>
-                  🗓️ Kalender & Loggbok
+                  🗓️ Kalender
               </button>
               <button onClick={() => setActiveTab('klubbar')} className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('klubbar')}`}>
                   🏅 Klubbar
