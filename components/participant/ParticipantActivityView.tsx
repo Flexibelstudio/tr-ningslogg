@@ -272,13 +272,9 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
             </div>
 
             <div className="grid grid-cols-7 gap-px text-center text-sm font-semibold text-gray-500 border-b mb-1 pb-1">
-              {dateUtils.getShortDayName(0)}
-              {dateUtils.getShortDayName(1)}
-              {dateUtils.getShortDayName(2)}
-              {dateUtils.getShortDayName(3)}
-              {dateUtils.getShortDayName(4)}
-              {dateUtils.getShortDayName(5)}
-              {dateUtils.getShortDayName(6)}
+              {['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'].map(day => (
+                <div key={day}>{day}</div>
+              ))}
             </div>
 
             <div className="grid grid-cols-7 gap-px">
