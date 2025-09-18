@@ -98,7 +98,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <nav className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-40">
-      <div className="container mx-auto px-4 py-2 flex items-center justify-between">
+      <div className="container mx-auto px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
             {branding?.logoBase64 ? (
                 <img src={branding.logoBase64} alt={`${currentOrganization?.name || APP_NAME} logotyp`} className="h-14 w-auto object-contain" />
@@ -119,7 +119,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         
         <div className="flex items-center gap-2 sm:gap-4">
             {currentRole === UserRole.PARTICIPANT && (
-              <div className="flex items-center gap-0 sm:gap-1">
+              <div className="flex items-center gap-1 sm:gap-2">
                 <button onClick={onOpenGoalModal} className="p-2 rounded-full text-flexibel hover:bg-flexibel/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel" title="Mål & Plan" aria-label="Mål & Plan"><GoalIcon /></button>
                 {aiRecept && <button onClick={onOpenAiRecept} className="p-2 rounded-full text-flexibel hover:bg-flexibel/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel" title="AI Recept" aria-label="AI Recept"><AiReceptIcon /></button>}
                 <button onClick={onOpenFlowModal} className="relative p-2 rounded-full text-flexibel hover:bg-flexibel/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel" title="Flöde" aria-label="Flöde"><FlowIcon />
