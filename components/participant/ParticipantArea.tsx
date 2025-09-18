@@ -2,6 +2,8 @@
 
 
 
+
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
     Workout, WorkoutLog, GeneralActivityLog, ActivityLog,
@@ -716,6 +718,21 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     }
   }, [myUpcomingSessions]);
 
+  const nextMeetingForCard = useMemo(() => {
+    if (myUpcomingSessions.length === 0) {
+      return null;
+    }
+    const nextSession = myUpcomingSessions[0];
+    const sevenDaysFromNow = new Date();
+    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+    sevenDaysFromNow.setHours(23, 59, 59, 999); // Include the entire 7th day
+
+    if (new Date(nextSession.startTime) <= sevenDaysFromNow) {
+      return nextSession;
+    }
+    return null;
+  }, [myUpcomingSessions]);
+
   // APP BADGING LOGIC
   useEffect(() => {
     if ('setAppBadge' in navigator) {
@@ -1269,8 +1286,12 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                             onButtonClick={() => setIsProfileModalOpen(true)}
                         />
                     )}
-                    {participantProfile && myUpcomingSessions.length > 0 && (
-                        <UpcomingMeetingCard sessions={myUpcomingSessions} staff={staffMembers} onOpenModal={setSelectedSessionForModal} />
+                    {nextMeetingForCard && (
+                        <UpcomingMeetingCard
+                            session={nextMeetingForCard}
+                            staffMember={staffMembers.find(s => s.id === nextMeetingForCard.coachId)}
+                            onOpenModal={setSelectedSessionForModal}
+                        />
                     )}
 
                     {isNewUser && (
