@@ -1,10 +1,14 @@
+
+
+
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
     Workout, WorkoutLog, GeneralActivityLog, ActivityLog,
     ParticipantGoalData, ParticipantProfile,
     UserStrengthStat, ParticipantConditioningStat,
     UserRole, ParticipantMentalWellbeing, Exercise, GoalCompletionLog, ParticipantGamificationStats, WorkoutCategory, PostWorkoutSummaryData, NewPB, ParticipantClubMembership, LeaderboardSettings, CoachEvent, GenderOption, Connection, Reaction, Comment, NewBaseline, ParticipantPhysiqueStat, LiftType, Location, Membership, StaffMember, OneOnOneSession, IntegrationSettings,
-    GroupClassDefinition, GroupClassSchedule, ParticipantBooking, WorkoutCategoryDefinition, InProgressWorkout, AchievementDefinition
+    GroupClassDefinition, GroupClassSchedule, ParticipantBooking, WorkoutCategoryDefinition, InProgressWorkout, AchievementDefinition, FlowItemLogType
 } from '../../types';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { Button } from '../Button';
@@ -22,7 +26,6 @@ import {
     LEVEL_COLORS_HEADER, MAIN_LIFTS_CONFIG_HEADER, MOOD_OPTIONS, CLUB_DEFINITIONS
 } from '../../constants';
 import * as dateUtils from '../../utils/dateUtils';
-import { FixedHeaderAndTools } from './FixedHeaderAndTools';
 import { calculateFlexibelStrengthScoreInternal, getFssScoreInterpretation as getFssScoreInterpretationFromTool } from './StrengthComparisonTool';
 import { FeedbackPromptToast } from './FeedbackPromptToast';
 import { InfoModal } from './InfoModal';
@@ -347,7 +350,6 @@ const GoalProgressCard: React.FC<{ goal: ParticipantGoalData | null, logs: Activ
 };
 
 
-type FlowItemLogType = 'workout' | 'general' | 'coach_event' | 'one_on_one_session' | 'goal_completion' | 'participant_club_membership' | 'user_strength_stat' | 'participant_physique_stat' | 'participant_goal_data' | 'participant_conditioning_stat';
 
 interface ParticipantAreaProps {
   currentParticipantId: string;
@@ -364,6 +366,12 @@ interface ParticipantAreaProps {
   onCancelBooking: (bookingId: string) => void;
   onCheckInParticipant: (bookingId: string) => void;
   setProfileOpener: (opener: { open: () => void } | null) => void;
+  setParticipantModalOpeners: (openers: {
+    openGoalModal: () => void;
+    openCommunityModal: () => void;
+    openFlowModal: () => void;
+    openAiReceptModal: () => void;
+  }) => void;
 }
 
 // Main ParticipantArea Component
@@ -382,6 +390,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   onCancelBooking,
   onCheckInParticipant,
   setProfileOpener,
+  setParticipantModalOpeners,
 }) => {
     const {
         participantDirectory,
@@ -396,7 +405,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         participantPhysiqueHistory, setParticipantPhysiqueHistoryData: setParticipantPhysiqueHistory,
         participantMentalWellbeing, setParticipantMentalWellbeingData: setParticipantMentalWellbeing,
         participantGamificationStats, setParticipantGamificationStatsData: setParticipantGamificationStats,
-        clubMemberships, setClubMembershipsData,
+        clubMemberships, setClubMembershipsData: setClubMemberships,
         leaderboardSettings,
         coachEvents,
         connections, setConnectionsData: setConnections,
@@ -487,6 +496,15 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     `${LOCAL_STORAGE_KEYS.IN_PROGRESS_WORKOUT}_${currentParticipantId}`, 
     [currentParticipantId]
   );
+
+  useEffect(() => {
+    setParticipantModalOpeners({
+        openGoalModal: () => setIsGoalModalOpen(true),
+        openCommunityModal: () => setIsCommunityModalOpen(true),
+        openFlowModal: () => setIsFlowModalOpen(true),
+        openAiReceptModal: () => setIsAiReceptModalOpen(true),
+    });
+  }, [setParticipantModalOpeners, setIsGoalModalOpen, setIsCommunityModalOpen, setIsFlowModalOpen, setIsAiReceptModalOpen]);
 
   useEffect(() => {
     const rawData = localStorage.getItem(storageKey);
@@ -776,7 +794,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   const latestConditioningValues = useMemo(() => {
     if (!myConditioningStats || myConditioningStats.length === 0) return { airbike4MinKcal: null, skierg4MinMeters: null, rower4MinMeters: null, rower2000mTimeSeconds: null, treadmill4MinMeters: null };
 
-    const findLastValue = (key: keyof Omit<ParticipantConditioningStat, 'id'|'lastUpdated'|'participantId'>): {value: string, date: string} | null => {
+    const findLastValue = (key: keyof Omit<ParticipantConditioningStat, 'id'|'lastUpdated'|'participantId'|'reactions'|'comments'>): {value: string, date: string} | null => {
         const sorted = [...myConditioningStats].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime());
         for(const stat of sorted) {
             const statValue = stat[key];
@@ -1187,7 +1205,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         );
 
         if (newAchievements.length > 0) {
-            setClubMembershipsData(prev => [...prev, ...newAchievements]);
+            setClubMemberships(prev => [...prev, ...newAchievements]);
             
             // Show toast for the first new achievement
             const firstNewClubId = newAchievements[0].clubId;
@@ -1202,7 +1220,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             }
         }
 
-    }, [allActivityLogs, myStrengthStats, myConditioningStats, participantProfile, myClubMemberships, workouts, setClubMembershipsData, isNewUser]);
+    }, [allActivityLogs, myStrengthStats, myConditioningStats, participantProfile, myClubMemberships, workouts, setClubMemberships, isNewUser]);
 
     return (
         <div className="bg-gray-100 bg-dotted-pattern bg-dotted-size bg-fixed min-h-screen">
@@ -1226,16 +1244,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             />
         ) : (
             <div className="pb-40">
-                <FixedHeaderAndTools
-                    onOpenGoalModal={() => setIsGoalModalOpen(true)}
-                    onOpenCommunity={() => setIsCommunityModalOpen(true)}
-                    aiRecept={latestActiveGoal?.aiPrognosis}
-                    onOpenAiRecept={() => setIsAiReceptModalOpen(true)}
-                    newFlowItemsCount={0} // Placeholder
-                    pendingRequestsCount={connections.filter(c => c.receiverId === currentParticipantId && c.status === 'pending').length}
-                    onOpenFlowModal={() => setIsFlowModalOpen(true)}
-                />
-                <div ref={mainContentRef} className="container mx-auto p-4 space-y-6">
+                <div ref={mainContentRef} className="container mx-auto px-2 sm:px-4 py-4 space-y-3">
                     {inProgressWorkout && (
                         <div className="p-4 bg-yellow-100 border-l-4 border-yellow-500 rounded-r-lg flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade-in-down">
                             <div>
@@ -1305,7 +1314,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                     </div>
                     
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <ToolCard 
                             title="Min Styrka"
                             description="Se dina 1RM, styrkenivåer och historik."
@@ -1338,6 +1347,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                             conditioningStatsHistory={myConditioningStats}
                             physiqueHistory={myPhysiqueHistory}
                             clubMemberships={myClubMemberships}
+                            allClubMemberships={clubMemberships}
                             participantProfile={participantProfile}
                             leaderboardSettings={leaderboardSettings}
                             allParticipantGoals={myParticipantGoals}
@@ -1455,62 +1465,87 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             </div>
         </Modal>
 
-        <SelectWorkoutModal 
-            isOpen={isSelectWorkoutModalOpen}
-            onClose={() => setIsSelectWorkoutModalOpen(false)}
-            workouts={workouts}
-            onStartWorkout={handleStartWorkout}
-            categoryFilter={workoutCategoryFilter}
-            membership={myMembership}
-            onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
-            currentParticipantId={currentParticipantId}
-            isProspect={participantProfile?.isProspect}
+        {preWorkoutData && ai && isOnline && (
+            <AIAssistantModal
+                isOpen={isAIAssistantModalOpen}
+                onClose={() => {
+                    setIsAIAssistantModalOpen(false);
+                    setPreWorkoutData(null);
+                }}
+                onContinue={handleContinueFromAIAssistant}
+                ai={ai}
+                workout={preWorkoutData.workout}
+                previousLog={preWorkoutData.previousLog}
+                participant={participantProfile!}
+                allWorkouts={workouts}
+            />
+        )}
+        
+        <SelectWorkoutModal
+          isOpen={isSelectWorkoutModalOpen}
+          onClose={() => setIsSelectWorkoutModalOpen(false)}
+          workouts={workouts}
+          onStartWorkout={handleStartWorkout}
+          categoryFilter={workoutCategoryFilter}
+          membership={myMembership}
+          onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
+          currentParticipantId={currentParticipantId}
+          isProspect={participantProfile?.isProspect}
         />
+
         <ExerciseSelectionModal
             isOpen={isExerciseSelectionModalOpen}
             onClose={() => setIsExerciseSelectionModalOpen(false)}
             options={workoutForExerciseSelection?.exerciseSelectionOptions}
             onConfirm={handleExerciseSelectionConfirm}
         />
+
         <MentalWellbeingModal
-            isOpen={isMentalCheckinOpen}
-            onClose={() => setIsMentalCheckinOpen(false)}
-            currentWellbeing={myMentalWellbeing || null}
-            participantId={currentParticipantId}
-            onSave={(wellbeingData) => {
-                const existingIndex = participantMentalWellbeing.findIndex(w => w.id === wellbeingData.id);
+          isOpen={isMentalCheckinOpen}
+          onClose={() => setIsMentalCheckinOpen(false)}
+          currentWellbeing={myMentalWellbeing || null}
+          participantId={currentParticipantId}
+          onSave={(data) => {
+            setParticipantMentalWellbeing(prev => {
+                const existingIndex = prev.findIndex(item => item.id === data.id);
                 if (existingIndex > -1) {
-                    setParticipantMentalWellbeing(prev => prev.map((item, index) => index === existingIndex ? wellbeingData : item));
-                } else {
-                    setParticipantMentalWellbeing(prev => [...prev, wellbeingData]);
+                    const newState = [...prev];
+                    newState[existingIndex] = data;
+                    return newState;
                 }
-            }}
+                return [...prev, data];
+            });
+          }}
         />
-        <ProfileModal 
-            isOpen={isProfileModalOpen}
-            onClose={() => setIsProfileModalOpen(false)}
-            currentProfile={participantProfile || null}
-            onSave={handleSaveProfile}
-            locations={locations}
+
+        <ProfileModal
+          isOpen={isProfileModalOpen}
+          onClose={() => setIsProfileModalOpen(false)}
+          currentProfile={participantProfile || null}
+          onSave={handleSaveProfile}
+          locations={locations}
         />
+        
         <GoalModal
-            isOpen={isGoalModalOpen}
-            onClose={() => setIsGoalModalOpen(false)}
-            currentGoalForForm={latestActiveGoal}
-            allParticipantGoals={myParticipantGoals}
-            onSave={handleSaveGoals}
-            isOnline={isOnline}
+          isOpen={isGoalModalOpen}
+          onClose={() => setIsGoalModalOpen(false)}
+          currentGoalForForm={latestActiveGoal}
+          allParticipantGoals={myParticipantGoals}
+          onSave={handleSaveGoals}
+          isOnline={isOnline}
         />
+
         <StrengthComparisonModal
             isOpen={isStrengthModalOpen}
             onClose={() => setIsStrengthModalOpen(false)}
             participantProfile={participantProfile}
-            latestGoal={latestActiveGoal}
+            latestGoal={latestGoal}
             userStrengthStatsHistory={myStrengthStats}
             clubMemberships={myClubMemberships}
-            onSaveStrengthStats={(stats) => setUserStrengthStats(prev => [...prev, stats])}
+            onSaveStrengthStats={(stats) => setUserStrengthStats(prev => [...prev.filter(s => s.participantId !== currentParticipantId), stats])}
             onOpenPhysiqueModal={handleOpenPhysiqueFromStrength}
         />
+        
         <ConditioningStatsModal
             isOpen={isConditioningModalOpen}
             onClose={() => setIsConditioningModalOpen(false)}
@@ -1522,14 +1557,16 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                     id: crypto.randomUUID(),
                     participantId: currentParticipantId,
                     ...statsData,
+                    lastUpdated: new Date().toISOString(),
                 };
                 setUserConditioningStatsHistory(prev => [...prev, newStat]);
             }}
         />
+        
         <PhysiqueManagerModal
             isOpen={isPhysiqueModalOpen}
             onClose={() => setIsPhysiqueModalOpen(false)}
-            currentProfile={participantProfile || null}
+            currentProfile={participantProfile}
             onSave={(physiqueData) => {
                 const newHistoryEntry: ParticipantPhysiqueStat = {
                     id: crypto.randomUUID(),
@@ -1541,34 +1578,21 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 updateParticipantProfile(currentParticipantId, physiqueData);
             }}
         />
+
         <CommunityModal
-            isOpen={isCommunityModalOpen}
-            onClose={() => setIsCommunityModalOpen(false)}
-            currentParticipantId={currentParticipantId}
-            allParticipants={participantDirectory}
-            connections={connections}
-            setConnections={setConnections}
+          isOpen={isCommunityModalOpen}
+          onClose={() => setIsCommunityModalOpen(false)}
+          currentParticipantId={currentParticipantId}
+          allParticipants={participantDirectory}
+          connections={connections}
+          setConnections={setConnections}
         />
-         {ai && preWorkoutData && participantProfile && (
-            <AIAssistantModal
-                isOpen={isAIAssistantModalOpen}
-                onClose={() => {
-                    setIsAIAssistantModalOpen(false);
-                    setPreWorkoutData(null);
-                }}
-                onContinue={handleContinueFromAIAssistant}
-                ai={ai}
-                workout={preWorkoutData.workout}
-                previousLog={preWorkoutData.previousLog}
-                participant={participantProfile}
-                allWorkouts={workouts}
-            />
-         )}
+        
         <FlowModal
             isOpen={isFlowModalOpen}
-            onClose={() => { 
+            onClose={() => {
+                setIsFlowModalOpen(false);
                 setLastFlowViewTimestamp(new Date().toISOString());
-                setIsFlowModalOpen(false); 
             }}
             currentUserId={currentParticipantId}
             allParticipants={participantDirectory}
@@ -1582,7 +1606,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             participantGoals={participantGoals}
             participantPhysiqueHistory={participantPhysiqueHistory}
             userStrengthStats={userStrengthStats}
-            userConditioningStatsHistory={userConditioningStatsHistory}
             leaderboardSettings={leaderboardSettings}
             onToggleReaction={onToggleReaction}
             onAddComment={onAddComment}
@@ -1590,9 +1613,11 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             onToggleCommentReaction={onToggleCommentReaction}
             isProspect={participantProfile?.isProspect}
             locations={locations}
+            userConditioningStatsHistory={userConditioningStatsHistory}
         />
+        
         {selectedSessionForModal && (
-            <MeetingDetailsModal
+            <MeetingDetailsModal 
                 isOpen={!!selectedSessionForModal}
                 onClose={() => setSelectedSessionForModal(null)}
                 session={selectedSessionForModal}
@@ -1603,68 +1628,69 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 onToggleCommentReaction={onToggleCommentReaction}
             />
         )}
+        
         <UpgradeModal isOpen={isUpgradeModalOpen} onClose={() => setIsUpgradeModalOpen(false)} />
-        <UpgradeModal isOpen={isAiUpsellModalOpen} onClose={() => setIsAiUpsellModalOpen(false)} title="Lås upp AI Recept!">
-            <div className="text-center space-y-4">
-                <span className="text-7xl" role="img" aria-label="Hjärna">🧠</span>
-                <h3 className="text-3xl font-bold text-gray-800">Få Personlig Vägledning</h3>
-                <p className="text-lg text-gray-600">
-                    Funktionen "AI Recept" analyserar dina mål och ger dig en skräddarsydd plan för att lyckas. Denna funktion är en del av våra fullvärdiga medlemskap.
-                </p>
-                <p className="text-lg text-gray-600 pt-2">
-                    Prata med en coach för att uppgradera och låsa upp denna och många andra funktioner!
-                </p>
-            </div>
-        </UpgradeModal>
-        {integrationSettings.isBookingEnabled && (
-            <BookingView
-                isOpen={isBookingModalOpen}
-                onClose={() => setIsBookingModalOpen(false)}
-                schedules={groupClassSchedules}
-                definitions={groupClassDefinitions}
-                bookings={allParticipantBookings}
-                staff={staffMembers}
-                onBookClass={onBookClass}
-                onCancelBooking={onCancelBooking}
-                currentParticipantId={currentParticipantId}
-                participantProfile={participantProfile}
-                integrationSettings={integrationSettings}
-                membership={myMembership}
-                onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
-            />
-        )}
-        {integrationSettings.enableQRCodeScanning && (
-            <QrScannerModal 
-                isOpen={isQrScannerOpen}
-                onClose={() => setIsQrScannerOpen(false)}
-                onWorkoutScan={(workoutData) => {
-                    const tempWorkout: Workout = {
-                        id: crypto.randomUUID(),
-                        ...workoutData,
-                        isPublished: false,
-                        isModifiable: true,
-                        assignedToParticipantId: currentParticipantId,
-                    };
-                    handleStartWorkout(tempWorkout);
-                }}
-                onCheckinScan={(checkinData) => {
-                    onCheckInParticipant(checkinData.locationId);
-                    setCheckinSuccess(true);
-                }}
-            />
-        )}
-        {participantProfile && (
-            <CheckinConfirmationModal
-                isOpen={checkinSuccess}
-                onClose={() => setCheckinSuccess(false)}
-                participantName={participantProfile.name || 'Medlem'}
-            />
-        )}
-        <AchievementToast 
-            achievement={newlyAchievedClub}
-            onClose={() => setNewlyAchievedClub(null)}
+        <UpgradeModal isOpen={isAiUpsellModalOpen} onClose={() => setIsAiUpsellModalOpen(false)} title="AI-coach ingår i ditt medlemskap" message="AI-coachen är en del av medlemskapet och kan inte användas med klippkort." />
+
+        <BookingView 
+            isOpen={isBookingModalOpen}
+            onClose={() => setIsBookingModalOpen(false)}
+            schedules={groupClassSchedules}
+            definitions={groupClassDefinitions}
+            bookings={allParticipantBookings}
+            staff={staffMembers}
+            onBookClass={onBookClass}
+            onCancelBooking={onCancelBooking}
+            currentParticipantId={currentParticipantId}
+            participantProfile={participantProfile}
+            integrationSettings={integrationSettings}
+            membership={myMembership}
+            onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
         />
+        
+        <QrScannerModal 
+            isOpen={isQrScannerOpen}
+            onClose={() => setIsQrScannerOpen(false)}
+            onWorkoutScan={(workoutData) => {
+                const tempWorkout: Workout = {
+                    ...workoutData,
+                    id: crypto.randomUUID(),
+                    isPublished: false,
+                };
+                handleStartWorkout(tempWorkout);
+            }}
+            onCheckinScan={(checkinData) => {
+                onCheckInParticipant(checkinData.locationId); 
+                setCheckinSuccess(true);
+            }}
+        />
+        
+        <CheckinConfirmationModal 
+            isOpen={checkinSuccess}
+            onClose={() => setCheckinSuccess(false)}
+            participantName={participantProfile?.name || ''}
+        />
+        
+        <AchievementToast 
+            achievement={newlyAchievedClub} 
+            onClose={() => setNewlyAchievedClub(null)} 
+        />
+        
         <InstallPwaBanner />
+
+        <FeedbackPromptToast 
+            isOpen={showFeedbackPrompt}
+            onAccept={() => {
+            setShowFeedbackPrompt(false);
+            setLastFeedbackPromptTime(Date.now());
+            setIsAiFeedbackModalOpen(true);
+            }}
+            onDecline={() => {
+            setShowFeedbackPrompt(false);
+            setLastFeedbackPromptTime(Date.now());
+            }}
+            message="Vill du ha lite feedback från din AI-coach på den senaste tidens träning?"
+        />
     </div>
   );
 };

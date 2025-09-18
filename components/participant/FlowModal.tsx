@@ -16,7 +16,8 @@ import {
   ParticipantPhysiqueStat,
   UserStrengthStat,
   Location,
-  ParticipantConditioningStat
+  ParticipantConditioningStat,
+  FlowItemLogType
 } from '../../types';
 import { formatRelativeTime } from '../../utils/dateUtils';
 import { CLUB_DEFINITIONS, REACTION_EMOJIS, DEFAULT_COACH_EVENT_ICON } from '../../constants';
@@ -27,7 +28,6 @@ import { useAppContext } from '../../context/AppContext';
 import { getHighestClubAchievements } from '../../services/gamificationService';
 
 // --- NEW EXPANDED TYPES ---
-type FlowItemLogType = 'workout' | 'general' | 'coach_event' | 'one_on_one_session' | 'goal_completion' | 'participant_club_membership' | 'user_strength_stat' | 'participant_physique_stat' | 'participant_goal_data' | 'participant_conditioning_stat';
 type FlowItemLog = WorkoutLog | GeneralActivityLog | CoachEvent | GoalCompletionLog | ParticipantClubMembership | UserStrengthStat | ParticipantPhysiqueStat | ParticipantGoalData | ParticipantConditioningStat;
 
 interface FlowModalProps {

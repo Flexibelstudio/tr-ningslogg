@@ -239,6 +239,7 @@ export interface PostWorkoutSummaryData {
 export interface Reaction {
   participantId: string;
   emoji: string;
+  createdDate: string; // ISO string
 }
 
 export interface Comment {
@@ -293,6 +294,8 @@ export interface GoalCompletionLog {
 }
 
 export type ActivityLog = WorkoutLog | GeneralActivityLog | GoalCompletionLog;
+
+export type FlowItemLogType = 'workout' | 'general' | 'coach_event' | 'one_on_one_session' | 'goal_completion' | 'participant_club_membership' | 'user_strength_stat' | 'participant_physique_stat' | 'participant_goal_data' | 'participant_conditioning_stat';
 
 export interface InProgressWorkout {
   participantId: string;

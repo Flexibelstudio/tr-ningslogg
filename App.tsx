@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense, useMemo } from 'react';
 import { 
     UserRole, Workout, WorkoutLog, ActivityLog, ParticipantGamificationStats, ParticipantGoalData, 
     GeneralActivityLog, GoalCompletionLog, ParticipantConditioningStat, ParticipantProfile, 
     UserStrengthStat, ParticipantMentalWellbeing, ParticipantClubMembership, LeaderboardSettings, 
     CoachEvent, Connection, Comment, Reaction, ParticipantPhysiqueStat, Location, StaffMember, 
     Membership, OneOnOneSession, WorkoutCategoryDefinition, StaffAvailability, 
-    IntegrationSettings, GroupClassDefinition, GroupClassSchedule, ParticipantBooking, BookingStatus
+    IntegrationSettings, GroupClassDefinition, GroupClassSchedule, ParticipantBooking, BookingStatus, FlowItemLogType
 } from './types';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { Navbar } from './components/Navbar';
@@ -19,7 +19,6 @@ import { Register } from './components/Register';
 import { Button } from './components/Button';
 import { NetworkStatusProvider } from './context/NetworkStatusContext';
 import { OfflineBanner } from './components/OfflineBanner';
-import { ParticipantNavbarActions } from './components/participant/ParticipantArea';
 
 const CoachArea = lazy(() => import('./components/coach/CoachArea').then(m => ({ default: m.CoachArea })));
 const ParticipantArea = lazy(() => import('./components/participant/ParticipantArea').then(m => ({ default: m.ParticipantArea })));
@@ -33,7 +32,7 @@ const LoadingSpinner = () => (
     </div>
 );
 
-type FlowItemLogType = 'workout' | 'general' | 'coach_event' | 'one_on_one_session' | 'goal_completion' | 'participant_club_membership' | 'user_strength_stat' | 'participant_physique_stat' | 'participant_goal_data' | 'participant_conditioning_stat';
+
 
 
 const AppContent: React.FC = () => {
@@ -49,12 +48,15 @@ const AppContent: React.FC = () => {
         isOrgDataLoading,
         isGlobalDataLoading, // Get new loading state
         branding,
-        setGoalCompletionLogsData,
-        setClubMembershipsData,
-        setUserStrengthStatsData,
-        setParticipantPhysiqueHistoryData,
+        goalCompletionLogs, setGoalCompletionLogsData,
+        clubMemberships, setClubMembershipsData,
+        userStrengthStats, setUserStrengthStatsData,
+        participantPhysiqueHistory, setParticipantPhysiqueHistoryData,
+        participantGoals,
         setParticipantGoalsData,
-        setUserConditioningStatsHistoryData,
+        userConditioningStatsHistory, setUserConditioningStatsHistoryData,
+        connections,
+        lastFlowViewTimestamp,
     } = useAppContext();
     
     const auth = useAuth();
@@ -76,13 +78,95 @@ const AppContent: React.FC = () => {
         }
         return null;
     });
-    const [participantNavbarActions, setParticipantNavbarActions] = useState<ParticipantNavbarActions | null>(null);
 
-    useEffect(() => {
-        if (auth.currentRole !== UserRole.PARTICIPANT) {
-            setParticipantNavbarActions(null);
+    // State for modal openers to be passed from ParticipantArea to Navbar
+    const [participantModalOpeners, setParticipantModalOpeners] = useState({
+        openGoalModal: () => {},
+        openCommunityModal: () => {},
+        openFlowModal: () => {},
+        openAiReceptModal: () => {}
+    });
+
+    // Derived data for Navbar, calculated here in the common ancestor component
+    const { aiRecept, pendingRequestsCount, newFlowItemsCount } = useMemo(() => {
+        if (auth.currentRole !== UserRole.PARTICIPANT || !auth.currentParticipantId) {
+            return { aiRecept: null, pendingRequestsCount: 0, newFlowItemsCount: 0 };
         }
-    }, [auth.currentRole]);
+        
+        const myParticipantGoals = participantGoals.filter(g => g.participantId === auth.currentParticipantId);
+        const sortedGoals = [...myParticipantGoals].sort((a,b) => new Date(b.setDate).getTime() - new Date(a.setDate).getTime());
+        const latestActiveGoal = sortedGoals.find(g => !g.isCompleted) || sortedGoals[0] || null;
+        
+        const recept = latestActiveGoal?.aiPrognosis;
+        const requests = connections.filter(c => c.receiverId === auth.currentParticipantId && c.status === 'pending').length;
+
+        // --- NEW newFlowItemsCount logic ---
+        let count = 0;
+        if (lastFlowViewTimestamp) { // Only calculate if user has visited the flow before
+            const lastViewTime = new Date(lastFlowViewTimestamp).getTime();
+            const myId = auth.currentParticipantId;
+
+            const myFriendsIds = new Set<string>();
+            connections.forEach(c => {
+                if (c.status === 'accepted') {
+                    if (c.requesterId === myId) myFriendsIds.add(c.receiverId);
+                    if (c.receiverId === myId) myFriendsIds.add(c.requesterId);
+                }
+            });
+
+            const newNotificationItems = new Set<string>();
+
+            // 1. New posts/events from coaches
+            coachEvents.forEach(event => {
+                if (new Date(event.createdDate).getTime() > lastViewTime) {
+                    newNotificationItems.add(`event-${event.id}`);
+                }
+            });
+            
+            // This is a comprehensive list of all things that can appear in the flow from another user
+            const allUserContent: (WorkoutLog | GeneralActivityLog | GoalCompletionLog | ParticipantClubMembership | UserStrengthStat | ParticipantPhysiqueStat | ParticipantGoalData | ParticipantConditioningStat)[] = [
+                ...workoutLogs, ...generalActivityLogs, ...goalCompletionLogs, ...clubMemberships, ...userStrengthStats, ...participantPhysiqueHistory, ...participantGoals, ...userConditioningStatsHistory
+            ];
+
+            allUserContent.forEach(item => {
+                const itemDate = new Date(
+                    'completedDate' in item ? item.completedDate :
+                    'achievedDate' in item ? item.achievedDate :
+                    'setDate' in item ? item.setDate :
+                    item.lastUpdated
+                ).getTime();
+                
+                // 2. New content created by friends
+                if (myFriendsIds.has((item as { participantId: string }).participantId) && itemDate > lastViewTime) {
+                    newNotificationItems.add(`item-${item.id}`);
+                }
+
+                // 3. New interactions on my content
+                if ((item as { participantId: string }).participantId === myId) {
+                    (item.comments || []).forEach(comment => {
+                        if (comment.authorId !== myId && new Date(comment.createdDate).getTime() > lastViewTime) {
+                            newNotificationItems.add(`comment-${comment.id}`);
+                        }
+                    });
+                    (item.reactions || []).forEach(reaction => {
+                        // The 'createdDate' on Reaction is the new field.
+                        if (reaction.participantId !== myId && new Date(reaction.createdDate).getTime() > lastViewTime) {
+                            newNotificationItems.add(`reaction-${item.id}-${reaction.participantId}-${reaction.emoji}`);
+                        }
+                    });
+                }
+            });
+            count = newNotificationItems.size;
+        }
+
+        return { aiRecept: recept, pendingRequestsCount: requests, newFlowItemsCount: count };
+
+    }, [
+        auth.currentRole, auth.currentParticipantId, participantGoals, connections, lastFlowViewTimestamp, 
+        coachEvents, workoutLogs, generalActivityLogs, goalCompletionLogs, clubMemberships, 
+        userStrengthStats, participantPhysiqueHistory, userConditioningStatsHistory
+    ]);
+
 
     useEffect(() => {
         if (auth.organizationId) {
@@ -269,10 +353,10 @@ const AppContent: React.FC = () => {
                         const myExistingReaction = myReactions.find(r => r.emoji === emoji);
                         updatedReactions = updatedReactions.filter(r => r.participantId !== auth.currentParticipantId);
                         if (!myExistingReaction) {
-                            updatedReactions.push({ participantId: auth.currentParticipantId, emoji });
+                            updatedReactions.push({ participantId: auth.currentParticipantId, emoji, createdDate: new Date().toISOString() });
                         }
                     } else {
-                        updatedReactions.push({ participantId: auth.currentParticipantId, emoji });
+                        updatedReactions.push({ participantId: auth.currentParticipantId, emoji, createdDate: new Date().toISOString() });
                     }
                     return { ...log, reactions: updatedReactions };
                 }
@@ -388,7 +472,7 @@ const AppContent: React.FC = () => {
                             if (myReactionIndex > -1) {
                                 return { ...comment, reactions: existingReactions.filter((_, index) => index !== myReactionIndex) };
                             } else {
-                                return { ...comment, reactions: [...existingReactions, { participantId, emoji: '❤️' }] };
+                                return { ...comment, reactions: [...existingReactions, { participantId, emoji: '❤️', createdDate: new Date().toISOString() }] };
                             }
                         }
                         return comment;
@@ -541,7 +625,7 @@ const AppContent: React.FC = () => {
 
         if (auth.currentRole === UserRole.COACH) {
             return (
-                <div className="container mx-auto p-4 sm:p-6">
+                <div className="container mx-auto px-2 sm:px-6 py-6">
                     <CoachArea
                         ai={ai}
                         onAddComment={handleAddComment}
@@ -574,7 +658,7 @@ const AppContent: React.FC = () => {
                         onBookClass={handleBookClass}
                         onCancelBooking={handleCancelBooking}
                         setProfileOpener={setProfileOpener}
-                        setNavbarActions={setParticipantNavbarActions}
+                        setParticipantModalOpeners={setParticipantModalOpeners}
                     />
                     <WelcomeModal 
                         isOpen={isWelcomeModalOpen}
@@ -593,7 +677,16 @@ const AppContent: React.FC = () => {
 
     return (
         <div className="bg-gray-50 min-h-screen">
-            <Navbar onOpenProfile={handleOpenProfile} participantActions={participantNavbarActions} />
+            <Navbar
+                onOpenProfile={handleOpenProfile}
+                onOpenGoalModal={participantModalOpeners.openGoalModal}
+                onOpenCommunity={participantModalOpeners.openCommunityModal}
+                onOpenFlowModal={participantModalOpeners.openFlowModal}
+                onOpenAiRecept={participantModalOpeners.openAiReceptModal}
+                aiRecept={aiRecept}
+                pendingRequestsCount={pendingRequestsCount}
+                newFlowItemsCount={newFlowItemsCount}
+            />
             <OfflineBanner />
             <main>
                 <Suspense fallback={<LoadingSpinner />}>

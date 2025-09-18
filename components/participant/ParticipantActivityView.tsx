@@ -21,6 +21,7 @@ interface ParticipantActivityViewProps {
   conditioningStatsHistory: ParticipantConditioningStat[];
   physiqueHistory: ParticipantPhysiqueStat[];
   clubMemberships: ParticipantClubMembership[];
+  allClubMemberships: ParticipantClubMembership[];
   participantProfile: ParticipantProfile | null;
   leaderboardSettings: LeaderboardSettings;
   allParticipantGoals: ParticipantGoalData[];
@@ -72,6 +73,7 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
   conditioningStatsHistory,
   physiqueHistory,
   clubMemberships,
+  allClubMemberships,
   participantProfile,
   leaderboardSettings,
   allParticipantGoals,
@@ -342,7 +344,7 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
                 clubMemberships={clubMemberships}
                 workouts={workouts}
                 allParticipants={allParticipants}
-                allClubMemberships={clubMemberships}
+                allClubMemberships={allClubMemberships}
             />
         )}
 
