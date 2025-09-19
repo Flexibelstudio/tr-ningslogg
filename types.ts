@@ -234,6 +234,8 @@ export interface PostWorkoutSummaryData {
     exerciseName: string;
     weight: number;
   }[];
+  volumeDifferenceVsPrevious?: number;
+  isFirstTimeLoggingWorkout?: boolean;
 }
 
 export interface Reaction {

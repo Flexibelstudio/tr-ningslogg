@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
-import { WorkoutLog, Workout } from '../../types';
+import { WorkoutLog, Workout, PostWorkoutSummaryData } from '../../types';
 import { WEIGHT_COMPARISONS } from '../../constants';
 import html2canvas from 'html2canvas';
 import { Confetti } from './Confetti';
@@ -14,6 +14,28 @@ interface PostWorkoutSummaryModalProps {
   onEditLog: () => void;
   isNewCompletion?: boolean;
 }
+
+const VolumeComparison: React.FC<{ summary: PostWorkoutSummaryData | undefined }> = ({ summary }) => {
+    if (!summary) return null;
+
+    if (summary.isFirstTimeLoggingWorkout) {
+        return (
+            <p className="mt-2 text-base text-green-700 font-semibold animate-fade-in-down" style={{ animationDelay: '200ms' }}>
+                Första gången du loggar detta pass? Snyggt! Nu har du en baslinje att slå nästa gång.
+            </p>
+        );
+    }
+
+    if (summary.volumeDifferenceVsPrevious !== undefined && summary.volumeDifferenceVsPrevious > 0) {
+        return (
+            <p className="mt-2 text-base text-green-700 font-semibold animate-fade-in-down" style={{ animationDelay: '200ms' }}>
+                +{summary.volumeDifferenceVsPrevious.toLocaleString('sv-SE')} kg mer än förra gången! 💪
+            </p>
+        );
+    }
+
+    return null;
+};
 
 export const PostWorkoutSummaryModal: React.FC<PostWorkoutSummaryModalProps> = ({
   isOpen,
@@ -169,18 +191,10 @@ export const PostWorkoutSummaryModal: React.FC<PostWorkoutSummaryModalProps> = (
             <p className="text-xl text-gray-500 font-semibold">Pass Slutfört!</p>
 
             {summaryData.animalEquivalent && (
-              <div className="my-6 animate-fade-in-down flex items-center justify-center h-40">
-                {animalWeightDetails?.imageUrl ? (
-                  <img
-                    src={animalWeightDetails.imageUrl}
-                    alt={summaryData.animalEquivalent.name}
-                    className="max-w-full max-h-full object-contain"
-                  />
-                ) : (
-                  <span className="text-9xl" role="img" aria-label={summaryData.animalEquivalent.name}>
+              <div className="my-6 animate-fade-in-down">
+                <span className="text-9xl" role="img" aria-label={summaryData.animalEquivalent.name}>
                     {summaryData.animalEquivalent.emoji || '💪'}
-                  </span>
-                )}
+                </span>
               </div>
             )}
 
@@ -197,6 +211,7 @@ export const PostWorkoutSummaryModal: React.FC<PostWorkoutSummaryModalProps> = (
                     Du lyfte {summaryData.totalWeightLifted.toLocaleString('sv-SE')} kg på detta passet.
                     {animalWeightDetails && ` En ${animalWeightDetails.name.toLowerCase()} väger i snitt ${animalWeightDetails.weightKg} kg!`}
                 </p>
+                <VolumeComparison summary={summaryData} />
               </div>
             )}
             
@@ -206,6 +221,7 @@ export const PostWorkoutSummaryModal: React.FC<PostWorkoutSummaryModalProps> = (
                     <p className="text-5xl font-bold text-flexibel">
                         {summaryData.totalWeightLifted.toLocaleString('sv-SE')} kg
                     </p>
+                    <VolumeComparison summary={summaryData} />
                 </div>
             )}
         </div>
