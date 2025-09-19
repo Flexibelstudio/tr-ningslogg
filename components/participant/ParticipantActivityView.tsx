@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { WorkoutLog, Workout, GeneralActivityLog, ActivityLog, GoalCompletionLog, ParticipantGoalData, UserStrengthStat, ParticipantConditioningStat, ParticipantClubMembership, ParticipantProfile, LeaderboardSettings, CoachEvent, ParticipantPhysiqueStat, OneOnOneSession, StaffMember, GroupClassSchedule, GroupClassDefinition, ParticipantBooking, Location } from '../../types';
+import { WorkoutLog, Workout, GeneralActivityLog, ActivityLog, GoalCompletionLog, ParticipantGoalData, UserStrengthStat, ParticipantConditioningStat, ParticipantClubMembership, ParticipantProfile, LeaderboardSettings, CoachEvent, ParticipantPhysiqueStat, OneOnOneSession, StaffMember, GroupClassSchedule, GroupClassDefinition, ParticipantBooking, Location, IntegrationSettings } from '../../types';
 import { Button } from '../Button';
 import * as dateUtils from '../../utils/dateUtils';
 import { DayActivitiesModal } from './DayActivitiesModal'; 
@@ -34,6 +34,8 @@ interface ParticipantActivityViewProps {
   groupClassDefinitions: GroupClassDefinition[];
   allParticipantBookings: ParticipantBooking[];
   locations: Location[];
+  onCancelBooking: (bookingId: string) => void;
+  integrationSettings: IntegrationSettings;
 }
 
 type CalendarEventType = 'PB' | 'GOAL_COMPLETED' | 'CLUB' | 'INBODY' | 'STRENGTH_TEST' | 'CONDITIONING_TEST' | 'NEW_GOAL' | 'COACH_EVENT' | 'ONE_ON_ONE' | 'GROUP_CLASS_BOOKING' | 'GOAL_TARGET';
@@ -86,6 +88,8 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
   groupClassDefinitions,
   allParticipantBookings,
   locations,
+  onCancelBooking,
+  integrationSettings,
 }) => {
   const [activeTab, setActiveTab] = useState<ActivityViewTab>('calendar');
   const [referenceDate, setReferenceDate] = useState<Date>(new Date());
@@ -134,7 +138,7 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
           const schedule = groupClassSchedules.find(s => s.id === booking.scheduleId);
           if (schedule) {
               const classDef = groupClassDefinitions.find(d => d.id === schedule.groupClassId);
-              const coach = staffMembers.find(c => c.id === schedule.coachId);
+              const coach = staffMembers.find(s => s.id === schedule.coachId);
               if (classDef && coach) {
                   dayEvents.push({
                       type: 'GROUP_CLASS_BOOKING',
@@ -382,6 +386,8 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
         groupClassDefinitions={groupClassDefinitions}
         allParticipantBookings={allParticipantBookings}
         locations={locations}
+        onCancelBooking={onCancelBooking}
+        integrationSettings={integrationSettings}
       />
     </div>
   );

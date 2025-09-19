@@ -1,9 +1,3 @@
-
-
-
-
-
-
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
     Workout, WorkoutLog, GeneralActivityLog, ActivityLog,
@@ -1381,6 +1375,8 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                             groupClassDefinitions={groupClassDefinitions}
                             allParticipantBookings={allParticipantBookings}
                             locations={locations}
+                            onCancelBooking={onCancelBooking}
+                            integrationSettings={integrationSettings}
                         />
                     </div>
                 </div>
