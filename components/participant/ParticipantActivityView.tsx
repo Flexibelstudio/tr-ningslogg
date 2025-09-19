@@ -123,7 +123,7 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
     const startOfThisWeek = dateUtils.getStartOfWeek(new Date());
     const endOfThisWeek = dateUtils.getEndOfWeek(new Date());
     
-    const myBookings = allParticipantBookings.filter(b => b.participantId === participantProfile?.id);
+    const myBookings = allParticipantBookings.filter(b => b.participantId === participantProfile?.id && b.status !== 'CANCELLED');
 
     for (let i = 0; i < 42; i++) { 
       const dayLogs = allActivityLogs.filter(log => dateUtils.isSameDay(new Date(log.completedDate), currentDay));

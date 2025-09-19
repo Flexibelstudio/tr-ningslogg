@@ -180,46 +180,33 @@ const AppContent: React.FC = () => {
 
 
     const handleBookClass = useCallback((participantId: string, scheduleId: string, classDate: string) => {
-        const existingBooking = participantBookings.find(b =>
+        // 1. Check for an ACTIVE booking. If one exists, do nothing.
+        const activeBooking = participantBookings.find(b =>
             b.participantId === participantId &&
             b.scheduleId === scheduleId &&
             b.classDate === classDate &&
-            b.status !== 'CANCELLED'
+            (b.status === 'BOOKED' || b.status === 'WAITLISTED')
         );
-
-        if (existingBooking) {
-            console.warn('Participant is already booked or on the waitlist for this class.');
+    
+        if (activeBooking) {
+            console.warn('Participant is already actively booked or on the waitlist for this class.');
             return;
         }
-
+    
         const schedule = groupClassSchedules.find(s => s.id === scheduleId);
         if (!schedule) {
             console.error("Schedule not found");
             return;
         }
-    
-        const bookedCount = participantBookings.filter(b => b.scheduleId === scheduleId && b.classDate === classDate && b.status === 'BOOKED').length;
         
-        const newStatus = bookedCount >= schedule.maxParticipants ? 'WAITLISTED' : 'BOOKED';
-    
-        const newBooking: ParticipantBooking = {
-            id: crypto.randomUUID(),
-            participantId,
-            scheduleId,
-            classDate,
-            bookingDate: new Date().toISOString(),
-            status: newStatus
-        };
-        
-        setParticipantBookingsData(prev => [...prev, newBooking]);
-    
-        if (newStatus === 'BOOKED') {
+        // Helper function for clip card logic to avoid duplication
+        const deductClipCard = () => {
             setParticipantDirectoryData(prevParticipants => {
                 const participant = prevParticipants.find(p => p.id === participantId);
                 if (!participant || !participant.membershipId) return prevParticipants;
     
                 const membership = memberships.find(m => m.id === participant.membershipId);
-                if (membership?.type === 'clip_card' && participant.clipCardStatus) {
+                if (membership?.type === 'clip_card' && participant.clipCardStatus && participant.clipCardStatus.remainingClips > 0) {
                     return prevParticipants.map(p => 
                         p.id === participantId 
                         ? { ...p, clipCardStatus: { ...p.clipCardStatus, remainingClips: p.clipCardStatus.remainingClips - 1 }, lastUpdated: new Date().toISOString() }
@@ -228,81 +215,143 @@ const AppContent: React.FC = () => {
                 }
                 return prevParticipants;
             });
+        };
+        
+        // Determine capacity and new status
+        const bookedCount = participantBookings.filter(b => 
+            b.scheduleId === scheduleId && 
+            b.classDate === classDate && 
+            (b.status === 'BOOKED' || b.status === 'CHECKED-IN')
+        ).length;
+        
+        const newStatus = bookedCount >= schedule.maxParticipants ? 'WAITLISTED' : 'BOOKED';
+    
+        // 2. Check for a PREVIOUSLY CANCELLED booking for the same class.
+        const cancelledBooking = participantBookings.find(b =>
+            b.participantId === participantId &&
+            b.scheduleId === scheduleId &&
+            b.classDate === classDate &&
+            b.status === 'CANCELLED'
+        );
+    
+        // 3. If a cancelled booking exists, REACTIVATE it.
+        if (cancelledBooking) {
+            const reactivatedBooking: ParticipantBooking = {
+                ...cancelledBooking,
+                status: newStatus,
+                bookingDate: new Date().toISOString(),
+            };
+    
+            setParticipantBookingsData(prev => 
+                prev.map(b => b.id === cancelledBooking.id ? reactivatedBooking : b)
+            );
+            
+            if (newStatus === 'BOOKED') {
+                deductClipCard();
+            }
+            
+        } else { // 4. If no previous booking exists, CREATE a new one.
+            const newBooking: ParticipantBooking = {
+                id: crypto.randomUUID(),
+                participantId,
+                scheduleId,
+                classDate,
+                bookingDate: new Date().toISOString(),
+                status: newStatus
+            };
+            
+            setParticipantBookingsData(prev => [...prev, newBooking]);
+        
+            if (newStatus === 'BOOKED') {
+                deductClipCard();
+            }
         }
     }, [groupClassSchedules, participantBookings, memberships, setParticipantBookingsData, setParticipantDirectoryData]);
 
     const handleCancelBooking = useCallback((bookingId: string) => {
-        const bookingToCancel = participantBookings.find(b => b.id === bookingId);
-        if (!bookingToCancel) return;
-    
-        const wasBooked = bookingToCancel.status === 'BOOKED' || bookingToCancel.status === 'CHECKED-IN';
-    
-        let promotedBooking: ParticipantBooking | undefined;
-        if (wasBooked) {
-            const waitlisters = participantBookings
-                .filter(b => 
-                    b.scheduleId === bookingToCancel.scheduleId && 
-                    b.classDate === bookingToCancel.classDate && 
-                    b.status === 'WAITLISTED'
-                )
-                .sort((a, b) => new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime());
-            
-            if (waitlisters.length > 0) {
-                const participantToPromote = participantDirectory.find(p => p.id === waitlisters[0].participantId);
-                const membership = participantToPromote ? memberships.find(m => m.id === participantToPromote.membershipId) : undefined;
-                
-                let canBePromoted = true;
-                if (membership?.type === 'clip_card' && (!participantToPromote?.clipCardStatus || participantToPromote.clipCardStatus.remainingClips <= 0)) {
-                    canBePromoted = false;
-                }
-                if (canBePromoted) {
-                    promotedBooking = waitlisters[0];
-                }
+        setParticipantBookingsData(prevBookings => {
+            const bookingToCancel = prevBookings.find(b => b.id === bookingId);
+            if (!bookingToCancel) {
+                console.warn(`Booking with id ${bookingId} not found for cancellation.`);
+                return prevBookings;
             }
-        }
     
-        setParticipantDirectoryData(prev => {
-            let nextState = [...prev];
-            
+            const wasBooked = bookingToCancel.status === 'BOOKED' || bookingToCancel.status === 'CHECKED-IN';
+    
+            let promotedBooking: ParticipantBooking | undefined;
+            let participantToPromoteId: string | undefined;
+    
             if (wasBooked) {
-                const participantToRefund = nextState.find(p => p.id === bookingToCancel.participantId);
-                const membership = participantToRefund ? memberships.find(m => m.id === participantToRefund.membershipId) : undefined;
-                if (membership?.type === 'clip_card' && participantToRefund?.clipCardStatus) {
-                    nextState = nextState.map(p => 
-                        p.id === participantToRefund.id 
-                        ? { ...p, clipCardStatus: { ...p.clipCardStatus!, remainingClips: p.clipCardStatus!.remainingClips + 1 }, lastUpdated: new Date().toISOString() }
-                        : p
-                    );
+                const waitlisters = prevBookings
+                    .filter(b => 
+                        b.scheduleId === bookingToCancel.scheduleId && 
+                        b.classDate === bookingToCancel.classDate && 
+                        b.status === 'WAITLISTED'
+                    )
+                    .sort((a, b) => new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime());
+                
+                if (waitlisters.length > 0) {
+                    for (const potentialPromotion of waitlisters) {
+                        const participantProfile = participantDirectory.find(p => p.id === potentialPromotion.participantId);
+                        const membership = participantProfile ? memberships.find(m => m.id === participantProfile.membershipId) : undefined;
+                        
+                        let canBePromoted = true;
+                        if (membership?.type === 'clip_card') {
+                            if (!participantProfile?.clipCardStatus || participantProfile.clipCardStatus.remainingClips <= 0) {
+                                canBePromoted = false;
+                            }
+                        }
+                        if (canBePromoted) {
+                            promotedBooking = potentialPromotion;
+                            participantToPromoteId = potentialPromotion.participantId;
+                            break;
+                        }
+                    }
                 }
             }
     
-            if (promotedBooking) {
-                const participantToPromote = nextState.find(p => p.id === promotedBooking!.participantId);
-                const membership = participantToPromote ? memberships.find(m => m.id === participantToPromote.membershipId) : undefined;
-                if (membership?.type === 'clip_card' && participantToPromote?.clipCardStatus) {
-                     nextState = nextState.map(p => 
-                        p.id === participantToPromote.id 
-                        ? { ...p, clipCardStatus: { ...p.clipCardStatus!, remainingClips: p.clipCardStatus!.remainingClips - 1 }, lastUpdated: new Date().toISOString() }
-                        : p
-                    );
-                }
+            if (wasBooked) {
+                 setParticipantDirectoryData(prevParticipants => {
+                    let nextParticipants = [...prevParticipants];
+                    
+                    const participantToRefund = nextParticipants.find(p => p.id === bookingToCancel.participantId);
+                    const membershipToRefund = participantToRefund ? memberships.find(m => m.id === participantToRefund.membershipId) : undefined;
+                    if (membershipToRefund?.type === 'clip_card' && participantToRefund?.clipCardStatus) {
+                        nextParticipants = nextParticipants.map(p => 
+                            p.id === participantToRefund.id 
+                            ? { ...p, clipCardStatus: { ...p.clipCardStatus!, remainingClips: p.clipCardStatus!.remainingClips + 1 }, lastUpdated: new Date().toISOString() }
+                            : p
+                        );
+                    }
+                    
+                    if (participantToPromoteId) {
+                        const participantToPromote = nextParticipants.find(p => p.id === participantToPromoteId);
+                        const membershipToPromote = participantToPromote ? memberships.find(m => m.id === participantToPromote.membershipId) : undefined;
+                        
+                        if (membershipToPromote?.type === 'clip_card' && participantToPromote?.clipCardStatus) {
+                            nextParticipants = nextParticipants.map(p => 
+                                p.id === participantToPromote.id
+                                ? { ...p, clipCardStatus: { ...p.clipCardStatus!, remainingClips: p.clipCardStatus!.remainingClips - 1 }, lastUpdated: new Date().toISOString() }
+                                : p
+                            );
+                        }
+                    }
+    
+                    return nextParticipants;
+                 });
             }
-            
-            return nextState;
+    
+            return prevBookings.map(b => {
+                if (b.id === bookingId) {
+                    return { ...b, status: 'CANCELLED' as BookingStatus };
+                }
+                if (promotedBooking && b.id === promotedBooking.id) {
+                    return { ...b, status: 'BOOKED' as BookingStatus };
+                }
+                return b;
+            });
         });
-    
-        setParticipantBookingsData(prev => {
-            let nextState = prev.map(b => b.id === bookingId ? { ...b, status: 'CANCELLED' as BookingStatus } : b);
-            if (promotedBooking) {
-                const promotedIdx = nextState.findIndex(b => b.id === promotedBooking!.id);
-                if (promotedIdx !== -1) {
-                    nextState[promotedIdx] = { ...nextState[promotedIdx], status: 'BOOKED' as BookingStatus };
-                }
-            }
-            return nextState;
-        });
-    
-    }, [participantBookings, participantDirectory, memberships, setParticipantBookingsData, setParticipantDirectoryData]);
+    }, [participantDirectory, memberships, setParticipantBookingsData, setParticipantDirectoryData]);
 
     const handlePromoteFromWaitlist = useCallback((bookingId: string) => {
         setParticipantBookingsData(prevBookings => {
