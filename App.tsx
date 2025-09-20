@@ -19,6 +19,7 @@ import { Register } from './components/Register';
 import { Button } from './components/Button';
 import { NetworkStatusProvider } from './context/NetworkStatusContext';
 import { OfflineBanner } from './components/OfflineBanner';
+import { UpdateNoticeModal } from './components/participant/UpdateNoticeModal';
 
 const CoachArea = lazy(() => import('./components/coach/CoachArea').then(m => ({ default: m.CoachArea })));
 const ParticipantArea = lazy(() => import('./components/participant/ParticipantArea').then(m => ({ default: m.ParticipantArea })));
@@ -78,6 +79,30 @@ const AppContent: React.FC = () => {
         }
         return null;
     });
+
+    // --- NEW: Update Notice Logic ---
+    const UPDATE_NOTICE_KEY = 'updateNotice_v1_CalendarAndFab'; // Unique key for this update
+    const [showUpdateNoticePopup, setShowUpdateNoticePopup] = useState(false);
+    const [showLatestUpdateView, setShowLatestUpdateView] = useState(false);
+
+    useEffect(() => {
+        // Show popup only for logged-in participants
+        if (auth.user && auth.currentRole === UserRole.PARTICIPANT) {
+            const noticeShown = localStorage.getItem(UPDATE_NOTICE_KEY);
+            if (!noticeShown) {
+                // Use a timeout to ensure the main UI has rendered and settled
+                setTimeout(() => {
+                    setShowUpdateNoticePopup(true);
+                }, 1500);
+            }
+        }
+    }, [auth.user, auth.currentRole]); // Run when auth state changes
+
+    const handleCloseUpdateNoticePopup = () => {
+        localStorage.setItem(UPDATE_NOTICE_KEY, 'true');
+        setShowUpdateNoticePopup(false);
+    };
+    // --- END: Update Notice Logic ---
 
     // State for modal openers to be passed from ParticipantArea to Navbar
     const [participantModalOpeners, setParticipantModalOpeners] = useState({
@@ -389,6 +414,12 @@ const AppContent: React.FC = () => {
         );
     }, [setParticipantBookingsData]);
 
+    const handleUnCheckInParticipant = useCallback((bookingId: string) => {
+        setParticipantBookingsData(prev =>
+            prev.map(b => (b.id === bookingId && b.status === 'CHECKED-IN' ? { ...b, status: 'BOOKED' as BookingStatus } : b))
+        );
+    }, [setParticipantBookingsData]);
+
     const handleToggleReaction = useCallback((logId: string, logType: FlowItemLogType, emoji: string) => {
         if (!auth.currentParticipantId) return;
 
@@ -681,6 +712,7 @@ const AppContent: React.FC = () => {
                         onDeleteComment={handleDeleteComment}
                         onToggleCommentReaction={handleToggleCommentReaction}
                         onCheckInParticipant={handleCheckInParticipant}
+                        onUnCheckInParticipant={handleUnCheckInParticipant}
                         onBookClass={handleBookClass}
                         onCancelBooking={handleCancelBooking}
                         onPromoteFromWaitlist={handlePromoteFromWaitlist}
@@ -728,6 +760,7 @@ const AppContent: React.FC = () => {
         <div className="bg-gray-50 min-h-screen">
             <Navbar
                 onOpenProfile={handleOpenProfile}
+                onOpenLatestUpdate={() => setShowLatestUpdateView(true)}
                 onOpenGoalModal={participantModalOpeners.openGoalModal}
                 onOpenCommunity={participantModalOpeners.openCommunityModal}
                 onOpenFlowModal={participantModalOpeners.openFlowModal}
@@ -742,6 +775,19 @@ const AppContent: React.FC = () => {
                     {renderMainView()}
                 </Suspense>
             </main>
+            {showUpdateNoticePopup && (
+                <UpdateNoticeModal 
+                    show={showUpdateNoticePopup} 
+                    onClose={handleCloseUpdateNoticePopup} 
+                />
+            )}
+
+            {showLatestUpdateView && (
+                <UpdateNoticeModal 
+                    show={showLatestUpdateView} 
+                    onClose={() => setShowLatestUpdateView(false)} 
+                />
+            )}
         </div>
     );
 }

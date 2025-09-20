@@ -4,18 +4,47 @@
   command = "npm run build"
   publish = "dist"
 
-# === ENV: GÄLLER FÖR ALLA KONTEXTER (prod, staging, PR) ===
+# ENV som gäller för alla contexts (prod, staging, PR)
 [build.environment]
-  NODE_VERSION                 = "20"
-  VITE_FB_API_KEY             = "AIzaSyAYIyG3Vufbc6MLpb48xLgJpF8zsZa2iHk"
-  VITE_FB_AUTH_DOMAIN         = "smartstudio-da995.firebaseapp.com"
-  VITE_FB_PROJECT_ID          = "smartstudio-da995"
-  VITE_FB_STORAGE_BUCKET      = "smartstudio-da995.appspot.com"
-  VITE_FB_MESSAGING_SENDER_ID = "704268843753"
-  VITE_FB_APP_ID              = "1:704268843753:web:743a263e46774a178c0e78"
-  # VITE_FB_MEASUREMENT_ID    = "G-XXXXXXX"  # om ni använder Analytics
+  NODE_VERSION                  = "20"
+  VITE_FB_API_KEY               = "AIzaSyAYIyG3Vufbc6MLpb48xLgJpF8zsZa2iHk"
+  VITE_FB_AUTH_DOMAIN           = "smartstudio-da995.firebaseapp.com"
+  VITE_FB_PROJECT_ID            = "smartstudio-da995"
+  VITE_FB_STORAGE_BUCKET        = "smartstudio-da995.appspot.com"
+  VITE_FB_MESSAGING_SENDER_ID   = "704268843753"
+  VITE_FB_APP_ID                = "1:704268843753:web:743a263e46774a178c0e78"
+  # VITE_FB_MEASUREMENT_ID      = "G-XXXXXXX"  # om ni använder Analytics
 
-# === Cache/headers ===
+# -------- Service worker: se till att den inte fångas av SPA-redirecten
+[[redirects]]
+  from = "/sw.js"
+  to   = "/sw.js"
+  status = 200
+  force = true
+
+# Skydd om någon klient fortfarande begär /service-worker.js
+[[redirects]]
+  from = "/service-worker.js"
+  to   = "/sw.js"
+  status = 200
+  force = true
+
+# SW-filer ska aldrig cacheas av browsern
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Pragma        = "no-cache"
+    Expires       = "0"
+
+[[headers]]
+  for = "/service-worker.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Pragma        = "no-cache"
+    Expires       = "0"
+
+# -------- Cachepolicy i övrigt
 [[headers]]
   for = "/index.html"
   [headers.values]
@@ -35,28 +64,33 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-[[headers]]  # fallback för rotfiler
+# Fallback för filer i roten
+[[headers]]
   for = "/*.js"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
 [[headers]]
   for = "/*.css"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
 [[headers]]
   for = "/*.woff2"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
 [[headers]]
   for = "/*.svg"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
 [[headers]]
   for = "/*.png"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-# === SPA-redirect (lägg sist) ===
+# -------- SPA-redirect (lägg sist)
 [[redirects]]
   from = "/*"
   to   = "/index.html"

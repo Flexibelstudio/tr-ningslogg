@@ -18,6 +18,7 @@ interface NavbarProps {
   onOpenCommunity?: () => void;
   onOpenAiRecept?: () => void;
   onOpenFlowModal?: () => void;
+  onOpenLatestUpdate: () => void;
   aiRecept?: string | null;
   newFlowItemsCount?: number;
   pendingRequestsCount?: number;
@@ -28,7 +29,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     onOpenGoalModal, 
     onOpenCommunity, 
     onOpenAiRecept, 
-    onOpenFlowModal, 
+    onOpenFlowModal,
+    onOpenLatestUpdate, 
     aiRecept, 
     newFlowItemsCount, 
     pendingRequestsCount 
@@ -75,6 +77,11 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const handleProfileClick = () => {
     onOpenProfile();
+    setIsMenuOpen(false);
+  };
+
+  const handleOpenLatestUpdate = () => {
+    onOpenLatestUpdate();
     setIsMenuOpen(false);
   };
 
@@ -180,6 +187,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
                                 </svg>
                                 Redigera Profil
+                            </MenuItem>
+
+                             <MenuItem onClick={handleOpenLatestUpdate}>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Senaste uppdateringen
                             </MenuItem>
 
                             {(user.roles.orgAdmin || user.roles.systemOwner) && user.linkedParticipantProfileId && (

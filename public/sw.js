@@ -1,14 +1,22 @@
 // public/sw.js
-// PWA-cache: index.html alltid färsk via headers (Netlify), assets cacheas länge.
-// SW uppdaterar sig själv (skipWaiting + clients.claim) och stör inte API/Firebase.
+// PWA-cache: index.html alltid färsk via no-store, assets cacheas länge.
+// SW uppdaterar sig själv (skipWaiting + clients.claim), rensar gamla caches,
+// stör inte API/Firebase och tål saknade precache-filer.
 
-const STATIC_CACHE_NAME = 'traningslogg-static-v12';
-const DYNAMIC_CACHE_NAME = 'traningslogg-dynamic-v7';
+const VERSION = '2025-09-16-1'; // bumpa när du vill tvinga alla att uppdatera
+
+// BUMPA dessa när du vill forcera ut ny version
+const STATIC_CACHE_NAME  = 'traningslogg-static-v13';
+const DYNAMIC_CACHE_NAME = 'traningslogg-dynamic-v8';
 const MAX_DYNAMIC_ENTRIES = 80;
 
 const URLS_TO_CACHE = [
+  '/',               // SPA-fallback
   '/index.html',
   '/manifest.json',
+  '/index.css',
+
+  // Dina ikonvägar (behöll dina filnamn i rot)
   '/icon-192x192.png',
   '/icon-512x512.png',
   '/icon-180x180.png',
@@ -21,6 +29,8 @@ const BYPASS_HOSTS = [
   'firebasestorage.googleapis.com','storage.googleapis.com','appspot.com',
   'identitytoolkit.googleapis.com','securetoken.googleapis.com',
   'firebasedatabase.app','apis.google.com',
+  // lägg gärna till fler CDN om ni använder dem:
+  'esm.sh','cdn.tailwindcss.com'
 ];
 
 // Egna paths att hoppa över (Netlify Functions, egna API:er)
@@ -36,20 +46,33 @@ self.addEventListener('message', (e) => {
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
-  event.waitUntil(
-    caches.open(STATIC_CACHE_NAME).then((cache) =>
-      Promise.all(URLS_TO_CACHE.map((u) => cache.add(new Request(u, { cache: 'reload' }))))
-    )
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(STATIC_CACHE_NAME);
+    // Lägg till en i taget (så inte EN 404 fäller hela installationen)
+    for (const u of URLS_TO_CACHE) {
+      try {
+        await cache.add(new Request(u, { cache: 'reload' }));
+      } catch (err) {
+        console.warn('[SW] install: hoppar över (saknas/404?):', u);
+      }
+    }
+  })());
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
+    // Rensa gamla cache-buckets
+    const keep = new Set([STATIC_CACHE_NAME, DYNAMIC_CACHE_NAME]);
     const names = await caches.keys();
-    await Promise.all(
-      names.map((n) => [STATIC_CACHE_NAME, DYNAMIC_CACHE_NAME].includes(n) ? undefined : caches.delete(n))
-    );
+    await Promise.all(names.map((n) => keep.has(n) ? undefined : caches.delete(n)));
+
+    // (valfritt) navigation preload
+    if ('navigationPreload' in self.registration) {
+      try { await self.registration.navigationPreload.enable(); } catch {}
+    }
+
     await self.clients.claim();
+    console.log('[SW] activated', VERSION);
   })());
 });
 
@@ -63,17 +86,21 @@ self.addEventListener('fetch', (event) => {
   // Bypass externa värdar
   if (BYPASS_HOSTS.some((h) => url.hostname.includes(h))) return;
 
-  // HTML/navigering: network-first, offline-fallback till index
+  // HTML/navigering: network-first med no-store, offline-fallback till index
   const isHTML = req.mode === 'navigate' || accept.includes('text/html');
   if (isHTML) {
     event.respondWith((async () => {
       try {
-        const res = await fetch(req);
+        // Viktigt: no-store så vi aldrig serverar gammal HTML från browsercache
+        const res = await fetch(req, { cache: 'no-store' });
         const cache = await caches.open(STATIC_CACHE_NAME);
         try { await cache.put('/index.html', res.clone()); } catch {}
+        try { await cache.put('/',            res.clone()); } catch {}
         return res;
       } catch {
-        return (await caches.match('/index.html')) || Response.error();
+        return (await caches.match('/index.html')) ||
+               (await caches.match('/')) ||
+               Response.error();
       }
     })());
     return;

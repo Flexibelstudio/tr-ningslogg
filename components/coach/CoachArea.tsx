@@ -119,6 +119,7 @@ interface CoachAreaProps {
   onDeleteComment: (logId: string, logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session', commentId: string) => void;
   onToggleCommentReaction: (logId: string, logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session', commentId: string) => void;
   onCheckInParticipant: (bookingId: string) => void;
+  onUnCheckInParticipant: (bookingId: string) => void;
   onBookClass: (participantId: string, scheduleId: string, classDate: string) => void;
   onCancelBooking: (bookingId: string) => void;
   onPromoteFromWaitlist: (bookingId: string) => void;
@@ -130,6 +131,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   onDeleteComment,
   onToggleCommentReaction,
   onCheckInParticipant,
+  onUnCheckInParticipant,
   onBookClass,
   onCancelBooking,
   onPromoteFromWaitlist,
@@ -574,6 +576,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
                           classInstance={classInstanceForManagement}
                           participants={participantDirectory}
                           onCheckIn={onCheckInParticipant}
+                          onUnCheckIn={onUnCheckInParticipant}
                           onBookClass={onBookClass}
                           onCancelBooking={onCancelBooking}
                           onPromoteFromWaitlist={onPromoteFromWaitlist}
