@@ -89,6 +89,31 @@ const ModuleSettingsManager: React.FC = () => {
                     label="Aktivera Bokningssystem"
                     description="Aktiverar bokningskalendern och relaterade funktioner för både coacher och medlemmar. Detta är avsett för grupp-pass (träning, yoga etc)."
                 />
+                {integrationSettings.isBookingEnabled && (
+                    <div className="pl-4 ml-4 border-l-2 border-gray-200 space-y-4 animate-fade-in-down">
+                        <h4 className="text-lg font-semibold text-gray-700">Bokningsregler</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <Input
+                                label="Bokning tillåten (veckor i förväg)"
+                                type="number"
+                                min="1"
+                                step="1"
+                                value={integrationSettings.bookingLeadTimeWeeks ?? ''}
+                                onChange={(e) => handleSettingChange('bookingLeadTimeWeeks', e.target.value === '' ? undefined : Number(e.target.value))}
+                                placeholder="T.ex. 2"
+                            />
+                            <Input
+                                label="Avbokning tillåten (timmar innan pass)"
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={integrationSettings.cancellationCutoffHours ?? ''}
+                                onChange={(e) => handleSettingChange('cancellationCutoffHours', e.target.value === '' ? undefined : Number(e.target.value))}
+                                placeholder="T.ex. 2"
+                            />
+                        </div>
+                    </div>
+                )}
                 <ToggleSwitch
                     id="schedule-toggle"
                     checked={integrationSettings.isScheduleEnabled ?? true}

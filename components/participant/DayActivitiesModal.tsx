@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
-import { ActivityLog, Workout, WorkoutLog, GeneralActivityLog, Exercise, GoalCompletionLog, ParticipantGoalData, UserStrengthStat, ParticipantConditioningStat, ParticipantClubMembership, ParticipantProfile, CoachEvent, ParticipantPhysiqueStat, OneOnOneSession, StaffMember, GroupClassSchedule, GroupClassDefinition, ParticipantBooking, Location } from '../../types';
+import { ActivityLog, Workout, WorkoutLog, GeneralActivityLog, Exercise, GoalCompletionLog, ParticipantGoalData, UserStrengthStat, ParticipantConditioningStat, ParticipantClubMembership, ParticipantProfile, CoachEvent, ParticipantPhysiqueStat, OneOnOneSession, StaffMember, GroupClassSchedule, GroupClassDefinition, ParticipantBooking, Location, IntegrationSettings } from '../../types';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { MOOD_OPTIONS, CLUB_DEFINITIONS, DEFAULT_COACH_EVENT_ICON, STUDIO_TARGET_OPTIONS } from '../../constants'; 
 import * as dateUtils from '../../utils/dateUtils';
@@ -28,6 +28,8 @@ interface DayActivitiesModalProps {
   groupClassDefinitions: GroupClassDefinition[];
   allParticipantBookings: ParticipantBooking[];
   locations: Location[];
+  onCancelBooking: (bookingId: string) => void;
+  integrationSettings: IntegrationSettings;
 }
 
 const TrashIcon = () => (
@@ -62,6 +64,13 @@ const getStudioLabel = (target: 'all' | 'salem' | 'karra'): string => {
     return option ? option.label : 'Okänd studio';
 };
 
+type FullBookingInfo = ParticipantBooking & {
+    className: string;
+    startTime: string;
+    coachName: string;
+    startDateTime: Date;
+};
+
 export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
   isOpen,
   onClose,
@@ -82,16 +91,20 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
   groupClassSchedules,
   groupClassDefinitions,
   allParticipantBookings,
-  locations
+  locations,
+  onCancelBooking,
+  integrationSettings
 }) => {
   const [showConfirmDeleteModal, setShowConfirmDeleteModal] = useState(false);
   const [activityToConfirmDelete, setActivityToConfirmDelete] = useState<ActivityLog | null>(null);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
+  const [bookingToCancel, setBookingToCancel] = useState<FullBookingInfo | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
       setSelectedActivityId(null); 
       setActivityToConfirmDelete(null);
+      setBookingToCancel(null);
     }
   }, [isOpen]);
 
@@ -102,7 +115,7 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
         .sort((a,b) => new Date(a.startTime).getTime() - new Date(a.startTime).getTime());
   }, [selectedDate, oneOnOneSessions, participantProfile]);
 
-  const groupClassesForDay = useMemo(() => {
+  const groupClassesForDay = useMemo((): FullBookingInfo[] => {
     if (!selectedDate || !participantProfile) return [];
     const myBookingsToday = allParticipantBookings.filter(b => b.participantId === participantProfile.id && b.classDate === selectedDate.toISOString().split('T')[0]);
     
@@ -113,11 +126,16 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
         const coach = staffMembers.find(s => s.id === schedule.coachId);
         if (!classDef || !coach) return null;
 
+        const [hour, minute] = schedule.startTime.split(':').map(Number);
+        const classStartDateTime = new Date(selectedDate);
+        classStartDateTime.setHours(hour, minute, 0, 0);
+
         return {
             ...booking,
             className: classDef.name,
             startTime: schedule.startTime,
             coachName: coach.name,
+            startDateTime: classStartDateTime
         };
     }).filter((b): b is NonNullable<typeof b> => b !== null).sort((a, b) => a.startTime.localeCompare(b.startTime));
   }, [selectedDate, participantProfile, allParticipantBookings, groupClassSchedules, groupClassDefinitions, staffMembers]);
@@ -180,11 +198,7 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
 
   const hasGoalTargetForDay = useMemo(() => {
     if (!selectedDate) return false;
-    const latestGoal = allParticipantGoals.length > 0 
-        ? [...allParticipantGoals].sort((a, b) => new Date(b.setDate).getTime() - new Date(a.setDate).getTime())[0] 
-        : null;
-    if (!latestGoal || !latestGoal.targetDate) return false;
-    return dateUtils.isSameDay(new Date(latestGoal.targetDate), selectedDate);
+    return allParticipantGoals.some(g => g.targetDate && dateUtils.isSameDay(new Date(g.targetDate), selectedDate));
   }, [selectedDate, allParticipantGoals]);
 
 
@@ -236,6 +250,14 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
       : `Är du säker på att du vill ta bort aktiviteten '${activityName}' från ${dateStr}? Detta kan inte ångras.`;
   };
 
+  const handleConfirmCancel = () => {
+    if (bookingToCancel) {
+        onCancelBooking(bookingToCancel.id);
+    }
+    setBookingToCancel(null);
+    onClose(); // Stänger aktivitetsvyn efter avbokning
+  };
+
   const modalTitle = `Aktiviteter ${selectedDate.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}`;
 
   return (
@@ -250,19 +272,37 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
           {groupClassesForDay.length > 0 && (
               <div className="p-3 bg-gray-100 rounded-lg space-y-2 border">
                   <h4 className="text-base font-semibold text-gray-600 uppercase">Bokade Gruppass</h4>
-                  <ul className="space-y-1">
-                      {groupClassesForDay.map((booking) => (
-                          <li key={booking.id} className="flex items-start text-lg">
-                              <span className="text-2xl mr-2">🎟️</span>
-                              <div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-semibold text-gray-800">{booking.startTime} - {booking.className}</span>
-                                    {booking.status === 'CHECKED-IN' && <span className="text-xs font-bold bg-green-200 text-green-800 px-2 py-0.5 rounded-full">Incheckad</span>}
-                                  </div>
-                                  <p className="text-base text-gray-500">med {booking.coachName}</p>
-                              </div>
-                          </li>
-                      ))}
+                  <ul className="space-y-2">
+                      {groupClassesForDay.map((booking) => {
+                          const now = new Date();
+                          const cutoffHours = integrationSettings.cancellationCutoffHours ?? 2;
+                          const canCancel = booking.startDateTime.getTime() - now.getTime() > cutoffHours * 3600 * 1000;
+                          
+                          return (
+                            <li key={booking.id} className="flex items-center text-lg p-2 bg-white rounded-md">
+                                <span className="text-2xl mr-2">🎟️</span>
+                                <div className="flex-grow">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-semibold text-gray-800">{booking.startTime} - {booking.className}</span>
+                                      {booking.status === 'CHECKED-IN' && <span className="text-xs font-bold bg-green-200 text-green-800 px-2 py-0.5 rounded-full">Incheckad</span>}
+                                    </div>
+                                    <p className="text-base text-gray-500">med {booking.coachName}</p>
+                                </div>
+                                {booking.status !== 'CHECKED-IN' && (
+                                    <Button 
+                                    size="sm" 
+                                    variant="danger" 
+                                    className="!text-xs self-center"
+                                    onClick={() => setBookingToCancel(booking)}
+                                    disabled={!canCancel}
+                                    title={!canCancel ? `Avbokning måste ske senast ${cutoffHours} timmar innan.` : 'Avboka passet'}
+                                    >
+                                    {canCancel ? 'Avboka' : 'För sent'}
+                                    </Button>
+                                )}
+                            </li>
+                          );
+                      })}
                   </ul>
               </div>
           )}
@@ -325,10 +365,11 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
 
                   if (workoutTemplate?.isModifiable && workoutLog.selectedExercisesForModifiable && workoutLog.selectedExercisesForModifiable.length > 0) {
                       exerciseSummary = workoutLog.selectedExercisesForModifiable.map(e => e.name).join(', ');
-                  } else if (workoutTemplate && !workoutTemplate.isModifiable && workoutTemplate.blocks.length > 0) {
-                      const firstFewExercises = workoutTemplate.blocks.flatMap(b => b.exercises).slice(0, 2).map(e => e.name);
+                  } else if (workoutTemplate && !workoutTemplate.isModifiable && workoutTemplate.blocks && workoutTemplate.blocks.length > 0) {
+                      const allExercises = workoutTemplate.blocks.flatMap(b => b.exercises);
+                      const firstFewExercises = allExercises.slice(0, 2).map(e => e.name);
                       if (firstFewExercises.length > 0) {
-                          exerciseSummary = firstFewExercises.join(', ') + (workoutTemplate.blocks.flatMap(b => b.exercises).length > 2 ? '...' : '');
+                          exerciseSummary = firstFewExercises.join(', ') + (allExercises.length > 2 ? '...' : '');
                       }
                   }
 
@@ -474,6 +515,16 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
           cancelButtonText="Avbryt"
         />
       )}
+      
+      <ConfirmationModal
+        isOpen={!!bookingToCancel}
+        onClose={() => setBookingToCancel(null)}
+        onConfirm={handleConfirmCancel}
+        title={`Avboka ${bookingToCancel?.className}?`}
+        message={`Är du säker på att du vill avboka din plats på ${bookingToCancel?.className} den ${bookingToCancel?.startDateTime.toLocaleDateString('sv-SE')}?`}
+        confirmButtonText="Ja, avboka"
+        confirmButtonVariant="danger"
+      />
     </>
   );
 };

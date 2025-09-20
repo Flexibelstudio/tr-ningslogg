@@ -2,9 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { ParticipantProfile, ActivityLog, WorkoutLog, UserStrengthStat, ParticipantClubMembership, LeaderboardSettings, Location, LiftType, Workout, ParticipantConditioningStat, Exercise } from '../../types';
 import * as dateUtils from '../../utils/dateUtils';
 import { calculateFlexibelStrengthScoreInternal } from './StrengthComparisonTool';
-import { CLUB_DEFINITIONS } from '../../constants';
-import { calculateEstimated1RM } from '../../utils/workoutUtils';
-import { getHighestClubAchievements } from '../../services/gamificationService';
 
 interface LeaderboardViewProps {
     currentParticipantId: string;
@@ -20,7 +17,7 @@ interface LeaderboardViewProps {
     conditioningStatsHistory: ParticipantConditioningStat[];
 }
 
-type LeaderboardSubTab = 'weekly' | 'all-time' | 'clubs';
+type LeaderboardSubTab = 'weekly' | 'all-time';
 type StudioFilter = string; // 'all' or a locationId
 
 interface LeaderboardEntry {
@@ -115,13 +112,11 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
     const [activeTab, setActiveTab] = useState<LeaderboardSubTab>('weekly');
     const [weeklyFilter, setWeeklyFilter] = useState<StudioFilter>(participantProfile?.locationId || 'all');
     const [allTimeFilter, setAllTimeFilter] = useState<StudioFilter>('all');
-    const [clubsFilter, setClubsFilter] = useState<StudioFilter>(participantProfile?.locationId || 'all');
-
+    
     const optedInParticipants = useMemo(() => {
         return participants.filter(p => p.enableLeaderboardParticipation && p.isActive);
     }, [participants]);
     
-    // Filter participants based on selected studio
     const weeklyParticipants = useMemo(() => {
         if (weeklyFilter === 'all') return optedInParticipants;
         return optedInParticipants.filter(p => p.locationId === weeklyFilter);
@@ -143,7 +138,6 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
             return completedDate >= startOfWeek && completedDate <= endOfWeek;
         });
         
-        // PB Leaderboard
         const pbCounts: { [participantId: string]: number } = {};
         const workoutLogsThisWeek = logsThisWeek.filter(l => l.type === 'workout') as WorkoutLog[];
         workoutLogsThisWeek.forEach(log => {
@@ -164,7 +158,6 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
         const weeklyPBLeaderboard = allPbEntries.slice(0, 10);
         const currentUserPBEntry = allPbEntries.find(e => e.isCurrentUser) || null;
 
-        // Session Leaderboard
         const sessionCounts: { [participantId: string]: number } = {};
         logsThisWeek.forEach(log => {
             sessionCounts[log.participantId] = (sessionCounts[log.participantId] || 0) + 1;
@@ -222,145 +215,6 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
         };
     }, [allTimeParticipants, currentParticipantId]);
     
-    const calculatedMemberships = useMemo(() => {
-        const allMemberships: ParticipantClubMembership[] = [];
-        if (!optedInParticipants.length) return [];
-        
-        const exerciseMap = new Map<string, { name: string, baseLiftType?: LiftType }>();
-        workouts.forEach(workout => {
-            (workout.blocks || []).forEach(block => {
-                block.exercises.forEach(ex => {
-                    exerciseMap.set(ex.id, { name: ex.name, baseLiftType: ex.baseLiftType });
-                });
-            });
-        });
-        allActivityLogs.forEach(log => {
-            if (log.type === 'workout' && (log as WorkoutLog).selectedExercisesForModifiable) {
-                (log as WorkoutLog).selectedExercisesForModifiable!.forEach(ex => {
-                    exerciseMap.set(ex.id, { name: ex.name, baseLiftType: ex.baseLiftType });
-                });
-            }
-        });
-    
-        optedInParticipants.forEach(participant => {
-            const participantLogs = allActivityLogs.filter(l => l.participantId === participant.id);
-            const participantStrengthStats = userStrengthStats.filter(s => s.participantId === participant.id);
-            const participantConditioningStats = conditioningStatsHistory.filter(s => s.participantId === participant.id);
-    
-            CLUB_DEFINITIONS.forEach(club => {
-                let isAchieved = false;
-                
-                switch (club.type) {
-                    case 'SESSION_COUNT':
-                        if (club.threshold && participantLogs.length >= club.threshold) {
-                            isAchieved = true;
-                        }
-                        break;
-                    case 'LIFT':
-                    case 'BODYWEIGHT_LIFT':
-                        const liftType = club.liftType;
-                        if (!liftType) break;
-    
-                        const targetWeight = club.type === 'BODYWEIGHT_LIFT'
-                            ? (participant.bodyweightKg || 0) * (club.multiplier || 1)
-                            : (club.threshold || Infinity);
-    
-                        if (targetWeight <= 0) break;
-                        
-                        let maxAchievedWeight = 0;
-                        
-                        const latestStat = participantStrengthStats.sort((a,b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
-                        if (latestStat) {
-                            if (liftType === 'Bänkpress') maxAchievedWeight = Math.max(maxAchievedWeight, latestStat.benchPress1RMaxKg || 0);
-                            if (liftType === 'Knäböj') maxAchievedWeight = Math.max(maxAchievedWeight, latestStat.squat1RMaxKg || 0);
-                            if (liftType === 'Marklyft') maxAchievedWeight = Math.max(maxAchievedWeight, latestStat.deadlift1RMaxKg || 0);
-                            if (liftType === 'Axelpress') maxAchievedWeight = Math.max(maxAchievedWeight, latestStat.overheadPress1RMaxKg || 0);
-                        }
-    
-                        for (const log of participantLogs) {
-                            if (log.type === 'workout') {
-                                for (const entry of (log as WorkoutLog).entries) {
-                                    const exerciseDetail = exerciseMap.get(entry.exerciseId);
-                                    if (exerciseDetail && (exerciseDetail.name === liftType || exerciseDetail.baseLiftType === liftType)) {
-                                        for (const set of entry.loggedSets) {
-                                            if (set.isCompleted) {
-                                                const weight = Number(set.weight || 0);
-                                                maxAchievedWeight = Math.max(maxAchievedWeight, weight);
-    
-                                                const e1RM = calculateEstimated1RM(set.weight, set.reps);
-                                                if (e1RM) {
-                                                    maxAchievedWeight = Math.max(maxAchievedWeight, e1RM);
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        
-                        if (maxAchievedWeight >= targetWeight) {
-                            isAchieved = true;
-                        }
-                        break;
-                    case 'CONDITIONING':
-                        const metric = club.conditioningMetric;
-                        const comparison = club.comparison;
-                        if (!metric || club.threshold === undefined) break;
-                        
-                        for (const stat of participantConditioningStats) {
-                            const value = stat[metric];
-                            if (value !== undefined && value !== null) {
-                                if (comparison === 'GREATER_OR_EQUAL' && value >= club.threshold) {
-                                    isAchieved = true;
-                                    break;
-                                }
-                                if (comparison === 'LESS_OR_EQUAL' && value <= club.threshold) {
-                                    isAchieved = true;
-                                    break;
-                                }
-                            }
-                        }
-                        break;
-                }
-    
-                if (isAchieved) {
-                    allMemberships.push({
-                        // FIX: Added missing 'id' property to satisfy the ParticipantClubMembership type.
-                        id: crypto.randomUUID(),
-                        clubId: club.id,
-                        participantId: participant.id,
-                        achievedDate: new Date().toISOString(),
-                    });
-                }
-            });
-        });
-    
-        return allMemberships;
-    }, [optedInParticipants, allActivityLogs, userStrengthStats, conditioningStatsHistory, workouts]);
-
-    const clubMembers = useMemo(() => {
-        const clubMap = new Map<string, ParticipantProfile[]>();
-        const participantMap = new Map(optedInParticipants.map(p => [p.id, p]));
-    
-        for (const participant of optedInParticipants) {
-            const participantMemberships = calculatedMemberships.filter(m => m.participantId === participant.id);
-            const highestAchievements = getHighestClubAchievements(participantMemberships);
-            
-            highestAchievements.forEach(highestAch => {
-                if (!clubMap.has(highestAch.clubId)) {
-                    clubMap.set(highestAch.clubId, []);
-                }
-                const currentMembers = clubMap.get(highestAch.clubId)!;
-                if (!currentMembers.some(p => p.id === participant.id)) {
-                    currentMembers.push(participant);
-                }
-            });
-        }
-    
-        return clubMap;
-    }, [calculatedMemberships, optedInParticipants]);
-
-
     const getSubTabButtonStyle = (tabName: LeaderboardSubTab) => {
         return activeTab === tabName
             ? 'bg-flexibel/20 text-flexibel'
@@ -375,7 +229,6 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
         );
     }
 
-
     return (
         <div className="space-y-4 max-h-[60vh] overflow-y-auto">
             <div className="p-2 bg-gray-100 rounded-lg flex justify-center gap-2">
@@ -384,9 +237,6 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
                 </button>
                 <button onClick={() => setActiveTab('all-time')} className={`py-1.5 px-3 font-medium text-sm rounded-md ${getSubTabButtonStyle('all-time')}`}>
                     All-Time
-                </button>
-                <button onClick={() => setActiveTab('clubs')} className={`py-1.5 px-3 font-medium text-sm rounded-md ${getSubTabButtonStyle('clubs')}`}>
-                    Klubbar
                 </button>
             </div>
             
@@ -409,41 +259,6 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <LeaderboardCard title="💪 Topplista: Relativ Styrka (FSS)" entries={allTimeFssLeaderboard} currentUserEntry={currentUserFssEntry} unit="poäng" isProspect={isProspect} />
                     <LeaderboardCard title="🧬 Topplista: InBody Score" entries={allTimeInBodyLeaderboard} currentUserEntry={currentUserInBodyEntry} unit="poäng" isProspect={isProspect} />
-                </div>
-            </div>
-
-            <div role="tabpanel" hidden={activeTab !== 'clubs'}>
-                 <StudioFilterControl value={clubsFilter} onChange={setClubsFilter} locations={locations} participantProfile={participantProfile} />
-                <div className="space-y-4 pr-2 -mr-2">
-                    {CLUB_DEFINITIONS.map(club => {
-                        const allMembersForClub = clubMembers.get(club.id) || [];
-                        const membersToDisplay = allMembersForClub
-                            .filter(p => {
-                                if (clubsFilter === 'all') return true;
-                                return p.locationId === clubsFilter;
-                            })
-                            .sort((a,b) => (a.name || '').localeCompare(b.name || ''));
-
-                        const isCurrentUserMember = membersToDisplay.some(m => m.id === currentParticipantId);
-                        
-                        return (
-                            <div key={club.id} className={`p-4 rounded-lg shadow-md transition-all ${isCurrentUserMember ? 'bg-yellow-50 border-2 border-yellow-300' : 'bg-white'}`}>
-                                <h3 className="text-xl font-bold text-flexibel">{club.icon} {club.name}</h3>
-                                <p className="text-sm text-gray-600 mb-3">{club.description}</p>
-                                {membersToDisplay.length > 0 ? (
-                                    <div className="flex flex-wrap gap-2">
-                                        {membersToDisplay.map(member => (
-                                            <span key={member.id} className={`text-sm font-medium px-2.5 py-1 rounded-full ${member.id === currentParticipantId ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-200 text-gray-800'}`}>
-                                                {member.id === currentParticipantId ? 'Du' : member.name}
-                                            </span>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <p className="text-gray-500 italic">Inga medlemmar från vald studio har uppnått detta än.</p>
-                                )}
-                            </div>
-                        )
-                    })}
                 </div>
             </div>
         </div>

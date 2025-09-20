@@ -23,7 +23,7 @@ export const calculatePostWorkoutSummary = (
     const exercisesInThisLogSession = 
         (log.selectedExercisesForModifiable && log.selectedExercisesForModifiable.length > 0)
         ? log.selectedExercisesForModifiable
-        : workoutTemplate?.blocks.reduce((acc, block) => acc.concat(block.exercises), [] as Exercise[]) || [];
+        : (workoutTemplate?.blocks || []).reduce((acc, block) => acc.concat(block.exercises), [] as Exercise[]) || [];
 
 
     log.entries.forEach(entry => {
@@ -129,7 +129,7 @@ export const calculatePostWorkoutSummary = (
             const exercisesInPrevLogSession = 
                 (prevLog.selectedExercisesForModifiable && prevLog.selectedExercisesForModifiable.length > 0)
                 ? prevLog.selectedExercisesForModifiable
-                : prevWorkoutTemplate?.blocks.reduce((acc, block) => acc.concat(block.exercises), [] as Exercise[]) || [];
+                : (prevWorkoutTemplate?.blocks || []).reduce((acc, block) => acc.concat(block.exercises), [] as Exercise[]) || [];
             
             const matchingPrevExercise = exercisesInPrevLogSession.find(ex => ex.name === exerciseDetail.name || (ex.baseLiftType && ex.baseLiftType === exerciseDetail.baseLiftType));
             if (matchingPrevExercise) {
@@ -280,7 +280,39 @@ export const calculatePostWorkoutSummary = (
         }
     }
 
-    return { totalWeightLifted, newPBs, newBaselines, animalEquivalent, bodyweightRepsSummary, totalDistanceMeters, totalDurationSeconds, totalCaloriesKcal, weightOnlyAchievements };
+    const previousLogsForThisWorkout = myWorkoutLogs
+        .filter(prevLog =>
+            prevLog.workoutId === log.workoutId &&
+            prevLog.id !== log.id &&
+            new Date(prevLog.completedDate) < new Date(log.completedDate)
+        )
+        .sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime());
+
+    const previousLog = previousLogsForThisWorkout[0];
+    let volumeDifferenceVsPrevious: number | undefined = undefined;
+    const isFirstTimeLoggingWorkout = !previousLog || !previousLog.postWorkoutSummary;
+
+    if (previousLog && previousLog.postWorkoutSummary) {
+        const currentVolume = totalWeightLifted;
+        const previousVolume = previousLog.postWorkoutSummary.totalWeightLifted;
+        if (typeof previousVolume === 'number' && typeof currentVolume === 'number') {
+            volumeDifferenceVsPrevious = currentVolume - previousVolume;
+        }
+    }
+
+    return { 
+        totalWeightLifted, 
+        newPBs, 
+        newBaselines, 
+        animalEquivalent, 
+        bodyweightRepsSummary, 
+        totalDistanceMeters, 
+        totalDurationSeconds, 
+        totalCaloriesKcal, 
+        weightOnlyAchievements,
+        volumeDifferenceVsPrevious,
+        isFirstTimeLoggingWorkout
+    };
 };
 
 export const findAndUpdateStrengthStats = (
@@ -298,7 +330,7 @@ export const findAndUpdateStrengthStats = (
     
     const allExercisesInTemplate = (log.selectedExercisesForModifiable && log.selectedExercisesForModifiable.length > 0)
         ? log.selectedExercisesForModifiable
-        : workoutTemplate.blocks.flatMap(b => b.exercises);
+        : (workoutTemplate.blocks || []).flatMap(b => b.exercises);
 
     log.entries.forEach(entry => {
         const exerciseDetail = allExercisesInTemplate.find(ex => ex.id === entry.exerciseId);

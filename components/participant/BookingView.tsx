@@ -4,6 +4,7 @@ import { Button } from '../Button';
 import { Avatar } from '../Avatar';
 import { GroupClassSchedule, GroupClassDefinition, ParticipantBooking, StaffMember, ParticipantProfile, IntegrationSettings, BookingStatus, Membership } from '../../types';
 import * as dateUtils from '../../utils/dateUtils';
+import { ConfirmationModal } from '../ConfirmationModal';
 
 interface EnrichedClassInstance {
     instanceId: string;
@@ -74,6 +75,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
     }, []);
     const [selectedDate, setSelectedDate] = useState(today);
     const listRef = useRef<HTMLDivElement>(null);
+    const [bookingToCancel, setBookingToCancel] = useState<EnrichedClassInstance | null>(null);
 
     const enrichedInstances = useMemo(() => {
         const instances: EnrichedClassInstance[] = [];
@@ -243,14 +245,14 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                 return <Button variant="ghost" disabled className="!text-green-600">Incheckad ✅</Button>;
             }
             return (
-                <Button variant="danger" onClick={() => onCancelBooking(instance.bookingId!)} disabled={!canCancel} title={!canCancel ? `Avbokning måste ske senast ${instance.cancellationCutoffHours} timmar innan.` : 'Avboka passet'}>
+                <Button variant="danger" onClick={() => setBookingToCancel(instance)} disabled={!canCancel} title={!canCancel ? `Avbokning måste ske senast ${instance.cancellationCutoffHours} timmar innan.` : 'Avboka passet'}>
                     {canCancel ? 'Avboka' : 'För sent'}
                 </Button>
             );
         }
         if (instance.isWaitlistedByMe) {
             return (
-                <Button variant="secondary" onClick={() => onCancelBooking(instance.bookingId!)}>
+                <Button variant="secondary" onClick={() => setBookingToCancel(instance)}>
                     Lämna kö
                 </Button>
             );
@@ -345,6 +347,28 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                     ) : <p className="text-center text-gray-500 py-8 text-lg">Inga pass schemalagda de kommande {integrationSettings.bookingLeadTimeWeeks || 2} veckorna för din valda ort.</p>}
                 </div>
             </div>
+            <ConfirmationModal
+                isOpen={!!bookingToCancel}
+                onClose={() => setBookingToCancel(null)}
+                onConfirm={() => {
+                    if (bookingToCancel?.bookingId) {
+                        onCancelBooking(bookingToCancel.bookingId);
+                    }
+                    setBookingToCancel(null);
+                }}
+                title={
+                    bookingToCancel?.isWaitlistedByMe
+                        ? `Lämna kön för ${bookingToCancel?.className}?`
+                        : `Avboka ${bookingToCancel?.className}?`
+                }
+                message={
+                    bookingToCancel?.isWaitlistedByMe
+                        ? `Är du säker på att du vill lämna kön för ${bookingToCancel?.className} den ${bookingToCancel?.startDateTime.toLocaleDateString('sv-SE')}?`
+                        : `Är du säker på att du vill avboka din plats på ${bookingToCancel?.className} den ${bookingToCancel?.startDateTime.toLocaleDateString('sv-SE')}?`
+                }
+                confirmButtonText={bookingToCancel?.isWaitlistedByMe ? 'Ja, lämna kön' : 'Ja, avboka'}
+                confirmButtonVariant="danger"
+            />
         </Modal>
     );
 };

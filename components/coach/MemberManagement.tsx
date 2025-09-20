@@ -227,388 +227,397 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
     const [memberToDelete, setMemberToDelete] = useState<ParticipantProfile | null>(null);
     const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
     const [selectedParticipantForNotes, setSelectedParticipantForNotes] = useState<ParticipantProfile | null>(null);
-
-    const [filter, setFilter] = useState('');
-    const [statusFilter, setStatusFilter] = useState('active');
-    const [sortConfig, setSortConfig] = useState<{ key: SortableKeys; direction: 'ascending' | 'descending' }>({ key: 'name', direction: 'ascending' });
-    const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'prospect'>('all');
+    const [locationFilter, setLocationFilter] = useState<string>('all');
+    const [sortConfig, setSortConfig] = useState<{ key: SortableKeys, direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
+    const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
     const [isBulkUpdateModalOpen, setIsBulkUpdateModalOpen] = useState(false);
-    const [bulkAction, setBulkAction] = useState<BulkActionType>('membership');
-    const [participantToApprove, setParticipantToApprove] = useState<ParticipantProfile | null>(null);
-    const [showConfirmDecline, setShowConfirmDecline] = useState(false);
+    const [bulkAction, setBulkAction] = useState<BulkActionType | null>(null);
     const [participantToDecline, setParticipantToDecline] = useState<ParticipantProfile | null>(null);
+    const [approvingParticipant, setApprovingParticipant] = useState<ParticipantProfile | null>(null);
 
 
-    const handleOpenNotesModal = (participant: ParticipantProfile) => {
-      setSelectedParticipantForNotes(participant);
-      setIsNotesModalOpen(true);
-    };
-
-    const handleOpenEditModal = (member: ParticipantProfile) => {
-      setEditingMember(member);
-      setIsAddMemberModalOpen(true);
-    };
-
-    const handleSaveMember = async (memberData: ParticipantProfile) => {
-        if (editingMember) {
-            await updateParticipantProfile(memberData.id, memberData);
-        } else {
-            await addParticipant(memberData);
-        }
-    };
+    const isAdmin = loggedInStaff?.role === 'Admin';
     
-    const handleConfirmApproval = async (updates: Partial<ParticipantProfile>) => {
-        if (participantToApprove) {
-            await updateParticipantProfile(participantToApprove.id, updates);
-            setParticipantToApprove(null);
-        }
-    };
-
-    const handleDeclineUser = async (participantId: string) => {
-        await updateParticipantProfile(participantId, { approvalStatus: 'declined', isActive: false });
-    };
-
-    const handleDeleteMember = async (participantId: string) => {
-        await updateParticipantProfile(participantId, { isActive: false, endDate: new Date().toISOString().split('T')[0] });
-    };
-
-    const confirmDeleteMember = async () => {
-        if (memberToDelete) {
-            await handleDeleteMember(memberToDelete.id);
-        }
-        setMemberToDelete(null);
-    };
-
-    const getMembershipName = useCallback((membershipId?: string) => {
-      if (!membershipId) return 'Inget';
-      return memberships.find(m => m.id === membershipId)?.name || 'Okänt';
-    }, [memberships]);
-    
-    const locationNameMap = useMemo(() => {
-        return new Map(locations.map(l => [l.id, l.name]));
-    }, [locations]);
-
+    // memoized values
     const enrichedParticipants = useMemo(() => {
         return participants.map(p => {
-            let typeForDisplay = 'Aktiv Medlem';
-            if (p.isProspect) typeForDisplay = 'Startprogram';
-            if (!p.isActive) typeForDisplay = 'Inaktiv';
-            
+            const membership = memberships.find(m => m.id === p.membershipId);
+            let typeText = '';
+            if (p.isProspect) {
+                typeText = 'Startprogram';
+            } else if (!p.isActive) {
+                typeText = 'Inaktiv';
+            } else {
+                if (membership) {
+                    if (membership.type === 'clip_card' && p.clipCardStatus && p.clipCardStatus.remainingClips >= 0) {
+                        typeText = `${membership.name} (${p.clipCardStatus.remainingClips} klipp)`;
+                    } else {
+                        typeText = membership.name;
+                    }
+                } else {
+                    typeText = 'Aktiv (saknar medlemskap)';
+                }
+            }
+    
             return {
                 ...p,
-                locationName: p.locationId ? (locationNameMap.get(p.locationId) || 'Okänd') : 'Okänd',
-                typeForDisplay: typeForDisplay,
+                locationName: locations.find(l => l.id === p.locationId)?.name || 'N/A',
+                typeForDisplay: typeText,
             };
         });
-    }, [participants, locationNameMap]);
+    }, [participants, locations, memberships]);
 
-    const filteredAndSortedParticipants = useMemo(() => {
-        let sortableItems = [...enrichedParticipants];
-        
-        // Filtering
-        if (filter) {
-          const lowercasedFilter = filter.toLowerCase();
-          sortableItems = sortableItems.filter(p =>
-            p.name?.toLowerCase().includes(lowercasedFilter) ||
-            p.email?.toLowerCase().includes(lowercasedFilter)
-          );
-        }
-        if (statusFilter !== 'all') {
-            if (statusFilter === 'active') sortableItems = sortableItems.filter(p => p.isActive);
-            if (statusFilter === 'inactive') sortableItems = sortableItems.filter(p => !p.isActive);
-            if (statusFilter === 'prospects') sortableItems = sortableItems.filter(p => p.isProspect);
-        }
-
-        // Sorting
-        // FIX: The sorting logic was treating `age` as a string, leading to incorrect sorting (e.g., "9" > "35").
-        // This has been corrected to parse `age` as a number for proper numerical comparison.
-        // String sorting for other columns has been made more robust with `localeCompare`.
-        sortableItems.sort((a, b) => {
-            const key = sortConfig.key;
-            const direction = sortConfig.direction === 'ascending' ? 1 : -1;
-            
-            // Handle numeric sorting for age
-            if (key === 'age') {
-                const numA = a.age ? parseInt(a.age, 10) : Number.MIN_SAFE_INTEGER;
-                const numB = b.age ? parseInt(b.age, 10) : Number.MIN_SAFE_INTEGER;
-                const valA = isNaN(numA) ? Number.MIN_SAFE_INTEGER : numA;
-                const valB = isNaN(numB) ? Number.MIN_SAFE_INTEGER : numB;
-                return (valA - valB) * direction;
-            }
-        
-            // Handle string sorting for all other keys
-            const aValue = String(a[key] || '');
-            const bValue = String(b[key] || '');
-            return aValue.localeCompare(bValue) * direction;
-        });
-        return sortableItems;
-    }, [enrichedParticipants, filter, statusFilter, sortConfig]);
+    const pendingParticipants = useMemo(() => {
+        return participants.filter(p => p.approvalStatus === 'pending').sort((a, b) => new Date(a.creationDate || 0).getTime() - new Date(b.creationDate || 0).getTime());
+    }, [participants]);
 
     const requestSort = (key: SortableKeys) => {
-        let direction: 'ascending' | 'descending' = 'ascending';
-        if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-            direction = 'descending';
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
         }
         setSortConfig({ key, direction });
     };
 
+    const filteredAndSortedParticipants = useMemo(() => {
+        let filtered: EnrichedParticipant[] = enrichedParticipants;
+
+        if (statusFilter !== 'all') {
+            filtered = filtered.filter(p => {
+                if (statusFilter === 'prospect') return p.isProspect;
+                if (statusFilter === 'active') return p.isActive && !p.isProspect && p.approvalStatus !== 'pending';
+                if (statusFilter === 'inactive') return !p.isActive && !p.isProspect;
+                return true;
+            });
+        }
+        
+        if (isAdmin && locationFilter !== 'all') {
+            filtered = filtered.filter(p => p.locationId === locationFilter);
+        }
+
+        if (searchTerm.trim()) {
+            const lowercasedFilter = searchTerm.toLowerCase();
+            filtered = filtered.filter(p => p.name?.toLowerCase().includes(lowercasedFilter) || p.email?.toLowerCase().includes(lowercasedFilter));
+        }
+
+        if (sortConfig) {
+            filtered.sort((a, b) => {
+                const aValue = a[sortConfig.key];
+                const bValue = b[sortConfig.key];
+    
+                if (sortConfig.key === 'age') {
+                    const numA = a.age ? parseInt(a.age, 10) : -1;
+                    const numB = b.age ? parseInt(b.age, 10) : -1;
+                    if (numA < numB) return sortConfig.direction === 'asc' ? -1 : 1;
+                    if (numA > numB) return sortConfig.direction === 'asc' ? 1 : -1;
+                    return 0;
+                }
+    
+                if (aValue === undefined || aValue === null) return 1;
+                if (bValue === undefined || bValue === null) return -1;
+                
+                const comparison = String(aValue).localeCompare(String(bValue), 'sv', { numeric: true });
+    
+                return sortConfig.direction === 'asc' ? comparison : -comparison;
+            });
+        }
+        return filtered;
+    }, [enrichedParticipants, statusFilter, locationFilter, searchTerm, sortConfig, isAdmin]);
+    
+    // handlers
+    const handleSaveMember = async (memberData: ParticipantProfile) => {
+        if (editingMember) {
+            await updateParticipantProfile(editingMember.id, memberData);
+        } else {
+            await addParticipant(memberData);
+        }
+    };
+
+    const handleDecline = (participant: ParticipantProfile) => {
+        setParticipantToDecline(participant);
+    };
+
+    const handleConfirmDecline = async () => {
+        if (participantToDecline) {
+            await updateParticipantProfile(participantToDecline.id, { approvalStatus: 'declined', isActive: false });
+            setParticipantToDecline(null);
+        }
+    };
+    
+    const handleOpenNotesModal = (participant: ParticipantProfile) => {
+        setSelectedParticipantForNotes(participant);
+        setIsNotesModalOpen(true);
+    };
+
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.checked) {
-            setSelectedMemberIds(filteredAndSortedParticipants.map(p => p.id));
+            setSelectedMembers(new Set(filteredAndSortedParticipants.map(p => p.id)));
         } else {
-            setSelectedMemberIds([]);
+            setSelectedMembers(new Set());
         }
     };
-    
-    const handleSelectOne = (id: string, isSelected: boolean) => {
-        if (isSelected) {
-            setSelectedMemberIds(prev => [...prev, id]);
+
+    const handleSelectOne = (participantId: string) => {
+        setSelectedMembers(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(participantId)) {
+                newSet.delete(participantId);
+            } else {
+                newSet.add(participantId);
+            }
+            return newSet;
+        });
+    };
+
+    const handleBulkAction = (action: BulkActionType) => {
+        setBulkAction(action);
+        setIsBulkUpdateModalOpen(true);
+    };
+
+    const handleConfirmBulkUpdate = (value: string) => {
+        const updates: Partial<ParticipantProfile> = {};
+        if (bulkAction === 'location') updates.locationId = value;
+        if (bulkAction === 'membership') updates.membershipId = value;
+        if (bulkAction === 'status') {
+            if (value === 'active') updates.isActive = true;
+            if (value === 'inactive') updates.isActive = false;
+        }
+
+        const promises = Array.from(selectedMembers).map(id => updateParticipantProfile(id, updates));
+        Promise.all(promises).then(() => {
+            setSelectedMembers(new Set());
+            setIsBulkUpdateModalOpen(false);
+        });
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!memberToDelete) return;
+        
+        await updateParticipantProfile(memberToDelete.id, { isActive: false, endDate: new Date().toISOString() }); // Soft delete
+        setMemberToDelete(null);
+    };
+
+    const getTypeDisplay = (p: EnrichedParticipant) => {
+        let className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ';
+        const text = p.typeForDisplay;
+
+        if (p.isProspect) {
+            className += 'bg-blue-100 text-blue-800'; // Prospekt
+        } else if (!p.isActive) {
+            className += 'bg-red-100 text-red-800'; // Inaktiv
+        } else if (p.isActive && !p.membershipId) {
+            className += 'bg-orange-100 text-orange-800'; // Aktiv (saknar medlemskap)
         } else {
-            setSelectedMemberIds(prev => prev.filter(memberId => memberId !== id));
+            className += 'bg-green-100 text-green-800'; // Medlemskap
         }
-    };
-
-    const handleBulkUpdateConfirm = async (value: string) => {
-        if (!value) return;
-        let updateData: Partial<ParticipantProfile> = {};
-        if (bulkAction === 'membership') {
-            updateData.membershipId = value;
-        } else if (bulkAction === 'location') {
-            updateData.locationId = value;
-        } else if (bulkAction === 'status') {
-            updateData.isActive = value === 'active';
-        }
-    
-        const updates = selectedMemberIds.map(id => updateParticipantProfile(id, updateData));
-        await Promise.all(updates);
-    
-        setIsBulkUpdateModalOpen(false);
-        setSelectedMemberIds([]);
+        
+        return <span className={className}>{text}</span>;
     };
     
-    const pendingMembers = useMemo(() => {
-        return participants.filter(p => p.approvalStatus === 'pending');
-    }, [participants]);
-
-    const addNote = async (noteText: string) => {
-        if (selectedParticipantForNotes) {
-            setCoachNotesData(prev => [...prev, {
-                id: crypto.randomUUID(),
-                participantId: selectedParticipantForNotes.id,
-                noteText,
-                createdDate: new Date().toISOString(),
-                noteType: 'check-in',
-            }]);
-        }
-    };
-    
-    const updateNote = async (noteId: string, newText: string) => {
-        setCoachNotesData(prev => prev.map(note => note.id === noteId ? { ...note, noteText: newText, createdDate: new Date().toISOString() } : note));
-    };
-    
-    const deleteNote = async (noteId: string) => {
-        setCoachNotesData(prev => prev.filter(note => note.id !== noteId));
+    const SortableTh: React.FC<{ sortKey: SortableKeys, children: React.ReactNode }> = ({ sortKey, children }) => {
+        const isSorted = sortConfig?.key === sortKey;
+        return (
+            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <button onClick={() => requestSort(sortKey)} className="group inline-flex items-center">
+                    {children}
+                    <span className={`ml-2 flex-none rounded ${isSorted ? 'bg-gray-200 text-gray-900' : 'text-gray-400 invisible group-hover:visible'}`}>
+                        {isSorted && sortConfig?.direction === 'asc' ? '▲' : '▼'}
+                    </span>
+                </button>
+            </th>
+        );
     };
 
-    const existingEmails = useMemo(() => participants.map(p => (p.email || '').toLowerCase()).filter(Boolean), [participants]);
-
-  return (
-    <div className="p-4 sm:p-6 bg-white rounded-lg shadow-xl">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b">
-        <h2 className="text-3xl font-bold tracking-tight text-gray-800 flex items-center">
-            <MemberIcon /> Medlemsregister
-        </h2>
-        <Button onClick={() => { setEditingMember(null); setIsAddMemberModalOpen(true); }}>
-            Lägg till Medlem
-        </Button>
-      </div>
-
-      {pendingMembers.length > 0 && (
-          <div className="mb-8 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
-              <h3 className="text-xl font-bold text-gray-800">Väntar på godkännande ({pendingMembers.length})</h3>
-              <div className="mt-2 space-y-2">
-                  {pendingMembers.map(p => (
-                      <div key={p.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 bg-white rounded shadow-sm">
+    // JSX
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-start">
+            <h2 className="text-3xl font-bold tracking-tight text-gray-800 flex items-center gap-2">
+                <MemberIcon /> Medlemsregister
+            </h2>
+        </div>
+        
+        {isAdmin && pendingParticipants.length > 0 && (
+          <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-300 space-y-4 mb-6 animate-fade-in-down">
+              <h3 className="text-xl font-bold text-gray-800">Väntar på Godkännande ({pendingParticipants.length})</h3>
+              <div className="space-y-2">
+                  {pendingParticipants.map(p => (
+                      <div key={p.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 bg-white rounded-md shadow-sm">
                           <div>
-                            <p className="font-semibold text-gray-900">{p.name} ({p.email})</p>
-                            <p className="text-sm text-gray-600">
-                                Ort: {locations.find(l => l.id === p.locationId)?.name || 'Okänd'}
-                            </p>
+                              <p className="font-semibold text-gray-900">{p.name}</p>
+                              <p className="text-sm text-gray-600">{p.email}</p>
+                              <p className="text-xs text-gray-400">Registrerad: {new Date(p.creationDate || '').toLocaleDateString('sv-SE')}</p>
                           </div>
-                          <div className="flex gap-2 mt-2 sm:mt-0">
-                              <Button onClick={() => setParticipantToApprove(p)} size="sm">Godkänn</Button>
-                              <Button onClick={() => setParticipantToDecline(p)} variant="danger" size="sm">Neka</Button>
+                          <div className="flex gap-2 mt-2 sm:mt-0 flex-shrink-0">
+                              <Button size="sm" variant="primary" onClick={() => setApprovingParticipant(p)}>Godkänn</Button>
+                              <Button size="sm" variant="danger" onClick={() => handleDecline(p)}>Neka</Button>
                           </div>
                       </div>
                   ))}
               </div>
           </div>
-      )}
-
-      <div className="flex flex-col sm:flex-row gap-4 mb-4">
-        <Input 
-          placeholder="Sök på namn eller e-post..."
-          value={filter}
-          onChange={e => setFilter(e.target.value)}
-          className="flex-grow"
-        />
-        <Select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
-          options={[
-            { value: 'active', label: 'Aktiva' },
-            { value: 'inactive', label: 'Inaktiva' },
-            { value: 'prospects', label: 'Startprogram' },
-            { value: 'all', label: 'Alla' },
-          ]}
-          className="w-full sm:w-48"
-        />
-      </div>
-
-       {selectedMemberIds.length > 0 && (
-            <div className="p-3 bg-blue-50 rounded-lg flex flex-col sm:flex-row items-center gap-4 mb-4 animate-fade-in-down">
-                <p className="font-semibold text-blue-800 flex-grow">{selectedMemberIds.length} medlemmar valda</p>
-                <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline" onClick={() => { setBulkAction('membership'); setIsBulkUpdateModalOpen(true); }}>Ändra Medlemskap...</Button>
-                    <Button size="sm" variant="outline" onClick={() => { setBulkAction('location'); setIsBulkUpdateModalOpen(true); }}>Ändra Ort...</Button>
-                    <Button size="sm" variant="outline" onClick={() => { setBulkAction('status'); setIsBulkUpdateModalOpen(true); }}>Ändra Status...</Button>
-                </div>
-            </div>
-       )}
-
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-               <th scope="col" className="p-4">
-                    <input type="checkbox" className="h-4 w-4 text-flexibel" onChange={handleSelectAll} checked={selectedMemberIds.length > 0 && selectedMemberIds.length === filteredAndSortedParticipants.length} />
-               </th>
-              {/* Table headers */}
-              {(['name', 'typeForDisplay', 'locationName', 'age', 'gender'] as SortableKeys[]).map(key => (
-                  <th key={key} scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => requestSort(key)}>
-                    {
-                      { name: 'Namn', typeForDisplay: 'Typ', locationName: 'Ort', age: 'Ålder', gender: 'Kön'}[key]
-                    }
-                     {sortConfig.key === key ? (sortConfig.direction === 'ascending' ? ' ▲' : ' ▼') : ''}
-                  </th>
-              ))}
-              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Åtgärder</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-             {filteredAndSortedParticipants.map(p => (
-                <tr key={p.id}>
-                    <td className="p-4">
-                        <input type="checkbox" className="h-4 w-4 text-flexibel" checked={selectedMemberIds.includes(p.id)} onChange={e => handleSelectOne(p.id, e.target.checked)} />
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap"><div className="text-sm font-medium text-gray-900">{p.name}</div><div className="text-xs text-gray-500">{p.email}</div></td>
-                    <td className="px-4 py-4 whitespace-nowrap"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${p.typeForDisplay === 'Startprogram' ? 'bg-blue-100 text-blue-800' : p.typeForDisplay === 'Aktiv Medlem' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{p.typeForDisplay}</span></td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{p.locationName}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{p.age || 'N/A'}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{p.gender || 'N/A'}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium flex gap-2">
-                        <Button variant="outline" size="sm" className="!text-xs" onClick={() => handleOpenNotesModal(p)}>Anteckningar</Button>
-                        <Button variant="outline" size="sm" className="!text-xs" onClick={() => handleOpenEditModal(p)}>Redigera</Button>
-                        {p.isActive && <Button variant="danger" size="sm" className="!text-xs" onClick={() => setMemberToDelete(p)}>Inaktivera</Button>}
-                    </td>
-                </tr>
-            ))}
-          </tbody>
-        </table>
-         {filteredAndSortedParticipants.length === 0 && (
-            <div className="text-center py-6 bg-gray-50">
-                <p className="text-sm text-gray-500">Inga medlemmar matchade filtret.</p>
-            </div>
         )}
-      </div>
-      
-      {isAddMemberModalOpen && (
+        
+        <div className="p-4 bg-gray-50 rounded-lg border space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Input placeholder="Sök på namn eller e-post..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                <Select
+                    label="Status"
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value as any)}
+                    options={[
+                        { value: 'all', label: 'Alla' },
+                        { value: 'active', label: 'Aktiva' },
+                        { value: 'inactive', label: 'Inaktiva' },
+                        { value: 'prospect', label: 'Startprogram' },
+                    ]}
+                />
+                {isAdmin && (
+                    <Select
+                        label="Ort"
+                        value={locationFilter}
+                        onChange={(e) => setLocationFilter(e.target.value)}
+                        options={[{ value: 'all', label: 'Alla Orter' }, ...locations.map(l => ({ value: l.id, label: l.name }))]}
+                    />
+                )}
+            </div>
+            {selectedMembers.size > 0 && (
+                <div className="pt-4 border-t flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold text-gray-700">{selectedMembers.size} markerade</span>
+                    <Button size="sm" variant="outline" onClick={() => handleBulkAction('membership')}>Ändra Medlemskap</Button>
+                    <Button size="sm" variant="outline" onClick={() => handleBulkAction('location')}>Ändra Ort</Button>
+                    <Button size="sm" variant="outline" onClick={() => handleBulkAction('status')}>Ändra Status</Button>
+                </div>
+            )}
+        </div>
+
+        <div className="overflow-x-auto bg-white rounded-lg shadow border">
+            <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                    <tr>
+                        <th scope="col" className="p-4"><input type="checkbox" onChange={handleSelectAll} checked={selectedMembers.size > 0 && selectedMembers.size === filteredAndSortedParticipants.length && filteredAndSortedParticipants.length > 0} /></th>
+                        <SortableTh sortKey="name">Namn</SortableTh>
+                        <SortableTh sortKey="typeForDisplay">Typ</SortableTh>
+                        <SortableTh sortKey="locationName">Ort</SortableTh>
+                        <SortableTh sortKey="age">Ålder</SortableTh>
+                        <SortableTh sortKey="gender">Kön</SortableTh>
+                        <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Åtgärder</th>
+                    </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredAndSortedParticipants.map(p => (
+                        <tr key={p.id} className="hover:bg-gray-50">
+                            <td className="p-4"><input type="checkbox" checked={selectedMembers.has(p.id)} onChange={() => handleSelectOne(p.id)} /></td>
+                            <td className="px-4 py-4 whitespace-nowrap">
+                                <div className="text-sm font-medium text-gray-900">{p.name}</div>
+                                <div className="text-xs text-gray-500">{p.email}</div>
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm">{getTypeDisplay(p)}</td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{p.locationName}</td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{p.age || '-'}</td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{p.gender || '-'}</td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm font-medium flex gap-2">
+                                <Button size="sm" variant="outline" onClick={() => handleOpenNotesModal(p)}>Klientkort</Button>
+                                <Button size="sm" variant="outline" onClick={() => { setEditingMember(p); setIsAddMemberModalOpen(true); }}>Redigera</Button>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+            {filteredAndSortedParticipants.length === 0 && <p className="text-center text-gray-500 p-4">Inga medlemmar matchade din sökning/filter.</p>}
+        </div>
+
         <AddMemberModal
             isOpen={isAddMemberModalOpen}
             onClose={() => setIsAddMemberModalOpen(false)}
             onSaveMember={handleSaveMember}
             memberToEdit={editingMember}
-            existingEmails={existingEmails}
+            existingEmails={participants.map(p => p.email?.toLowerCase() || '')}
             locations={locations}
             memberships={memberships}
             loggedInStaff={loggedInStaff}
         />
-      )}
+        
+        {selectedParticipantForNotes && (
+            <MemberNotesModal
+                isOpen={isNotesModalOpen}
+                onClose={() => setIsNotesModalOpen(false)}
+                ai={ai}
+                participant={selectedParticipantForNotes}
+                notes={coachNotes.filter(n => n.participantId === selectedParticipantForNotes.id)}
+                allParticipantGoals={allParticipantGoals}
+                setParticipantGoals={setParticipantGoalsData}
+                allActivityLogs={allActivityLogs.filter(l => l.participantId === selectedParticipantForNotes.id)}
+                setGoalCompletionLogs={setGoalCompletionLogsData}
+                onAddNote={(noteText) => setCoachNotesData(prev => [...prev, { id: crypto.randomUUID(), participantId: selectedParticipantForNotes.id, noteText, createdDate: new Date().toISOString(), noteType: 'check-in' }])}
+                onUpdateNote={(noteId, newText) => {
+                    setCoachNotesData(prev => prev.map(note => 
+                        note.id === noteId 
+                        ? { ...note, noteText: newText, createdDate: new Date().toISOString() } 
+                        : note
+                    ));
+                }}
+                onDeleteNote={(noteId) => {
+                    setCoachNotesData(prev => prev.filter(note => note.id !== noteId));
+                }}
+                oneOnOneSessions={oneOnOneSessions}
+                setOneOnOneSessions={setOneOnOneSessionsData}
+                coaches={staffMembers}
+                loggedInCoachId={user!.id}
+                workouts={workouts}
+                addWorkout={addWorkout}
+                updateWorkout={updateWorkout}
+                deleteWorkout={deleteWorkout}
+                workoutCategories={workoutCategories}
+                participants={participants}
+                staffAvailability={staffAvailability}
+                isOnline={isOnline}
+            />
+        )}
+        
+        {bulkAction && (
+            <BulkUpdateModal
+                isOpen={isBulkUpdateModalOpen}
+                onClose={() => setIsBulkUpdateModalOpen(false)}
+                onConfirm={handleConfirmBulkUpdate}
+                action={bulkAction}
+                memberCount={selectedMembers.size}
+                locations={locations}
+                memberships={memberships}
+            />
+        )}
 
-      {selectedParticipantForNotes && ai && (
-         <MemberNotesModal
-            isOpen={isNotesModalOpen}
-            onClose={() => setIsNotesModalOpen(false)}
-            ai={ai}
-            participant={selectedParticipantForNotes}
-            notes={coachNotes.filter(note => note.participantId === selectedParticipantForNotes.id)}
-            allParticipantGoals={allParticipantGoals}
-            setParticipantGoals={setParticipantGoalsData}
-            allActivityLogs={allActivityLogs}
-            setGoalCompletionLogs={setGoalCompletionLogsData}
-            onAddNote={addNote}
-            onUpdateNote={updateNote}
-            onDeleteNote={deleteNote}
-            oneOnOneSessions={oneOnOneSessions}
-            setOneOnOneSessions={setOneOnOneSessionsData}
-            coaches={staffMembers}
-            loggedInCoachId={loggedInStaff?.id || ''}
-            workouts={workouts}
-            addWorkout={addWorkout}
-            updateWorkout={updateWorkout}
-            deleteWorkout={deleteWorkout}
-            workoutCategories={workoutCategories}
-            participants={participants}
-            staffAvailability={staffAvailability}
-            isOnline={isOnline}
-        />
-      )}
-      
-       <BulkUpdateModal
-          isOpen={isBulkUpdateModalOpen}
-          onClose={() => setIsBulkUpdateModalOpen(false)}
-          onConfirm={handleBulkUpdateConfirm}
-          action={bulkAction}
-          memberCount={selectedMemberIds.length}
-          locations={locations}
-          memberships={memberships}
-       />
-       
-       <ConfirmationModal
+        <ConfirmationModal
             isOpen={!!memberToDelete}
             onClose={() => setMemberToDelete(null)}
-            onConfirm={confirmDeleteMember}
+            onConfirm={handleConfirmDelete}
             title="Inaktivera Medlem"
-            message={`Är du säker på att du vill inaktivera ${memberToDelete?.name}? Deras data kommer finnas kvar men de markeras som inaktiva.`}
+            message={`Är du säker på att du vill inaktivera ${memberToDelete?.name}? Detta kommer att markera dem som inaktiva istället för att ta bort dem permanent.`}
             confirmButtonText="Ja, inaktivera"
-       />
-
-       {participantToApprove && (
-           <ApprovalModal
-               isOpen={!!participantToApprove}
-               onClose={() => setParticipantToApprove(null)}
-               participant={participantToApprove}
-               onConfirm={handleConfirmApproval}
-               memberships={memberships}
-           />
-       )}
-       
-       {participantToDecline && (
-            <ConfirmationModal
-                isOpen={!!participantToDecline}
-                onClose={() => setParticipantToDecline(null)}
-                onConfirm={async () => {
-                    if (participantToDecline) {
-                        await handleDeclineUser(participantToDecline.id);
-                        setParticipantToDecline(null);
-                    }
+        />
+         <ConfirmationModal
+            isOpen={!!participantToDecline}
+            onClose={() => setParticipantToDecline(null)}
+            onConfirm={handleConfirmDecline}
+            title="Neka Medlem?"
+            message={`Är du säker på att du vill neka ${participantToDecline?.name}? Medlemmen kommer att markeras som inaktiv och kommer inte kunna logga in.`}
+            confirmButtonText="Ja, Neka"
+            confirmButtonVariant="danger"
+        />
+        {approvingParticipant && (
+            <ApprovalModal
+                isOpen={!!approvingParticipant}
+                onClose={() => setApprovingParticipant(null)}
+                participant={approvingParticipant}
+                onConfirm={async (updates) => {
+                    await updateParticipantProfile(approvingParticipant.id, updates);
+                    setApprovingParticipant(null);
                 }}
-                title="Neka Medlem?"
-                message={`Är du säker på att du vill neka registreringen för ${participantToDecline.name}? Användaren kommer inte kunna logga in.`}
-                confirmButtonText="Ja, neka"
-                confirmButtonVariant="danger"
+                memberships={memberships}
             />
-       )}
-    </div>
-  );
+        )}
+      </div>
+    );
 };

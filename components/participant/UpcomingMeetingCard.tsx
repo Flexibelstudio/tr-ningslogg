@@ -1,66 +1,52 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { OneOnOneSession, StaffMember } from '../../types';
-import { Button } from '../Button';
 
 interface UpcomingMeetingCardProps {
-  sessions: OneOnOneSession[];
-  staff: StaffMember[];
+  session: OneOnOneSession;
+  staffMember: StaffMember | undefined;
   onOpenModal: (session: OneOnOneSession) => void;
 }
 
-const formatMeetingTime = (startTime: string): { relative: string, isSoon: boolean } => {
+const formatMeetingDateTime = (startTime: string): { text: string, isSoon: boolean } => {
     const now = new Date();
     const meetingDate = new Date(startTime);
     const diffHours = (meetingDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-
     const isSoon = diffHours <= 24;
 
     const timeOptions: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' };
     const timeString = meetingDate.toLocaleTimeString('sv-SE', timeOptions);
 
-    if (diffHours < 24 && meetingDate.getDate() === now.getDate()) {
-        return { relative: `Idag kl ${timeString}`, isSoon: true };
-    }
-    if (diffHours < 48 && meetingDate.getDate() === now.getDate() + 1) {
-        return { relative: `Imorgon kl ${timeString}`, isSoon: true };
-    }
-    
     const dateOptions: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'long' };
-    const dateString = meetingDate.toLocaleDateString('sv-SE', dateOptions);
-    return { relative: `På ${dateString} kl ${timeString}`, isSoon: false };
+    let dateString = meetingDate.toLocaleDateString('sv-SE', dateOptions);
+    
+    // Capitalize first letter of the weekday
+    dateString = dateString.charAt(0).toUpperCase() + dateString.slice(1);
+
+    return {
+        text: `På ${dateString} kl ${timeString}`,
+        isSoon
+    };
 };
 
-
-export const UpcomingMeetingCard: React.FC<UpcomingMeetingCardProps> = ({ sessions, staff, onOpenModal }) => {
-    const nextMeeting = useMemo(() => {
-        const upcoming = sessions
-            .filter(s => s.status === 'scheduled' && new Date(s.startTime) > new Date())
-            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-        return upcoming[0] || null;
-    }, [sessions]);
-
-    if (!nextMeeting) {
-        return null;
-    }
-
-    const coach = staff.find(s => s.id === nextMeeting.coachId);
-    const { relative, isSoon } = formatMeetingTime(nextMeeting.startTime);
+export const UpcomingMeetingCard: React.FC<UpcomingMeetingCardProps> = ({ session, staffMember, onOpenModal }) => {
+    const { text: dateTimeText, isSoon } = formatMeetingDateTime(session.startTime);
 
     return (
-        <div className={`p-4 rounded-xl shadow-xl border-2 animate-fade-in-down mb-6 ${isSoon ? 'bg-amber-50 border-flexibel-orange' : 'bg-white border-gray-200'}`}>
-            <div className="flex items-start justify-between">
-                <div>
-                    <h3 className="text-base font-semibold uppercase tracking-wider text-gray-500">Ditt nästa möte</h3>
-                    <p className="text-2xl font-bold text-gray-800 mt-1">{nextMeeting.title} med {coach?.name || 'Coach'}</p>
-                    <p className={`text-xl font-semibold ${isSoon ? 'text-flexibel-orange' : 'text-flexibel'}`}>{relative}</p>
+        <button 
+            onClick={() => onOpenModal(session)}
+            className={`w-full text-left p-3 rounded-xl shadow-lg border animate-fade-in-down transition-all duration-200 hover:shadow-xl hover:border-flexibel ${isSoon ? 'bg-amber-50 border-amber-400' : 'bg-white border-gray-200'}`}
+            aria-label={`Visa detaljer för mötet: ${session.title} med ${staffMember?.name || 'Coach'}`}
+        >
+            <div className="flex items-center justify-between gap-3">
+                <div className="flex-grow">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Ditt nästa möte</h3>
+                    <p className="text-lg font-bold text-gray-800 mt-0.5">{session.title} med {staffMember?.name || 'Coach'}</p>
+                    <p className={`text-base font-semibold ${isSoon ? 'text-flexibel-orange' : 'text-flexibel'}`}>{dateTimeText}</p>
                 </div>
-                <span className="text-5xl" role="img" aria-label="Meeting icon">🗓️</span>
+                <div className="flex-shrink-0">
+                    <span className="text-4xl" role="img" aria-label="Kalender">🗓️</span>
+                </div>
             </div>
-            <div className="mt-4 pt-3 border-t flex justify-end">
-                <Button onClick={() => onOpenModal(nextMeeting)} variant="outline" size="sm">
-                    Visa detaljer & Kommentera
-                </Button>
-            </div>
-        </div>
+        </button>
     );
 };

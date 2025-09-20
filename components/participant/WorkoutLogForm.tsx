@@ -141,6 +141,9 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                 id: crypto.randomUUID(),
                 reps: lastSet?.reps ?? '',
                 weight: lastSet?.weight ?? '',
+                distanceMeters: lastSet?.distanceMeters ?? '',
+                durationSeconds: lastSet?.durationSeconds ?? '',
+                caloriesKcal: lastSet?.caloriesKcal ?? '',
                 isCompleted: false,
             };
             newLogs.set(exercise.id, [...sets, newSet]);
@@ -514,7 +517,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
 
   return (
     <div className="bg-slate-100 bg-dotted-pattern bg-dotted-size bg-fixed min-h-screen">
-      <div ref={formTopRef} className="container mx-auto p-4 max-w-2xl animate-fade-in pb-28">
+      <div ref={formTopRef} className="container mx-auto p-4 max-w-4xl animate-fade-in pb-28">
         
         {currentView === 'block_selection' && (
           <div className="space-y-6">

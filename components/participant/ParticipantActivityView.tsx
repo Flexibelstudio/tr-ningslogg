@@ -1,11 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { WorkoutLog, Workout, GeneralActivityLog, ActivityLog, GoalCompletionLog, ParticipantGoalData, UserStrengthStat, ParticipantConditioningStat, ParticipantClubMembership, ParticipantProfile, LeaderboardSettings, CoachEvent, ParticipantPhysiqueStat, OneOnOneSession, StaffMember, GroupClassSchedule, GroupClassDefinition, ParticipantBooking, Location } from '../../types';
+import { WorkoutLog, Workout, GeneralActivityLog, ActivityLog, GoalCompletionLog, ParticipantGoalData, UserStrengthStat, ParticipantConditioningStat, ParticipantClubMembership, ParticipantProfile, LeaderboardSettings, CoachEvent, ParticipantPhysiqueStat, OneOnOneSession, StaffMember, GroupClassSchedule, GroupClassDefinition, ParticipantBooking, Location, IntegrationSettings } from '../../types';
 import { Button } from '../Button';
 import * as dateUtils from '../../utils/dateUtils';
 import { DayActivitiesModal } from './DayActivitiesModal'; 
 import { CLUB_DEFINITIONS, DEFAULT_COACH_EVENT_ICON, STUDIO_TARGET_OPTIONS } from '../../constants';
 import { LeaderboardView } from './LeaderboardView';
 import { getHighestClubAchievements } from '../../services/gamificationService';
+import { AICoachActivitySummaryModal } from '../coach/AICoachActivitySummaryModal';
+import { ClubsView } from './ClubsView';
 
 interface ParticipantActivityViewProps {
   allActivityLogs: ActivityLog[]; 
@@ -19,6 +21,7 @@ interface ParticipantActivityViewProps {
   conditioningStatsHistory: ParticipantConditioningStat[];
   physiqueHistory: ParticipantPhysiqueStat[];
   clubMemberships: ParticipantClubMembership[];
+  allClubMemberships: ParticipantClubMembership[];
   participantProfile: ParticipantProfile | null;
   leaderboardSettings: LeaderboardSettings;
   allParticipantGoals: ParticipantGoalData[];
@@ -31,6 +34,8 @@ interface ParticipantActivityViewProps {
   groupClassDefinitions: GroupClassDefinition[];
   allParticipantBookings: ParticipantBooking[];
   locations: Location[];
+  onCancelBooking: (bookingId: string) => void;
+  integrationSettings: IntegrationSettings;
 }
 
 type CalendarEventType = 'PB' | 'GOAL_COMPLETED' | 'CLUB' | 'INBODY' | 'STRENGTH_TEST' | 'CONDITIONING_TEST' | 'NEW_GOAL' | 'COACH_EVENT' | 'ONE_ON_ONE' | 'GROUP_CLASS_BOOKING' | 'GOAL_TARGET';
@@ -56,7 +61,7 @@ interface CalendarDayItem {
   isChallengeWeek?: boolean;
 }
 
-type ActivityViewTab = 'calendar' | 'leaderboards';
+type ActivityViewTab = 'calendar' | 'klubbar' | 'leaderboards';
 
 export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = ({ 
   allActivityLogs, 
@@ -70,6 +75,7 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
   conditioningStatsHistory,
   physiqueHistory,
   clubMemberships,
+  allClubMemberships,
   participantProfile,
   leaderboardSettings,
   allParticipantGoals,
@@ -82,6 +88,8 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
   groupClassDefinitions,
   allParticipantBookings,
   locations,
+  onCancelBooking,
+  integrationSettings,
 }) => {
   const [activeTab, setActiveTab] = useState<ActivityViewTab>('calendar');
   const [referenceDate, setReferenceDate] = useState<Date>(new Date());
@@ -111,17 +119,15 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
     let currentDay = dateUtils.getStartOfWeek(monthStart);
     const today = new Date();
     
-    const latestGoal = allParticipantGoals.length > 0
-        ? [...allParticipantGoals].sort((a, b) => new Date(b.setDate).getTime() - new Date(a.setDate).getTime())[0]
-        : null;
-
-    const goalTargetDate = latestGoal && latestGoal.targetDate ? new Date(latestGoal.targetDate) : null;
+    const goalTargetDates = allParticipantGoals
+        .filter(g => g.targetDate)
+        .map(g => new Date(g.targetDate!));
 
     const isChallengeActive = leaderboardSettings.weeklyPBChallengeEnabled || leaderboardSettings.weeklySessionChallengeEnabled;
     const startOfThisWeek = dateUtils.getStartOfWeek(new Date());
     const endOfThisWeek = dateUtils.getEndOfWeek(new Date());
     
-    const myBookings = allParticipantBookings.filter(b => b.participantId === participantProfile?.id);
+    const myBookings = allParticipantBookings.filter(b => b.participantId === participantProfile?.id && b.status !== 'CANCELLED');
 
     for (let i = 0; i < 42; i++) { 
       const dayLogs = allActivityLogs.filter(log => dateUtils.isSameDay(new Date(log.completedDate), currentDay));
@@ -132,7 +138,7 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
           const schedule = groupClassSchedules.find(s => s.id === booking.scheduleId);
           if (schedule) {
               const classDef = groupClassDefinitions.find(d => d.id === schedule.groupClassId);
-              const coach = staffMembers.find(c => c.id === schedule.coachId);
+              const coach = staffMembers.find(s => s.id === schedule.coachId);
               if (classDef && coach) {
                   dayEvents.push({
                       type: 'GROUP_CLASS_BOOKING',
@@ -199,7 +205,7 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
         });
       });
 
-      if (goalTargetDate && dateUtils.isSameDay(currentDay, goalTargetDate)) {
+      if (goalTargetDates.some(goalDate => dateUtils.isSameDay(currentDay, goalDate))) {
         dayEvents.push({ type: 'GOAL_TARGET', icon: '🎯', description: 'Måldatum!' });
       }
 
@@ -243,11 +249,14 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
   return (
     <div className="bg-white p-4 sm:p-6 rounded-xl shadow-xl mb-8 border border-gray-200">
       <div className="border-b border-gray-200">
-          <nav className="-mb-px flex flex-wrap gap-x-4" aria-label="Tabs">
-              <button onClick={() => setActiveTab('calendar')} className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('calendar')}`}>
+          <nav className="-mb-px flex" aria-label="Tabs">
+              <button onClick={() => setActiveTab('calendar')} className={`flex-1 text-center whitespace-nowrap py-3 px-2 border-b-2 font-medium text-sm sm:text-base rounded-t-lg ${getTabButtonStyle('calendar')}`}>
                   🗓️ Kalender
               </button>
-              <button onClick={() => setActiveTab('leaderboards')} className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('leaderboards')}`}>
+              <button onClick={() => setActiveTab('klubbar')} className={`flex-1 text-center whitespace-nowrap py-3 px-2 border-b-2 font-medium text-sm sm:text-base rounded-t-lg ${getTabButtonStyle('klubbar')}`}>
+                  🏅 Klubbar
+              </button>
+              <button onClick={() => setActiveTab('leaderboards')} className={`flex-1 text-center whitespace-nowrap py-3 px-2 border-b-2 font-medium text-sm sm:text-base rounded-t-lg ${getTabButtonStyle('leaderboards')}`}>
                   🏆 Topplistor
               </button>
           </nav>
@@ -267,13 +276,9 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
             </div>
 
             <div className="grid grid-cols-7 gap-px text-center text-sm font-semibold text-gray-500 border-b mb-1 pb-1">
-              {dateUtils.getShortDayName(0)}
-              {dateUtils.getShortDayName(1)}
-              {dateUtils.getShortDayName(2)}
-              {dateUtils.getShortDayName(3)}
-              {dateUtils.getShortDayName(4)}
-              {dateUtils.getShortDayName(5)}
-              {dateUtils.getShortDayName(6)}
+              {['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'].map(day => (
+                <div key={day}>{day}</div>
+              ))}
             </div>
 
             <div className="grid grid-cols-7 gap-px">
@@ -329,6 +334,19 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
             </div>
           </div>
         )}
+        
+        {activeTab === 'klubbar' && participantProfile && (
+            <ClubsView
+                participantProfile={participantProfile}
+                allActivityLogs={allActivityLogs}
+                strengthStatsHistory={strengthStatsHistory}
+                conditioningStatsHistory={conditioningStatsHistory}
+                clubMemberships={clubMemberships}
+                workouts={workouts}
+                allParticipants={allParticipants}
+                allClubMemberships={allClubMemberships}
+            />
+        )}
 
         {activeTab === 'leaderboards' && (
           <LeaderboardView 
@@ -368,6 +386,8 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
         groupClassDefinitions={groupClassDefinitions}
         allParticipantBookings={allParticipantBookings}
         locations={locations}
+        onCancelBooking={onCancelBooking}
+        integrationSettings={integrationSettings}
       />
     </div>
   );

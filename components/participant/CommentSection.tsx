@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import { Comment } from '../../types';
+// FIX: Import `FlowItemLogType` from the central types file instead of defining it locally.
+import { Comment, FlowItemLogType } from '../../types';
 import { Button } from '../Button';
 import { Textarea } from '../Textarea';
 import { formatRelativeTime } from '../../utils/dateUtils';
 
-// FIX: Widened the logType to match all possible commentable items from the Flow view.
-type FlowItemLogType = 'workout' | 'general' | 'coach_event' | 'one_on_one_session' | 'goal_completion' | 'participant_club_membership' | 'user_strength_stat' | 'participant_physique_stat' | 'participant_goal_data' | 'participant_conditioning_stat';
 
 interface CommentSectionProps {
   logId: string;

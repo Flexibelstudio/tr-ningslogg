@@ -24,6 +24,7 @@ interface AuthContextType {
   isStaffViewingAsParticipant: boolean; 
   
   login: (email: string, password: string) => Promise<void>;
+  // FIX: Added 'name' parameter to the register function signature to match the call in Register.tsx.
   register: (email: string, password: string, orgId: string, locationId: string, name: string) => Promise<void>;
   logout: () => void;
   impersonate: (orgId: string) => void;
@@ -71,7 +72,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                         // This is an existing pending user (not a new registration).
                         // Sign them out to prevent access.
                         await auth.signOut();
-                        setIsLoading(false);
                         return; // Stop execution here.
                     }
                 }
@@ -89,7 +89,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     // We must do nothing and wait for the registration function to complete its work and sign out.
                     // This prevents the race condition where this listener signs the user out before the DB write.
                     console.log("New user detected, Firestore doc not yet available. Waiting for registration process to complete.");
-                    setIsLoading(false); // Unblock UI while registration finishes.
                     return;
                 } else {
                     // This is an existing user whose document is missing, which is a critical error state.

@@ -91,7 +91,7 @@ const TodaysClassesView: React.FC<TodaysClassesViewProps> = ({ schedules, defini
     if (todaysInstances.length === 0) {
         return (
             <div className="p-4 text-center bg-gray-50 rounded-lg border">
-                <p className="text-gray-600">Inga pass schemalagda idag.</p>
+                <p className="text-gray-600">Inga pass schemalagda idag för den valda orten.</p>
             </div>
         );
     }
@@ -119,6 +119,7 @@ interface CoachAreaProps {
   onDeleteComment: (logId: string, logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session', commentId: string) => void;
   onToggleCommentReaction: (logId: string, logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session', commentId: string) => void;
   onCheckInParticipant: (bookingId: string) => void;
+  onUnCheckInParticipant: (bookingId: string) => void;
   onBookClass: (participantId: string, scheduleId: string, classDate: string) => void;
   onCancelBooking: (bookingId: string) => void;
   onPromoteFromWaitlist: (bookingId: string) => void;
@@ -130,6 +131,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   onDeleteComment,
   onToggleCommentReaction,
   onCheckInParticipant,
+  onUnCheckInParticipant,
   onBookClass,
   onCancelBooking,
   onPromoteFromWaitlist,
@@ -235,6 +237,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   , [visibleTabs, integrationSettings]);
 
   const [activeTab, setActiveTab] = useState<CoachTab>(tabsToShow[0]?.id || 'overview');
+  const [selectedLocationTabId, setSelectedLocationTabId] = useState<string>('all');
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
   const [selectedSessionForModal, setSelectedSessionForModal] = useState<OneOnOneSession | null>(null);
@@ -331,6 +334,26 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
         allBookingsForInstance,
     };
 }, [managedClassInfo, groupClassSchedules, groupClassDefinitions, staffMembers, participantBookings]);
+
+  // NEW: Memos for location filtering in the Bookings tab
+  const schedulesForLocationTab = useMemo(() => {
+    if (selectedLocationTabId === 'all' || !locations.some(l => l.id === selectedLocationTabId)) return groupClassSchedules;
+    return groupClassSchedules.filter(s => s.locationId === selectedLocationTabId);
+  }, [groupClassSchedules, selectedLocationTabId, locations]);
+
+  const scheduleIdsInLocation = useMemo(() => {
+      return new Set(schedulesForLocationTab.map(s => s.id));
+  }, [schedulesForLocationTab]);
+
+  const bookingsForLocationTab = useMemo(() => {
+      return participantBookings.filter(b => scheduleIdsInLocation.has(b.scheduleId));
+  }, [participantBookings, scheduleIdsInLocation]);
+
+  const sessionsForLocationTab = useMemo(() => {
+      if (selectedLocationTabId === 'all' || !locations.some(l => l.id === selectedLocationTabId)) return oneOnOneSessionsForView;
+      const staffIdsInLocation = new Set(staffMembers.filter(s => s.locationId === selectedLocationTabId).map(s => s.id));
+      return oneOnOneSessionsForView.filter(session => staffIdsInLocation.has(session.coachId));
+  }, [oneOnOneSessionsForView, staffMembers, selectedLocationTabId, locations]);
 
 
   const getTabButtonStyle = (tabName: CoachTab) => {
@@ -456,15 +479,43 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
         <div role="tabpanel" hidden={activeTab !== 'bookings'}>
             {activeTab === 'bookings' && loggedInStaff && (
               <div className="space-y-8">
+                <div className="border-b border-gray-200">
+                    <nav className="-mb-px flex space-x-4 overflow-x-auto" aria-label="Location Tabs">
+                        <button
+                            onClick={() => setSelectedLocationTabId('all')}
+                            className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-base rounded-t-lg ${
+                                selectedLocationTabId === 'all'
+                                ? 'border-flexibel text-flexibel'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            Alla orter
+                        </button>
+                        {locations.map(loc => (
+                            <button
+                                key={loc.id}
+                                onClick={() => setSelectedLocationTabId(loc.id)}
+                                className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-base rounded-t-lg ${
+                                    selectedLocationTabId === loc.id
+                                    ? 'border-flexibel text-flexibel'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
+                            >
+                                {loc.name}
+                            </button>
+                        ))}
+                    </nav>
+                </div>
+
                 <TodaysClassesView 
-                    schedules={groupClassSchedules}
+                    schedules={schedulesForLocationTab}
                     definitions={groupClassDefinitions}
-                    bookings={participantBookings}
+                    bookings={bookingsForLocationTab}
                     coaches={staffMembers}
                     onManageClick={(instance) => setManagedClassInfo({ scheduleId: instance.scheduleId, date: instance.date })}
                 />
                 <ScheduleManagement 
-                  schedules={groupClassSchedules}
+                  schedules={schedulesForLocationTab}
                   setSchedules={setGroupClassSchedulesData}
                   classDefinitions={groupClassDefinitions}
                   locations={locations}
@@ -473,16 +524,16 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
                 <div className="pt-8 border-t">
                   <h3 className="text-2xl font-bold text-gray-800 mb-4">Kalenderöversikt</h3>
                   <CalendarView 
-                      sessions={oneOnOneSessionsForView}
+                      sessions={sessionsForLocationTab}
                       participants={participantDirectory}
                       coaches={staffMembers}
                       onSessionClick={handleOpenMeetingModal}
                       onDayClick={handleDayClick}
                       onSessionEdit={handleOpenEditModal}
                       onSessionDelete={setSessionToDelete}
-                      groupClassSchedules={groupClassSchedules}
+                      groupClassSchedules={schedulesForLocationTab}
                       groupClassDefinitions={groupClassDefinitions}
-                      bookings={participantBookings}
+                      bookings={bookingsForLocationTab}
                       onGroupClassClick={(instance) => setManagedClassInfo({ scheduleId: instance.scheduleId, date: instance.date })}
                   />
                   <BookOneOnOneModal
@@ -525,6 +576,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
                           classInstance={classInstanceForManagement}
                           participants={participantDirectory}
                           onCheckIn={onCheckInParticipant}
+                          onUnCheckIn={onUnCheckInParticipant}
                           onBookClass={onBookClass}
                           onCancelBooking={onCancelBooking}
                           onPromoteFromWaitlist={onPromoteFromWaitlist}

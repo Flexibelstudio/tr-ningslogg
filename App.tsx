@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense, useMemo } from 'react';
 import { 
     UserRole, Workout, WorkoutLog, ActivityLog, ParticipantGamificationStats, ParticipantGoalData, 
     GeneralActivityLog, GoalCompletionLog, ParticipantConditioningStat, ParticipantProfile, 
     UserStrengthStat, ParticipantMentalWellbeing, ParticipantClubMembership, LeaderboardSettings, 
     CoachEvent, Connection, Comment, Reaction, ParticipantPhysiqueStat, Location, StaffMember, 
     Membership, OneOnOneSession, WorkoutCategoryDefinition, StaffAvailability, 
-    IntegrationSettings, GroupClassDefinition, GroupClassSchedule, ParticipantBooking, BookingStatus
+    IntegrationSettings, GroupClassDefinition, GroupClassSchedule, ParticipantBooking, BookingStatus, FlowItemLogType
 } from './types';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { Navbar } from './components/Navbar';
@@ -19,7 +19,7 @@ import { Register } from './components/Register';
 import { Button } from './components/Button';
 import { NetworkStatusProvider } from './context/NetworkStatusContext';
 import { OfflineBanner } from './components/OfflineBanner';
-import { ParticipantNavbarActions } from './components/participant/ParticipantArea';
+import { UpdateNoticeModal } from './components/participant/UpdateNoticeModal';
 
 const CoachArea = lazy(() => import('./components/coach/CoachArea').then(m => ({ default: m.CoachArea })));
 const ParticipantArea = lazy(() => import('./components/participant/ParticipantArea').then(m => ({ default: m.ParticipantArea })));
@@ -33,7 +33,7 @@ const LoadingSpinner = () => (
     </div>
 );
 
-type FlowItemLogType = 'workout' | 'general' | 'coach_event' | 'one_on_one_session' | 'goal_completion' | 'participant_club_membership' | 'user_strength_stat' | 'participant_physique_stat' | 'participant_goal_data' | 'participant_conditioning_stat';
+
 
 
 const AppContent: React.FC = () => {
@@ -49,12 +49,15 @@ const AppContent: React.FC = () => {
         isOrgDataLoading,
         isGlobalDataLoading, // Get new loading state
         branding,
-        setGoalCompletionLogsData,
-        setClubMembershipsData,
-        setUserStrengthStatsData,
-        setParticipantPhysiqueHistoryData,
+        goalCompletionLogs, setGoalCompletionLogsData,
+        clubMemberships, setClubMembershipsData,
+        userStrengthStats, setUserStrengthStatsData,
+        participantPhysiqueHistory, setParticipantPhysiqueHistoryData,
+        participantGoals,
         setParticipantGoalsData,
-        setUserConditioningStatsHistoryData,
+        userConditioningStatsHistory, setUserConditioningStatsHistoryData,
+        connections,
+        lastFlowViewTimestamp,
     } = useAppContext();
     
     const auth = useAuth();
@@ -76,13 +79,119 @@ const AppContent: React.FC = () => {
         }
         return null;
     });
-    const [participantNavbarActions, setParticipantNavbarActions] = useState<ParticipantNavbarActions | null>(null);
+
+    // --- NEW: Update Notice Logic ---
+    const UPDATE_NOTICE_KEY = 'updateNotice_v1_CalendarAndFab'; // Unique key for this update
+    const [showUpdateNoticePopup, setShowUpdateNoticePopup] = useState(false);
+    const [showLatestUpdateView, setShowLatestUpdateView] = useState(false);
 
     useEffect(() => {
-        if (auth.currentRole !== UserRole.PARTICIPANT) {
-            setParticipantNavbarActions(null);
+        // Show popup only for logged-in participants
+        if (auth.user && auth.currentRole === UserRole.PARTICIPANT) {
+            const noticeShown = localStorage.getItem(UPDATE_NOTICE_KEY);
+            if (!noticeShown) {
+                // Use a timeout to ensure the main UI has rendered and settled
+                setTimeout(() => {
+                    setShowUpdateNoticePopup(true);
+                }, 1500);
+            }
         }
-    }, [auth.currentRole]);
+    }, [auth.user, auth.currentRole]); // Run when auth state changes
+
+    const handleCloseUpdateNoticePopup = () => {
+        localStorage.setItem(UPDATE_NOTICE_KEY, 'true');
+        setShowUpdateNoticePopup(false);
+    };
+    // --- END: Update Notice Logic ---
+
+    // State for modal openers to be passed from ParticipantArea to Navbar
+    const [participantModalOpeners, setParticipantModalOpeners] = useState({
+        openGoalModal: () => {},
+        openCommunityModal: () => {},
+        openFlowModal: () => {},
+        openAiReceptModal: () => {}
+    });
+
+    // Derived data for Navbar, calculated here in the common ancestor component
+    const { aiRecept, pendingRequestsCount, newFlowItemsCount } = useMemo(() => {
+        if (auth.currentRole !== UserRole.PARTICIPANT || !auth.currentParticipantId) {
+            return { aiRecept: null, pendingRequestsCount: 0, newFlowItemsCount: 0 };
+        }
+        
+        const myParticipantGoals = participantGoals.filter(g => g.participantId === auth.currentParticipantId);
+        const sortedGoals = [...myParticipantGoals].sort((a,b) => new Date(b.setDate).getTime() - new Date(a.setDate).getTime());
+        const latestActiveGoal = sortedGoals.find(g => !g.isCompleted) || sortedGoals[0] || null;
+        
+        const recept = latestActiveGoal?.aiPrognosis;
+        const requests = connections.filter(c => c.receiverId === auth.currentParticipantId && c.status === 'pending').length;
+
+        // --- NEW newFlowItemsCount logic ---
+        let count = 0;
+        if (lastFlowViewTimestamp) { // Only calculate if user has visited the flow before
+            const lastViewTime = new Date(lastFlowViewTimestamp).getTime();
+            const myId = auth.currentParticipantId;
+
+            const myFriendsIds = new Set<string>();
+            connections.forEach(c => {
+                if (c.status === 'accepted') {
+                    if (c.requesterId === myId) myFriendsIds.add(c.receiverId);
+                    if (c.receiverId === myId) myFriendsIds.add(c.requesterId);
+                }
+            });
+
+            const newNotificationItems = new Set<string>();
+
+            // 1. New posts/events from coaches
+            coachEvents.forEach(event => {
+                if (new Date(event.createdDate).getTime() > lastViewTime) {
+                    newNotificationItems.add(`event-${event.id}`);
+                }
+            });
+            
+            // This is a comprehensive list of all things that can appear in the flow from another user
+            const allUserContent: (WorkoutLog | GeneralActivityLog | GoalCompletionLog | ParticipantClubMembership | UserStrengthStat | ParticipantPhysiqueStat | ParticipantGoalData | ParticipantConditioningStat)[] = [
+                ...workoutLogs, ...generalActivityLogs, ...goalCompletionLogs, ...clubMemberships, ...userStrengthStats, ...participantPhysiqueHistory, ...participantGoals, ...userConditioningStatsHistory
+            ];
+
+            allUserContent.forEach(item => {
+                const itemDate = new Date(
+                    'completedDate' in item ? item.completedDate :
+                    'achievedDate' in item ? item.achievedDate :
+                    'setDate' in item ? item.setDate :
+                    item.lastUpdated
+                ).getTime();
+                
+                // 2. New content created by friends
+                if (myFriendsIds.has((item as { participantId: string }).participantId) && itemDate > lastViewTime) {
+                    newNotificationItems.add(`item-${item.id}`);
+                }
+
+                // 3. New interactions on my content
+                if ((item as { participantId: string }).participantId === myId) {
+                    (item.comments || []).forEach(comment => {
+                        if (comment.authorId !== myId && new Date(comment.createdDate).getTime() > lastViewTime) {
+                            newNotificationItems.add(`comment-${comment.id}`);
+                        }
+                    });
+                    (item.reactions || []).forEach(reaction => {
+                        // The 'createdDate' on Reaction is the new field.
+                        if (reaction.participantId !== myId && new Date(reaction.createdDate).getTime() > lastViewTime) {
+                            newNotificationItems.add(`reaction-${item.id}-${reaction.participantId}-${reaction.emoji}`);
+                        }
+                    });
+                }
+            });
+            count = newNotificationItems.size;
+        }
+
+        return { aiRecept: recept, pendingRequestsCount: requests, newFlowItemsCount: count };
+
+    }, [
+        auth.currentRole, auth.currentParticipantId, participantGoals, connections, lastFlowViewTimestamp, 
+        coachEvents, workoutLogs, generalActivityLogs, goalCompletionLogs, clubMemberships, 
+        userStrengthStats, participantPhysiqueHistory, userConditioningStatsHistory
+    ]);
+
 
     useEffect(() => {
         if (auth.organizationId) {
@@ -96,46 +205,33 @@ const AppContent: React.FC = () => {
 
 
     const handleBookClass = useCallback((participantId: string, scheduleId: string, classDate: string) => {
-        const existingBooking = participantBookings.find(b =>
+        // 1. Check for an ACTIVE booking. If one exists, do nothing.
+        const activeBooking = participantBookings.find(b =>
             b.participantId === participantId &&
             b.scheduleId === scheduleId &&
             b.classDate === classDate &&
-            b.status !== 'CANCELLED'
+            (b.status === 'BOOKED' || b.status === 'WAITLISTED')
         );
-
-        if (existingBooking) {
-            console.warn('Participant is already booked or on the waitlist for this class.');
+    
+        if (activeBooking) {
+            console.warn('Participant is already actively booked or on the waitlist for this class.');
             return;
         }
-
+    
         const schedule = groupClassSchedules.find(s => s.id === scheduleId);
         if (!schedule) {
             console.error("Schedule not found");
             return;
         }
-    
-        const bookedCount = participantBookings.filter(b => b.scheduleId === scheduleId && b.classDate === classDate && b.status === 'BOOKED').length;
         
-        const newStatus = bookedCount >= schedule.maxParticipants ? 'WAITLISTED' : 'BOOKED';
-    
-        const newBooking: ParticipantBooking = {
-            id: crypto.randomUUID(),
-            participantId,
-            scheduleId,
-            classDate,
-            bookingDate: new Date().toISOString(),
-            status: newStatus
-        };
-        
-        setParticipantBookingsData(prev => [...prev, newBooking]);
-    
-        if (newStatus === 'BOOKED') {
+        // Helper function for clip card logic to avoid duplication
+        const deductClipCard = () => {
             setParticipantDirectoryData(prevParticipants => {
                 const participant = prevParticipants.find(p => p.id === participantId);
                 if (!participant || !participant.membershipId) return prevParticipants;
     
                 const membership = memberships.find(m => m.id === participant.membershipId);
-                if (membership?.type === 'clip_card' && participant.clipCardStatus) {
+                if (membership?.type === 'clip_card' && participant.clipCardStatus && participant.clipCardStatus.remainingClips > 0) {
                     return prevParticipants.map(p => 
                         p.id === participantId 
                         ? { ...p, clipCardStatus: { ...p.clipCardStatus, remainingClips: p.clipCardStatus.remainingClips - 1 }, lastUpdated: new Date().toISOString() }
@@ -144,81 +240,143 @@ const AppContent: React.FC = () => {
                 }
                 return prevParticipants;
             });
+        };
+        
+        // Determine capacity and new status
+        const bookedCount = participantBookings.filter(b => 
+            b.scheduleId === scheduleId && 
+            b.classDate === classDate && 
+            (b.status === 'BOOKED' || b.status === 'CHECKED-IN')
+        ).length;
+        
+        const newStatus = bookedCount >= schedule.maxParticipants ? 'WAITLISTED' : 'BOOKED';
+    
+        // 2. Check for a PREVIOUSLY CANCELLED booking for the same class.
+        const cancelledBooking = participantBookings.find(b =>
+            b.participantId === participantId &&
+            b.scheduleId === scheduleId &&
+            b.classDate === classDate &&
+            b.status === 'CANCELLED'
+        );
+    
+        // 3. If a cancelled booking exists, REACTIVATE it.
+        if (cancelledBooking) {
+            const reactivatedBooking: ParticipantBooking = {
+                ...cancelledBooking,
+                status: newStatus,
+                bookingDate: new Date().toISOString(),
+            };
+    
+            setParticipantBookingsData(prev => 
+                prev.map(b => b.id === cancelledBooking.id ? reactivatedBooking : b)
+            );
+            
+            if (newStatus === 'BOOKED') {
+                deductClipCard();
+            }
+            
+        } else { // 4. If no previous booking exists, CREATE a new one.
+            const newBooking: ParticipantBooking = {
+                id: crypto.randomUUID(),
+                participantId,
+                scheduleId,
+                classDate,
+                bookingDate: new Date().toISOString(),
+                status: newStatus
+            };
+            
+            setParticipantBookingsData(prev => [...prev, newBooking]);
+        
+            if (newStatus === 'BOOKED') {
+                deductClipCard();
+            }
         }
     }, [groupClassSchedules, participantBookings, memberships, setParticipantBookingsData, setParticipantDirectoryData]);
 
     const handleCancelBooking = useCallback((bookingId: string) => {
-        const bookingToCancel = participantBookings.find(b => b.id === bookingId);
-        if (!bookingToCancel) return;
-    
-        const wasBooked = bookingToCancel.status === 'BOOKED' || bookingToCancel.status === 'CHECKED-IN';
-    
-        let promotedBooking: ParticipantBooking | undefined;
-        if (wasBooked) {
-            const waitlisters = participantBookings
-                .filter(b => 
-                    b.scheduleId === bookingToCancel.scheduleId && 
-                    b.classDate === bookingToCancel.classDate && 
-                    b.status === 'WAITLISTED'
-                )
-                .sort((a, b) => new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime());
-            
-            if (waitlisters.length > 0) {
-                const participantToPromote = participantDirectory.find(p => p.id === waitlisters[0].participantId);
-                const membership = participantToPromote ? memberships.find(m => m.id === participantToPromote.membershipId) : undefined;
-                
-                let canBePromoted = true;
-                if (membership?.type === 'clip_card' && (!participantToPromote?.clipCardStatus || participantToPromote.clipCardStatus.remainingClips <= 0)) {
-                    canBePromoted = false;
-                }
-                if (canBePromoted) {
-                    promotedBooking = waitlisters[0];
-                }
+        setParticipantBookingsData(prevBookings => {
+            const bookingToCancel = prevBookings.find(b => b.id === bookingId);
+            if (!bookingToCancel) {
+                console.warn(`Booking with id ${bookingId} not found for cancellation.`);
+                return prevBookings;
             }
-        }
     
-        setParticipantDirectoryData(prev => {
-            let nextState = [...prev];
-            
+            const wasBooked = bookingToCancel.status === 'BOOKED' || bookingToCancel.status === 'CHECKED-IN';
+    
+            let promotedBooking: ParticipantBooking | undefined;
+            let participantToPromoteId: string | undefined;
+    
             if (wasBooked) {
-                const participantToRefund = nextState.find(p => p.id === bookingToCancel.participantId);
-                const membership = participantToRefund ? memberships.find(m => m.id === participantToRefund.membershipId) : undefined;
-                if (membership?.type === 'clip_card' && participantToRefund?.clipCardStatus) {
-                    nextState = nextState.map(p => 
-                        p.id === participantToRefund.id 
-                        ? { ...p, clipCardStatus: { ...p.clipCardStatus!, remainingClips: p.clipCardStatus!.remainingClips + 1 }, lastUpdated: new Date().toISOString() }
-                        : p
-                    );
+                const waitlisters = prevBookings
+                    .filter(b => 
+                        b.scheduleId === bookingToCancel.scheduleId && 
+                        b.classDate === bookingToCancel.classDate && 
+                        b.status === 'WAITLISTED'
+                    )
+                    .sort((a, b) => new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime());
+                
+                if (waitlisters.length > 0) {
+                    for (const potentialPromotion of waitlisters) {
+                        const participantProfile = participantDirectory.find(p => p.id === potentialPromotion.participantId);
+                        const membership = participantProfile ? memberships.find(m => m.id === participantProfile.membershipId) : undefined;
+                        
+                        let canBePromoted = true;
+                        if (membership?.type === 'clip_card') {
+                            if (!participantProfile?.clipCardStatus || participantProfile.clipCardStatus.remainingClips <= 0) {
+                                canBePromoted = false;
+                            }
+                        }
+                        if (canBePromoted) {
+                            promotedBooking = potentialPromotion;
+                            participantToPromoteId = potentialPromotion.participantId;
+                            break;
+                        }
+                    }
                 }
             }
     
-            if (promotedBooking) {
-                const participantToPromote = nextState.find(p => p.id === promotedBooking!.participantId);
-                const membership = participantToPromote ? memberships.find(m => m.id === participantToPromote.membershipId) : undefined;
-                if (membership?.type === 'clip_card' && participantToPromote?.clipCardStatus) {
-                     nextState = nextState.map(p => 
-                        p.id === participantToPromote.id 
-                        ? { ...p, clipCardStatus: { ...p.clipCardStatus!, remainingClips: p.clipCardStatus!.remainingClips - 1 }, lastUpdated: new Date().toISOString() }
-                        : p
-                    );
-                }
+            if (wasBooked) {
+                 setParticipantDirectoryData(prevParticipants => {
+                    let nextParticipants = [...prevParticipants];
+                    
+                    const participantToRefund = nextParticipants.find(p => p.id === bookingToCancel.participantId);
+                    const membershipToRefund = participantToRefund ? memberships.find(m => m.id === participantToRefund.membershipId) : undefined;
+                    if (membershipToRefund?.type === 'clip_card' && participantToRefund?.clipCardStatus) {
+                        nextParticipants = nextParticipants.map(p => 
+                            p.id === participantToRefund.id 
+                            ? { ...p, clipCardStatus: { ...p.clipCardStatus!, remainingClips: p.clipCardStatus!.remainingClips + 1 }, lastUpdated: new Date().toISOString() }
+                            : p
+                        );
+                    }
+                    
+                    if (participantToPromoteId) {
+                        const participantToPromote = nextParticipants.find(p => p.id === participantToPromoteId);
+                        const membershipToPromote = participantToPromote ? memberships.find(m => m.id === participantToPromote.membershipId) : undefined;
+                        
+                        if (membershipToPromote?.type === 'clip_card' && participantToPromote?.clipCardStatus) {
+                            nextParticipants = nextParticipants.map(p => 
+                                p.id === participantToPromote.id
+                                ? { ...p, clipCardStatus: { ...p.clipCardStatus!, remainingClips: p.clipCardStatus!.remainingClips - 1 }, lastUpdated: new Date().toISOString() }
+                                : p
+                            );
+                        }
+                    }
+    
+                    return nextParticipants;
+                 });
             }
-            
-            return nextState;
+    
+            return prevBookings.map(b => {
+                if (b.id === bookingId) {
+                    return { ...b, status: 'CANCELLED' as BookingStatus };
+                }
+                if (promotedBooking && b.id === promotedBooking.id) {
+                    return { ...b, status: 'BOOKED' as BookingStatus };
+                }
+                return b;
+            });
         });
-    
-        setParticipantBookingsData(prev => {
-            let nextState = prev.map(b => b.id === bookingId ? { ...b, status: 'CANCELLED' as BookingStatus } : b);
-            if (promotedBooking) {
-                const promotedIdx = nextState.findIndex(b => b.id === promotedBooking!.id);
-                if (promotedIdx !== -1) {
-                    nextState[promotedIdx] = { ...nextState[promotedIdx], status: 'BOOKED' as BookingStatus };
-                }
-            }
-            return nextState;
-        });
-    
-    }, [participantBookings, participantDirectory, memberships, setParticipantBookingsData, setParticipantDirectoryData]);
+    }, [participantDirectory, memberships, setParticipantBookingsData, setParticipantDirectoryData]);
 
     const handlePromoteFromWaitlist = useCallback((bookingId: string) => {
         setParticipantBookingsData(prevBookings => {
@@ -256,6 +414,12 @@ const AppContent: React.FC = () => {
         );
     }, [setParticipantBookingsData]);
 
+    const handleUnCheckInParticipant = useCallback((bookingId: string) => {
+        setParticipantBookingsData(prev =>
+            prev.map(b => (b.id === bookingId && b.status === 'CHECKED-IN' ? { ...b, status: 'BOOKED' as BookingStatus } : b))
+        );
+    }, [setParticipantBookingsData]);
+
     const handleToggleReaction = useCallback((logId: string, logType: FlowItemLogType, emoji: string) => {
         if (!auth.currentParticipantId) return;
 
@@ -269,10 +433,10 @@ const AppContent: React.FC = () => {
                         const myExistingReaction = myReactions.find(r => r.emoji === emoji);
                         updatedReactions = updatedReactions.filter(r => r.participantId !== auth.currentParticipantId);
                         if (!myExistingReaction) {
-                            updatedReactions.push({ participantId: auth.currentParticipantId, emoji });
+                            updatedReactions.push({ participantId: auth.currentParticipantId, emoji, createdDate: new Date().toISOString() });
                         }
                     } else {
-                        updatedReactions.push({ participantId: auth.currentParticipantId, emoji });
+                        updatedReactions.push({ participantId: auth.currentParticipantId, emoji, createdDate: new Date().toISOString() });
                     }
                     return { ...log, reactions: updatedReactions };
                 }
@@ -388,7 +552,7 @@ const AppContent: React.FC = () => {
                             if (myReactionIndex > -1) {
                                 return { ...comment, reactions: existingReactions.filter((_, index) => index !== myReactionIndex) };
                             } else {
-                                return { ...comment, reactions: [...existingReactions, { participantId, emoji: '❤️' }] };
+                                return { ...comment, reactions: [...existingReactions, { participantId, emoji: '❤️', createdDate: new Date().toISOString() }] };
                             }
                         }
                         return comment;
@@ -541,13 +705,14 @@ const AppContent: React.FC = () => {
 
         if (auth.currentRole === UserRole.COACH) {
             return (
-                <div className="container mx-auto p-4 sm:p-6">
+                <div className="container mx-auto px-2 sm:px-6 py-6">
                     <CoachArea
                         ai={ai}
                         onAddComment={handleAddComment}
                         onDeleteComment={handleDeleteComment}
                         onToggleCommentReaction={handleToggleCommentReaction}
                         onCheckInParticipant={handleCheckInParticipant}
+                        onUnCheckInParticipant={handleUnCheckInParticipant}
                         onBookClass={handleBookClass}
                         onCancelBooking={handleCancelBooking}
                         onPromoteFromWaitlist={handlePromoteFromWaitlist}
@@ -574,7 +739,7 @@ const AppContent: React.FC = () => {
                         onBookClass={handleBookClass}
                         onCancelBooking={handleCancelBooking}
                         setProfileOpener={setProfileOpener}
-                        setNavbarActions={setParticipantNavbarActions}
+                        setParticipantModalOpeners={setParticipantModalOpeners}
                     />
                     <WelcomeModal 
                         isOpen={isWelcomeModalOpen}
@@ -593,13 +758,36 @@ const AppContent: React.FC = () => {
 
     return (
         <div className="bg-gray-50 min-h-screen">
-            <Navbar onOpenProfile={handleOpenProfile} participantActions={participantNavbarActions} />
+            <Navbar
+                onOpenProfile={handleOpenProfile}
+                onOpenLatestUpdate={() => setShowLatestUpdateView(true)}
+                onOpenGoalModal={participantModalOpeners.openGoalModal}
+                onOpenCommunity={participantModalOpeners.openCommunityModal}
+                onOpenFlowModal={participantModalOpeners.openFlowModal}
+                onOpenAiRecept={participantModalOpeners.openAiReceptModal}
+                aiRecept={aiRecept}
+                pendingRequestsCount={pendingRequestsCount}
+                newFlowItemsCount={newFlowItemsCount}
+            />
             <OfflineBanner />
             <main>
                 <Suspense fallback={<LoadingSpinner />}>
                     {renderMainView()}
                 </Suspense>
             </main>
+            {showUpdateNoticePopup && (
+                <UpdateNoticeModal 
+                    show={showUpdateNoticePopup} 
+                    onClose={handleCloseUpdateNoticePopup} 
+                />
+            )}
+
+            {showLatestUpdateView && (
+                <UpdateNoticeModal 
+                    show={showLatestUpdateView} 
+                    onClose={() => setShowLatestUpdateView(false)} 
+                />
+            )}
         </div>
     );
 }

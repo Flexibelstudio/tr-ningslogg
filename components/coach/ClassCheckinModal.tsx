@@ -22,13 +22,14 @@ interface ClassManagementModalProps {
   classInstance: EnrichedClassInstance;
   participants: ParticipantProfile[];
   onCheckIn: (bookingId: string) => void;
+  onUnCheckIn: (bookingId: string) => void;
   onBookClass: (participantId: string, scheduleId: string, classDate: string) => void;
   onCancelBooking: (bookingId: string) => void;
   onPromoteFromWaitlist: (bookingId: string) => void;
 }
 
 export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({ 
-    isOpen, onClose, classInstance, participants, onCheckIn, onBookClass, onCancelBooking, onPromoteFromWaitlist 
+    isOpen, onClose, classInstance, participants, onCheckIn, onUnCheckIn, onBookClass, onCancelBooking, onPromoteFromWaitlist 
 }) => {
     const [participantToAdd, setParticipantToAdd] = useState('');
     const [bookingToCancel, setBookingToCancel] = useState<ParticipantBooking | null>(null);
@@ -80,7 +81,15 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                                         <span className="font-medium text-gray-800">{participant?.name || 'Okänd Medlem'}</span>
                                         <div className="flex items-center gap-2">
                                             {booking.status === 'CHECKED-IN' ? (
-                                                <span className="px-3 py-1 text-sm font-semibold rounded-full bg-green-100 text-green-800">Incheckad ✅</span>
+                                                <Button 
+                                                    size="sm" 
+                                                    variant="ghost" 
+                                                    onClick={() => onUnCheckIn(booking.id)} 
+                                                    className="!bg-green-100 !text-green-800 hover:!bg-green-200 ring-1 ring-green-200 !py-1 !px-3 font-semibold"
+                                                    aria-label={`Bocka ur ${participant?.name || 'deltagare'}`}
+                                                >
+                                                    Incheckad ✅
+                                                </Button>
                                             ) : (
                                                 <Button size="sm" onClick={() => onCheckIn(booking.id)}>Checka in</Button>
                                             )}
