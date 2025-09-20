@@ -141,6 +141,9 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                 id: crypto.randomUUID(),
                 reps: lastSet?.reps ?? '',
                 weight: lastSet?.weight ?? '',
+                distanceMeters: lastSet?.distanceMeters ?? '',
+                durationSeconds: lastSet?.durationSeconds ?? '',
+                caloriesKcal: lastSet?.caloriesKcal ?? '',
                 isCompleted: false,
             };
             newLogs.set(exercise.id, [...sets, newSet]);
