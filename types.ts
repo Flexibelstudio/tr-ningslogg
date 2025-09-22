@@ -503,7 +503,7 @@ export interface ClubDefinition {
   name: string;
   description: string;
   icon: string;
-  type: 'LIFT' | 'SESSION_COUNT' | 'BODYWEIGHT_LIFT' | 'CONDITIONING';
+  type: 'LIFT' | 'SESSION_COUNT' | 'BODYWEIGHT_LIFT' | 'CONDITIONING' | 'TOTAL_VOLUME';
   liftType?: LiftType;
   threshold?: number;
   multiplier?: number;

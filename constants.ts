@@ -260,6 +260,13 @@ export const CLUB_DEFINITIONS: ClubDefinition[] = [
   { id: 'sessions-250', name: '250 Pass-klubben', description: 'Du har loggat 250 pass! Vilken dedikation!', icon: '🌟', type: 'SESSION_COUNT', threshold: 250, comparison: 'GREATER_OR_EQUAL' },
   { id: 'sessions-500', name: '500 Pass-klubben', description: 'Du har loggat 500 pass! Du är en legend!', icon: '🏆', type: 'SESSION_COUNT', threshold: 500, comparison: 'GREATER_OR_EQUAL' },
 
+  // --- TOTAL VOLUME CLUBS ---
+  { id: 'volume-1000kg', name: '1 Ton-klubben', description: 'Du har lyft totalt 1000 kg under ett pass!', icon: '🏋️', type: 'TOTAL_VOLUME', threshold: 1000, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'volume-5000kg', name: '5 Ton-klubben', description: 'Starkt! Du har lyft 5000 kg under ett pass!', icon: '🚚', type: 'TOTAL_VOLUME', threshold: 5000, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'volume-10000kg', name: '10 Ton-klubben', description: 'Vilken volym! 10 000 kg under ett pass är otroligt!', icon: '🚀', type: 'TOTAL_VOLUME', threshold: 10000, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'volume-20000kg', name: '20 Ton-klubben', description: 'Elitnivå! 20 000 kg under ett pass!', icon: '👑', type: 'TOTAL_VOLUME', threshold: 20000, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'volume-marathon', name: 'Maraton-klubben', description: 'Du har lyft ett volym-maraton! 42 195 kg på ett pass!', icon: '🏃💨', type: 'TOTAL_VOLUME', threshold: 42195, comparison: 'GREATER_OR_EQUAL' },
+
   // --- BENCH PRESS (Bänkpress) CLUBS ---
   { id: 'bench-30kg', name: '30kg Bänkpressklubben', description: 'Du har lyft 30 kg i bänkpress!', icon: '💪', type: 'LIFT', liftType: 'Bänkpress', threshold: 30, comparison: 'GREATER_OR_EQUAL' },
   { id: 'bench-40kg', name: '40kg Bänkpressklubben', description: 'Du har lyft 40 kg i bänkpress!', icon: '💪', type: 'LIFT', liftType: 'Bänkpress', threshold: 40, comparison: 'GREATER_OR_EQUAL' },
