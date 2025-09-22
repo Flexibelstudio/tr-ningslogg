@@ -740,6 +740,7 @@ const AppContent: React.FC = () => {
                         onCancelBooking={handleCancelBooking}
                         setProfileOpener={setProfileOpener}
                         setParticipantModalOpeners={setParticipantModalOpeners}
+                        newFlowItemsCount={newFlowItemsCount}
                     />
                     <WelcomeModal 
                         isOpen={isWelcomeModalOpen}

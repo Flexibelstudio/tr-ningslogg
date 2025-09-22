@@ -368,6 +368,7 @@ interface ParticipantAreaProps {
     openFlowModal: () => void;
     openAiReceptModal: () => void;
   }) => void;
+  newFlowItemsCount?: number;
 }
 
 // Main ParticipantArea Component
@@ -387,6 +388,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   onCheckInParticipant,
   setProfileOpener,
   setParticipantModalOpeners,
+  newFlowItemsCount = 0,
 }) => {
     const {
         participantDirectory,
@@ -734,9 +736,11 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         c => c.receiverId === currentParticipantId && c.status === 'pending'
       ).length;
 
+      const totalUnreadCount = pendingRequestCount + (newFlowItemsCount || 0);
+
       try {
-        if (pendingRequestCount > 0) {
-          (navigator as any).setAppBadge(pendingRequestCount);
+        if (totalUnreadCount > 0) {
+          (navigator as any).setAppBadge(totalUnreadCount);
         } else {
           (navigator as any).clearAppBadge();
         }
@@ -744,7 +748,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         console.error('App Badging API error:', error);
       }
     }
-  }, [connections, currentParticipantId]);
+  }, [connections, currentParticipantId, newFlowItemsCount]);
 
   const allActivityLogs = useMemo<ActivityLog[]>(() => {
     return [...myWorkoutLogs, ...myGeneralActivityLogs, ...myGoalCompletionLogs].sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime());
