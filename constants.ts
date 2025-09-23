@@ -262,6 +262,9 @@ export const CLUB_DEFINITIONS: ClubDefinition[] = [
 
   // --- TOTAL VOLUME CLUBS ---
   { id: 'volume-1000kg', name: '1 Ton-klubben', description: 'Du har lyft totalt 1000 kg under ett pass!', icon: '🏋️', type: 'TOTAL_VOLUME', threshold: 1000, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'volume-2000kg', name: '2 Ton-klubben', description: 'Du har lyft totalt 2000 kg under ett pass!', icon: '🏋️', type: 'TOTAL_VOLUME', threshold: 2000, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'volume-3000kg', name: '3 Ton-klubben', description: 'Du har lyft totalt 3000 kg under ett pass!', icon: '🏋️', type: 'TOTAL_VOLUME', threshold: 3000, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'volume-4000kg', name: '4 Ton-klubben', description: 'Du har lyft totalt 4000 kg under ett pass!', icon: '🏋️', type: 'TOTAL_VOLUME', threshold: 4000, comparison: 'GREATER_OR_EQUAL' },
   { id: 'volume-5000kg', name: '5 Ton-klubben', description: 'Starkt! Du har lyft 5000 kg under ett pass!', icon: '🚚', type: 'TOTAL_VOLUME', threshold: 5000, comparison: 'GREATER_OR_EQUAL' },
   { id: 'volume-10000kg', name: '10 Ton-klubben', description: 'Vilken volym! 10 000 kg under ett pass är otroligt!', icon: '🚀', type: 'TOTAL_VOLUME', threshold: 10000, comparison: 'GREATER_OR_EQUAL' },
   { id: 'volume-20000kg', name: '20 Ton-klubben', description: 'Elitnivå! 20 000 kg under ett pass!', icon: '👑', type: 'TOTAL_VOLUME', threshold: 20000, comparison: 'GREATER_OR_EQUAL' },

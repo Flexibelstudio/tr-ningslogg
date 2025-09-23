@@ -443,19 +443,22 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
           <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-300 space-y-4 mb-6 animate-fade-in-down">
               <h3 className="text-xl font-bold text-gray-800">Väntar på Godkännande ({pendingParticipants.length})</h3>
               <div className="space-y-2">
-                  {pendingParticipants.map(p => (
+                  {pendingParticipants.map(p => {
+                      const location = locations.find(l => l.id === p.locationId);
+                      return (
                       <div key={p.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 bg-white rounded-md shadow-sm">
                           <div>
-                              <p className="font-semibold text-gray-900">{p.name}</p>
+                              <p className="font-bold text-lg text-gray-900">{p.name || '(Namn saknas)'}</p>
                               <p className="text-sm text-gray-600">{p.email}</p>
-                              <p className="text-xs text-gray-400">Registrerad: {new Date(p.creationDate || '').toLocaleDateString('sv-SE')}</p>
+                              {location && <p className="text-sm text-gray-500">Studio: <span className="font-medium">{location.name}</span></p>}
+                              <p className="text-xs text-gray-400 mt-1">Registrerad: {new Date(p.creationDate || '').toLocaleDateString('sv-SE')}</p>
                           </div>
                           <div className="flex gap-2 mt-2 sm:mt-0 flex-shrink-0">
                               <Button size="sm" variant="primary" onClick={() => setApprovingParticipant(p)}>Godkänn</Button>
                               <Button size="sm" variant="danger" onClick={() => handleDecline(p)}>Neka</Button>
                           </div>
                       </div>
-                  ))}
+                  )})}
               </div>
           </div>
         )}

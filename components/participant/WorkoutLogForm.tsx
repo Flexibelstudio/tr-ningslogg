@@ -65,6 +65,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   const [logEntries, setLogEntries] = useState<Map<string, SetDetail[]>>(new Map());
   const [postWorkoutComment, setPostWorkoutComment] = useState('');
   const [moodRating, setMoodRating] = useState<number | null>(null);
+  const [completedDate, setCompletedDate] = useState<string>('');
   const [showExitConfirmationModal, setShowExitConfirmationModal] = useState(false);
   const [showInProgressConfirmationModal, setShowInProgressConfirmationModal] = useState(false);
   const [showBlockInProgressConfirmationModal, setShowBlockInProgressConfirmationModal] = useState(false);
@@ -286,9 +287,11 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                 })));
             }
         });
+        setCompletedDate(new Date(logForReferenceOrEdit.completedDate).toISOString().split('T')[0]);
         setPostWorkoutComment(logForReferenceOrEdit.postWorkoutComment || '');
         setMoodRating(logForReferenceOrEdit.moodRating ?? null);
     } else if (isNewSession && storageKey) {
+        setCompletedDate(new Date().toISOString().split('T')[0]);
         // This is a new session, create the initial draft in localStorage.
         const inProgressData: InProgressWorkout = {
           participantId: participantId!,
@@ -350,13 +353,19 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
         }
     });
 
+    const originalTime = (!isNewSession && logForReferenceOrEdit)
+      ? new Date(logForReferenceOrEdit.completedDate).toTimeString().split(' ')[0]
+      : new Date().toTimeString().split(' ')[0];
+    
+    const finalCompletedDate = new Date(`${completedDate}T${originalTime}`).toISOString();
+
     const logData: WorkoutLog = {
       type: 'workout',
       id: !isNewSession && logForReferenceOrEdit ? logForReferenceOrEdit.id : crypto.randomUUID(),
       workoutId: workout.id,
       participantId: '',
       entries: finalEntries,
-      completedDate: !isNewSession && logForReferenceOrEdit ? logForReferenceOrEdit.completedDate : new Date().toISOString(),
+      completedDate: finalCompletedDate,
       postWorkoutComment: postWorkoutComment.trim(),
       moodRating: moodRating || undefined,
       selectedExercisesForModifiable: workout.isModifiable ? exercisesToLog : undefined,
@@ -521,14 +530,26 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
         
         {currentView === 'block_selection' && (
           <div className="space-y-6">
-            <header className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-3xl sm:text-4xl font-bold text-gray-800">{workout.title}</h1>
-                    <span className="inline-block bg-slate-200 text-slate-700 text-sm font-semibold px-3 py-1 rounded-full mt-2">
-                        Kategori: {workout.category}
-                    </span>
+            <header className="space-y-4">
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h1 className="text-3xl sm:text-4xl font-bold text-gray-800">{workout.title}</h1>
+                        <span className="inline-block bg-slate-200 text-slate-700 text-sm font-semibold px-3 py-1 rounded-full mt-2">
+                            Kategori: {workout.category}
+                        </span>
+                    </div>
+                    <Button onClick={handleAttemptClose} variant="secondary" className="whitespace-nowrap flex-shrink-0 !px-4 !text-base sm:!px-6 sm:!text-lg">Avsluta pass</Button>
                 </div>
-                <Button onClick={handleAttemptClose} variant="secondary" className="whitespace-nowrap flex-shrink-0 !px-4 !text-base sm:!px-6 sm:!text-lg">Avsluta pass</Button>
+                <div className="w-full sm:w-1/2">
+                    <Input
+                        label="Datum för passet"
+                        type="date"
+                        id="workout-date"
+                        value={completedDate}
+                        onChange={(e) => setCompletedDate(e.target.value)}
+                        max={new Date().toISOString().split('T')[0]}
+                    />
+                </div>
             </header>
             
             {aiTips?.generalTips && (
