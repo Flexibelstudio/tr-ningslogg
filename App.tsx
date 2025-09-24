@@ -80,27 +80,43 @@ const AppContent: React.FC = () => {
         return null;
     });
 
-    // --- NEW: Update Notice Logic ---
-    const UPDATE_NOTICE_KEY = 'updateNotice_v1_CalendarAndFab'; // Unique key for this update
+    // --- Update Notice Logic ---
+    const UPDATE_NOTICE_KEY = 'updateNotice_v1_CalendarAndFab'; // Unique key for this update version
+    const LAST_SEEN_UPDATE_KEY = 'flexibel_lastSeenUpdateNotice'; // Local storage key to track what the user has seen
     const [showUpdateNoticePopup, setShowUpdateNoticePopup] = useState(false);
     const [showLatestUpdateView, setShowLatestUpdateView] = useState(false);
+    const [hasUnreadUpdate, setHasUnreadUpdate] = useState(false); // State for the notification dot
 
     useEffect(() => {
-        // Show popup only for logged-in participants
         if (auth.user && auth.currentRole === UserRole.PARTICIPANT) {
-            const noticeShown = localStorage.getItem(UPDATE_NOTICE_KEY);
-            if (!noticeShown) {
-                // Use a timeout to ensure the main UI has rendered and settled
-                setTimeout(() => {
-                    setShowUpdateNoticePopup(true);
-                }, 1500);
+            // Logic for the one-time popup
+            const noticeShownForPopup = localStorage.getItem(UPDATE_NOTICE_KEY);
+            if (!noticeShownForPopup) {
+                setTimeout(() => setShowUpdateNoticePopup(true), 1500);
+            }
+
+            // Logic for the notification dot
+            const lastSeenVersion = localStorage.getItem(LAST_SEEN_UPDATE_KEY);
+            if (lastSeenVersion !== UPDATE_NOTICE_KEY) {
+                setHasUnreadUpdate(true);
             }
         }
-    }, [auth.user, auth.currentRole]); // Run when auth state changes
+    }, [auth.user, auth.currentRole]);
 
     const handleCloseUpdateNoticePopup = () => {
-        localStorage.setItem(UPDATE_NOTICE_KEY, 'true');
+        localStorage.setItem(UPDATE_NOTICE_KEY, 'true'); // Mark popup as shown
         setShowUpdateNoticePopup(false);
+        
+        // Also mark the update as seen to remove the dot
+        localStorage.setItem(LAST_SEEN_UPDATE_KEY, UPDATE_NOTICE_KEY);
+        setHasUnreadUpdate(false);
+    };
+
+    const handleOpenLatestUpdateView = () => {
+        setShowLatestUpdateView(true);
+        // Mark the update as seen to remove the dot
+        localStorage.setItem(LAST_SEEN_UPDATE_KEY, UPDATE_NOTICE_KEY);
+        setHasUnreadUpdate(false);
     };
     // --- END: Update Notice Logic ---
 
@@ -761,7 +777,7 @@ const AppContent: React.FC = () => {
         <div className="bg-gray-50 min-h-screen">
             <Navbar
                 onOpenProfile={handleOpenProfile}
-                onOpenLatestUpdate={() => setShowLatestUpdateView(true)}
+                onOpenLatestUpdate={handleOpenLatestUpdateView}
                 onOpenGoalModal={participantModalOpeners.openGoalModal}
                 onOpenCommunity={participantModalOpeners.openCommunityModal}
                 onOpenFlowModal={participantModalOpeners.openFlowModal}
@@ -769,6 +785,7 @@ const AppContent: React.FC = () => {
                 aiRecept={aiRecept}
                 pendingRequestsCount={pendingRequestsCount}
                 newFlowItemsCount={newFlowItemsCount}
+                hasUnreadUpdate={hasUnreadUpdate}
             />
             <OfflineBanner />
             <main>
