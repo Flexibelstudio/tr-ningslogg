@@ -124,13 +124,12 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
       {/* Gör sidan alltid scrollbar på små skärmar; centrerad på större skärmar */}
       <main className="min-h-screen flex flex-col sm:flex-row sm:items-center justify-center py-8 sm:py-12 px-4 overflow-y-auto">
         <div
-          className="bg-white p-6 sm:p-10 rounded-2xl shadow-2xl w-full max-w-lg space-y-4 animate-fade-in-down"
+          className="bg-white p-6 sm:p-10 rounded-2xl shadow-2xl w-full max-w-lg space-y-6 animate-fade-in-down"
           style={{ animationDelay: '0.1s' }}
         >
-          <div className="text-center mb-4 sm:mb-8">
-            <h2 className="text-3xl font-bold text-gray-800">
-              Välkommen till din <span className="text-flexibel">Träningslogg</span>
-            </h2>
+          <div className="text-center">
+            <img src="/icon-180x180.png" alt="Logotyp" className="mx-auto h-20 w-auto mb-4" />
+            <h1 className="text-3xl font-bold text-gray-800">Välkommen</h1>
             <p className="text-gray-600 mt-2">Skapa ditt konto nedan.</p>
           </div>
 

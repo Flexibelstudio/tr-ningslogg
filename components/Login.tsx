@@ -75,11 +75,12 @@ export const Login: React.FC<LoginProps> = ({ onSwitchToRegister }) => {
   };
 
   return (
-    <div className="sm:min-h-screen flex flex-col bg-dotted-pattern bg-dotted-size bg-gray-100">
+    <div className="min-h-screen flex flex-col bg-dotted-pattern bg-dotted-size bg-gray-100">
       <main className="flex-grow flex items-start sm:items-center justify-center py-12 px-4 overflow-y-auto">
-        <div className="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-md space-y-4 animate-fade-in-down" style={{ animationDelay: '0.1s' }}>
-          <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold text-gray-800">Välkommen tillbaka</h1>
+        <div className="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-md space-y-6 animate-fade-in-down" style={{ animationDelay: '0.1s' }}>
+          <div className="text-center">
+            <img src="/icon-180x180.png" alt="Logotyp" className="mx-auto h-20 w-auto mb-4" />
+            <h1 className="text-3xl font-bold text-gray-800">Välkommen tillbaka</h1>
           </div>
           {error && <p className="text-center bg-red-100 text-red-700 p-3 rounded-lg">{error}</p>}
           <form onSubmit={handleSubmit} className="space-y-6">
