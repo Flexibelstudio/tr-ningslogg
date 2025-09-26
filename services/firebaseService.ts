@@ -73,8 +73,8 @@ const firebaseService = {
     },
 
     async registerUserAndCreateProfiles(
-        { firstName, lastName, email, password, orgId, locationId }: 
-        { firstName: string, lastName: string, email: string, password: string, orgId: string, locationId: string }
+        { name, email, password, orgId, locationId }: 
+        { name: string, email: string, password: string, orgId: string, locationId: string }
     ): Promise<void> {
         if (isOffline) {
             // This is handled in AuthContext for offline mode
@@ -89,8 +89,7 @@ const firebaseService = {
         }
         
         const newParticipantProfile = {
-            firstName,
-            lastName,
+            name: name.trim(),
             email: email.toLowerCase(),
             isActive: false,
             isProspect: false,
@@ -102,8 +101,7 @@ const firebaseService = {
         };
 
         const newUserDoc = {
-            firstName,
-            lastName,
+            name: name.trim(),
             email: email.toLowerCase(),
             roles: { participant: orgId },
             linkedParticipantProfileId: firebaseUser.uid,

@@ -146,30 +146,19 @@ export const OVERALL_MOOD_OPTIONS = [
 ];
 
 export const WEIGHT_COMPARISONS: WeightComparisonItem[] = [
-    { name: 'Papegoja', pluralName: 'Papegojor', weightKg: 1.5, emoji: '🦜', article: 'en' },
     { name: 'Katt', pluralName: 'Katter', weightKg: 5, emoji: '🐈', article: 'en' },
-    { name: 'Räv', pluralName: 'Rävar', weightKg: 7, emoji: '🦊', article: 'en' },
-    { name: 'Mikrovågsugn', pluralName: 'Mikrovågsugnar', weightKg: 15, imageUrl: 'data:image/svg+xml;utf8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23475569\' stroke-width=\'1.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpath d=\'M2 5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5z\'%3E%3C/path%3E%3Cpath d=\'M15 5v14\'%3E%3C/path%3E%3Cpath d=\'M19 6h2\'%3E%3C/path%3E%3Cpath d=\'M19 10h2\'%3E%3C/path%3E%3Cpath d=\'M19 14h2\'%3E%3C/path%3E%3Cpath d=\'M5 8h6\'%3E%3C/path%3E%3Cpath d=\'M5 12h6\'%3E%3C/path%3E%3C/svg%3E', article: 'en' },
+    { name: 'Mikrovågsugn', pluralName: 'Mikrovågsugnar', weightKg: 15, emoji: ' microwave ', article: 'en' },
     { name: 'Golden Retriever', pluralName: 'Golden Retrievers', weightKg: 30, emoji: '🐕', article: 'en' },
-    { name: 'Pingvin', pluralName: 'Pingviner', weightKg: 35, emoji: '🐧', article: 'en' },
     { name: 'Jättesäck potatis', pluralName: 'Jättesäckar potatis', weightKg: 50, emoji: '🥔', article: 'en' },
     { name: 'Full öl-kagge', pluralName: 'Fulla öl-kaggar', weightKg: 60, emoji: '🍺', article: 'ett' },
     { name: 'Varg', pluralName: 'Vargar', weightKg: 70, emoji: '🐺', article: 'en' },
-    { name: 'Tvättmaskin', pluralName: 'Tvättmaskiner', weightKg: 70, imageUrl: 'data:image/svg+xml;utf8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23475569\' stroke-width=\'1.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Crect x=\'3\' y=\'3\' width=\'18\' height=\'18\' rx=\'2\' ry=\'2\'%3E%3C/rect%3E%3Ccircle cx=\'12\' cy=\'13\' r=\'5\'%3E%3C/circle%3E%3Cline x1=\'15\' y1=\'6\' x2=\'18\' y2=\'6\'%3E%3C/line%3E%3Cline x1=\'15\' y1=\'9\' x2=\'17\' y2=\'9\'%3E%3C/line%3E%3C/svg%3E', article: 'en' },
-    { name: 'Moped', pluralName: 'Mopeder', weightKg: 80, emoji: '🛵', article: 'en' },
     { name: 'Genomsnittlig man', pluralName: 'Genomsnittliga män', weightKg: 85, emoji: '👨', article: 'en' },
-    { name: 'Säl', pluralName: 'Sälar', weightKg: 100, imageUrl: 'data:image/svg+xml;utf8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23475569\' stroke-width=\'1.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpath d=\'M3.5 10.5c3.92-3.92 13.08-3.92 17 0V17c-4-2-10-2-14 0-1.78 0-2.89-.04-4-.5v-6Z\'%3E%3C/path%3E%3Cpath d=\'M2.5 10.5C2.5 9 5 8 5 8\'%3E%3C/path%3E%3Cpath d=\'M19 8s2.5 1 2.5 2.5\'%3E%3C/path%3E%3C/svg%3E', article: 'en' },
-    { name: 'Lama', pluralName: 'Lamor', weightKg: 150, emoji: '🦙', article: 'en' },
     { name: 'Gorilla', pluralName: 'Gorillor', weightKg: 160, emoji: '🦍', article: 'en' },
     { name: 'Lejon', pluralName: 'Lejon', weightKg: 190, emoji: '🦁', article: 'ett' },
     { name: 'Grizzlybjörn', pluralName: 'Grizzlybjörnar', weightKg: 270, emoji: '🐻', article: 'en' },
     { name: 'Häst', pluralName: 'Hästar', weightKg: 400, emoji: '🐎', article: 'en' },
-    { name: 'Älg', pluralName: 'Älgar', weightKg: 500, emoji: '🦌', article: 'en' },
     { name: 'Isbjörn', pluralName: 'Isbjörnar', weightKg: 600, emoji: '🐻‍❄️', article: 'en' },
-    { name: 'Smart Car', pluralName: 'Smart Cars', weightKg: 750, emoji: '🚗', article: 'en' },
     { name: 'Personbil', pluralName: 'Personbilar', weightKg: 1500, emoji: '🚗', article: 'en' },
-    { name: 'Narval', pluralName: 'Narvalar', weightKg: 1500, emoji: '🐋', article: 'en' },
-    { name: 'Elefant', pluralName: 'Elefanter', weightKg: 6000, emoji: '🐘', article: 'en' },
 ];
 
 export const FSS_CONFIG = {
@@ -271,6 +260,20 @@ export const CLUB_DEFINITIONS: ClubDefinition[] = [
   { id: 'sessions-250', name: '250 Pass-klubben', description: 'Du har loggat 250 pass! Vilken dedikation!', icon: '🌟', type: 'SESSION_COUNT', threshold: 250, comparison: 'GREATER_OR_EQUAL' },
   { id: 'sessions-500', name: '500 Pass-klubben', description: 'Du har loggat 500 pass! Du är en legend!', icon: '🏆', type: 'SESSION_COUNT', threshold: 500, comparison: 'GREATER_OR_EQUAL' },
 
+  // --- TOTAL VOLUME CLUBS ---
+  { id: 'volume-1000kg', name: '1 Ton-klubben', description: 'Du har lyft totalt 1000 kg under ett pass!', icon: '🏋️', type: 'TOTAL_VOLUME', threshold: 1000, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'volume-2000kg', name: '2 Ton-klubben', description: 'Du har lyft totalt 2000 kg under ett pass!', icon: '🏋️', type: 'TOTAL_VOLUME', threshold: 2000, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'volume-3000kg', name: '3 Ton-klubben', description: 'Du har lyft totalt 3000 kg under ett pass!', icon: '🏋️', type: 'TOTAL_VOLUME', threshold: 3000, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'volume-4000kg', name: '4 Ton-klubben', description: 'Du har lyft totalt 4000 kg under ett pass!', icon: '🏋️', type: 'TOTAL_VOLUME', threshold: 4000, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'volume-5000kg', name: '5 Ton-klubben', description: 'Starkt! Du har lyft 5000 kg under ett pass!', icon: '🚚', type: 'TOTAL_VOLUME', threshold: 5000, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'volume-6000kg', name: '6 Ton-klubben', description: 'Wow! Det är vikten av en stor lastbil!', icon: '🚛', type: 'TOTAL_VOLUME', threshold: 6000, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'volume-7000kg', name: 'Elefant-klubben', description: 'Otroligt! Du har lyft en fullvuxen elefant!', icon: '🐘', type: 'TOTAL_VOLUME', threshold: 7000, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'volume-8000kg', name: 'Moai-klubben', description: 'Du är stark som en stenstod från Påskön!', icon: '🗿', type: 'TOTAL_VOLUME', threshold: 8000, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'volume-9000kg', name: 'T-Rex-klubben', description: 'Förhistorisk styrka! Detta är vikten av en T-Rex!', icon: '🦖', type: 'TOTAL_VOLUME', threshold: 9000, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'volume-10000kg', name: '10 Ton-klubben', description: 'Vilken volym! 10 000 kg under ett pass är otroligt!', icon: '🚀', type: 'TOTAL_VOLUME', threshold: 10000, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'volume-20000kg', name: '20 Ton-klubben', description: 'Elitnivå! 20 000 kg under ett pass!', icon: '👑', type: 'TOTAL_VOLUME', threshold: 20000, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'volume-marathon', name: 'Maraton-klubben', description: 'Du har lyft ett volym-maraton! 42 195 kg på ett pass!', icon: '🏃💨', type: 'TOTAL_VOLUME', threshold: 42195, comparison: 'GREATER_OR_EQUAL' },
+
   // --- BENCH PRESS (Bänkpress) CLUBS ---
   { id: 'bench-30kg', name: '30kg Bänkpressklubben', description: 'Du har lyft 30 kg i bänkpress!', icon: '💪', type: 'LIFT', liftType: 'Bänkpress', threshold: 30, comparison: 'GREATER_OR_EQUAL' },
   { id: 'bench-40kg', name: '40kg Bänkpressklubben', description: 'Du har lyft 40 kg i bänkpress!', icon: '💪', type: 'LIFT', liftType: 'Bänkpress', threshold: 40, comparison: 'GREATER_OR_EQUAL' },
@@ -278,6 +281,9 @@ export const CLUB_DEFINITIONS: ClubDefinition[] = [
   { id: 'bench-60kg', name: '60kg Bänkpressklubben', description: 'Du har lyft 60 kg i bänkpress!', icon: '💪', type: 'LIFT', liftType: 'Bänkpress', threshold: 60, comparison: 'GREATER_OR_EQUAL' },
   { id: 'bench-75kg', name: '75kg Bänkpressklubben', description: 'Du har lyft 75 kg i bänkpress!', icon: '🎯', type: 'LIFT', liftType: 'Bänkpress', threshold: 75, comparison: 'GREATER_OR_EQUAL' },
   { id: 'bench-100kg', name: '100kg Bänkpressklubben', description: 'Du har lyft 100 kg i bänkpress!', icon: '🔥', type: 'LIFT', liftType: 'Bänkpress', threshold: 100, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'bench-110kg', name: '110kg Bänkpressklubben', description: 'Du har lyft 110 kg i bänkpress!', icon: '🚀', type: 'LIFT', liftType: 'Bänkpress', threshold: 110, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'bench-120kg', name: '120kg Bänkpressklubben', description: 'Du har lyft 120 kg i bänkpress!', icon: '🏆', type: 'LIFT', liftType: 'Bänkpress', threshold: 120, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'bench-140kg', name: '140kg Bänkpressklubben', description: 'Du har lyft 140 kg i bänkpress! Best-nivå!', icon: '👑', type: 'LIFT', liftType: 'Bänkpress', threshold: 140, comparison: 'GREATER_OR_EQUAL' },
   
   // --- SQUAT (Knäböj) CLUBS ---
   { id: 'squat-40kg', name: '40kg Knäböjklubben', description: 'Du har lyft 40 kg i knäböj!', icon: '🦵', type: 'LIFT', liftType: 'Knäböj', threshold: 40, comparison: 'GREATER_OR_EQUAL' },
@@ -287,6 +293,8 @@ export const CLUB_DEFINITIONS: ClubDefinition[] = [
   { id: 'squat-120kg', name: '120kg Knäböjklubben', description: 'Du har lyft 120 kg i knäböj!', icon: '🔥', type: 'LIFT', liftType: 'Knäböj', threshold: 120, comparison: 'GREATER_OR_EQUAL' },
   { id: 'squat-140kg', name: '140kg Knäböjklubben', description: 'Du har lyft 140 kg i knäböj!', icon: '🚀', type: 'LIFT', liftType: 'Knäböj', threshold: 140, comparison: 'GREATER_OR_EQUAL' },
   { id: 'squat-160kg', name: '160kg Knäböjklubben', description: 'Du har lyft 160 kg i knäböj!', icon: '🏆', type: 'LIFT', liftType: 'Knäböj', threshold: 160, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'squat-180kg', name: '180kg Knäböjklubben', description: 'Du har lyft 180 kg i knäböj!', icon: '👑', type: 'LIFT', liftType: 'Knäböj', threshold: 180, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'squat-200kg', name: '200kg Knäböjklubben', description: 'Du har lyft 200 kg i knäböj! Titan-nivå!', icon: '🔱', type: 'LIFT', liftType: 'Knäböj', threshold: 200, comparison: 'GREATER_OR_EQUAL' },
 
   // --- DEADLIFT (Marklyft) CLUBS ---
   { id: 'deadlift-60kg', name: '60kg Marklyftklubben', description: 'Du har lyft 60 kg i marklyft!', icon: '🏋️', type: 'LIFT', liftType: 'Marklyft', threshold: 60, comparison: 'GREATER_OR_EQUAL' },
@@ -295,6 +303,8 @@ export const CLUB_DEFINITIONS: ClubDefinition[] = [
   { id: 'deadlift-120kg', name: '120kg Marklyftklubben', description: 'Du har lyft 120 kg i marklyft!', icon: '🔥', type: 'LIFT', liftType: 'Marklyft', threshold: 120, comparison: 'GREATER_OR_EQUAL' },
   { id: 'deadlift-140kg', name: '140kg Marklyftklubben', description: 'Du har lyft 140 kg i marklyft!', icon: '🚀', type: 'LIFT', liftType: 'Marklyft', threshold: 140, comparison: 'GREATER_OR_EQUAL' },
   { id: 'deadlift-160kg', name: '160kg Marklyftklubben', description: 'Du har lyft 160 kg i marklyft!', icon: '🏆', type: 'LIFT', liftType: 'Marklyft', threshold: 160, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'deadlift-180kg', name: '180kg Marklyftklubben', description: 'Du har lyft 180 kg i marklyft!', icon: '👑', type: 'LIFT', liftType: 'Marklyft', threshold: 180, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'deadlift-200kg', name: '200kg Marklyftklubben', description: 'Du har lyft 200 kg i marklyft! Titan-nivå!', icon: '🔱', type: 'LIFT', liftType: 'Marklyft', threshold: 200, comparison: 'GREATER_OR_EQUAL' },
 
   // --- OVERHEAD PRESS (Axelpress) CLUBS ---
   { id: 'ohp-25kg', name: '25kg Axelpressklubben', description: 'Du har lyft 25 kg i axelpress!', icon: '💪', type: 'LIFT', liftType: 'Axelpress', threshold: 25, comparison: 'GREATER_OR_EQUAL' },
@@ -315,6 +325,9 @@ export const CLUB_DEFINITIONS: ClubDefinition[] = [
   { id: 'airbike-50kcal', name: '50 kcal Airbike 4 min', description: 'Du har nått 50 kcal på 4 minuter på Airbike!', icon: '💨', type: 'CONDITIONING', conditioningMetric: 'airbike4MinKcal', threshold: 50, comparison: 'GREATER_OR_EQUAL' },
   { id: 'airbike-60kcal', name: '60 kcal Airbike 4 min', description: 'Du har nått 60 kcal på 4 minuter på Airbike!', icon: '🔥', type: 'CONDITIONING', conditioningMetric: 'airbike4MinKcal', threshold: 60, comparison: 'GREATER_OR_EQUAL' },
   { id: 'airbike-70kcal', name: '70 kcal Airbike 4 min', description: 'Du har nått 70 kcal på 4 minuter på Airbike!', icon: '🔥', type: 'CONDITIONING', conditioningMetric: 'airbike4MinKcal', threshold: 70, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'airbike-80kcal', name: '80 kcal Airbike 4 min', description: 'Du har nått 80 kcal på 4 minuter på Airbike!', icon: '🔥', type: 'CONDITIONING', conditioningMetric: 'airbike4MinKcal', threshold: 80, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'airbike-90kcal', name: '90 kcal Airbike 4 min', description: 'Du har nått 90 kcal på 4 minuter på Airbike!', icon: '🚀', type: 'CONDITIONING', conditioningMetric: 'airbike4MinKcal', threshold: 90, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'airbike-100kcal', name: '100 kcal Airbike 4 min', description: 'Du har nått den mytomspunna 100 kcal på 4 minuter!', icon: '🤯', type: 'CONDITIONING', conditioningMetric: 'airbike4MinKcal', threshold: 100, comparison: 'GREATER_OR_EQUAL' },
 
   // Rower
   { id: 'rower-2k-sub8', name: 'Sub 8:00 2000m Rodd', description: 'Du har rott 2000m under 8 minuter!', icon: '🚣', type: 'CONDITIONING', conditioningMetric: 'rower2000mTimeSeconds', threshold: 480, comparison: 'LESS_OR_EQUAL' },

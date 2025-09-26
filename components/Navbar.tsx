@@ -22,6 +22,7 @@ interface NavbarProps {
   aiRecept?: string | null;
   newFlowItemsCount?: number;
   pendingRequestsCount?: number;
+  hasUnreadUpdate?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
@@ -33,7 +34,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     onOpenLatestUpdate, 
     aiRecept, 
     newFlowItemsCount, 
-    pendingRequestsCount 
+    pendingRequestsCount,
+    hasUnreadUpdate,
 }) => {
   const { user, logout, isImpersonating, stopImpersonating, isStaffViewingAsParticipant, viewAsParticipant, stopViewingAsParticipant, organizationId, currentParticipantId, currentRole } = useAuth();
   const { staffMembers, participantDirectory, allOrganizations, branding } = useAppContext();
@@ -145,7 +147,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="relative" ref={menuRef}>
                 <button
                     onClick={() => setIsMenuOpen(prev => !prev)}
-                    className="rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel transition-transform duration-200 hover:scale-105"
+                    className="relative rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel transition-transform duration-200 hover:scale-105"
                     aria-haspopup="true"
                     aria-expanded={isMenuOpen}
                     aria-label="Öppna användarmeny"
@@ -155,6 +157,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                         photoURL={currentUserProfile?.photoURL} 
                         className="h-9 w-9"
                     />
+                    {hasUnreadUpdate && (
+                        <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
+                    )}
                 </button>
                 {isMenuOpen && (
                     <div
@@ -189,12 +194,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 Redigera Profil
                             </MenuItem>
 
-                             <MenuItem onClick={handleOpenLatestUpdate}>
+                             <button
+                                onClick={handleOpenLatestUpdate}
+                                className="w-full text-left px-4 py-2 text-base text-gray-700 hover:bg-gray-100 hover:text-gray-900 flex items-center gap-3 transition-colors"
+                                role="menuitem"
+                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
-                                Senaste uppdateringen
-                            </MenuItem>
+                                <span className="flex-grow">Senaste uppdateringen</span>
+                                {hasUnreadUpdate && (
+                                    <span className="block h-2 w-2 rounded-full bg-red-500" />
+                                )}
+                            </button>
 
                             {(user.roles.orgAdmin || user.roles.systemOwner) && user.linkedParticipantProfileId && (
                                 <MenuItem onClick={handleSwitchView}>

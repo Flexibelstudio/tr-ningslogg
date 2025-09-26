@@ -234,7 +234,7 @@ export const ClubsView: React.FC<ClubsViewProps> = ({
         if (activeTab === 'mina-klubbar') {
             clubs = CLUB_DEFINITIONS.filter(c => myHighestClubIds.has(c.id));
         } else if (activeTab === 'styrka') {
-            clubs = CLUB_DEFINITIONS.filter(c => c.type === 'LIFT' || c.type === 'BODYWEIGHT_LIFT');
+            clubs = CLUB_DEFINITIONS.filter(c => c.type === 'LIFT' || c.type === 'BODYWEIGHT_LIFT' || c.type === 'TOTAL_VOLUME');
         } else if (activeTab === 'kondition') {
             clubs = CLUB_DEFINITIONS.filter(c => c.type === 'CONDITIONING');
         } else if (activeTab === 'pass') {

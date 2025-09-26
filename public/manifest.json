@@ -4,7 +4,7 @@
   "description": "Din digitala träningspartner från Flexibel Hälsostudio.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
+  "background_color": "#ffffff",
   "theme_color": "#3bab5a",
   "icons": [
     {
