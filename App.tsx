@@ -81,7 +81,7 @@ const AppContent: React.FC = () => {
     });
 
     // --- Update Notice Logic ---
-    const UPDATE_NOTICE_KEY = 'updateNotice_v1_CalendarAndFab'; // Unique key for this update version
+    const UPDATE_NOTICE_KEY = 'updateNotice_v2_BackdateAndClubs'; // Unique key for this update version
     const LAST_SEEN_UPDATE_KEY = 'flexibel_lastSeenUpdateNotice'; // Local storage key to track what the user has seen
     const [showUpdateNoticePopup, setShowUpdateNoticePopup] = useState(false);
     const [showLatestUpdateView, setShowLatestUpdateView] = useState(false);
