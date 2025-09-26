@@ -1385,7 +1385,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                     </div>
                 </div>
                 
-                {participantProfile && !participantProfile.isProspect && (
+                {participantProfile && (
                     <FabMenu
                         isOpen={isFabMenuOpen}
                         onToggle={handleFabPrimaryAction}
@@ -1401,161 +1401,95 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                         onOpenQrScanner={(mode) => setIsQrScannerOpen(true)}
                         workoutCategories={workoutCategories}
                         myWorkoutLogs={myWorkoutLogs}
+                        isProspect={participantProfile?.isProspect}
                     />
                 )}
             </div>
         )}
-        
-        {/* MODALS */}
-        <Modal
-            isOpen={showResumeModal}
-            onClose={() => setShowResumeModal(false)}
-            title="Pågående pass"
-        >
-            <div className="space-y-4">
-                <p className="text-lg">Du har ett oavslutat pass, "{inProgressWorkout?.workoutTitle}". Vad vill du göra?</p>
-                <div className="flex flex-col gap-3 pt-4">
-                    <Button size="lg" variant="primary" onClick={handleResumeWorkout}>
-                        Fortsätt pågående pass
-                    </Button>
-                    <Button size="lg" variant="danger" onClick={() => {
-                        handleDeleteInProgressWorkout();
-                        setShowResumeModal(false);
-                        if (workoutIntent) {
-                            setWorkoutCategoryFilter(workoutIntent);
-                            setIsSelectWorkoutModalOpen(true);
-                        }
-                        setWorkoutIntent(null);
-                    }}>
-                        Starta nytt pass (radera utkast)
-                    </Button>
-                    <Button size="lg" variant="secondary" onClick={() => setShowResumeModal(false)}>
-                        Avbryt
-                    </Button>
-                </div>
-            </div>
-        </Modal>
-        <ConfirmationModal
-            isOpen={showDeleteConfirm}
-            onClose={() => setShowDeleteConfirm(false)}
-            onConfirm={() => {
-                handleDeleteInProgressWorkout();
-                setShowDeleteConfirm(false);
+        <InstallPwaBanner />
+        <AchievementToast achievement={newlyAchievedClub} onClose={() => setNewlyAchievedClub(null)} />
+        <FeedbackPromptToast 
+            isOpen={showFeedbackPrompt} 
+            onAccept={() => {
+                setShowFeedbackPrompt(false);
+                setIsAiFeedbackModalOpen(true);
             }}
-            title="Ta bort pågående pass?"
-            message="Är du säker? Alla loggade data för detta pass kommer att raderas permanent."
-            confirmButtonText="Ja, ta bort"
-            confirmButtonVariant="danger"
+            onDecline={() => setShowFeedbackPrompt(false)}
+            message="Vill du ha personlig feedback från AI-coachen baserat på ditt senaste pass?"
         />
-        {isPostWorkoutSummaryModalOpen && logForSummaryModal && (
-            <PostWorkoutSummaryModal
-                isOpen={isPostWorkoutSummaryModalOpen}
-                onFinalize={handleFinalizePostWorkoutSummary}
-                log={logForSummaryModal}
-                workout={workoutForSummaryModal}
-                onEditLog={handleEditLogFromSummary}
-                isNewCompletion={isNewCompletion}
-            />
-        )}
-        <LogGeneralActivityModal
-            isOpen={isLogGeneralActivityModalOpen}
-            onClose={() => setIsLogGeneralActivityModalOpen(false)}
-            onSaveActivity={handleSaveGeneralActivity}
-        />
-        <GeneralActivitySummaryModal
-            isOpen={isGeneralActivitySummaryOpen}
-            onClose={handleFinalizeGeneralActivitySummary}
-            activity={lastGeneralActivity}
-        />
-        <AIProgressFeedbackModal
-            isOpen={isAiFeedbackModalOpen}
+        <AIProgressFeedbackModal 
+            isOpen={isAiFeedbackModalOpen} 
             onClose={() => setIsAiFeedbackModalOpen(false)}
             isLoading={isLoadingAiFeedback}
             aiFeedback={aiFeedback}
             error={aiFeedbackError}
             modalTitle={currentAiModalTitle}
         />
-        <Modal 
-            isOpen={isAiReceptModalOpen} 
-            onClose={() => setIsAiReceptModalOpen(false)} 
-            title="Ditt AI Recept" 
-            size="lg"
-        >
-            <div className="max-h-[70vh] overflow-y-auto pr-2">
-                {renderFormattedMarkdown(latestActiveGoal?.aiPrognosis || "Inget recept har genererats för ditt nuvarande mål.")}
-            </div>
-        </Modal>
-
-        {preWorkoutData && ai && isOnline && (
-            <AIAssistantModal
-                isOpen={isAIAssistantModalOpen}
-                onClose={() => {
-                    setIsAIAssistantModalOpen(false);
-                    setPreWorkoutData(null);
-                }}
-                onContinue={handleContinueFromAIAssistant}
-                ai={ai}
-                workout={preWorkoutData.workout}
-                previousLog={preWorkoutData.previousLog}
-                participant={participantProfile!}
-                allWorkouts={workouts}
-            />
-        )}
-        
-        <SelectWorkoutModal
-          isOpen={isSelectWorkoutModalOpen}
-          onClose={() => setIsSelectWorkoutModalOpen(false)}
-          workouts={workouts}
-          onStartWorkout={handleStartWorkout}
-          categoryFilter={workoutCategoryFilter}
-          membership={myMembership}
-          onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
-          currentParticipantId={currentParticipantId}
-          isProspect={participantProfile?.isProspect}
+        <PostWorkoutSummaryModal 
+            isOpen={isPostWorkoutSummaryModalOpen} 
+            onFinalize={handleFinalizePostWorkoutSummary} 
+            log={logForSummaryModal}
+            workout={workoutForSummaryModal}
+            onEditLog={handleEditLogFromSummary}
+            isNewCompletion={isNewCompletion}
         />
-
+        <LogGeneralActivityModal 
+            isOpen={isLogGeneralActivityModalOpen}
+            onClose={() => setIsLogGeneralActivityModalOpen(false)}
+            onSaveActivity={handleSaveGeneralActivity}
+        />
+        <GeneralActivitySummaryModal 
+            isOpen={isGeneralActivitySummaryOpen}
+            onClose={handleFinalizeGeneralActivitySummary}
+            activity={lastGeneralActivity}
+        />
+         <SelectWorkoutModal
+            isOpen={isSelectWorkoutModalOpen}
+            onClose={() => setIsSelectWorkoutModalOpen(false)}
+            workouts={workouts}
+            onStartWorkout={handleStartWorkout}
+            categoryFilter={workoutCategoryFilter}
+            membership={myMembership}
+            onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
+            currentParticipantId={currentParticipantId}
+            isProspect={participantProfile?.isProspect}
+        />
         <ExerciseSelectionModal
             isOpen={isExerciseSelectionModalOpen}
             onClose={() => setIsExerciseSelectionModalOpen(false)}
             options={workoutForExerciseSelection?.exerciseSelectionOptions}
             onConfirm={handleExerciseSelectionConfirm}
         />
-
         <MentalWellbeingModal
-          isOpen={isMentalCheckinOpen}
-          onClose={() => setIsMentalCheckinOpen(false)}
-          currentWellbeing={myMentalWellbeing || null}
-          participantId={currentParticipantId}
-          onSave={(data) => {
-            setParticipantMentalWellbeing(prev => {
-                const existingIndex = prev.findIndex(item => item.id === data.id);
-                if (existingIndex > -1) {
-                    const newState = [...prev];
-                    newState[existingIndex] = data;
-                    return newState;
-                }
-                return [...prev, data];
-            });
-          }}
+            isOpen={isMentalCheckinOpen}
+            onClose={() => setIsMentalCheckinOpen(false)}
+            currentWellbeing={myMentalWellbeing || null}
+            participantId={participantProfile?.id}
+            onSave={(wellbeingData) => {
+                setParticipantMentalWellbeing(prev => {
+                    const existing = prev.find(w => w.id === wellbeingData.id);
+                    if (existing) {
+                        return prev.map(w => w.id === wellbeingData.id ? wellbeingData : w);
+                    }
+                    return [...prev, wellbeingData];
+                });
+            }}
         />
-
         <ProfileModal
-          isOpen={isProfileModalOpen}
-          onClose={() => setIsProfileModalOpen(false)}
-          currentProfile={participantProfile || null}
-          onSave={handleSaveProfile}
-          locations={locations}
+            isOpen={isProfileModalOpen}
+            onClose={() => setIsProfileModalOpen(false)}
+            currentProfile={participantProfile}
+            onSave={handleSaveProfile}
+            locations={locations}
         />
-        
         <GoalModal
-          isOpen={isGoalModalOpen}
-          onClose={() => setIsGoalModalOpen(false)}
-          currentGoalForForm={latestActiveGoal}
-          allParticipantGoals={myParticipantGoals}
-          onSave={handleSaveGoals}
-          isOnline={isOnline}
+            isOpen={isGoalModalOpen}
+            onClose={() => setIsGoalModalOpen(false)}
+            currentGoalForForm={latestActiveGoal}
+            allParticipantGoals={myParticipantGoals}
+            onSave={handleSaveGoals}
+            isOnline={isOnline}
         />
-
         <StrengthComparisonModal
             isOpen={isStrengthModalOpen}
             onClose={() => setIsStrengthModalOpen(false)}
@@ -1566,7 +1500,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             onSaveStrengthStats={(stats) => setUserStrengthStats(prev => [...prev.filter(s => s.participantId !== currentParticipantId), stats])}
             onOpenPhysiqueModal={handleOpenPhysiqueFromStrength}
         />
-        
         <ConditioningStatsModal
             isOpen={isConditioningModalOpen}
             onClose={() => setIsConditioningModalOpen(false)}
@@ -1578,12 +1511,10 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                     id: crypto.randomUUID(),
                     participantId: currentParticipantId,
                     ...statsData,
-                    lastUpdated: new Date().toISOString(),
                 };
                 setUserConditioningStatsHistory(prev => [...prev, newStat]);
             }}
         />
-        
         <PhysiqueManagerModal
             isOpen={isPhysiqueModalOpen}
             onClose={() => setIsPhysiqueModalOpen(false)}
@@ -1599,17 +1530,15 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 updateParticipantProfile(currentParticipantId, physiqueData);
             }}
         />
-
         <CommunityModal
-          isOpen={isCommunityModalOpen}
-          onClose={() => setIsCommunityModalOpen(false)}
-          currentParticipantId={currentParticipantId}
-          allParticipants={participantDirectory}
-          connections={connections}
-          setConnections={setConnections}
+            isOpen={isCommunityModalOpen}
+            onClose={() => setIsCommunityModalOpen(false)}
+            currentParticipantId={currentParticipantId}
+            allParticipants={participantDirectory}
+            connections={connections}
+            setConnections={setConnections}
         />
-        
-        <FlowModal
+        <FlowModal 
             isOpen={isFlowModalOpen}
             onClose={() => {
                 setIsFlowModalOpen(false);
@@ -1636,9 +1565,62 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             locations={locations}
             userConditioningStatsHistory={userConditioningStatsHistory}
         />
-        
+        <UpgradeModal
+            isOpen={isUpgradeModalOpen}
+            onClose={() => setIsUpgradeModalOpen(false)}
+        />
+        <UpgradeModal
+            isOpen={isAiUpsellModalOpen}
+            onClose={() => setIsAiUpsellModalOpen(false)}
+            title="Uppgradera för AI-recept!"
+        >
+            <p className="text-lg text-gray-600">
+                Funktionen för att få ett AI-genererat recept för att nå ditt mål är en del av våra premium-medlemskap.
+            </p>
+        </UpgradeModal>
+        {integrationSettings.isBookingEnabled &&
+            <BookingView
+                isOpen={isBookingModalOpen}
+                onClose={() => setIsBookingModalOpen(false)}
+                schedules={groupClassSchedules}
+                definitions={groupClassDefinitions}
+                bookings={allParticipantBookings}
+                staff={staffMembers}
+                onBookClass={onBookClass}
+                onCancelBooking={onCancelBooking}
+                currentParticipantId={currentParticipantId}
+                participantProfile={participantProfile}
+                integrationSettings={integrationSettings}
+                membership={myMembership}
+                onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
+            />
+        }
+        <QrScannerModal
+            isOpen={isQrScannerOpen}
+            onClose={() => setIsQrScannerOpen(false)}
+            onWorkoutScan={(workoutData) => {
+                const tempWorkout: Workout = {
+                    ...workoutData,
+                    id: crypto.randomUUID(),
+                    isPublished: false,
+                    isModifiable: true,
+                };
+                handleStartWorkout(tempWorkout);
+            }}
+            onCheckinScan={(checkinData) => {
+                onCheckInParticipant(checkinData.locationId);
+                setCheckinSuccess(true);
+            }}
+        />
+        {participantProfile &&
+            <CheckinConfirmationModal
+                isOpen={checkinSuccess}
+                onClose={() => setCheckinSuccess(false)}
+                participantName={participantProfile.name || "Medlem"}
+            />
+        }
         {selectedSessionForModal && (
-            <MeetingDetailsModal 
+            <MeetingDetailsModal
                 isOpen={!!selectedSessionForModal}
                 onClose={() => setSelectedSessionForModal(null)}
                 session={selectedSessionForModal}
@@ -1649,69 +1631,32 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 onToggleCommentReaction={onToggleCommentReaction}
             />
         )}
-        
-        <UpgradeModal isOpen={isUpgradeModalOpen} onClose={() => setIsUpgradeModalOpen(false)} />
-        <UpgradeModal isOpen={isAiUpsellModalOpen} onClose={() => setIsAiUpsellModalOpen(false)} title="AI-coach ingår i ditt medlemskap" message="AI-coachen är en del av medlemskapet och kan inte användas med klippkort." />
-
-        <BookingView 
-            isOpen={isBookingModalOpen}
-            onClose={() => setIsBookingModalOpen(false)}
-            schedules={groupClassSchedules}
-            definitions={groupClassDefinitions}
-            bookings={allParticipantBookings}
-            staff={staffMembers}
-            onBookClass={onBookClass}
-            onCancelBooking={onCancelBooking}
-            currentParticipantId={currentParticipantId}
-            participantProfile={participantProfile}
-            integrationSettings={integrationSettings}
-            membership={myMembership}
-            onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
+        <ConfirmationModal
+            isOpen={showResumeModal}
+            onClose={() => setShowResumeModal(false)}
+            onConfirm={handleResumeWorkout}
+            title="Fortsätta påbörjat pass?"
+            message={
+                <>
+                  <p>Du har ett påbörjat pass: "{inProgressWorkout?.workoutTitle}".</p>
+                  <p className="mt-2">Vill du fortsätta logga det eller starta ett nytt pass från kategorin '{workoutIntent}'?</p>
+                </>
+            }
+            confirmButtonText="Fortsätt passet"
+            cancelButtonText="Starta nytt"
         />
-        
-        <QrScannerModal 
-            isOpen={isQrScannerOpen}
-            onClose={() => setIsQrScannerOpen(false)}
-            onWorkoutScan={(workoutData) => {
-                const tempWorkout: Workout = {
-                    ...workoutData,
-                    id: crypto.randomUUID(),
-                    isPublished: false,
-                };
-                handleStartWorkout(tempWorkout);
+         <ConfirmationModal
+            isOpen={showDeleteConfirm}
+            onClose={() => setShowDeleteConfirm(false)}
+            onConfirm={() => {
+                handleDeleteInProgressWorkout();
+                setShowDeleteConfirm(false);
             }}
-            onCheckinScan={(checkinData) => {
-                onCheckInParticipant(checkinData.locationId); 
-                setCheckinSuccess(true);
-            }}
-        />
-        
-        <CheckinConfirmationModal 
-            isOpen={checkinSuccess}
-            onClose={() => setCheckinSuccess(false)}
-            participantName={participantProfile?.name || ''}
-        />
-        
-        <AchievementToast 
-            achievement={newlyAchievedClub} 
-            onClose={() => setNewlyAchievedClub(null)} 
-        />
-        
-        <InstallPwaBanner />
-
-        <FeedbackPromptToast 
-            isOpen={showFeedbackPrompt}
-            onAccept={() => {
-            setShowFeedbackPrompt(false);
-            setLastFeedbackPromptTime(Date.now());
-            setIsAiFeedbackModalOpen(true);
-            }}
-            onDecline={() => {
-            setShowFeedbackPrompt(false);
-            setLastFeedbackPromptTime(Date.now());
-            }}
-            message="Vill du ha lite feedback från din AI-coach på den senaste tidens träning?"
+            title="Ta bort utkast?"
+            message={`Är du säker på att du vill ta bort det pågående utkastet för "${inProgressWorkout?.workoutTitle}"? Detta kan inte ångras.`}
+            confirmButtonText="Ja, ta bort"
+            cancelButtonText="Avbryt"
         />
     </div>
-  );
+    );
 };
