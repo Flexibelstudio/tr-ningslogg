@@ -17,6 +17,15 @@ export const UpdateNoticeModal: React.FC<UpdateNoticeModalProps> = ({ show, onCl
 
         <div className="space-y-4 pt-2">
             <div className="flex items-start gap-4">
+                <span className="text-3xl mt-1">🤖</span>
+                <div>
+                    <h4 className="font-semibold text-gray-800 text-lg">Prata med din AI-Coach!</h4>
+                    <p className="text-base">
+                        Klicka på plus-knappen (+) och välj 'Fråga Coachen' för att chatta direkt med vår AI. Få personliga rekommendationer och svar på dina frågor, när som helst.
+                    </p>
+                </div>
+            </div>
+            <div className="flex items-start gap-4">
                 <span className="text-3xl mt-1">🗓️</span>
                 <div>
                     <h4 className="font-semibold text-gray-800 text-lg">Missat att logga ett pass?</h4>

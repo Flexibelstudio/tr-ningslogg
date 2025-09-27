@@ -81,7 +81,7 @@ const AppContent: React.FC = () => {
     });
 
     // --- Update Notice Logic ---
-    const UPDATE_NOTICE_KEY = 'updateNotice_v2_BackdateAndClubs'; // Unique key for this update version
+    const UPDATE_NOTICE_KEY = 'updateNotice_v3_AICoach'; // Unique key for this update version
     const LAST_SEEN_UPDATE_KEY = 'flexibel_lastSeenUpdateNotice'; // Local storage key to track what the user has seen
     const [showUpdateNoticePopup, setShowUpdateNoticePopup] = useState(false);
     const [showLatestUpdateView, setShowLatestUpdateView] = useState(false);
@@ -616,7 +616,6 @@ const AppContent: React.FC = () => {
 
     useEffect(() => {
         if (auth.currentRole === UserRole.PARTICIPANT && auth.currentParticipantId && participantDirectory.length > 0) {
-            const profile = participantDirectory.find(p => p.id === auth.currentParticipantId);
     
             // Welcome modal logic
             if (!welcomeModalShown) {
@@ -624,8 +623,9 @@ const AppContent: React.FC = () => {
             }
     
             // New logic for initial profile modal for prospects
-            if (profile?.isProspect) {
-                const isProfileComplete = !!(profile.age && profile.gender && profile.gender !== '-');
+            if (participantDirectory.find(p => p.id === auth.currentParticipantId)?.isProspect) {
+                const profile = participantDirectory.find(p => p.id === auth.currentParticipantId);
+                const isProfileComplete = !!(profile?.age && profile?.gender && profile?.gender !== '-');
                 if (!isProfileComplete) {
                     const hasBeenShown = prospectModalShownKey ? localStorage.getItem(prospectModalShownKey) === 'true' : false;
                     if (!hasBeenShown) {
