@@ -53,6 +53,7 @@ import { useNetworkStatus } from '../../context/NetworkStatusContext';
 import { InstallPwaBanner } from './InstallPwaBanner';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { AchievementToast } from './AchievementToast';
+import { AICoachModal } from './AICoachModal';
 
 
 const API_KEY = process.env.API_KEY;
@@ -437,6 +438,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   const [aiFeedbackError, setAiFeedbackError] = useState<string | null>(null);
   const [currentAiModalTitle, setCurrentAiModalTitle] = useState("Feedback"); 
   const [isAiReceptModalOpen, setIsAiReceptModalOpen] = useState(false);
+  const [isAICoachModalOpen, setIsAICoachModalOpen] = useState(false);
 
   const [isAIAssistantModalOpen, setIsAIAssistantModalOpen] = useState(false);
   const [preWorkoutData, setPreWorkoutData] = useState<{ workout: Workout, previousLog: WorkoutLog } | null>(null);
@@ -831,6 +833,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   
   const latestPhysique = useMemo(() => {
       if (myPhysiqueHistory.length === 0) return null;
+      // FIX: The sort function was comparing 'b.lastUpdated' with 'a.setDate', which does not exist on ParticipantPhysiqueStat. Corrected to use 'a.lastUpdated'.
       return [...myPhysiqueHistory].sort((a,b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
   }, [myPhysiqueHistory]);
 
@@ -1402,6 +1405,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                         workoutCategories={workoutCategories}
                         myWorkoutLogs={myWorkoutLogs}
                         isProspect={participantProfile?.isProspect}
+                        onOpenAICoachModal={() => setIsAICoachModalOpen(true)}
                     />
                 )}
             </div>
@@ -1656,6 +1660,16 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             message={`Är du säker på att du vill ta bort det pågående utkastet för "${inProgressWorkout?.workoutTitle}"? Detta kan inte ångras.`}
             confirmButtonText="Ja, ta bort"
             cancelButtonText="Avbryt"
+        />
+        <AICoachModal
+            isOpen={isAICoachModalOpen}
+            onClose={() => setIsAICoachModalOpen(false)}
+            ai={ai}
+            participantProfile={participantProfile}
+            myWorkoutLogs={myWorkoutLogs}
+            myGeneralActivityLogs={myGeneralActivityLogs}
+            latestGoal={latestActiveGoal}
+            allWorkouts={workouts}
         />
     </div>
     );

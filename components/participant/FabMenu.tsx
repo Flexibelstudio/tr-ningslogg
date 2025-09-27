@@ -18,6 +18,7 @@ interface FabMenuProps {
   workoutCategories: WorkoutCategoryDefinition[];
   isProspect?: boolean;
   myWorkoutLogs: WorkoutLog[];
+  onOpenAICoachModal: () => void;
 }
 
 // Icons
@@ -34,7 +35,7 @@ const categoryIcons: Record<string, React.ReactNode> = {
 };
 
 
-export const FabMenu: React.FC<FabMenuProps> = ({ isOpen, onToggle, onClose, workouts, currentParticipantId, onAttemptLogWorkout, onOpenLogGeneralActivityModal, membership, onOpenUpgradeModal, onOpenBookingModal, integrationSettings, onOpenQrScanner, workoutCategories, isProspect, myWorkoutLogs }) => {
+export const FabMenu: React.FC<FabMenuProps> = ({ isOpen, onToggle, onClose, workouts, currentParticipantId, onAttemptLogWorkout, onOpenLogGeneralActivityModal, membership, onOpenUpgradeModal, onOpenBookingModal, integrationSettings, onOpenQrScanner, workoutCategories, isProspect, myWorkoutLogs, onOpenAICoachModal }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
   const handleLogGeneralActivity = () => {
@@ -124,8 +125,16 @@ export const FabMenu: React.FC<FabMenuProps> = ({ isOpen, onToggle, onClose, wor
         return a.label.localeCompare(b.label, 'sv');
     });
 
+    actions.push({
+        key: 'ask-ai-coach',
+        label: 'Fråga Coachen',
+        icon: <span className="text-lg">✨</span>,
+        onClick: () => { onOpenAICoachModal(); onClose(); },
+        isRestricted: false,
+    });
+
     return actions;
-}, [isProspect, integrationSettings, workoutCategories, myWorkoutLogs, workouts, currentParticipantId, membership, onOpenUpgradeModal, onAttemptLogWorkout, onClose, onOpenLogGeneralActivityModal, onOpenBookingModal, onOpenQrScanner]);
+}, [isProspect, integrationSettings, workoutCategories, myWorkoutLogs, workouts, currentParticipantId, membership, onOpenUpgradeModal, onAttemptLogWorkout, onClose, onOpenLogGeneralActivityModal, onOpenBookingModal, onOpenQrScanner, onOpenAICoachModal]);
 
   return (
     <>
