@@ -44,18 +44,19 @@ export const FabMenu: React.FC<FabMenuProps> = ({ isOpen, onToggle, onClose, wor
   };
 
   const menuItems = useMemo(() => {
-    if (isProspect) {
-      const { startProgramCategoryId, startProgramSessionsRequired } = integrationSettings;
-      const category = workoutCategories.find(c => c.id === startProgramCategoryId);
+    const { startProgramCategoryId, startProgramSessionsRequired } = integrationSettings;
+    const startProgramCategory = workoutCategories.find(c => c.id === startProgramCategoryId);
+
+    if (isProspect && startProgramCategory) {
       const requiredCount = startProgramSessionsRequired || 0;
 
-      if (!category || requiredCount <= 0) {
+      if (requiredCount <= 0) {
         return [{ key: 'locked', label: 'Startprogram ej konfigurerat', icon: '🔒', onClick: () => alert('Startprogrammet är inte fullständigt konfigurerat av en coach.'), isLocked: true }];
       }
 
       const completedCount = myWorkoutLogs.filter(log => {
         const workout = workouts.find(w => w.id === log.workoutId);
-        return workout?.category === category.name;
+        return workout?.category === startProgramCategory.name;
       }).length;
       
       const isCompleted = completedCount >= requiredCount;
@@ -64,11 +65,11 @@ export const FabMenu: React.FC<FabMenuProps> = ({ isOpen, onToggle, onClose, wor
         return [{ key: 'completed', label: 'Startprogram slutfört!', icon: '✅', onClick: () => alert('Grattis, du har slutfört startprogrammet! Kontakta din coach för nästa steg.'), isLocked: true }];
       } else {
         return [{
-            key: `log-${category.name}`,
-            label: `Logga ${category.name} (${completedCount}/${requiredCount})`,
-            icon: categoryIcons[category.name] || '🤸‍♀️',
+            key: `log-${startProgramCategory.name}`,
+            label: `Logga ${startProgramCategory.name} (${completedCount}/${requiredCount})`,
+            icon: categoryIcons[startProgramCategory.name] || '🤸‍♀️',
             onClick: () => {
-                onAttemptLogWorkout(category.name);
+                onAttemptLogWorkout(startProgramCategory.name);
                 onClose();
             },
             isLocked: false,

@@ -151,12 +151,8 @@ export const SelectWorkoutModal: React.FC<SelectWorkoutModalProps> = ({
 
   if (categoryFilter === 'Personligt program') {
     personalWorkouts = workouts.filter(w => w.assignedToParticipantId === currentParticipantId);
-  } else if (categoryFilter === 'PT-bas') {
-    // FIX: This explicit check ensures 'PT-bas' is always handled correctly for all users,
-    // resolving the issue where a faulty conditional was preventing regular members from seeing these workouts.
-    generalWorkouts = workouts.filter(w => w.isPublished && !w.assignedToParticipantId && w.category === 'PT-bas');
   } else if (categoryFilter) {
-    // Logic for other categories remains the same.
+    // When a specific category like 'PT-bas' is selected, ONLY show workouts from that category.
     generalWorkouts = workouts.filter(w => w.isPublished && !w.assignedToParticipantId && w.category === categoryFilter);
   }
 
