@@ -149,17 +149,18 @@ export const SelectWorkoutModal: React.FC<SelectWorkoutModalProps> = ({
   let personalWorkouts: Workout[] = [];
   let generalWorkouts: Workout[] = [];
 
+  // Filter for personal programs
   if (categoryFilter === 'Personligt program') {
     personalWorkouts = workouts.filter(w => w.assignedToParticipantId === currentParticipantId);
-  } else if (categoryFilter) {
-    // When a specific category like 'PT-bas' is selected, ONLY show workouts from that category.
+  } 
+  // Filter for general, published workouts of the selected category.
+  // This simple filter ensures ALL workouts are shown, regardless of log history.
+  else if (categoryFilter) {
     generalWorkouts = workouts.filter(w => w.isPublished && !w.assignedToParticipantId && w.category === categoryFilter);
   }
 
+  // Handle membership restrictions
   const workoutsWithRestriction = generalWorkouts.map(w => {
-      if (isProspect) {
-        return { ...w, isRestricted: false };
-      }
       const isSubscriptionRestricted = membership?.type === 'subscription' && w.category !== 'Personligt program' && (membership?.restrictedCategories?.includes(w.category) || false);
       const isClipCardRestricted = membership?.type === 'clip_card' && (membership?.clipCardCategories?.includes(w.category) || false);
       return {
