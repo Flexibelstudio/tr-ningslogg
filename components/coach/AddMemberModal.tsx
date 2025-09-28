@@ -25,7 +25,6 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [isProspect, setIsProspect] = useState(false);
   const [locationId, setLocationId] = useState('');
   const [membershipId, setMembershipId] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -46,7 +45,6 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
       if (memberToEdit) {
         setName(memberToEdit.name || '');
         setEmail(memberToEdit.email || '');
-        setIsProspect(memberToEdit.isProspect || false);
         setLocationId(memberToEdit.locationId || '');
         setMembershipId(memberToEdit.membershipId || '');
         setStartDate(memberToEdit.startDate || '');
@@ -60,7 +58,6 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
       } else {
         setName('');
         setEmail('');
-        setIsProspect(false);
         const initialLocation = isAdmin ? '' : (loggedInStaff?.locationId || '');
         setLocationId(initialLocation);
         setMembershipId(memberships[0]?.id || '');
@@ -95,7 +92,7 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
         newErrors.locationId = "Ort är obligatoriskt.";
     }
 
-    if (isAdmin && !isProspect) {
+    if (isAdmin) {
         if (!membershipId) {
             newErrors.membershipId = "Medlemskap är obligatoriskt.";
         } else {
@@ -109,7 +106,7 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
         }
     }
     return newErrors;
-  }, [name, email, locationId, isProspect, membershipId, remainingClips, existingEmails, memberToEdit, isAdmin, memberships]);
+  }, [name, email, locationId, membershipId, remainingClips, existingEmails, memberToEdit, isAdmin, memberships]);
 
   const isFormValidForSaving = Object.keys(formErrors).length === 0;
 
@@ -140,19 +137,13 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
     setHasSaved(false);
     setFormError(null);
 
-    let finalIsActive = memberToEdit?.isActive ?? !isProspect;
-    if (isProspect) {
-        finalIsActive = memberToEdit?.isActive ?? true;
-    } else if (memberToEdit?.isProspect && !isProspect) {
-        finalIsActive = true;
-    }
+    const finalIsActive = memberToEdit?.isActive ?? true;
 
     const memberData: any = {
         ...(memberToEdit || {}),
         id: memberToEdit?.id || crypto.randomUUID(),
         name: name.trim(),
         email: email.trim().toLowerCase(),
-        isProspect,
         isActive: finalIsActive,
         isSearchable: memberToEdit?.isSearchable ?? true,
         locationId: locationId,
@@ -160,48 +151,34 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
         lastUpdated: new Date().toISOString(),
     };
     
-    if (!isProspect) {
-        const isConvertingProspectByCoach = !isAdmin && memberToEdit?.isProspect && !isProspect;
-        let finalMembershipId: string | undefined;
+    let finalMembershipId: string | undefined;
 
-        if (isAdmin) {
+    if (isAdmin) {
+        finalMembershipId = membershipId;
+    } else {
+        if (!memberToEdit) {
             finalMembershipId = membershipId;
         } else {
-            if (!memberToEdit) {
-                finalMembershipId = membershipId;
-            } else if (isConvertingProspectByCoach) {
-                finalMembershipId = memberships.find(m => m.name === 'Medlemskap')?.id || memberships[0]?.id;
-            } else {
-                finalMembershipId = memberToEdit.membershipId;
-            }
+            finalMembershipId = memberToEdit.membershipId;
         }
-        
-        memberData.membershipId = finalMembershipId || '';
-        memberData.startDate = startDate || '';
-        memberData.endDate = isAdmin ? (endDate || '') : (memberToEdit?.endDate || '');
-
-        const selectedMembership = memberships.find(m => m.id === finalMembershipId);
-        
-        if (selectedMembership?.type === 'clip_card') {
-            const clipCardStatus = {
-                remainingClips: remainingClips.trim() ? parseInt(remainingClips, 10) : (selectedMembership.clipCardClips || 0),
-            };
-            if (clipCardExpiryDate.trim()) {
-                (clipCardStatus as any).expiryDate = clipCardExpiryDate.trim();
-            }
-            memberData.clipCardStatus = clipCardStatus;
-        } else {
-            delete memberData.clipCardStatus;
-        }
-    } else {
-        delete memberData.startDate;
-        delete memberData.endDate;
-        delete memberData.membershipId;
-        delete memberData.clipCardStatus;
     }
+    
+    memberData.membershipId = finalMembershipId || '';
+    memberData.startDate = startDate || '';
+    memberData.endDate = isAdmin ? (endDate || '') : (memberToEdit?.endDate || '');
 
-    if (memberToEdit?.isProspect && memberData.membershipId) {
-        memberData.isProspect = false;
+    const selectedMembership = memberships.find(m => m.id === finalMembershipId);
+    
+    if (selectedMembership?.type === 'clip_card') {
+        const clipCardStatus = {
+            remainingClips: remainingClips.trim() ? parseInt(remainingClips, 10) : (selectedMembership.clipCardClips || 0),
+        };
+        if (clipCardExpiryDate.trim()) {
+            (clipCardStatus as any).expiryDate = clipCardExpiryDate.trim();
+        }
+        memberData.clipCardStatus = clipCardStatus;
+    } else {
+        delete memberData.clipCardStatus;
     }
     
     try {
@@ -321,22 +298,6 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
     <Modal isOpen={isOpen} onClose={onClose} title={modalTitle}>
       <div className="space-y-4">
         {formError && <p className="text-center bg-red-100 text-red-700 p-3 rounded-lg">{formError}</p>}
-        <label className="flex items-start space-x-3 p-3 bg-gray-100 rounded-md cursor-pointer hover:bg-gray-200 transition-colors">
-            <input
-                type="checkbox"
-                checked={isProspect}
-                onChange={(e) => setIsProspect(e.target.checked)}
-                className="h-6 w-6 mt-1 text-flexibel border-gray-300 rounded focus:ring-flexibel"
-            />
-            <div>
-                <span className="text-lg font-medium text-gray-700">
-                    Startprogram
-                </span>
-                <p className="text-sm text-gray-500">
-                    Markera här om personen är i sitt startprogram. Detta döljer medlemskapsfälten.
-                </p>
-            </div>
-        </label>
         <Input
           label="Namn *"
           id="member-name"
@@ -368,7 +329,7 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
           className={!isAdmin && !!memberToEdit ? 'bg-gray-100 cursor-not-allowed' : ''}
         />
 
-        {isAdmin && !isProspect && (
+        {isAdmin && (
             <Select
             label="Medlemskap *"
             id="member-membership"
@@ -380,7 +341,7 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
             />
         )}
         
-        {isAdmin && !isProspect && isClipCardMembership && (
+        {isAdmin && isClipCardMembership && (
             <div className="grid grid-cols-2 gap-4 p-4 border rounded-md bg-blue-50/50 animate-fade-in-down">
                 <Input
                     label="Antal Klipp Kvar"
@@ -403,7 +364,7 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
             </div>
         )}
 
-        {!isProspect && (
+        <div>
             <div className={`grid ${isAdmin ? 'grid-cols-2' : 'grid-cols-1'} gap-4`}>
                 <Input
                     label="Startdatum"
@@ -422,7 +383,7 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
                     />
                 )}
             </div>
-        )}
+        </div>
         
         {isAdmin && memberToEdit && (
             <div className="pt-4 mt-4 border-t space-y-3">

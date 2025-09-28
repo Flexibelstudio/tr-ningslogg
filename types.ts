@@ -330,8 +330,6 @@ export interface ParticipantProfile {
   email?: string;
   photoURL?: string;
   isActive?: boolean;
-  // Now used to signify if a member is in the "Startprogram".
-  isProspect?: boolean;
   creationDate?: string;
   age?: string; 
   gender?: GenderOption;
@@ -577,8 +575,6 @@ export interface IntegrationSettings {
   cancellationCutoffHours?: number;
   isClientJourneyEnabled?: boolean;
   isScheduleEnabled?: boolean;
-  startProgramCategoryId?: string;
-  startProgramSessionsRequired?: number;
 }
 
 // New: For Staff Management

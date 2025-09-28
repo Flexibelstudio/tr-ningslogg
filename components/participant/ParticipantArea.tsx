@@ -686,12 +686,14 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   }, [setProfileOpener]);
 
   useEffect(() => {
-    if (participantProfile?.isProspect) {
-        const isProfileComplete = !!(participantProfile.age && participantProfile.gender && participantProfile.gender !== '-');
+    const membershipName = myMembership?.name?.toLowerCase();
+    const isStartProgram = membershipName === 'startprogram';
+
+    if (isStartProgram) {
+        const isProfileComplete = !!(participantProfile?.age && participantProfile?.gender && participantProfile?.gender !== '-');
         if (!isProfileComplete) {
             const prospectModalShownKey = `flexibel_prospectProfileModalShown_${currentParticipantId}`;
             const hasBeenShown = localStorage.getItem(prospectModalShownKey) === 'true';
-            // Only show the banner if the initial modal has already been shown
             setShowIncompleteProfileBanner(hasBeenShown);
         } else {
             setShowIncompleteProfileBanner(false);
@@ -699,7 +701,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     } else {
         setShowIncompleteProfileBanner(false);
     }
-}, [participantProfile, currentParticipantId]);
+}, [participantProfile, myMembership, currentParticipantId]);
 
 
   const myUpcomingSessions = useMemo(() => {
@@ -1404,7 +1406,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                         onOpenQrScanner={(mode) => setIsQrScannerOpen(true)}
                         workoutCategories={workoutCategories}
                         myWorkoutLogs={myWorkoutLogs}
-                        isProspect={participantProfile?.isProspect}
                         onOpenAICoachModal={() => setIsAICoachModalOpen(true)}
                     />
                 )}
@@ -1456,7 +1457,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             membership={myMembership}
             onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
             currentParticipantId={currentParticipantId}
-            isProspect={participantProfile?.isProspect}
         />
         <ExerciseSelectionModal
             isOpen={isExerciseSelectionModalOpen}
@@ -1565,7 +1565,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             onAddComment={onAddComment}
             onDeleteComment={onDeleteComment}
             onToggleCommentReaction={onToggleCommentReaction}
-            isProspect={participantProfile?.isProspect}
             locations={locations}
             userConditioningStatsHistory={userConditioningStatsHistory}
         />

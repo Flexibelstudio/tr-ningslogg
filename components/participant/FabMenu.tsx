@@ -16,7 +16,6 @@ interface FabMenuProps {
   integrationSettings: IntegrationSettings;
   onOpenQrScanner: (mode: 'workout' | 'checkin') => void;
   workoutCategories: WorkoutCategoryDefinition[];
-  isProspect?: boolean;
   myWorkoutLogs: WorkoutLog[];
   onOpenAICoachModal: () => void;
 }
@@ -35,7 +34,7 @@ const categoryIcons: Record<string, React.ReactNode> = {
 };
 
 
-export const FabMenu: React.FC<FabMenuProps> = ({ isOpen, onToggle, onClose, workouts, currentParticipantId, onAttemptLogWorkout, onOpenLogGeneralActivityModal, membership, onOpenUpgradeModal, onOpenBookingModal, integrationSettings, onOpenQrScanner, workoutCategories, isProspect, myWorkoutLogs, onOpenAICoachModal }) => {
+export const FabMenu: React.FC<FabMenuProps> = ({ isOpen, onToggle, onClose, workouts, currentParticipantId, onAttemptLogWorkout, onOpenLogGeneralActivityModal, membership, onOpenUpgradeModal, onOpenBookingModal, integrationSettings, onOpenQrScanner, workoutCategories, myWorkoutLogs, onOpenAICoachModal }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
   const handleLogGeneralActivity = () => {
@@ -44,40 +43,6 @@ export const FabMenu: React.FC<FabMenuProps> = ({ isOpen, onToggle, onClose, wor
   };
 
   const menuItems = useMemo(() => {
-    const { startProgramCategoryId, startProgramSessionsRequired } = integrationSettings;
-    const startProgramCategory = workoutCategories.find(c => c.id === startProgramCategoryId);
-
-    if (isProspect && startProgramCategory) {
-      const requiredCount = startProgramSessionsRequired || 0;
-
-      if (requiredCount <= 0) {
-        return [{ key: 'locked', label: 'Startprogram ej konfigurerat', icon: '🔒', onClick: () => alert('Startprogrammet är inte fullständigt konfigurerat av en coach.'), isLocked: true }];
-      }
-
-      const completedCount = myWorkoutLogs.filter(log => {
-        const workout = workouts.find(w => w.id === log.workoutId);
-        return workout?.category === startProgramCategory.name;
-      }).length;
-      
-      const isCompleted = completedCount >= requiredCount;
-
-      if (isCompleted) {
-        return [{ key: 'completed', label: 'Startprogram slutfört!', icon: '✅', onClick: () => alert('Grattis, du har slutfört startprogrammet! Kontakta din coach för nästa steg.'), isLocked: true }];
-      } else {
-        return [{
-            key: `log-${startProgramCategory.name}`,
-            label: `Logga ${startProgramCategory.name} (${completedCount}/${requiredCount})`,
-            icon: categoryIcons[startProgramCategory.name] || '🤸‍♀️',
-            onClick: () => {
-                onAttemptLogWorkout(startProgramCategory.name);
-                onClose();
-            },
-            isLocked: false,
-            isRestricted: false,
-        }];
-      }
-    }
-
     // Default menu for regular members
     const actions: { key: string; label: string; icon: React.ReactNode; onClick: () => void; isRestricted: boolean; isLocked?: boolean;}[] = [];
 
@@ -135,7 +100,7 @@ export const FabMenu: React.FC<FabMenuProps> = ({ isOpen, onToggle, onClose, wor
     });
 
     return actions;
-}, [isProspect, integrationSettings, workoutCategories, myWorkoutLogs, workouts, currentParticipantId, membership, onOpenUpgradeModal, onAttemptLogWorkout, onClose, onOpenLogGeneralActivityModal, onOpenBookingModal, onOpenQrScanner, onOpenAICoachModal]);
+}, [integrationSettings, workoutCategories, myWorkoutLogs, workouts, currentParticipantId, membership, onOpenUpgradeModal, onAttemptLogWorkout, onClose, onOpenLogGeneralActivityModal, onOpenBookingModal, onOpenQrScanner, onOpenAICoachModal]);
 
   return (
     <>

@@ -43,7 +43,6 @@ interface SelectWorkoutModalProps {
   membership?: Membership | null;
   onOpenUpgradeModal: () => void;
   currentParticipantId: string;
-  isProspect?: boolean;
 }
 
 const LockIcon = () => (
@@ -142,7 +141,6 @@ export const SelectWorkoutModal: React.FC<SelectWorkoutModalProps> = ({
   membership,
   onOpenUpgradeModal,
   currentParticipantId,
-  isProspect,
 }) => {
   if (!isOpen) return null;
 

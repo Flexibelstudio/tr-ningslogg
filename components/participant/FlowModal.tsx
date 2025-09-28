@@ -51,7 +51,6 @@ interface FlowModalProps {
   onAddComment: (logId: string, logType: FlowItemLogType, text: string) => void;
   onDeleteComment: (logId: string, logType: FlowItemLogType, commentId: string) => void;
   onToggleCommentReaction: (logId: string, logType: FlowItemLogType, commentId: string) => void;
-  isProspect?: boolean;
   locations: Location[];
   userConditioningStatsHistory: ParticipantConditioningStat[]; // Added for new event type
 }
@@ -227,7 +226,7 @@ const FlowItemCard: React.FC<FlowItemCardProps> = ({ item, index, currentUserId,
     );
 };
 
-export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, onToggleReaction, onAddComment, onDeleteComment, onToggleCommentReaction, isProspect, locations, userConditioningStatsHistory }) => {
+export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, onToggleReaction, onAddComment, onDeleteComment, onToggleCommentReaction, locations, userConditioningStatsHistory }) => {
     const data = { currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, locations, userConditioningStatsHistory };
     const { lastFlowViewTimestamp } = useAppContext();
 
@@ -235,23 +234,13 @@ export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUs
         if (!isOpen) return { flowItemsToShow: [], totalItemCount: 0 };
 
         const allowedParticipantIds = new Set<string>([data.currentUserId]);
-
-        if (isProspect) {
-            // Prospect sees public posts from all active, non-prospect members
-            data.allParticipants.forEach(p => {
-                if (p.isActive && !p.isProspect && p.isSearchable) {
-                    allowedParticipantIds.add(p.id);
-                }
-            });
-        } else {
-            // Existing member sees their own and friends' posts
-            data.connections.forEach(conn => {
-                if (conn.status === 'accepted') {
-                    if (conn.requesterId === data.currentUserId) allowedParticipantIds.add(conn.receiverId);
-                    if (conn.receiverId === data.currentUserId) allowedParticipantIds.add(conn.requesterId);
-                }
-            });
-        }
+        
+        data.connections.forEach(conn => {
+            if (conn.status === 'accepted') {
+                if (conn.requesterId === data.currentUserId) allowedParticipantIds.add(conn.receiverId);
+                if (conn.receiverId === data.currentUserId) allowedParticipantIds.add(conn.requesterId);
+            }
+        });
         
         const items: FlowItem[] = [];
         const lastViewDate = new Date(lastFlowViewTimestamp || 0);
@@ -548,7 +537,7 @@ export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUs
             totalItemCount: itemsLast5Days.length
         };
 
-    }, [isOpen, data, isProspect, lastFlowViewTimestamp]);
+    }, [isOpen, data, lastFlowViewTimestamp]);
     
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Flöde" size="2xl">

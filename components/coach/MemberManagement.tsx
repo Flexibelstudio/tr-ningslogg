@@ -81,9 +81,10 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({ isOpen, onClose, particip
         };
 
         if (isInStartProgram) {
-            updates.isProspect = true;
+            // "Startprogram" will be handled by assigning a specific membership ID.
+            const startProgramMembership = memberships.find(m => m.name.toLowerCase() === 'startprogram');
+            updates.membershipId = startProgramMembership?.id;
         } else {
-            updates.isProspect = false;
             updates.membershipId = membershipId;
             updates.startDate = startDate;
             if (selectedMembership?.type === 'clip_card') {
@@ -106,16 +107,29 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({ isOpen, onClose, particip
             <div className="space-y-4">
                 <label className="flex items-start space-x-3 p-3 bg-gray-100 rounded-md cursor-pointer hover:bg-gray-200 transition-colors">
                     <input
-                        type="checkbox"
+                        type="radio"
+                        name="approval-type"
                         checked={isInStartProgram}
-                        onChange={(e) => setIsInStartProgram(e.target.checked)}
-                        className="h-6 w-6 mt-1 text-flexibel border-gray-300 rounded focus:ring-flexibel"
+                        onChange={() => setIsInStartProgram(true)}
+                        className="h-6 w-6 mt-1 text-flexibel border-gray-300 focus:ring-flexibel"
                     />
                     <div>
                         <span className="text-lg font-medium text-gray-700">Placera i Startprogram</span>
                         <p className="text-sm text-gray-500">
-                            Medlemmen markeras som ny och placeras i "Startprogram"-fasen i Klientresan.
+                            Medlemmen tilldelas 'Startprogram'-medlemskapet.
                         </p>
+                    </div>
+                </label>
+                 <label className="flex items-start space-x-3 p-3 bg-gray-100 rounded-md cursor-pointer hover:bg-gray-200 transition-colors">
+                    <input
+                        type="radio"
+                        name="approval-type"
+                        checked={!isInStartProgram}
+                        onChange={() => setIsInStartProgram(false)}
+                        className="h-6 w-6 mt-1 text-flexibel border-gray-300 focus:ring-flexibel"
+                    />
+                    <div>
+                        <span className="text-lg font-medium text-gray-700">Tilldela annat medlemskap direkt</span>
                     </div>
                 </label>
                 
@@ -245,9 +259,8 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
         return participants.map(p => {
             const membership = memberships.find(m => m.id === p.membershipId);
             let typeText = '';
-            if (p.isProspect) {
-                typeText = 'Startprogram';
-            } else if (!p.isActive) {
+            
+            if (!p.isActive) {
                 typeText = 'Inaktiv';
             } else {
                 if (membership) {
@@ -286,9 +299,9 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
 
         if (statusFilter !== 'all') {
             filtered = filtered.filter(p => {
-                if (statusFilter === 'prospect') return p.isProspect;
-                if (statusFilter === 'active') return p.isActive && !p.isProspect && p.approvalStatus !== 'pending';
-                if (statusFilter === 'inactive') return !p.isActive && !p.isProspect;
+                if (statusFilter === 'prospect') return p.typeForDisplay === 'Startprogram';
+                if (statusFilter === 'active') return p.isActive && p.typeForDisplay !== 'Startprogram' && p.approvalStatus !== 'pending';
+                if (statusFilter === 'inactive') return !p.isActive;
                 return true;
             });
         }
@@ -403,8 +416,8 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
         let className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ';
         const text = p.typeForDisplay;
 
-        if (p.isProspect) {
-            className += 'bg-blue-100 text-blue-800'; // Prospekt
+        if (p.typeForDisplay === 'Startprogram') {
+            className += 'bg-blue-100 text-blue-800';
         } else if (!p.isActive) {
             className += 'bg-red-100 text-red-800'; // Inaktiv
         } else if (p.isActive && !p.membershipId) {

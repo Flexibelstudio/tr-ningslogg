@@ -623,9 +623,10 @@ const AppContent: React.FC = () => {
             }
     
             // New logic for initial profile modal for prospects
-            if (participantDirectory.find(p => p.id === auth.currentParticipantId)?.isProspect) {
-                const profile = participantDirectory.find(p => p.id === auth.currentParticipantId);
-                const isProfileComplete = !!(profile?.age && profile?.gender && profile?.gender !== '-');
+            const participantProfile = participantDirectory.find(p => p.id === auth.currentParticipantId);
+            const membership = participantProfile ? memberships.find(m => m.id === participantProfile.membershipId) : null;
+            if (membership?.name.toLowerCase() === 'startprogram') {
+                const isProfileComplete = !!(participantProfile?.age && participantProfile?.gender && participantProfile?.gender !== '-');
                 if (!isProfileComplete) {
                     const hasBeenShown = prospectModalShownKey ? localStorage.getItem(prospectModalShownKey) === 'true' : false;
                     if (!hasBeenShown) {
@@ -634,11 +635,12 @@ const AppContent: React.FC = () => {
                 }
             }
         }
-    }, [auth.currentRole, auth.currentParticipantId, welcomeModalShown, participantDirectory, prospectModalShownKey]);
+    }, [auth.currentRole, auth.currentParticipantId, welcomeModalShown, participantDirectory, prospectModalShownKey, memberships]);
     
     const handleProfileModalOpened = () => {
-        const profile = participantDirectory.find(p => p.id === auth.currentParticipantId);
-        if (profile?.isProspect && prospectModalShownKey) {
+        const participantProfile = participantDirectory.find(p => p.id === auth.currentParticipantId);
+        const membership = participantProfile ? memberships.find(m => m.id === participantProfile.membershipId) : null;
+        if (membership?.name.toLowerCase() === 'startprogram' && prospectModalShownKey) {
             localStorage.setItem(prospectModalShownKey, 'true');
         }
         setOpenProfileModalOnInit(false);
