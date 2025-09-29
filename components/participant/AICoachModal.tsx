@@ -79,7 +79,7 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
             setMessages([
                 {
                     id: crypto.randomUUID(),
-                    text: `Hej ${participantProfile.name?.split(' ')[0]}! Jag är din digitala coach här i träningsloggen. Tänk på mig som din digitala morot i höstmörkret – här för att peppa dig när motivationen tryter. Vad kan jag hjälpa dig med idag?`,
+                    text: `Hej ${participantProfile.name?.split(' ')[0]}! Jag är din coach här i Träningsloggen. Tänk på mig som din **digitala skivstång i gymmet** – här för att peppa dig när motivationen tryter. Oavsett om jag är din virtuella kettlebell eller din personliga timer, så är jag här för att göra din träningsresa lite mer underhållande!`,
                     sender: 'ai'
                 }
             ]);
@@ -199,15 +199,9 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
     ];
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="" size="lg" showCloseButtonOnly>
-            <div className="flex flex-col h-[85vh] sm:h-[80vh]">
-                <header className="flex items-center p-4 border-b flex-shrink-0">
-                    <span className="text-2xl mr-3">✨</span>
-                    <h2 className="text-xl font-bold text-gray-800">Fråga coachen</h2>
-                    <button onClick={onClose} className="ml-auto text-gray-500 hover:text-gray-800 text-3xl leading-none">&times;</button>
-                </header>
-
-                <div ref={chatContainerRef} className="flex-grow p-4 overflow-y-auto space-y-4 bg-white">
+        <Modal isOpen={isOpen} onClose={onClose} title="Fråga coachen" size="lg">
+            <div className="relative flex flex-col h-[75vh] sm:h-[70vh] -m-6">
+                <div ref={chatContainerRef} className="flex-grow p-4 overflow-y-auto space-y-4 bg-white pb-48">
                     {messages.map(msg => (
                         <div key={msg.id} className={`flex items-end gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                             {msg.sender === 'ai' && <span className="text-2xl mb-1">✨</span>}
@@ -229,7 +223,7 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
                     )}
                 </div>
 
-                <footer className="p-4 border-t bg-gray-50 flex-shrink-0">
+                <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-gray-50 flex-shrink-0">
                     <div className="flex flex-wrap gap-2 mb-4">
                         {suggestionButtons.map(s => (
                             <Button key={s} variant="ghost" size="sm" onClick={() => handleSuggestionClick(s)} disabled={isLoading} className="!rounded-full !px-3 !py-1.5 !text-sm bg-orange-100 text-orange-800 hover:bg-orange-200 border border-orange-200">
@@ -242,14 +236,14 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
                             placeholder="Skriv din fråga här..."
-                            className="flex-grow !rounded-full !px-4 !py-2.5 !bg-gray-200"
+                            className="flex-grow !rounded-full !px-4 !py-2.5 !bg-white border-gray-300"
                             disabled={isLoading}
                         />
                         <Button type="submit" disabled={isLoading || !inputValue.trim()} className="!rounded-full !w-12 !h-12 !p-0 flex-shrink-0 !bg-green-400 hover:!bg-green-500">
                             <SendIcon />
                         </Button>
                     </form>
-                </footer>
+                </div>
             </div>
         </Modal>
     );
