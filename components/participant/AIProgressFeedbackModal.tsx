@@ -133,7 +133,6 @@ export const AIProgressFeedbackModal: React.FC<AIProgressFeedbackModalProps> = (
         )}
         {aiFeedback && !isLoading && !error && (
           <div className="overflow-y-auto flex-grow p-1 pr-2">
-            {/* The title "Din Feedback:" is removed as the modal itself is titled dynamically */}
             <div className="bg-gray-50 rounded-md text-gray-800 leading-relaxed">
               {renderFeedbackContent(aiFeedback)}
             </div>

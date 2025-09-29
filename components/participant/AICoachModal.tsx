@@ -28,6 +28,37 @@ const SendIcon = () => (
     </svg>
 );
 
+const renderMarkdownContent = (text: string): JSX.Element[] => {
+    const lines = text.split('\n');
+    const elements: JSX.Element[] = [];
+    let listItems: JSX.Element[] = [];
+
+    const flushList = () => {
+        if (listItems.length > 0) {
+            elements.push(<ul key={`ul-${elements.length}`} className="list-disc pl-5 space-y-1">{listItems}</ul>);
+            listItems = [];
+        }
+    };
+
+    lines.forEach((line, index) => {
+        // Handle bold text first
+        const boldedLine = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+        if (boldedLine.trim().startsWith('* ')) {
+            const content = boldedLine.trim().substring(2);
+            listItems.push(<li key={`li-${index}`} dangerouslySetInnerHTML={{ __html: content }} />);
+        } else {
+            flushList();
+            if (boldedLine.trim() !== '') {
+                elements.push(<p key={`p-${index}`} className="mb-2 last:mb-0" dangerouslySetInnerHTML={{ __html: boldedLine }} />);
+            }
+        }
+    });
+
+    flushList(); // Ensure any trailing list items are rendered
+    return elements;
+};
+
 export const AICoachModal: React.FC<AICoachModalProps> = ({
     isOpen,
     onClose,
@@ -181,7 +212,10 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
                         <div key={msg.id} className={`flex items-end gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                             {msg.sender === 'ai' && <span className="text-2xl mb-1">✨</span>}
                             <div className={`p-3 rounded-2xl max-w-[85%] animate-fade-in-down ${msg.sender === 'user' ? 'bg-flexibel text-white rounded-br-none' : 'bg-gray-200 text-gray-800 rounded-bl-none'}`}>
-                                <p className="text-base" style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</p>
+                                {msg.sender === 'ai'
+                                    ? <div className="text-base">{renderMarkdownContent(msg.text)}</div>
+                                    : <p className="text-base" style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</p>
+                                }
                             </div>
                         </div>
                     ))}
