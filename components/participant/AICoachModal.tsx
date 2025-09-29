@@ -72,6 +72,42 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
         setIsLoading(true);
 
         try {
+            // Create a map of all known exercises for quick lookup
+            const exerciseNameMap = new Map<string, string>();
+            allWorkouts.forEach(workout => {
+                (workout.blocks || []).forEach(block => {
+                    block.exercises.forEach(ex => {
+                        exerciseNameMap.set(ex.id, ex.name);
+                    });
+                });
+            });
+            myWorkoutLogs.forEach(log => {
+                if (log.selectedExercisesForModifiable) {
+                    log.selectedExercisesForModifiable.forEach(ex => {
+                        if (!exerciseNameMap.has(ex.id)) {
+                            exerciseNameMap.set(ex.id, ex.name);
+                        }
+                    });
+                }
+            });
+
+            // Create a more detailed workout history for the AI
+            const enrichedRecentWorkouts = myWorkoutLogs.slice(0, 10).map(log => {
+                const workoutTemplate = allWorkouts.find(w => w.id === log.workoutId);
+                return {
+                    workoutTitle: workoutTemplate?.title || 'Anpassat pass',
+                    completedDate: log.completedDate,
+                    comment: log.postWorkoutComment,
+                    exercises: log.entries.map(entry => ({
+                        exerciseName: exerciseNameMap.get(entry.exerciseId) || 'Okänd övning',
+                        loggedSets: entry.loggedSets.map(set => ({
+                            reps: set.reps,
+                            weight: set.weight
+                        })).filter(set => set.reps !== undefined || set.weight !== undefined)
+                    }))
+                };
+            });
+
             const context = {
                 participant: {
                     name: participantProfile?.name,
@@ -79,9 +115,7 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
                     gender: participantProfile?.gender,
                 },
                 goal: latestGoal ? `"${latestGoal.fitnessGoals}" (${latestGoal.workoutsPerWeekTarget} pass/vecka)` : 'Inget aktivt mål satt.',
-                recentWorkouts: myWorkoutLogs.slice(0, 5).map(log => ({
-                    workoutId: log.workoutId, completedDate: log.completedDate, moodRating: log.moodRating, comment: log.postWorkoutComment
-                })),
+                recentWorkouts: enrichedRecentWorkouts,
                 recentActivities: myGeneralActivityLogs.slice(0, 5).map(log => ({
                     name: log.activityName, duration: log.durationMinutes, completedDate: log.completedDate
                 })),
@@ -95,7 +129,10 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
 
             Medlemmen frågar: "${text}"
 
-            Baserat på ALL data ovan, ge ett svar. Om frågan handlar om att rekommendera ett pass, använd listan med passmallar för att ge ett specifikt förslag och motivera varför det passar baserat på medlemmens mål och historik. Om du inte kan svara, förklara varför på ett hjälpsamt sätt (t.ex. "För att analysera din styrkeutveckling behöver jag se fler loggade pass över tid.").`;
+            Baserat på ALL data ovan, ge ett svar.
+            - **Om frågan handlar om styrkeutveckling:** Analysera "loggedSets" i "recentWorkouts" för varje övning över tid. Leta efter progression i form av ökad vikt, fler repetitioner med samma vikt, eller högre total volym (vikt * reps). Presentera en tydlig sammanfattning av utvecklingen för de mest relevanta övningarna.
+            - **Om frågan handlar om att rekommendera ett pass:** Använd listan med "availableWorkouts" för att ge ett specifikt förslag och motivera varför det passar baserat på medlemmens mål och historik.
+            - **Om du inte kan svara:** Förklara varför på ett hjälpsamt sätt. Om du inte kan se en tydlig trend för styrkeutveckling, förklara att fler loggade pass behövs för en djupare analys.`;
 
             const response: GenerateContentResponse = await ai.models.generateContent({
                 model: 'gemini-2.5-flash',
