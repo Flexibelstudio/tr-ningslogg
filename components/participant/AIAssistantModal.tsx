@@ -20,7 +20,6 @@ interface AIAssistantModalProps {
   workout: Workout;
   previousLog: WorkoutLog;
   participant: ParticipantProfile;
-  allWorkouts: Workout[];
 }
 
 const renderTipsContent = (tips: AiWorkoutTips | null): JSX.Element | null => {
@@ -61,7 +60,6 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
   workout,
   previousLog,
   participant,
-  allWorkouts,
 }) => {
     const [tips, setTips] = useState<AiWorkoutTips | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -71,16 +69,15 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
         setIsLoading(true);
         setError(null);
         setTips(null);
-
-        const previousWorkoutTemplate = allWorkouts.find(w => w.id === previousLog.workoutId);
         
         const summaryOfPreviousLog = {
-            workoutTitle: previousWorkoutTemplate?.title || workout.title,
+            workoutTitle: workout.title, // Use the current, correct workout title
             completedDate: previousLog.completedDate,
             mood: previousLog.moodRating,
             comment: previousLog.postWorkoutComment,
             exercises: previousLog.entries.map(entry => {
-                const exerciseDetail = previousWorkoutTemplate?.blocks.flatMap(b => b.exercises).find(ex => ex.id === entry.exerciseId);
+                // Find the exercise detail from the *current* workout template, not a potentially non-existent old one.
+                const exerciseDetail = (workout.blocks || []).flatMap(b => b.exercises).find(ex => ex.id === entry.exerciseId);
                 return {
                     name: exerciseDetail?.name || 'Okänd övning',
                     sets: entry.loggedSets.map(s => ({ reps: s.reps, weight: s.weight, distanceMeters: s.distanceMeters, durationSeconds: s.durationSeconds, caloriesKcal: s.caloriesKcal }))
@@ -173,7 +170,7 @@ Exempel på JSON-svar:
         } finally {
             setIsLoading(false);
         }
-    }, [ai, workout, previousLog, participant, allWorkouts]);
+    }, [ai, workout, previousLog, participant]);
 
     useEffect(() => {
         if (isOpen) {

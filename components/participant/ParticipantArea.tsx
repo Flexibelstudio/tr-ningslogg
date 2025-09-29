@@ -1660,6 +1660,20 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             confirmButtonText="Ja, ta bort"
             cancelButtonText="Avbryt"
         />
+        {preWorkoutData && ai && participantProfile && (
+            <AIAssistantModal
+                isOpen={isAIAssistantModalOpen}
+                onClose={() => {
+                    setIsAIAssistantModalOpen(false);
+                    setPreWorkoutData(null);
+                }}
+                onContinue={handleContinueFromAIAssistant}
+                ai={ai}
+                workout={preWorkoutData.workout}
+                previousLog={preWorkoutData.previousLog}
+                participant={participantProfile}
+            />
+        )}
         <AICoachModal
             isOpen={isAICoachModalOpen}
             onClose={() => setIsAICoachModalOpen(false)}
