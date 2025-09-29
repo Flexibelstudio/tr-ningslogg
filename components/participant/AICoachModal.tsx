@@ -226,7 +226,7 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
                 <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-gray-50 flex-shrink-0">
                     <div className="flex flex-wrap gap-2 mb-4">
                         {suggestionButtons.map(s => (
-                            <Button key={s} variant="ghost" size="sm" onClick={() => handleSuggestionClick(s)} disabled={isLoading} className="!rounded-full !px-3 !py-1.5 !text-sm bg-orange-100 text-orange-800 hover:bg-orange-200 border border-orange-200">
+                            <Button key={s} variant="ghost" size="sm" onClick={() => handleSuggestionClick(s)} disabled={isLoading} className="!rounded-full !px-2.5 !py-1 !text-xs bg-orange-100 text-orange-800 hover:bg-orange-200 border border-orange-200">
                                 {s}
                             </Button>
                         ))}
