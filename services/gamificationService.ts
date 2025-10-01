@@ -151,6 +151,20 @@ export const checkAndAwardClubMemberships = (
                 }
                 break;
 
+            case 'TOTAL_VOLUME':
+                if (club.threshold === undefined) break;
+                // Check if any workout log has a total volume that meets the threshold
+                for (const log of allLogs) {
+                    if (log.type === 'workout') {
+                        const workoutLog = log as WorkoutLog;
+                        if (workoutLog.postWorkoutSummary && workoutLog.postWorkoutSummary.totalWeightLifted >= club.threshold) {
+                            isAchieved = true;
+                            break; // Found a matching log, no need to check further for this club
+                        }
+                    }
+                }
+                break;
+
             case 'CONDITIONING':
                 const metric = club.conditioningMetric;
                 const comparison = club.comparison;
@@ -209,6 +223,9 @@ export const getHighestClubAchievements = (memberships: ParticipantClubMembershi
         break;
       case 'CONDITIONING':
         familyKey = `CONDITIONING-${def.conditioningMetric}`;
+        break;
+      case 'TOTAL_VOLUME':
+        familyKey = 'TOTAL_VOLUME';
         break;
       default:
         continue;
