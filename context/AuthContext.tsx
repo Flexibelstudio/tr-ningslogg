@@ -147,9 +147,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = useCallback(async (email: string, password: string) => {
     if (firebaseService.isOffline()) {
-        console.error("Attempted to log in while in offline mode. This is not supported.");
-        throw new Error('OFFLINE_LOGIN_ATTEMPT');
+        const userToLogin = dataService.get('users').find(u => u.email.toLowerCase() === email.toLowerCase());
+        if (userToLogin) {
+            setUser(userToLogin);
+            return;
+        } else {
+            throw new Error("User not found in mock data.");
+        }
     }
+    
     const userCredential = await auth.signInWithEmailAndPassword(email, password);
     const firebaseUser = userCredential.user;
 

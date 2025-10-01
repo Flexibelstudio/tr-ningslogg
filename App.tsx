@@ -20,6 +20,7 @@ import { Button } from './components/Button';
 import { NetworkStatusProvider } from './context/NetworkStatusContext';
 import { OfflineBanner } from './components/OfflineBanner';
 import { UpdateNoticeModal } from './components/participant/UpdateNoticeModal';
+import { DevToolbar } from './components/DevToolbar';
 
 const CoachArea = lazy(() => import('./components/coach/CoachArea').then(m => ({ default: m.CoachArea })));
 const ParticipantArea = lazy(() => import('./components/participant/ParticipantArea').then(m => ({ default: m.ParticipantArea })));
@@ -779,6 +780,7 @@ const AppContent: React.FC = () => {
                     {renderMainView()}
                 </Suspense>
             </main>
+            <DevToolbar />
 
             {showLatestUpdateView && (
                 <UpdateNoticeModal 

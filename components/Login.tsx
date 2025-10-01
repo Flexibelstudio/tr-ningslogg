@@ -37,8 +37,6 @@ export const Login: React.FC<LoginProps> = ({ onSwitchToRegister }) => {
       console.error(err);
       if (err.message === 'AUTH_APPROVAL_PENDING') {
         setError('Ditt konto väntar på godkännande av en coach. Du kan inte logga in än.');
-      } else if (err.message === 'OFFLINE_LOGIN_ATTEMPT') {
-          setError('Inloggning misslyckades. Appen körs i offlineläge eftersom den inte kan ansluta till Firebase. Kontrollera att Firebase-variablerna är korrekt konfigurerade i driftsättningsmiljön.');
       } else {
         // Map Firebase error codes to user-friendly messages
         setError('Fel e-post eller lösenord. Försök igen.');
@@ -105,7 +103,7 @@ export const Login: React.FC<LoginProps> = ({ onSwitchToRegister }) => {
               autoComplete="current-password"
             />
             <Button type="submit" fullWidth size="lg" disabled={isLoading || !isOnline}>
-              {isLoading ? 'Loggar in...' : (isOnline ? 'Logga in' : 'Offline')}
+              {isLoading ? 'Loggar in...' : (isOnline ? 'Logga in' : 'Logga in (Offline)')}
             </Button>
           </form>
           <div className="text-center mt-4 space-y-2">
