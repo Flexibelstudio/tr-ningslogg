@@ -1,6 +1,6 @@
 // Fil: components/participant/ExerciseLogCard.tsx
 import React, { useMemo } from 'react';
-import { Exercise, WorkoutLog, SetDetail, LoggableMetric, Workout } from '../../types';
+import { Exercise, WorkoutLog, SetDetail, LoggableMetric, Workout, LiftType } from '../../types';
 import { Button } from '../Button';
 import { Input } from '../Input';
 import { calculateEstimated1RM } from '../../utils/workoutUtils';
@@ -132,37 +132,43 @@ export const ExerciseLogCard: React.FC<ExerciseLogCardProps> = ({
   const sets = logEntries.get(exercise.id) || [];
 
   const referenceData = useMemo(() => {
-    // Standardläge för redigering eller icke-baslyft
-    if (!isNewSession || !exercise.baseLiftType) {
-      const defaultSets = logForReference?.entries.find((e) => e.exerciseId === exercise.id)?.loggedSets;
-      return { sets: defaultSets, sourceWorkoutTitle: null as string | null };
-    }
+    const MAIN_LIFTS: LiftType[] = ['Marklyft', 'Knäböj', 'Axelpress', 'Bänkpress'];
+    const isMainLift = exercise.baseLiftType && MAIN_LIFTS.includes(exercise.baseLiftType);
+    
+    // Special logic for main lifts in a new session
+    if (isNewSession && isMainLift) {
+      // myWorkoutLogs is pre-sorted from newest to oldest
+      for (const log of myWorkoutLogs) {
+        const workoutTemplate = allWorkouts.find((w) => w.id === log.workoutId);
+        
+        const exercisesInLogSession =
+          (log.selectedExercisesForModifiable && log.selectedExercisesForModifiable.length > 0)
+            ? log.selectedExercisesForModifiable
+            : (workoutTemplate?.blocks || []).reduce((acc, block) => acc.concat(block.exercises), [] as Exercise[]);
 
-    // Ny söklogik för baslyft i nya sessioner (myWorkoutLogs är sorterad desc på datum)
-    for (const log of myWorkoutLogs) {
-      const workoutTemplate = allWorkouts.find((w) => w.id === log.workoutId);
+        for (const entry of log.entries) {
+          const loggedExercise = exercisesInLogSession.find((ex) => ex.id === entry.exerciseId);
 
-      const exercisesInLogSession =
-        log.selectedExercisesForModifiable && log.selectedExercisesForModifiable.length > 0
-          ? log.selectedExercisesForModifiable
-          : (workoutTemplate?.blocks || []).reduce((acc, block) => acc.concat(block.exercises), [] as Exercise[]);
-
-      for (const entry of log.entries) {
-        const loggedExercise = exercisesInLogSession.find((ex) => ex.id === entry.exerciseId);
-
-        if (loggedExercise?.baseLiftType === exercise.baseLiftType) {
-          // Hittade senaste logg för detta baslyft
-          return {
-            sets: entry.loggedSets,
-            sourceWorkoutTitle: workoutTemplate?.title || 'Anpassat pass',
-          };
+          if (loggedExercise?.baseLiftType === exercise.baseLiftType) {
+            // Found the most recent log for this base lift type
+            return {
+              sets: entry.loggedSets,
+              sourceWorkoutTitle: workoutTemplate?.title || 'Anpassat pass',
+            };
+          }
         }
       }
     }
 
-    // Fallback om inget hittas
-    const fallbackSets = logForReference?.entries.find((e) => e.exerciseId === exercise.id)?.loggedSets;
-    return { sets: fallbackSets, sourceWorkoutTitle: null as string | null };
+    // Default behavior for other exercises or when editing
+    const defaultSets = logForReference?.entries.find((e) => e.exerciseId === exercise.id)?.loggedSets;
+    const workoutForReference = logForReference ? allWorkouts.find(w => w.id === logForReference.workoutId) : null;
+
+    return { 
+        sets: defaultSets, 
+        sourceWorkoutTitle: workoutForReference?.title || null
+    };
+
   }, [isNewSession, exercise, logForReference, myWorkoutLogs, allWorkouts]);
 
   const { sets: previousSetsForExercise, sourceWorkoutTitle } = referenceData;

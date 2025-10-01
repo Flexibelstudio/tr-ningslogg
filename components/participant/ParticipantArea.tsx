@@ -650,7 +650,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   
   // Memoized data for the current participant
   const participantProfile = useMemo(() => participantDirectory.find(p => p.id === currentParticipantId), [participantDirectory, currentParticipantId]);
-  const myWorkoutLogs = useMemo(() => workoutLogs.filter(l => l.participantId === currentParticipantId), [workoutLogs, currentParticipantId]);
+  const myWorkoutLogs = useMemo(() => workoutLogs.filter(l => l.participantId === currentParticipantId).sort((a,b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime()), [workoutLogs, currentParticipantId]);
   const myGeneralActivityLogs = useMemo(() => generalActivityLogs.filter(l => l.participantId === currentParticipantId), [generalActivityLogs, currentParticipantId]);
   const myGoalCompletionLogs = useMemo(() => goalCompletionLogs.filter(g => g.participantId === currentParticipantId), [goalCompletionLogs, currentParticipantId]);
   const myParticipantGoals = useMemo(() => participantGoals.filter(g => g.participantId === currentParticipantId), [participantGoals, currentParticipantId]);

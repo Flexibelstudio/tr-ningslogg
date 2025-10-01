@@ -83,18 +83,11 @@ const AppContent: React.FC = () => {
     // --- Update Notice Logic ---
     const UPDATE_NOTICE_KEY = 'updateNotice_v3_AICoach'; // Unique key for this update version
     const LAST_SEEN_UPDATE_KEY = 'flexibel_lastSeenUpdateNotice'; // Local storage key to track what the user has seen
-    const [showUpdateNoticePopup, setShowUpdateNoticePopup] = useState(false);
     const [showLatestUpdateView, setShowLatestUpdateView] = useState(false);
     const [hasUnreadUpdate, setHasUnreadUpdate] = useState(false); // State for the notification dot
 
     useEffect(() => {
         if (auth.user && auth.currentRole === UserRole.PARTICIPANT) {
-            // Logic for the one-time popup
-            const noticeShownForPopup = localStorage.getItem(UPDATE_NOTICE_KEY);
-            if (!noticeShownForPopup) {
-                setTimeout(() => setShowUpdateNoticePopup(true), 1500);
-            }
-
             // Logic for the notification dot
             const lastSeenVersion = localStorage.getItem(LAST_SEEN_UPDATE_KEY);
             if (lastSeenVersion !== UPDATE_NOTICE_KEY) {
@@ -102,15 +95,6 @@ const AppContent: React.FC = () => {
             }
         }
     }, [auth.user, auth.currentRole]);
-
-    const handleCloseUpdateNoticePopup = () => {
-        localStorage.setItem(UPDATE_NOTICE_KEY, 'true'); // Mark popup as shown
-        setShowUpdateNoticePopup(false);
-        
-        // Also mark the update as seen to remove the dot
-        localStorage.setItem(LAST_SEEN_UPDATE_KEY, UPDATE_NOTICE_KEY);
-        setHasUnreadUpdate(false);
-    };
 
     const handleOpenLatestUpdateView = () => {
         setShowLatestUpdateView(true);
@@ -795,12 +779,6 @@ const AppContent: React.FC = () => {
                     {renderMainView()}
                 </Suspense>
             </main>
-            {showUpdateNoticePopup && (
-                <UpdateNoticeModal 
-                    show={showUpdateNoticePopup} 
-                    onClose={handleCloseUpdateNoticePopup} 
-                />
-            )}
 
             {showLatestUpdateView && (
                 <UpdateNoticeModal 

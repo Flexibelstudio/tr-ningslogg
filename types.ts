@@ -330,6 +330,8 @@ export interface ParticipantProfile {
   email?: string;
   photoURL?: string;
   isActive?: boolean;
+  // FIX: Add missing 'isProspect' property to track new/potential members.
+  isProspect?: boolean;
   creationDate?: string;
   age?: string; 
   gender?: GenderOption;
@@ -575,6 +577,9 @@ export interface IntegrationSettings {
   cancellationCutoffHours?: number;
   isClientJourneyEnabled?: boolean;
   isScheduleEnabled?: boolean;
+  // FIX: Add missing properties to support the start program feature.
+  startProgramCategoryId?: string;
+  startProgramSessionsRequired?: number;
 }
 
 // New: For Staff Management

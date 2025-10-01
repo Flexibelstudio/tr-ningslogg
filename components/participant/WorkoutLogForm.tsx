@@ -646,7 +646,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                   logEntries={logEntries}
                   handleUpdateSet={handleUpdateSet}
                   setSetToRemove={setSetToRemove}
-                  logForReference={isNewSession ? logForReferenceOrEdit : logForReference}
+                  logForReference={logForReferenceOrEdit}
                   aiExerciseTip={aiTips?.exerciseTips.find(tip => tip.exerciseName === exercise.name)?.tip}
                   isNewSession={isNewSession}
                   myWorkoutLogs={myWorkoutLogs}
