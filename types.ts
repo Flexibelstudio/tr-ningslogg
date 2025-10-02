@@ -375,6 +375,38 @@ export interface CoachNote {
   noteType: 'check-in' | 'intro-session'; 
 }
 
+export interface Lead {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  locationId: string;
+  source: 'Hemsida' | 'Meta' | 'Manuell';
+  createdDate: string; // ISO string
+  status: 'new' | 'contacted' | 'converted' | 'junk';
+}
+
+export interface ProspectIntroCall {
+  id: string;
+  prospectName: string;
+  prospectEmail?: string;
+  prospectPhone?: string;
+  createdDate: string; // ISO string
+  coachId: string;
+  
+  // Fields from the template
+  backgroundNotes?: string;
+  goalsNotes?: string;
+  lifestyleNotes?: string;
+  physicalNotes?: string;
+  coachSummary?: string;
+  
+  // Status to handle linking later
+  status: 'unlinked' | 'linked';
+  linkedParticipantId?: string; // Filled when the link is made
+}
+
 export interface ParticipantGoalData {
   id: string; 
   participantId: string;
@@ -561,13 +593,12 @@ export interface Membership {
   // New: Differentiator
   type?: 'subscription' | 'clip_card';
 
-  // Subscription-specific
-  restrictedCategories?: WorkoutCategory[];
-
   // Clip Card-specific
   clipCardClips?: number;
   clipCardValidityDays?: number; // e.g., 90. If null/undefined, it's unlimited.
-  clipCardCategories?: WorkoutCategory[];
+  
+  // Unified blacklist for all membership types
+  restrictedCategories?: WorkoutCategory[];
 }
 
 export interface IntegrationSettings {
@@ -644,6 +675,8 @@ export interface OrganizationData {
   groupClassDefinitions: GroupClassDefinition[];
   groupClassSchedules: GroupClassSchedule[];
   participantBookings: ParticipantBooking[];
+  leads: Lead[];
+  prospectIntroCalls: ProspectIntroCall[];
   branding?: BrandingSettings;
 }
 

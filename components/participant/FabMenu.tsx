@@ -70,9 +70,11 @@ export const FabMenu: React.FC<FabMenuProps> = ({ isOpen, onToggle, onClose, wor
     }
 
     finalMenuItems.forEach(category => {
-        const isSubscriptionRestricted = membership?.type === 'subscription' && category.value !== 'Personligt program' && (membership.restrictedCategories?.includes(category.value) || false);
-        const isClipCardRestricted = membership?.type === 'clip_card' && (membership?.clipCardCategories?.includes(category.value) || false);
-        const isRestricted = isSubscriptionRestricted || isClipCardRestricted;
+        let isRestricted = false;
+        // Don't apply restrictions to 'Personligt program'
+        if (membership?.restrictedCategories && category.value !== 'Personligt program') {
+            isRestricted = membership.restrictedCategories.includes(category.value);
+        }
         
         actions.push({
             key: category.value, label: `Logga ${category.label}`, icon: categoryIcons[category.value] || <span className="text-lg">🤸‍♀️</span>,

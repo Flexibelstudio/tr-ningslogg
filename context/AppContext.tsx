@@ -8,7 +8,7 @@ import {
     CoachEvent, Connection, Location, StaffMember, Membership, 
     WeeklyHighlightSettings, OneOnOneSession, WorkoutCategoryDefinition, 
     StaffAvailability, IntegrationSettings, GroupClassDefinition, 
-    GroupClassSchedule, ParticipantBooking, AppData, BrandingSettings
+    GroupClassSchedule, ParticipantBooking, AppData, BrandingSettings, ProspectIntroCall, Lead
 } from '../types';
 import firebaseService from '../services/firebaseService'; // Use the new service
 import { useAuth } from './AuthContext';
@@ -72,6 +72,8 @@ interface AppContextType extends Omit<OrganizationData, 'workouts' | 'branding'>
   setGroupClassDefinitionsData: (updater: React.SetStateAction<AppData['groupClassDefinitions']>) => void;
   setGroupClassSchedulesData: (updater: React.SetStateAction<AppData['groupClassSchedules']>) => void;
   setParticipantBookingsData: (updater: React.SetStateAction<AppData['participantBookings']>) => void;
+  setLeadsData: (updater: React.SetStateAction<AppData['leads']>) => void;
+  setProspectIntroCallsData: (updater: React.SetStateAction<AppData['prospectIntroCalls']>) => void;
   setBrandingData: (updater: React.SetStateAction<AppData['branding']>) => void;
 }
 
@@ -134,6 +136,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [groupClassDefinitions, setGroupClassDefinitions] = useState<GroupClassDefinition[]>([]);
     const [groupClassSchedules, setGroupClassSchedules] = useState<GroupClassSchedule[]>([]);
     const [participantBookings, setParticipantBookings] = useState<ParticipantBooking[]>([]);
+    const [leads, setLeads] = useState<Lead[]>([]);
+    const [prospectIntroCalls, setProspectIntroCalls] = useState<ProspectIntroCall[]>([]);
     const [branding, setBranding] = useState<BrandingSettings | undefined>(undefined);
     const [isGlobalDataLoading, setIsGlobalDataLoading] = useState(true);
     const [isOrgDataLoading, setIsOrgDataLoading] = useState(true);
@@ -230,6 +234,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     setGroupClassDefinitions(data.groupClassDefinitions);
                     setGroupClassSchedules(data.groupClassSchedules);
                     setParticipantBookings(data.participantBookings);
+                    setLeads(data.leads);
+                    setProspectIntroCalls(data.prospectIntroCalls);
                     setBranding(data.branding);
 
                     // Also update the local cache with the fresh data from Firestore
@@ -288,6 +294,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setGroupClassDefinitions([]);
             setGroupClassSchedules([]);
             setParticipantBookings([]);
+            setLeads([]);
+            setProspectIntroCalls([]);
             setBranding(undefined);
         }
     }, [organizationId]);
@@ -408,6 +416,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const smartSetGroupClassDefinitions = createSmartCollectionUpdater('groupClassDefinitions', setGroupClassDefinitions);
     const smartSetGroupClassSchedules = createSmartCollectionUpdater('groupClassSchedules', setGroupClassSchedules);
     const smartSetParticipantBookings = createSmartCollectionUpdater('participantBookings', setParticipantBookings);
+    const smartSetLeads = createSmartCollectionUpdater('leads', setLeads);
+    const smartSetProspectIntroCalls = createSmartCollectionUpdater('prospectIntroCalls', setProspectIntroCalls);
     const smartSetBranding = createSingleDocUpdater('branding', setBranding);
 
     const addParticipant = useCallback(async (participant: ParticipantProfile) => {
@@ -471,6 +481,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     groupClassDefinitions,
     groupClassSchedules,
     participantBookings,
+    leads,
+    prospectIntroCalls,
     branding,
     isOrgDataLoading,
     isGlobalDataLoading,
@@ -511,6 +523,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setGroupClassDefinitionsData: smartSetGroupClassDefinitions,
     setGroupClassSchedulesData: smartSetGroupClassSchedules,
     setParticipantBookingsData: smartSetParticipantBookings,
+    setLeadsData: smartSetLeads,
+    setProspectIntroCallsData: smartSetProspectIntroCalls,
     setBrandingData: smartSetBranding,
   };
 

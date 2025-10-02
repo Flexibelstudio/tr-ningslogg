@@ -159,11 +159,13 @@ export const SelectWorkoutModal: React.FC<SelectWorkoutModalProps> = ({
 
   // Handle membership restrictions
   const workoutsWithRestriction = generalWorkouts.map(w => {
-      const isSubscriptionRestricted = membership?.type === 'subscription' && w.category !== 'Personligt program' && (membership?.restrictedCategories?.includes(w.category) || false);
-      const isClipCardRestricted = membership?.type === 'clip_card' && (membership?.clipCardCategories?.includes(w.category) || false);
+      let isRestricted = false;
+      if (membership?.restrictedCategories && w.category !== 'Personligt program') {
+        isRestricted = membership.restrictedCategories.includes(w.category);
+      }
       return {
           ...w,
-          isRestricted: isSubscriptionRestricted || isClipCardRestricted
+          isRestricted
       };
   });
 

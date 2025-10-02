@@ -139,17 +139,11 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                             myPosition = waitlistedUsers.findIndex(b => b.id === myBooking.id) + 1;
                         }
 
-                        const isSubscriptionRestricted = participantProfile?.membershipId &&
-                            membership?.type === 'subscription' &&
-                            membership.restrictedCategories &&
-                            membership.restrictedCategories.length > 0 &&
-                            membership.restrictedCategories.map(c => c.toLowerCase()).includes(classDef.name.toLowerCase());
-
-                        const isClipCardRestricted = participantProfile?.membershipId &&
-                            membership?.type === 'clip_card' &&
-                            membership.clipCardCategories &&
-                            membership.clipCardCategories.length > 0 &&
-                            membership.clipCardCategories.map(c => c.toLowerCase()).includes(classDef.name.toLowerCase());
+                        let isRestricted = false;
+                        if (membership?.restrictedCategories) {
+                            const categoryName = classDef.name;
+                            isRestricted = membership.restrictedCategories.map(c => c.toLowerCase()).includes(categoryName.toLowerCase());
+                        }
     
                         instances.push({
                             instanceId: `${schedule.id}-${currentDateStr}`,
@@ -169,7 +163,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                             bookingId: myBooking?.id,
                             isFull: bookedUsers.length >= schedule.maxParticipants,
                             cancellationCutoffHours: integrationSettings.cancellationCutoffHours ?? 2,
-                            isRestricted: !!(isSubscriptionRestricted || isClipCardRestricted),
+                            isRestricted: isRestricted,
                         });
                     }
                 }
