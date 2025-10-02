@@ -1,5 +1,8 @@
 import { WeightComparisonItem, GenderOption, StrengthStandard, StrengthLevel, LiftType, AllUserProvidedStrengthMultipliers, StrengthStandardDetail, UserProvidedLiftMultipliers, WorkoutCategory, ClubDefinition, UserStrengthStat, StaffRole, Membership, OneOnOneSessionType, WorkoutCategoryDefinition, GroupClassDefinition, ConditioningMetric, WorkoutFocusTag } from './types'; // Updated import type from AnimalWeight
 
+// FIX: Export the Zapier webhook secret from environment variables to fix import error in ZapierWebhookHandler.
+export const ZAPIER_WEBHOOK_SECRET = import.meta.env.VITE_ZAPIER_WEBHOOK_SECRET;
+
 export const FLEXIBEL_PRIMARY_COLOR = '#3bab5a'; // Updated color
 export const APP_NAME = 'Träningslogg';
 
@@ -13,6 +16,7 @@ export const LOCAL_STORAGE_KEYS = {
   IN_PROGRESS_WORKOUT: 'flexibel_inProgressWorkout_v1',
   INSTALL_PROMPT_DISMISSED_UNTIL: 'flexibel_installPromptDismissedUntil_v1',
 };
+
 
 // PREDEFINED data is now part of the seed data in dataService.ts
 // to ensure it exists within each organization's data.
