@@ -801,7 +801,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   
   const latestActiveGoal = useMemo(() => {
      const sortedGoals = [...myParticipantGoals].sort((a,b) => new Date(b.setDate).getTime() - new Date(a.setDate).getTime());
-     return sortedGoals.find(g => !g.isCompleted) || sortedGoals[0] || null;
+     return sortedGoals.find(g => !g.isCompleted) || null;
   }, [myParticipantGoals]);
 
   const latestStrengthStats = useMemo(() => {

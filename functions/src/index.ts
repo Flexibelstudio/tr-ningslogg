@@ -1,4 +1,4 @@
-import {onRequest} from "firebase-functions/v2/https";
+import {onRequest, Request, Response} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {initializeApp} from "firebase-admin/app";
 import {getFirestore} from "firebase-admin/firestore";
@@ -18,8 +18,8 @@ export const createLeadFromZapier = onRequest(
     secrets: ["ZAPIER_SECRET_KEY"],
     cors: true,
   },
-  // FIX: Rely on type inference from onRequest for request and response objects to resolve type errors.
-  async (req, res) => {
+  // FIX: Explicitly typed the request and response objects. The environment seems to be failing to infer the correct types from the 'onRequest' wrapper, leading to property access errors.
+  async (req: Request, res: Response) => {
     // 1. Security Checks
     if (req.method !== "POST") {
       logger.warn("Method Not Allowed:", req.method);

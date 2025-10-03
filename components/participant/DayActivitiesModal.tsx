@@ -15,6 +15,7 @@ interface DayActivitiesModalProps {
   workouts: Workout[]; 
   onViewLogSummary: (log: ActivityLog) => void; 
   onDeleteActivity: (activityId: string, activityType: 'workout' | 'general' | 'goal_completion') => void;
+  activeGoal?: ParticipantGoalData | null;
   strengthStatsHistory: UserStrengthStat[];
   conditioningStatsHistory: ParticipantConditioningStat[];
   physiqueHistory: ParticipantPhysiqueStat[];
@@ -79,6 +80,7 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
   workouts,
   onViewLogSummary,
   onDeleteActivity,
+  activeGoal,
   strengthStatsHistory,
   conditioningStatsHistory,
   physiqueHistory,
@@ -198,8 +200,8 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
 
   const hasGoalTargetForDay = useMemo(() => {
     if (!selectedDate) return false;
-    return allParticipantGoals.some(g => g.targetDate && dateUtils.isSameDay(new Date(g.targetDate), selectedDate));
-  }, [selectedDate, allParticipantGoals]);
+    return activeGoal?.targetDate ? dateUtils.isSameDay(new Date(activeGoal.targetDate), selectedDate) : false;
+  }, [selectedDate, activeGoal]);
 
 
   if (!isOpen || !selectedDate) return null;
