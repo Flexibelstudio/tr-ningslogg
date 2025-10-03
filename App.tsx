@@ -41,7 +41,7 @@ const LoadingSpinner = () => (
 
 const AppContent: React.FC = () => {
     // NEW ROUTING LOGIC for public lead form
-    if (window.location.pathname.startsWith('/public/lead-form')) {
+    if (window.location.pathname.startsWith('/lead-form')) {
         return (
             <Suspense fallback={<LoadingSpinner />}>
                 <PublicLeadForm />

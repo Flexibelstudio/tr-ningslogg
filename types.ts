@@ -11,8 +11,6 @@ declare global {
       readonly VITE_FB_MESSAGING_SENDER_ID: string | undefined;
       readonly VITE_FB_APP_ID: string | undefined;
       readonly VITE_FB_MEASUREMENT_ID?: string;
-      // FIX: Add Zapier secret key to env types
-      readonly VITE_ZAPIER_WEBHOOK_SECRET?: string;
       readonly DEV: boolean;
       readonly PROD: boolean;
     }
