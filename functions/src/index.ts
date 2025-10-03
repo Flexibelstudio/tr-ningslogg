@@ -1,8 +1,7 @@
-import {onRequest, Request} from "firebase-functions/v2/https";
+import {onRequest} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {initializeApp} from "firebase-admin/app";
 import {getFirestore} from "firebase-admin/firestore";
-import {Response} from "express";
 
 // Initialize Firebase Admin SDK
 initializeApp();
@@ -19,8 +18,8 @@ export const createLeadFromZapier = onRequest(
     secrets: ["ZAPIER_SECRET_KEY"],
     cors: true,
   },
-  // FIX: Explicitly typed the request and response objects to resolve type errors.
-  async (req: Request, res: Response) => {
+  // FIX: Rely on type inference from onRequest for request and response objects to resolve type errors.
+  async (req, res) => {
     // 1. Security Checks
     if (req.method !== "POST") {
       logger.warn("Method Not Allowed:", req.method);
