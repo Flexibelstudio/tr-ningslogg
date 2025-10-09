@@ -566,6 +566,8 @@ export interface CoachEvent {
   eventDate?: string; // ISO string for the date, optional for news
   createdDate: string; // ISO string for when the item was created
   studioTarget: 'all' | 'salem' | 'karra';
+  linkUrl?: string;
+  linkButtonText?: string;
   reactions?: Reaction[];
   comments?: Comment[];
 }

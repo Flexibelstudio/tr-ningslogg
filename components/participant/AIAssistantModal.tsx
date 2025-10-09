@@ -22,7 +22,8 @@ interface AIAssistantModalProps {
   participant: ParticipantProfile;
 }
 
-const renderTipsContent = (tips: AiWorkoutTips | null): JSX.Element | null => {
+// FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
+const renderTipsContent = (tips: AiWorkoutTips | null): React.ReactElement | null => {
     if (!tips) return null;
     return (
         <div className="space-y-4">

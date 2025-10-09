@@ -20,6 +20,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onCl
   const [error, setError] = useState('');
   const [studioTarget, setStudioTarget] = useState<'all' | 'salem' | 'karra'>('all');
   const [type, setType] = useState<'event' | 'news'>('event');
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkButtonText, setLinkButtonText] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -30,12 +32,16 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onCl
         // Date input needs YYYY-MM-DD format
         setDate(eventToEdit.eventDate ? eventToEdit.eventDate.split('T')[0] : '');
         setStudioTarget(eventToEdit.studioTarget || 'all');
+        setLinkUrl(eventToEdit.linkUrl || '');
+        setLinkButtonText(eventToEdit.linkButtonText || '');
       } else {
         setTitle('');
         setDescription('');
         setDate('');
         setStudioTarget('all');
         setType('event');
+        setLinkUrl('');
+        setLinkButtonText('');
       }
       setError('');
     }
@@ -55,6 +61,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onCl
         eventDate: type === 'event' ? date : undefined,
         createdDate: eventToEdit?.createdDate || new Date().toISOString(),
         studioTarget,
+        linkUrl: linkUrl.trim() || undefined,
+        linkButtonText: linkButtonText.trim() || undefined,
     };
 
     if (eventToEdit) {
@@ -115,6 +123,20 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onCl
           onChange={(e) => setStudioTarget(e.target.value as 'all' | 'salem' | 'karra')}
           options={STUDIO_TARGET_OPTIONS}
         />
+        <div className="pt-4 border-t space-y-4">
+            <Input
+              label="Länk (URL, valfri)"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              placeholder="https://exempel.se/sida"
+            />
+            <Input
+              label="Text på knapp (valfri)"
+              value={linkButtonText}
+              onChange={(e) => setLinkButtonText(e.target.value)}
+              placeholder='Standard är "Läs mer här"'
+            />
+        </div>
         <div className="flex justify-end space-x-3 pt-4 border-t">
           <Button onClick={onClose} variant="secondary">Avbryt</Button>
           <Button onClick={handleSave} variant="primary">Spara</Button>

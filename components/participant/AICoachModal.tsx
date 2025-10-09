@@ -28,10 +28,13 @@ const SendIcon = () => (
     </svg>
 );
 
-const renderMarkdownContent = (text: string): JSX.Element[] => {
+// FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
+const renderMarkdownContent = (text: string): React.ReactElement[] => {
     const lines = text.split('\n');
-    const elements: JSX.Element[] = [];
-    let listItems: JSX.Element[] = [];
+    // FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
+    const elements: React.ReactElement[] = [];
+    // FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
+    let listItems: React.ReactElement[] = [];
 
     const flushList = () => {
         if (listItems.length > 0) {

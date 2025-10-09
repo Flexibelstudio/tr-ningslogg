@@ -51,7 +51,7 @@ import { useAuth } from '../../context/AuthContext';
 import { FlowModal } from './FlowModal';
 import { useNetworkStatus } from '../../context/NetworkStatusContext';
 import { InstallPwaBanner } from './InstallPwaBanner';
-import { ConfirmationModal } from '../ConfirmationModal';
+import { ConfirmationModal } from './ConfirmationModal';
 import { AchievementToast } from './AchievementToast';
 import { AICoachModal } from './AICoachModal';
 
@@ -59,7 +59,8 @@ import { AICoachModal } from './AICoachModal';
 const API_KEY = process.env.API_KEY;
 
 // Helper function to render AI Markdown content
-const getIconForHeader = (headerText: string): JSX.Element | null => {
+// FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
+const getIconForHeader = (headerText: string): React.ReactElement | null => {
   const lowerHeaderText = headerText.toLowerCase();
   if (lowerHeaderText.includes("prognos")) return <span className="mr-2 text-xl" role="img" aria-label="Prognos">🔮</span>;
   if (lowerHeaderText.includes("nyckelpass") || lowerHeaderText.includes("rekommendera")) return <span className="mr-2 text-xl" role="img" aria-label="Rekommenderade pass">🎟️</span>;
@@ -73,11 +74,14 @@ const getIconForHeader = (headerText: string): JSX.Element | null => {
   return <span className="mr-2 text-xl" role="img" aria-label="Rubrik">📄</span>;
 };
 
-const renderFormattedMarkdown = (feedback: string | null): JSX.Element[] | null => {
+// FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
+const renderFormattedMarkdown = (feedback: string | null): React.ReactElement[] | null => {
   if (!feedback) return null;
   const lines = feedback.split('\n');
-  const renderedElements: JSX.Element[] = [];
-  let currentListItems: JSX.Element[] = [];
+  // FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
+  const renderedElements: React.ReactElement[] = [];
+  // FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
+  let currentListItems: React.ReactElement[] = [];
   let listKeySuffix = 0;
   const flushList = () => {
     if (currentListItems.length > 0) {
