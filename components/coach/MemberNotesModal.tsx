@@ -45,8 +45,7 @@ interface MemberNotesModalProps {
 
 type MemberNotesTab = 'notes' | 'goals' | 'sessions' | 'program';
 
-// FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
-const getIconForHeader = (headerText: string): React.ReactElement | null => {
+const getIconForHeader = (headerText: string): JSX.Element | null => {
     const lowerHeaderText = headerText.toLowerCase();
     if (lowerHeaderText.includes("aktivitet") || lowerHeaderText.includes("konsistens")) return <span className="mr-2 text-xl" role="img" aria-label="Aktivitet">📊</span>;
     if (lowerHeaderText.includes("målsättning") || lowerHeaderText.includes("progress")) return <span className="mr-2 text-xl" role="img" aria-label="Målsättning">🎯</span>;
@@ -55,14 +54,11 @@ const getIconForHeader = (headerText: string): React.ReactElement | null => {
     return <span className="mr-2 text-xl" role="img" aria-label="Rubrik">📄</span>;
 };
 
-// FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
-const renderMarkdownContent = (markdownText: string | null): React.ReactElement[] | null => {
+const renderMarkdownContent = (markdownText: string | null): JSX.Element[] | null => {
     if (!markdownText) return null;
     const lines = markdownText.split('\n');
-    // FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
-    const renderedElements: React.ReactElement[] = [];
-    // FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
-    let currentListItems: React.ReactElement[] = [];
+    const renderedElements: JSX.Element[] = [];
+    let currentListItems: JSX.Element[] = [];
     let listKeySuffix = 0;
   
     const flushList = () => {

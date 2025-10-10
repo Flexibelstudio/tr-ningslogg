@@ -4,14 +4,11 @@ import { Location, ParticipantProfile, ActivityLog, Workout, WorkoutLog, General
 import { Button } from '../Button';
 import { Textarea } from '../Textarea';
 
-// FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
-const renderMarkdownResponse = (markdownText: string | null): React.ReactElement | null => {
+const renderMarkdownResponse = (markdownText: string | null): JSX.Element | null => {
     if (!markdownText) return null;
     const lines = markdownText.split('\n');
-    // FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
-    const renderedElements: React.ReactElement[] = [];
-    // FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
-    let currentListItems: React.ReactElement[] = [];
+    const renderedElements: JSX.Element[] = [];
+    let currentListItems: JSX.Element[] = [];
     let listKeySuffix = 0;
   
     const flushList = () => {

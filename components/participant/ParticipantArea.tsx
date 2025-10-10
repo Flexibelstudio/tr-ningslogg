@@ -5,8 +5,8 @@ import {
     UserStrengthStat, ParticipantConditioningStat,
     UserRole, ParticipantMentalWellbeing, Exercise, GoalCompletionLog, ParticipantGamificationStats, WorkoutCategory, PostWorkoutSummaryData, NewPB, ParticipantClubMembership, LeaderboardSettings, CoachEvent, GenderOption, Connection, Reaction, Comment, NewBaseline, ParticipantPhysiqueStat, LiftType, Location, Membership, StaffMember, OneOnOneSession, IntegrationSettings,
     GroupClassDefinition, GroupClassSchedule, ParticipantBooking, WorkoutCategoryDefinition, InProgressWorkout, AchievementDefinition, FlowItemLogType
-} from '../../types';
-import { useLocalStorage } from '../../hooks/useLocalStorage';
+} from '../types';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Button } from '../Button';
 import { Modal } from '../Modal';
 import { WorkoutLogForm } from './WorkoutLogForm';
@@ -20,8 +20,8 @@ import {
     LOCAL_STORAGE_KEYS, WEIGHT_COMPARISONS, FLEXIBEL_PRIMARY_COLOR,
     STRESS_LEVEL_OPTIONS, ENERGY_LEVEL_OPTIONS, SLEEP_QUALITY_OPTIONS, OVERALL_MOOD_OPTIONS,
     LEVEL_COLORS_HEADER, MAIN_LIFTS_CONFIG_HEADER, MOOD_OPTIONS, CLUB_DEFINITIONS
-} from '../../constants';
-import * as dateUtils from '../../utils/dateUtils';
+} from '../constants';
+import * as dateUtils from '../utils/dateUtils';
 import { calculateFlexibelStrengthScoreInternal, getFssScoreInterpretation as getFssScoreInterpretationFromTool } from './StrengthComparisonTool';
 import { FeedbackPromptToast } from './FeedbackPromptToast';
 import { InfoModal } from './InfoModal';
@@ -46,12 +46,12 @@ import { calculateUpdatedStreakAndGamification, checkAndAwardClubMemberships } f
 import { calculatePostWorkoutSummary, findAndUpdateStrengthStats } from '../../services/workoutService';
 import { NextBookingCard } from './NextBookingCard';
 import { AIAssistantModal, AiWorkoutTips } from './AIAssistantModal';
-import { useAppContext } from '../../context/AppContext';
-import { useAuth } from '../../context/AuthContext';
+import { useAppContext } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { FlowModal } from './FlowModal';
-import { useNetworkStatus } from '../../context/NetworkStatusContext';
+import { useNetworkStatus } from '../context/NetworkStatusContext';
 import { InstallPwaBanner } from './InstallPwaBanner';
-import { ConfirmationModal } from './ConfirmationModal';
+import { ConfirmationModal } from '../ConfirmationModal';
 import { AchievementToast } from './AchievementToast';
 import { AICoachModal } from './AICoachModal';
 
@@ -59,8 +59,7 @@ import { AICoachModal } from './AICoachModal';
 const API_KEY = process.env.API_KEY;
 
 // Helper function to render AI Markdown content
-// FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
-const getIconForHeader = (headerText: string): React.ReactElement | null => {
+const getIconForHeader = (headerText: string): JSX.Element | null => {
   const lowerHeaderText = headerText.toLowerCase();
   if (lowerHeaderText.includes("prognos")) return <span className="mr-2 text-xl" role="img" aria-label="Prognos">🔮</span>;
   if (lowerHeaderText.includes("nyckelpass") || lowerHeaderText.includes("rekommendera")) return <span className="mr-2 text-xl" role="img" aria-label="Rekommenderade pass">🎟️</span>;
@@ -74,14 +73,11 @@ const getIconForHeader = (headerText: string): React.ReactElement | null => {
   return <span className="mr-2 text-xl" role="img" aria-label="Rubrik">📄</span>;
 };
 
-// FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
-const renderFormattedMarkdown = (feedback: string | null): React.ReactElement[] | null => {
+const renderFormattedMarkdown = (feedback: string | null): JSX.Element[] | null => {
   if (!feedback) return null;
   const lines = feedback.split('\n');
-  // FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
-  const renderedElements: React.ReactElement[] = [];
-  // FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
-  let currentListItems: React.ReactElement[] = [];
+  const renderedElements: JSX.Element[] = [];
+  let currentListItems: JSX.Element[] = [];
   let listKeySuffix = 0;
   const flushList = () => {
     if (currentListItems.length > 0) {

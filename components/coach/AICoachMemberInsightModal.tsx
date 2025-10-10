@@ -14,8 +14,7 @@ interface AICoachMemberInsightModalProps {
   logs: ActivityLog[];
 }
 
-// FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
-const getIconForHeader = (headerText: string): React.ReactElement | null => {
+const getIconForHeader = (headerText: string): JSX.Element | null => {
     const lowerHeaderText = headerText.toLowerCase();
     if (lowerHeaderText.includes("aktivitet") || lowerHeaderText.includes("konsistens")) return <span className="mr-2 text-xl" role="img" aria-label="Aktivitet">📊</span>;
     if (lowerHeaderText.includes("målsättning") || lowerHeaderText.includes("progress")) return <span className="mr-2 text-xl" role="img" aria-label="Målsättning">🎯</span>;
@@ -24,14 +23,11 @@ const getIconForHeader = (headerText: string): React.ReactElement | null => {
     return <span className="mr-2 text-xl" role="img" aria-label="Rubrik">📄</span>;
 };
 
-// FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
-const renderSummaryContent = (summary: string | null): React.ReactElement[] | null => {
+const renderSummaryContent = (summary: string | null): JSX.Element[] | null => {
     if (!summary) return null;
     const lines = summary.split('\n');
-    // FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
-    const renderedElements: React.ReactElement[] = [];
-    // FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
-    let currentListItems: React.ReactElement[] = [];
+    const renderedElements: JSX.Element[] = [];
+    let currentListItems: JSX.Element[] = [];
     let listKeySuffix = 0;
   
     const flushList = () => {
@@ -57,7 +53,9 @@ const renderSummaryContent = (summary: string | null): React.ReactElement[] | nu
         const headerText = lineContent.substring(3).trim();
         const icon = getIconForHeader(headerText.replace(/<\/?(strong|em)>/g, ''));
         renderedElements.push(
-          <h4 key={`h4-${i}`} className="text-xl font-bold text-gray-800 flex items-center mb-2 mt-4" dangerouslySetInnerHTML={{ __html: `${icon?.props.children || ''} ${headerText}` }} />
+          <h4 key={`h4-${i}`} className="text-xl font-bold text-gray-800 flex items-center mb-2 mt-4">
+            {icon} <span dangerouslySetInnerHTML={{ __html: headerText }} />
+          </h4>
         );
       } else if (lineContent.startsWith('* ') || lineContent.startsWith('- ')) {
         const listItemText = lineContent.substring(2).trim();
