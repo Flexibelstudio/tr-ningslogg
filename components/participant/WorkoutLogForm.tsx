@@ -534,7 +534,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                             Kategori: {workout.category}
                         </span>
                     </div>
-                    <Button onClick={handleAttemptClose} variant="outline" className="whitespace-nowrap flex-shrink-0 !px-4 !text-base sm:!px-6 sm:!text-lg">Avbryt & stäng</Button>
+                    <Button onClick={handleAttemptClose} variant="danger" className="whitespace-nowrap flex-shrink-0 !px-4 !text-base sm:!px-6 sm:!text-lg">Avbryt & stäng</Button>
                 </div>
                 <div className="w-full sm:w-1/2">
                     <Input
@@ -627,7 +627,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                     <h1 className="text-3xl font-bold text-gray-800">{workout.title}</h1>
                     <p className="text-xl text-gray-600">{activeBlock.name || `Block ${workout.blocks.findIndex(b => b.id === activeBlock.id) + 1}`}</p>
                 </div>
-                <Button onClick={handleAttemptClose} variant="outline">Avbryt & stäng</Button>
+                <Button onClick={handleAttemptClose} variant="danger">Avbryt & stäng</Button>
             </header>
             {currentGroup.type === 'superset' && (
               <div className="p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
@@ -693,11 +693,8 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
         onClose={() => setShowExitConfirmationModal(false)}
         onConfirm={onClose}
         title="Är du säker?"
-        message={isNewSession
-            ? "Passet sparas som ett utkast som du kan fortsätta på senare. Vill du verkligen avbryta och stänga?"
-            : "Dina ändringar kommer inte att sparas. Vill du verkligen avbryta och stänga?"
-        }
-        confirmButtonText="Ja, avbryt & stäng"
+        message="Dina loggade set för detta pass kommer inte att sparas. Vill du verkligen avbryta?"
+        confirmButtonText="Ja, avbryt"
         cancelButtonText="Nej, fortsätt"
         confirmButtonVariant="danger"
       />

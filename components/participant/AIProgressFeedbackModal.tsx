@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
@@ -92,7 +93,9 @@ const renderFeedbackContent = (feedback: string | null): React.ReactElement[] | 
         // Add a visual break for empty lines, if not preceded by another break or list.
         if (renderedElements.length > 0) {
           const lastElement = renderedElements[renderedElements.length - 1];
-          if (!(lastElement.type === 'div' && lastElement.props.className?.includes('h-2')) && lastElement.type !== 'ul') {
+          // FIX: Cast props to `any` to solve "Property 'className' does not exist on type 'unknown'" error.
+          // The type of props is not strongly inferred here, so a type assertion is needed.
+          if (!(lastElement.type === 'div' && (lastElement.props as any).className?.includes('h-2')) && lastElement.type !== 'ul') {
             renderedElements.push(<div key={`br-${i}`} className="h-2"></div>);
           }
         }

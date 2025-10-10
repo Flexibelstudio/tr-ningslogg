@@ -86,8 +86,12 @@ const renderMarkdownContent = (markdownText: string | null): React.ReactElement[
         flushList();
         const headerText = lineContent.substring(3).trim();
         const icon = getIconForHeader(headerText.replace(/<\/?(strong|em)>/g, ''));
+        // FIX: Correctly render the icon as a React child instead of trying to access its props for dangerouslySetInnerHTML.
+        // This resolves the "Property 'children' does not exist on type 'unknown'" error.
         renderedElements.push(
-          <h4 key={`h4-${i}`} className="text-xl font-bold text-gray-800 flex items-center mb-2 mt-4" dangerouslySetInnerHTML={{ __html: `${icon?.props.children || ''} ${headerText}` }} />
+          <h4 key={`h4-${i}`} className="text-xl font-bold text-gray-800 flex items-center mb-2 mt-4">
+            {icon} <span dangerouslySetInnerHTML={{ __html: headerText }} />
+          </h4>
         );
       } else if (lineContent.startsWith('* ') || lineContent.startsWith('- ')) {
         const listItemText = lineContent.substring(2).trim();
