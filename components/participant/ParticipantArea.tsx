@@ -5,8 +5,8 @@ import {
     UserStrengthStat, ParticipantConditioningStat,
     UserRole, ParticipantMentalWellbeing, Exercise, GoalCompletionLog, ParticipantGamificationStats, WorkoutCategory, PostWorkoutSummaryData, NewPB, ParticipantClubMembership, LeaderboardSettings, CoachEvent, GenderOption, Connection, Reaction, Comment, NewBaseline, ParticipantPhysiqueStat, LiftType, Location, Membership, StaffMember, OneOnOneSession, IntegrationSettings,
     GroupClassDefinition, GroupClassSchedule, ParticipantBooking, WorkoutCategoryDefinition, InProgressWorkout, AchievementDefinition, FlowItemLogType
-} from '../types';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+} from '../../types';
+import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { Button } from '../Button';
 import { Modal } from '../Modal';
 import { WorkoutLogForm } from './WorkoutLogForm';
@@ -20,8 +20,8 @@ import {
     LOCAL_STORAGE_KEYS, WEIGHT_COMPARISONS, FLEXIBEL_PRIMARY_COLOR,
     STRESS_LEVEL_OPTIONS, ENERGY_LEVEL_OPTIONS, SLEEP_QUALITY_OPTIONS, OVERALL_MOOD_OPTIONS,
     LEVEL_COLORS_HEADER, MAIN_LIFTS_CONFIG_HEADER, MOOD_OPTIONS, CLUB_DEFINITIONS
-} from '../constants';
-import * as dateUtils from '../utils/dateUtils';
+} from '../../constants';
+import * as dateUtils from '../../utils/dateUtils';
 import { calculateFlexibelStrengthScoreInternal, getFssScoreInterpretation as getFssScoreInterpretationFromTool } from './StrengthComparisonTool';
 import { FeedbackPromptToast } from './FeedbackPromptToast';
 import { InfoModal } from './InfoModal';
@@ -46,10 +46,10 @@ import { calculateUpdatedStreakAndGamification, checkAndAwardClubMemberships } f
 import { calculatePostWorkoutSummary, findAndUpdateStrengthStats } from '../../services/workoutService';
 import { NextBookingCard } from './NextBookingCard';
 import { AIAssistantModal, AiWorkoutTips } from './AIAssistantModal';
-import { useAppContext } from '../context/AppContext';
-import { useAuth } from '../context/AuthContext';
+import { useAppContext } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { FlowModal } from './FlowModal';
-import { useNetworkStatus } from '../context/NetworkStatusContext';
+import { useNetworkStatus } from '../../context/NetworkStatusContext';
 import { InstallPwaBanner } from './InstallPwaBanner';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { AchievementToast } from './AchievementToast';
