@@ -25,6 +25,8 @@ import { DevToolbar } from './components/DevToolbar';
 const CoachArea = lazy(() => import('./components/coach/CoachArea').then(m => ({ default: m.CoachArea })));
 const ParticipantArea = lazy(() => import('./components/participant/ParticipantArea').then(m => ({ default: m.ParticipantArea })));
 const SystemOwnerArea = lazy(() => import('./components/SystemOwnerArea').then(m => ({ default: m.SystemOwnerArea })));
+const PublicLeadForm = lazy(() => import('./components/public/PublicLeadForm').then(m => ({ default: m.PublicLeadForm })));
+
 
 const API_KEY = process.env.API_KEY;
 
@@ -38,6 +40,15 @@ const LoadingSpinner = () => (
 
 
 const AppContent: React.FC = () => {
+    // NEW ROUTING LOGIC for public lead form
+    if (window.location.pathname.startsWith('/lead-form')) {
+        return (
+            <Suspense fallback={<LoadingSpinner />}>
+                <PublicLeadForm />
+            </Suspense>
+        );
+    }
+
     const {
         participantDirectory, setParticipantDirectoryData,
         memberships,

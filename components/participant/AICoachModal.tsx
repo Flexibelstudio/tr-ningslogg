@@ -28,10 +28,13 @@ const SendIcon = () => (
     </svg>
 );
 
-const renderMarkdownContent = (text: string): JSX.Element[] => {
+// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+const renderMarkdownContent = (text: string): React.ReactElement[] => {
     const lines = text.split('\n');
-    const elements: JSX.Element[] = [];
-    let listItems: JSX.Element[] = [];
+    // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+    const elements: React.ReactElement[] = [];
+    // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+    let listItems: React.ReactElement[] = [];
 
     const flushList = () => {
         if (listItems.length > 0) {

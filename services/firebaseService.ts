@@ -147,7 +147,7 @@ const firebaseService = {
                 memberships: [], weeklyHighlightSettings: { isEnabled: false, dayOfWeek: 1, time: '09:00', studioTarget: 'separate' }, 
                 oneOnOneSessions: [], workoutCategories: [], staffAvailability: [],
                 integrationSettings: { enableQRCodeScanning: false, isBookingEnabled: false, isClientJourneyEnabled: true, isScheduleEnabled: true }, 
-                groupClassDefinitions: [], groupClassSchedules: [], participantBookings: [],
+                groupClassDefinitions: [], groupClassSchedules: [], participantBookings: [], leads: [], prospectIntroCalls: [],
             });
         }
 
@@ -158,7 +158,8 @@ const firebaseService = {
             'participantGamificationStats', 'clubMemberships', 'leaderboardSettings', 'coachEvents',
             'connections', 'lastFlowViewTimestamp', 'locations', 'staffMembers', 'memberships',
             'weeklyHighlightSettings', 'oneOnOneSessions', 'workoutCategories', 'staffAvailability',
-            'integrationSettings', 'groupClassDefinitions', 'groupClassSchedules', 'participantBookings', 'branding'
+            'integrationSettings', 'groupClassDefinitions', 'groupClassSchedules', 'participantBookings', 'branding',
+            'leads', 'prospectIntroCalls'
         ];
 
         const promises = collectionKeys.map(key => this.getCollection(orgId, key));
@@ -393,7 +394,8 @@ const firebaseService = {
             'clubMemberships', 'coachEvents', 'connections', 'locations', 'staffMembers',
             'memberships', 'oneOnOneSessions', 'workoutCategories', 'staffAvailability',
             'groupClassDefinitions', 'groupClassSchedules', 'participantBookings',
-            'leaderboardSettings', 'lastFlowViewTimestamp', 'weeklyHighlightSettings', 'integrationSettings', 'branding'
+            'leaderboardSettings', 'lastFlowViewTimestamp', 'weeklyHighlightSettings', 'integrationSettings', 'branding',
+            'leads', 'prospectIntroCalls'
         ];
 
         for (const collectionKey of collectionsToDelete) {

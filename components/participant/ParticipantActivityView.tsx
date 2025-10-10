@@ -119,9 +119,7 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
     let currentDay = dateUtils.getStartOfWeek(monthStart);
     const today = new Date();
     
-    const goalTargetDates = allParticipantGoals
-        .filter(g => g.targetDate)
-        .map(g => new Date(g.targetDate!));
+    const currentGoalTargetDate = (activeGoal && activeGoal.targetDate) ? new Date(activeGoal.targetDate) : null;
 
     const isChallengeActive = leaderboardSettings.weeklyPBChallengeEnabled || leaderboardSettings.weeklySessionChallengeEnabled;
     const startOfThisWeek = dateUtils.getStartOfWeek(new Date());
@@ -205,7 +203,7 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
         });
       });
 
-      if (goalTargetDates.some(goalDate => dateUtils.isSameDay(currentDay, goalDate))) {
+      if (currentGoalTargetDate && dateUtils.isSameDay(currentDay, currentGoalTargetDate)) {
         dayEvents.push({ type: 'GOAL_TARGET', icon: '🎯', description: 'Måldatum!' });
       }
 
@@ -224,7 +222,7 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
       if (i >= 34 && currentDay.getMonth() !== referenceDate.getMonth() && currentDay.getDay() === 1) break; 
     }
     return days;
-  }, [referenceDate, allActivityLogs, strengthStatsHistory, conditioningStatsHistory, physiqueHistory, clubMemberships, leaderboardSettings, allParticipantGoals, coachEvents, oneOnOneSessions, participantProfile, staffMembers, allParticipantBookings, groupClassSchedules, groupClassDefinitions, locations]);
+  }, [referenceDate, allActivityLogs, strengthStatsHistory, conditioningStatsHistory, physiqueHistory, clubMemberships, leaderboardSettings, allParticipantGoals, activeGoal, coachEvents, oneOnOneSessions, participantProfile, staffMembers, allParticipantBookings, groupClassSchedules, groupClassDefinitions, locations]);
 
   const handleNavigate = (direction: 'prev' | 'next') => {
     setReferenceDate(prevDate => dateUtils.addMonths(prevDate, direction === 'prev' ? -1 : 1));
@@ -370,6 +368,7 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
         workouts={workouts}
         onViewLogSummary={onViewLogSummary}
         onDeleteActivity={onDeleteActivity}
+        activeGoal={activeGoal}
         strengthStatsHistory={strengthStatsHistory}
         conditioningStatsHistory={conditioningStatsHistory}
         physiqueHistory={physiqueHistory}

@@ -15,6 +15,7 @@ interface DayActivitiesModalProps {
   workouts: Workout[]; 
   onViewLogSummary: (log: ActivityLog) => void; 
   onDeleteActivity: (activityId: string, activityType: 'workout' | 'general' | 'goal_completion') => void;
+  activeGoal?: ParticipantGoalData | null;
   strengthStatsHistory: UserStrengthStat[];
   conditioningStatsHistory: ParticipantConditioningStat[];
   physiqueHistory: ParticipantPhysiqueStat[];
@@ -79,6 +80,7 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
   workouts,
   onViewLogSummary,
   onDeleteActivity,
+  activeGoal,
   strengthStatsHistory,
   conditioningStatsHistory,
   physiqueHistory,
@@ -107,6 +109,33 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
       setBookingToCancel(null);
     }
   }, [isOpen]);
+
+  const coachEventsForDay = useMemo(() => {
+    if (!selectedDate) return [];
+    return coachEvents.filter(e => {
+        if (e.studioTarget && e.studioTarget !== 'all') {
+            const participantLocation = locations.find(l => l.id === participantProfile?.locationId);
+            if (!participantLocation || !participantLocation.name.toLowerCase().includes(e.studioTarget)) {
+                return false;
+            }
+        }
+        // For events with a specific date, match that date.
+        if (e.type === 'event' && e.eventDate) {
+            const [year, month, day] = e.eventDate.split('-').map(Number);
+            const eventDate = new Date(year, month - 1, day);
+            return dateUtils.isSameDay(eventDate, selectedDate);
+        }
+        // For news, match the creation date.
+        if (e.type === 'news') {
+            return dateUtils.isSameDay(new Date(e.createdDate), selectedDate);
+        }
+        // Fallback for older data that might just be type 'event' without a date.
+        if (e.type === 'event' && !e.eventDate) {
+            return dateUtils.isSameDay(new Date(e.createdDate), selectedDate);
+        }
+        return false;
+    }).sort((a,b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
+  }, [selectedDate, coachEvents, locations, participantProfile]);
 
   const oneOnOneSessionsForDay = useMemo(() => {
     if (!selectedDate || !participantProfile) return [];
@@ -145,30 +174,7 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
     if (!selectedDate) return [];
     
     const events: { icon: string, text: string, details?: string }[] = [];
-
-    const coachEventsToday = coachEvents.filter(e => {
-        if (e.studioTarget && e.studioTarget !== 'all') {
-            const participantLocation = locations.find(l => l.id === participantProfile?.locationId);
-            if (!participantLocation || !participantLocation.name.toLowerCase().includes(e.studioTarget)) {
-                return false;
-            }
-        }
-        if (e.type !== 'event' || !e.eventDate) return false;
-        const [year, month, day] = e.eventDate.split('-').map(Number);
-        const eventDate = new Date(year, month - 1, day);
-        return dateUtils.isSameDay(eventDate, selectedDate);
-    });
-
-    coachEventsToday.forEach(event => { 
-        const detailsParts = [];
-        if (event.description) detailsParts.push(event.description);
-        if (event.studioTarget === 'all') {
-            detailsParts.push(`Gäller för: ${getStudioLabel(event.studioTarget)}`);
-        }
-        const details = detailsParts.filter(Boolean).join(' - ');
-        events.push({ icon: DEFAULT_COACH_EVENT_ICON, text: event.title, details: details });
-    });
-
+    
     const goalsSetToday = allParticipantGoals.filter(g => dateUtils.isSameDay(new Date(g.setDate), selectedDate));
     if (goalsSetToday.length > 0) {
         events.push({ icon: '🏁', text: 'Nytt Mål Satt', details: goalsSetToday.map(g => g.fitnessGoals).join(', ') });
@@ -194,12 +200,12 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
     }
     
     return events;
-  }, [selectedDate, allParticipantGoals, clubMemberships, physiqueHistory, strengthStatsHistory, conditioningStatsHistory, coachEvents, locations, participantProfile]);
+  }, [selectedDate, allParticipantGoals, clubMemberships, physiqueHistory, strengthStatsHistory, conditioningStatsHistory]);
 
   const hasGoalTargetForDay = useMemo(() => {
     if (!selectedDate) return false;
-    return allParticipantGoals.some(g => g.targetDate && dateUtils.isSameDay(new Date(g.targetDate), selectedDate));
-  }, [selectedDate, allParticipantGoals]);
+    return activeGoal?.targetDate ? dateUtils.isSameDay(new Date(activeGoal.targetDate), selectedDate) : false;
+  }, [selectedDate, activeGoal]);
 
 
   if (!isOpen || !selectedDate) return null;
@@ -269,6 +275,33 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
         size="lg"
       >
         <div className="space-y-4">
+          {coachEventsForDay.length > 0 && (
+            <div className="p-3 bg-gray-100 rounded-lg space-y-2 border">
+              <h4 className="text-base font-semibold text-gray-600 uppercase">Händelser & Nyheter</h4>
+              <ul className="space-y-3">
+                {coachEventsForDay.map(event => (
+                  <li key={event.id} className="text-lg">
+                    <div className="flex items-start">
+                      <span className="text-2xl mr-2">{DEFAULT_COACH_EVENT_ICON}</span>
+                      <div className="flex-1">
+                        <p className="font-semibold text-gray-800">{event.title}</p>
+                        {event.description && <p className="text-base text-gray-600 whitespace-pre-wrap">{event.description}</p>}
+                        {event.linkUrl && (
+                            <div className="mt-2">
+                                <a href={event.linkUrl.startsWith('http') ? event.linkUrl : `https://${event.linkUrl}`} target="_blank" rel="noopener noreferrer" className="inline-block">
+                                    <Button size="sm">
+                                        {event.linkButtonText || 'Läs mer här'}
+                                    </Button>
+                                </a>
+                            </div>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {groupClassesForDay.length > 0 && (
               <div className="p-3 bg-gray-100 rounded-lg space-y-2 border">
                   <h4 className="text-base font-semibold text-gray-600 uppercase">Bokade Gruppass</h4>
@@ -327,7 +360,7 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
           )}
           {specialEventsForDay.length > 0 && (
               <div className="p-3 bg-gray-100 rounded-lg space-y-2 border">
-                  <h4 className="text-base font-semibold text-gray-600 uppercase">Händelser denna dag</h4>
+                  <h4 className="text-base font-semibold text-gray-600 uppercase">Andra Händelser</h4>
                   <ul className="space-y-1">
                       {specialEventsForDay.map((event, index) => (
                           <li key={index} className="flex items-start text-lg">
@@ -347,7 +380,7 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
                   <span className="font-semibold text-lg">Detta är ett måldatum!</span>
               </div>
           )}
-          {sortedActivities.length === 0 && specialEventsForDay.length === 0 && !hasGoalTargetForDay && oneOnOneSessionsForDay.length === 0 && groupClassesForDay.length === 0 ? (
+          {sortedActivities.length === 0 && specialEventsForDay.length === 0 && !hasGoalTargetForDay && oneOnOneSessionsForDay.length === 0 && groupClassesForDay.length === 0 && coachEventsForDay.length === 0 ? (
             <p className="text-gray-600 text-center py-4 text-xl">Inga aktiviteter loggade denna dag.</p>
           ) : (
             <ul className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">

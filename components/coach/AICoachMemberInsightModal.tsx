@@ -14,7 +14,8 @@ interface AICoachMemberInsightModalProps {
   logs: ActivityLog[];
 }
 
-const getIconForHeader = (headerText: string): JSX.Element | null => {
+// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+const getIconForHeader = (headerText: string): React.ReactElement | null => {
     const lowerHeaderText = headerText.toLowerCase();
     if (lowerHeaderText.includes("aktivitet") || lowerHeaderText.includes("konsistens")) return <span className="mr-2 text-xl" role="img" aria-label="Aktivitet">📊</span>;
     if (lowerHeaderText.includes("målsättning") || lowerHeaderText.includes("progress")) return <span className="mr-2 text-xl" role="img" aria-label="Målsättning">🎯</span>;
@@ -23,11 +24,14 @@ const getIconForHeader = (headerText: string): JSX.Element | null => {
     return <span className="mr-2 text-xl" role="img" aria-label="Rubrik">📄</span>;
 };
 
-const renderSummaryContent = (summary: string | null): JSX.Element[] | null => {
+// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+const renderSummaryContent = (summary: string | null): React.ReactElement[] | null => {
     if (!summary) return null;
     const lines = summary.split('\n');
-    const renderedElements: JSX.Element[] = [];
-    let currentListItems: JSX.Element[] = [];
+    // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+    const renderedElements: React.ReactElement[] = [];
+    // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+    let currentListItems: React.ReactElement[] = [];
     let listKeySuffix = 0;
   
     const flushList = () => {

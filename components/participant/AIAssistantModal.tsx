@@ -22,7 +22,8 @@ interface AIAssistantModalProps {
   participant: ParticipantProfile;
 }
 
-const renderTipsContent = (tips: AiWorkoutTips | null): JSX.Element | null => {
+// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+const renderTipsContent = (tips: AiWorkoutTips | null): React.ReactElement | null => {
     if (!tips) return null;
     return (
         <div className="space-y-4">

@@ -4,11 +4,14 @@ import { Location, ParticipantProfile, ActivityLog, Workout, WorkoutLog, General
 import { Button } from '../Button';
 import { Textarea } from '../Textarea';
 
-const renderMarkdownResponse = (markdownText: string | null): JSX.Element | null => {
+// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+const renderMarkdownResponse = (markdownText: string | null): React.ReactElement | null => {
     if (!markdownText) return null;
     const lines = markdownText.split('\n');
-    const renderedElements: JSX.Element[] = [];
-    let currentListItems: JSX.Element[] = [];
+    // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+    const renderedElements: React.ReactElement[] = [];
+    // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+    let currentListItems: React.ReactElement[] = [];
     let listKeySuffix = 0;
   
     const flushList = () => {

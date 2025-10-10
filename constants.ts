@@ -3,6 +3,9 @@ import { WeightComparisonItem, GenderOption, StrengthStandard, StrengthLevel, Li
 export const FLEXIBEL_PRIMARY_COLOR = '#3bab5a'; // Updated color
 export const APP_NAME = 'Träningslogg';
 
+// FIX: Add missing ZAPIER_WEBHOOK_SECRET export for the client-side webhook handler used in the preview environment.
+export const ZAPIER_WEBHOOK_SECRET = 'your-zapier-webhook-secret-here';
+
 export const LOCAL_STORAGE_KEYS = {
   // USER_ROLE is now managed by AuthContext with a different key
   MOCK_DB: 'flexibel_mockDB_v3', // Single key for the entire multi-tenant DB

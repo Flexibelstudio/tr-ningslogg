@@ -40,7 +40,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(({ label, id
   let labelStyle = 'block text-base font-medium text-gray-700 mb-1';
 
   if (inputSize === 'sm') {
-    sizeSpecificStyle = 'px-2 py-1.5 text-sm rounded-md';
+    sizeSpecificStyle = 'px-2 py-1.5 text-base rounded-md'; // Changed from text-sm to prevent iOS zoom
     labelStyle = 'block text-sm font-medium text-gray-700 mb-0.5';
   } else if (inputSize === 'lg') {
     sizeSpecificStyle = 'px-4 py-2.5 text-lg rounded-lg';
@@ -92,7 +92,7 @@ export const Select: React.FC<SelectProps> = ({ label, id, error, className, opt
   let labelStyle = 'block text-base font-medium text-gray-700 mb-1';
 
   if (inputSize === 'sm') {
-    sizeSpecificStyle = 'pl-2 pr-8 py-1.5 text-sm rounded-md'; // Adjusted padding for select
+    sizeSpecificStyle = 'pl-2 pr-8 py-1.5 text-base rounded-md'; // Changed from text-sm to prevent iOS zoom
     labelStyle = 'block text-sm font-medium text-gray-700 mb-0.5';
   } else if (inputSize === 'lg') {
     sizeSpecificStyle = 'pl-4 pr-10 py-2.5 text-lg rounded-lg';

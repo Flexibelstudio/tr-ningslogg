@@ -229,7 +229,7 @@ const WorkoutCategoryManager: React.FC = () => {
     
     const handleDelete = (category: WorkoutCategoryDefinition) => {
         const isUsedInWorkouts = workouts.some(w => w.category === category.name);
-        const isUsedInMemberships = memberships.some(m => m.restrictedCategories?.includes(category.name) || m.clipCardCategories?.includes(category.name));
+        const isUsedInMemberships = memberships.some(m => m.restrictedCategories?.includes(category.name));
         if (isUsedInWorkouts || isUsedInMemberships) {
             alert(`Kan inte ta bort kategorin "${category.name}" eftersom den används av pass eller medlemskap.`);
         } else {
@@ -353,25 +353,29 @@ const MembershipModal: React.FC<{
         setFormState(p => ({ ...p, [field]: value }));
     };
 
-    const handleCategoryToggle = (categoryName: string, type: 'restrictedCategories' | 'clipCardCategories') => {
-        const currentCategories = formState[type] || [];
+    const handleCategoryToggle = (categoryName: string) => {
+        const currentCategories = formState.restrictedCategories || [];
         const newCategories = currentCategories.includes(categoryName)
             ? currentCategories.filter(c => c !== categoryName)
             : [...currentCategories, categoryName];
-        handleChange(type, newCategories);
+        handleChange('restrictedCategories', newCategories);
     };
 
     const handleSave = () => {
         if (!formState.name) return;
+
+        const finalRestrictedCategories = (formState.restrictedCategories && formState.restrictedCategories.length > 0)
+            ? formState.restrictedCategories
+            : undefined;
+
         onSave({
             id: formState.id || crypto.randomUUID(),
-            name: formState.name,
+            name: formState.name!,
             description: formState.description,
             type: formState.type,
-            restrictedCategories: formState.type === 'subscription' ? formState.restrictedCategories : undefined,
+            restrictedCategories: finalRestrictedCategories,
             clipCardClips: formState.type === 'clip_card' ? Number(formState.clipCardClips) || undefined : undefined,
             clipCardValidityDays: formState.type === 'clip_card' ? Number(formState.clipCardValidityDays) || undefined : undefined,
-            clipCardCategories: formState.type === 'clip_card' ? formState.clipCardCategories : undefined,
         });
         onClose();
     };
@@ -383,23 +387,22 @@ const MembershipModal: React.FC<{
                 <Textarea label="Beskrivning" value={formState.description || ''} onChange={e => handleChange('description', e.target.value)} rows={2} />
                 <Select label="Typ" value={formState.type || 'subscription'} onChange={e => handleChange('type', e.target.value as any)} options={[{value: 'subscription', label: 'Löpande'}, {value: 'clip_card', label: 'Klippkort'}]} />
                 
-                {formState.type === 'subscription' && (
-                    <div className="p-2 border rounded-md">
-                        <label className="font-medium">Begränsa från passkategorier:</label>
-                        <div className="grid grid-cols-2 gap-2 mt-2">
-                           {workoutCategories.map(cat => (
-                               <label key={cat.id} className="flex items-center gap-2"><input type="checkbox" checked={formState.restrictedCategories?.includes(cat.name)} onChange={() => handleCategoryToggle(cat.name, 'restrictedCategories')} /> {cat.name}</label>
-                           ))}
-                        </div>
-                    </div>
-                )}
-
                 {formState.type === 'clip_card' && (
-                    <div className="p-2 border rounded-md space-y-2">
+                    <div className="p-2 border rounded-md space-y-2 animate-fade-in-down">
                          <Input type="number" label="Antal klipp" value={String(formState.clipCardClips || '')} onChange={e => handleChange('clipCardClips', e.target.value)} />
                          <Input type="number" label="Giltighet (dagar, lämna tomt för obegränsad)" value={String(formState.clipCardValidityDays || '')} onChange={e => handleChange('clipCardValidityDays', e.target.value)} />
                     </div>
                 )}
+
+                <div className="p-2 border rounded-md">
+                    <label className="font-medium">Begränsa från passkategorier (dessa pass ingår ej):</label>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                       {workoutCategories.map(cat => (
+                           <label key={cat.id} className="flex items-center gap-2"><input type="checkbox" checked={formState.restrictedCategories?.includes(cat.name)} onChange={() => handleCategoryToggle(cat.name)} /> {cat.name}</label>
+                       ))}
+                    </div>
+                </div>
+
                  <div className="flex justify-end gap-2 pt-4 border-t"><Button variant="secondary" onClick={onClose}>Avbryt</Button><Button onClick={handleSave}>Spara</Button></div>
             </div>
         </Modal>
@@ -448,11 +451,11 @@ const MembershipManager: React.FC = () => {
                 <div className="space-y-3">
                     {memberships.map(mem => {
                         const descriptionParts: string[] = [];
-                        if(mem.type === 'subscription' && mem.restrictedCategories?.length) {
+                        if(mem.restrictedCategories && mem.restrictedCategories.length > 0) {
                             descriptionParts.push(`Begränsad från: ${mem.restrictedCategories.join(', ')}`);
                         }
                         if(mem.type === 'clip_card') {
-                            descriptionParts.push(`${mem.clipCardClips} klipp, giltigt ${mem.clipCardValidityDays || 'obegränsad tid'} dagar.`);
+                            descriptionParts.push(`${mem.clipCardClips || 0} klipp, giltigt ${mem.clipCardValidityDays || 'obegränsad tid'} dagar.`);
                         }
 
                         return (

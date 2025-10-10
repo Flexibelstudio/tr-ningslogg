@@ -45,7 +45,8 @@ interface MemberNotesModalProps {
 
 type MemberNotesTab = 'notes' | 'goals' | 'sessions' | 'program';
 
-const getIconForHeader = (headerText: string): JSX.Element | null => {
+// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+const getIconForHeader = (headerText: string): React.ReactElement | null => {
     const lowerHeaderText = headerText.toLowerCase();
     if (lowerHeaderText.includes("aktivitet") || lowerHeaderText.includes("konsistens")) return <span className="mr-2 text-xl" role="img" aria-label="Aktivitet">📊</span>;
     if (lowerHeaderText.includes("målsättning") || lowerHeaderText.includes("progress")) return <span className="mr-2 text-xl" role="img" aria-label="Målsättning">🎯</span>;
@@ -54,11 +55,14 @@ const getIconForHeader = (headerText: string): JSX.Element | null => {
     return <span className="mr-2 text-xl" role="img" aria-label="Rubrik">📄</span>;
 };
 
-const renderMarkdownContent = (markdownText: string | null): JSX.Element[] | null => {
+// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+const renderMarkdownContent = (markdownText: string | null): React.ReactElement[] | null => {
     if (!markdownText) return null;
     const lines = markdownText.split('\n');
-    const renderedElements: JSX.Element[] = [];
-    let currentListItems: JSX.Element[] = [];
+    // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+    const renderedElements: React.ReactElement[] = [];
+    // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+    let currentListItems: React.ReactElement[] = [];
     let listKeySuffix = 0;
   
     const flushList = () => {
@@ -82,8 +86,12 @@ const renderMarkdownContent = (markdownText: string | null): JSX.Element[] | nul
         flushList();
         const headerText = lineContent.substring(3).trim();
         const icon = getIconForHeader(headerText.replace(/<\/?(strong|em)>/g, ''));
+        // FIX: Correctly render the icon as a React child instead of trying to access its props for dangerouslySetInnerHTML.
+        // This resolves the "Property 'children' does not exist on type 'unknown'" error.
         renderedElements.push(
-          <h4 key={`h4-${i}`} className="text-xl font-bold text-gray-800 flex items-center mb-2 mt-4" dangerouslySetInnerHTML={{ __html: `${icon?.props.children || ''} ${headerText}` }} />
+          <h4 key={`h4-${i}`} className="text-xl font-bold text-gray-800 flex items-center mb-2 mt-4">
+            {icon} <span dangerouslySetInnerHTML={{ __html: headerText }} />
+          </h4>
         );
       } else if (lineContent.startsWith('* ') || lineContent.startsWith('- ')) {
         const listItemText = lineContent.substring(2).trim();

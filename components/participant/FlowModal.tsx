@@ -26,6 +26,7 @@ import { CommentSection } from './CommentSection';
 import { calculateFlexibelStrengthScoreInternal, getFssScoreInterpretation } from './StrengthComparisonTool';
 import { useAppContext } from '../../context/AppContext';
 import { getHighestClubAchievements } from '../../services/gamificationService';
+import { Button } from '../Button';
 
 // --- NEW EXPANDED TYPES ---
 type FlowItemLog = WorkoutLog | GeneralActivityLog | CoachEvent | GoalCompletionLog | ParticipantClubMembership | UserStrengthStat | ParticipantPhysiqueStat | ParticipantGoalData | ParticipantConditioningStat;
@@ -179,6 +180,8 @@ const FlowItemCard: React.FC<FlowItemCardProps> = ({ item, index, currentUserId,
         club: 'bg-green-50 border-green-300',
     };
 
+    const coachEvent = item.logType === 'coach_event' ? (item.log as CoachEvent) : null;
+
     return (
         <div className="p-3 bg-white rounded-lg shadow-sm border border-gray-200" style={{ animation: `fadeInDown 0.5s ease-out ${index * 50}ms backwards` }}>
             <div className="flex-grow">
@@ -194,6 +197,21 @@ const FlowItemCard: React.FC<FlowItemCardProps> = ({ item, index, currentUserId,
                 </div>
                 {item.description && <p className="text-base text-gray-600 mt-0.5 whitespace-pre-wrap break-words">{item.description}</p>}
                 
+                {coachEvent?.linkUrl && (
+                    <div className="mt-3">
+                        <a 
+                          href={coachEvent.linkUrl.startsWith('http') ? coachEvent.linkUrl : `https://${coachEvent.linkUrl}`}
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="inline-block"
+                        >
+                            <Button>
+                                {coachEvent.linkButtonText || 'Läs mer här'}
+                            </Button>
+                        </a>
+                    </div>
+                )}
+
                 {item.praiseItems && item.praiseItems.length > 0 && (
                     <div className="mt-3 space-y-2">
                         {item.praiseItems.map((praise, index) => (

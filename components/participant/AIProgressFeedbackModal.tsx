@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
@@ -13,7 +14,8 @@ interface AIProgressFeedbackModalProps {
   modalTitle?: string; // New prop for dynamic title
 }
 
-const getIconForHeader = (headerText: string): JSX.Element | null => {
+// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+const getIconForHeader = (headerText: string): React.ReactElement | null => {
   const lowerHeaderText = headerText.toLowerCase();
   if (lowerHeaderText.includes("prognos")) return <span className="mr-2 text-xl" role="img" aria-label="Prognos">🔮</span>;
   if (lowerHeaderText.includes("nyckelpass") || lowerHeaderText.includes("rekommendera")) return <span className="mr-2 text-xl" role="img" aria-label="Rekommenderade pass">🎟️</span>;
@@ -30,12 +32,15 @@ const getIconForHeader = (headerText: string): JSX.Element | null => {
   return <span className="mr-2 text-xl" role="img" aria-label="Rubrik">📄</span>; // Default icon
 };
 
-const renderFeedbackContent = (feedback: string | null): JSX.Element[] | null => {
+// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+const renderFeedbackContent = (feedback: string | null): React.ReactElement[] | null => {
   if (!feedback) return null;
 
   const lines = feedback.split('\n');
-  const renderedElements: JSX.Element[] = [];
-  let currentListItems: JSX.Element[] = [];
+  // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+  const renderedElements: React.ReactElement[] = [];
+  // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+  let currentListItems: React.ReactElement[] = [];
   let listKeySuffix = 0; // To ensure unique keys for lists if multiple lists appear
 
   const flushList = () => {
@@ -88,7 +93,9 @@ const renderFeedbackContent = (feedback: string | null): JSX.Element[] | null =>
         // Add a visual break for empty lines, if not preceded by another break or list.
         if (renderedElements.length > 0) {
           const lastElement = renderedElements[renderedElements.length - 1];
-          if (!(lastElement.type === 'div' && lastElement.props.className?.includes('h-2')) && lastElement.type !== 'ul') {
+          // FIX: Cast props to `any` to solve "Property 'className' does not exist on type 'unknown'" error.
+          // The type of props is not strongly inferred here, so a type assertion is needed.
+          if (!(lastElement.type === 'div' && (lastElement.props as any).className?.includes('h-2')) && lastElement.type !== 'ul') {
             renderedElements.push(<div key={`br-${i}`} className="h-2"></div>);
           }
         }
