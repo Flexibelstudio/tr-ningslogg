@@ -321,11 +321,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   }, [logEntries, postWorkoutComment, moodRating, initialLogEntries, initialPostWorkoutComment, initialMoodRating]);
 
   const handleAttemptClose = () => {
-    if (hasUnsavedChanges && !isNewSession) { // Only prompt on edit, not on new (draft is saved)
-      setShowExitConfirmationModal(true);
-    } else {
-      onClose();
-    }
+    setShowExitConfirmationModal(true);
   };
 
   const handleFinalSave = () => {
@@ -538,7 +534,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                             Kategori: {workout.category}
                         </span>
                     </div>
-                    <Button onClick={handleAttemptClose} variant="secondary" className="whitespace-nowrap flex-shrink-0 !px-4 !text-base sm:!px-6 sm:!text-lg">Avsluta pass</Button>
+                    <Button onClick={handleAttemptClose} variant="outline" className="whitespace-nowrap flex-shrink-0 !px-4 !text-base sm:!px-6 sm:!text-lg">Avbryt & stäng</Button>
                 </div>
                 <div className="w-full sm:w-1/2">
                     <Input
@@ -631,7 +627,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                     <h1 className="text-3xl font-bold text-gray-800">{workout.title}</h1>
                     <p className="text-xl text-gray-600">{activeBlock.name || `Block ${workout.blocks.findIndex(b => b.id === activeBlock.id) + 1}`}</p>
                 </div>
-                <Button onClick={handleAttemptClose} variant="secondary">Avsluta pass</Button>
+                <Button onClick={handleAttemptClose} variant="outline">Avbryt & stäng</Button>
             </header>
             {currentGroup.type === 'superset' && (
               <div className="p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
@@ -696,9 +692,14 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
         isOpen={showExitConfirmationModal}
         onClose={() => setShowExitConfirmationModal(false)}
         onConfirm={onClose}
-        title="Avsluta utan att spara?"
-        message="Dina ändringar kommer inte sparas."
-        confirmButtonText="Ja, avsluta"
+        title="Är du säker?"
+        message={isNewSession
+            ? "Passet sparas som ett utkast som du kan fortsätta på senare. Vill du verkligen avbryta och stänga?"
+            : "Dina ändringar kommer inte att sparas. Vill du verkligen avbryta och stänga?"
+        }
+        confirmButtonText="Ja, avbryt & stäng"
+        cancelButtonText="Nej, fortsätt"
+        confirmButtonVariant="danger"
       />
       <ConfirmationModal
           isOpen={showInProgressConfirmationModal}

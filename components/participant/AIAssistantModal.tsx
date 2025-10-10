@@ -22,7 +22,7 @@ interface AIAssistantModalProps {
   participant: ParticipantProfile;
 }
 
-// FIX: Replace `JSX.Element` with `React.ReactElement` to resolve TypeScript namespace error.
+// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
 const renderTipsContent = (tips: AiWorkoutTips | null): React.ReactElement | null => {
     if (!tips) return null;
     return (

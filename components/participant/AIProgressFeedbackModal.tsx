@@ -13,7 +13,8 @@ interface AIProgressFeedbackModalProps {
   modalTitle?: string; // New prop for dynamic title
 }
 
-const getIconForHeader = (headerText: string): JSX.Element | null => {
+// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+const getIconForHeader = (headerText: string): React.ReactElement | null => {
   const lowerHeaderText = headerText.toLowerCase();
   if (lowerHeaderText.includes("prognos")) return <span className="mr-2 text-xl" role="img" aria-label="Prognos">🔮</span>;
   if (lowerHeaderText.includes("nyckelpass") || lowerHeaderText.includes("rekommendera")) return <span className="mr-2 text-xl" role="img" aria-label="Rekommenderade pass">🎟️</span>;
@@ -30,12 +31,15 @@ const getIconForHeader = (headerText: string): JSX.Element | null => {
   return <span className="mr-2 text-xl" role="img" aria-label="Rubrik">📄</span>; // Default icon
 };
 
-const renderFeedbackContent = (feedback: string | null): JSX.Element[] | null => {
+// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+const renderFeedbackContent = (feedback: string | null): React.ReactElement[] | null => {
   if (!feedback) return null;
 
   const lines = feedback.split('\n');
-  const renderedElements: JSX.Element[] = [];
-  let currentListItems: JSX.Element[] = [];
+  // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+  const renderedElements: React.ReactElement[] = [];
+  // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+  let currentListItems: React.ReactElement[] = [];
   let listKeySuffix = 0; // To ensure unique keys for lists if multiple lists appear
 
   const flushList = () => {
