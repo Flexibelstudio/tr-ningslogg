@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { Modal } from '../Modal';
 import {
@@ -81,7 +82,7 @@ interface FlowItemCardProps {
     onToggleCommentReaction: (logId: string, logType: FlowItemLogType, commentId: string) => void;
 }
 
-const FlowItemCard: React.FC<FlowItemCardProps> = ({ item, index, currentUserId, allParticipants, onToggleReaction, onAddComment, onDeleteComment, onToggleCommentReaction }) => {
+const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, currentUserId, allParticipants, onToggleReaction, onAddComment, onDeleteComment, onToggleCommentReaction }) => {
     
     const renderReactions = () => {
         if (!item.log || !item.logType) return null;
@@ -242,7 +243,7 @@ const FlowItemCard: React.FC<FlowItemCardProps> = ({ item, index, currentUserId,
             </div>
         </div>
     );
-};
+});
 
 export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, onToggleReaction, onAddComment, onDeleteComment, onToggleCommentReaction, locations, userConditioningStatsHistory }) => {
     const data = { currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, locations, userConditioningStatsHistory };
@@ -552,7 +553,7 @@ export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUs
 
         // Apply the 3-day filter
         const threeDaysAgo = new Date();
-        threeDaysAgo.setDate(threeDaysAgo.getDate() - 2);
+        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
         threeDaysAgo.setHours(0, 0, 0, 0);
 
         return finalItems.filter(item => item.date >= threeDaysAgo);
