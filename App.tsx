@@ -80,6 +80,7 @@ const AppContent: React.FC = () => {
         userConditioningStatsHistory, setUserConditioningStatsHistoryData,
         connections,
         lastFlowViewTimestamp,
+        flowItems, setFlowItemsData,
     } = useAppContext();
     
     const auth = useAuth();
@@ -476,12 +477,13 @@ const AppContent: React.FC = () => {
             case 'participant_physique_stat': setParticipantPhysiqueHistoryData(updater); break;
             case 'participant_goal_data': setParticipantGoalsData(updater); break;
             case 'participant_conditioning_stat': setUserConditioningStatsHistoryData(updater); break;
+            case 'flow_item': setFlowItemsData(updater); break;
             default: console.warn(`Unsupported logType for reaction: ${logType}`);
         }
     }, [
         auth.currentParticipantId, setWorkoutLogsData, setGeneralActivityLogsData, setCoachEventsData,
         setGoalCompletionLogsData, setClubMembershipsData, setUserStrengthStatsData,
-        setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData
+        setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData, setFlowItemsData
     ]);
 
     const handleAddComment = useCallback((logId: string, logType: FlowItemLogType, text: string) => {
@@ -520,13 +522,14 @@ const AppContent: React.FC = () => {
             case 'participant_physique_stat': setParticipantPhysiqueHistoryData(updater); break;
             case 'participant_goal_data': setParticipantGoalsData(updater); break;
             case 'participant_conditioning_stat': setUserConditioningStatsHistoryData(updater); break;
+            case 'flow_item': setFlowItemsData(updater); break;
             default: console.warn(`Unsupported logType for add comment: ${logType}`);
         }
     }, [
         auth.user, auth.isStaffViewingAsParticipant, auth.currentParticipantId, participantDirectory,
         setWorkoutLogsData, setGeneralActivityLogsData, setCoachEventsData, setOneOnOneSessionsData,
         setGoalCompletionLogsData, setClubMembershipsData, setUserStrengthStatsData,
-        setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData
+        setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData, setFlowItemsData
     ]);
 
     const handleDeleteComment = useCallback((logId: string, logType: FlowItemLogType, commentId: string) => {
@@ -551,12 +554,13 @@ const AppContent: React.FC = () => {
             case 'participant_physique_stat': setParticipantPhysiqueHistoryData(updater); break;
             case 'participant_goal_data': setParticipantGoalsData(updater); break;
             case 'participant_conditioning_stat': setUserConditioningStatsHistoryData(updater); break;
+            case 'flow_item': setFlowItemsData(updater); break;
             default: console.warn(`Unsupported logType for delete comment: ${logType}`);
         }
     }, [
         setWorkoutLogsData, setGeneralActivityLogsData, setCoachEventsData, setOneOnOneSessionsData,
         setGoalCompletionLogsData, setClubMembershipsData, setUserStrengthStatsData,
-        setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData
+        setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData, setFlowItemsData
     ]);
 
     const handleToggleCommentReaction = useCallback((logId: string, logType: FlowItemLogType, commentId: string) => {
@@ -596,13 +600,14 @@ const AppContent: React.FC = () => {
             case 'participant_physique_stat': setParticipantPhysiqueHistoryData(updater); break;
             case 'participant_goal_data': setParticipantGoalsData(updater); break;
             case 'participant_conditioning_stat': setUserConditioningStatsHistoryData(updater); break;
+            case 'flow_item': setFlowItemsData(updater); break;
             default: console.warn(`Unsupported logType for comment reaction: ${logType}`);
         }
     }, [
         auth.currentParticipantId, setWorkoutLogsData, setGeneralActivityLogsData, setCoachEventsData,
         setOneOnOneSessionsData, setGoalCompletionLogsData, setClubMembershipsData,
         setUserStrengthStatsData, setParticipantPhysiqueHistoryData, setParticipantGoalsData,
-        setUserConditioningStatsHistoryData
+        setUserConditioningStatsHistoryData, setFlowItemsData
     ]);
 
 

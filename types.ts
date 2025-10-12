@@ -297,7 +297,23 @@ export interface GoalCompletionLog {
 
 export type ActivityLog = WorkoutLog | GeneralActivityLog | GoalCompletionLog;
 
-export type FlowItemLogType = 'workout' | 'general' | 'coach_event' | 'one_on_one_session' | 'goal_completion' | 'participant_club_membership' | 'user_strength_stat' | 'participant_physique_stat' | 'participant_goal_data' | 'participant_conditioning_stat';
+export type FlowItemLogType = 'workout' | 'general' | 'coach_event' | 'one_on_one_session' | 'goal_completion' | 'participant_club_membership' | 'user_strength_stat' | 'participant_physique_stat' | 'participant_goal_data' | 'participant_conditioning_stat' | 'flow_item';
+
+export interface FlowItem {
+    id: string;
+    orgId: string; // For Firestore rules
+    timestamp: string; // ISO string for sorting
+    participantId: string; // The author of the event
+    icon: string; // emoji
+    title: string; // Pre-formatted title
+    description?: string; // Pre-formatted description
+    sourceLogId: string; // Link back to original log
+    sourceLogType: FlowItemLogType;
+    visibility: 'friends' | 'public';
+    praiseItems?: { icon: string; text: string; type: 'pb' | 'baseline' | 'club' }[];
+    reactions?: Reaction[];
+    comments?: Comment[];
+}
 
 export interface InProgressWorkout {
   participantId: string;
@@ -680,6 +696,7 @@ export interface OrganizationData {
   leads: Lead[];
   prospectIntroCalls: ProspectIntroCall[];
   branding?: BrandingSettings;
+  flowItems: FlowItem[];
 }
 
 export type AppData = OrganizationData;

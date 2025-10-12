@@ -148,6 +148,9 @@ const firebaseService = {
                 oneOnOneSessions: [], workoutCategories: [], staffAvailability: [],
                 integrationSettings: { enableQRCodeScanning: false, isBookingEnabled: false, isClientJourneyEnabled: true, isScheduleEnabled: true }, 
                 groupClassDefinitions: [], groupClassSchedules: [], participantBookings: [], leads: [], prospectIntroCalls: [],
+                // FIX: Add missing 'branding' and 'flowItems' to satisfy OrganizationData type for offline mode.
+                branding: undefined,
+                flowItems: [],
             });
         }
 
@@ -159,7 +162,7 @@ const firebaseService = {
             'connections', 'lastFlowViewTimestamp', 'locations', 'staffMembers', 'memberships',
             'weeklyHighlightSettings', 'oneOnOneSessions', 'workoutCategories', 'staffAvailability',
             'integrationSettings', 'groupClassDefinitions', 'groupClassSchedules', 'participantBookings', 'branding',
-            'leads', 'prospectIntroCalls'
+            'leads', 'prospectIntroCalls', 'flowItems'
         ];
 
         const promises = collectionKeys.map(key => this.getCollection(orgId, key));
@@ -395,7 +398,7 @@ const firebaseService = {
             'memberships', 'oneOnOneSessions', 'workoutCategories', 'staffAvailability',
             'groupClassDefinitions', 'groupClassSchedules', 'participantBookings',
             'leaderboardSettings', 'lastFlowViewTimestamp', 'weeklyHighlightSettings', 'integrationSettings', 'branding',
-            'leads', 'prospectIntroCalls'
+            'leads', 'prospectIntroCalls', 'flowItems'
         ];
 
         for (const collectionKey of collectionsToDelete) {
