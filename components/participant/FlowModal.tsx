@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { Modal } from '../Modal';
 import {
   WorkoutLog,
@@ -247,9 +247,17 @@ const FlowItemCard: React.FC<FlowItemCardProps> = ({ item, index, currentUserId,
 export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, onToggleReaction, onAddComment, onDeleteComment, onToggleCommentReaction, locations, userConditioningStatsHistory }) => {
     const data = { currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, locations, userConditioningStatsHistory };
     const { lastFlowViewTimestamp } = useAppContext();
+    const [visibleCount, setVisibleCount] = useState(15);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-    const { flowItemsToShow, totalItemCount } = useMemo(() => {
-        if (!isOpen) return { flowItemsToShow: [], totalItemCount: 0 };
+    useEffect(() => {
+        if (isOpen) {
+            setVisibleCount(15);
+        }
+    }, [isOpen]);
+
+    const allFlowItems = useMemo(() => {
+        if (!isOpen) return [];
 
         const allowedParticipantIds = new Set<string>([data.currentUserId]);
         
@@ -532,7 +540,6 @@ export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUs
 
         const sortedItems = items.sort((a, b) => b.date.getTime() - a.date.getTime());
         
-        // Post-filter to handle potential duplicate club memberships by only showing the highest tier
         const finalItems: FlowItem[] = [];
         const seenItemIds = new Set<string>();
 
@@ -543,23 +550,41 @@ export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUs
             }
         }
 
-        // Apply the 5-day filter
-        const fiveDaysAgo = new Date();
-        fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 4);
-        fiveDaysAgo.setHours(0, 0, 0, 0);
+        // Apply the 3-day filter
+        const threeDaysAgo = new Date();
+        threeDaysAgo.setDate(threeDaysAgo.getDate() - 2);
+        threeDaysAgo.setHours(0, 0, 0, 0);
 
-        const itemsLast5Days = finalItems.filter(item => item.date >= fiveDaysAgo);
-
-        return {
-            flowItemsToShow: itemsLast5Days,
-            totalItemCount: itemsLast5Days.length
-        };
+        return finalItems.filter(item => item.date >= threeDaysAgo);
 
     }, [isOpen, data, lastFlowViewTimestamp]);
+
+    const flowItemsToShow = useMemo(() => {
+        return allFlowItems.slice(0, visibleCount);
+    }, [allFlowItems, visibleCount]);
+
+    const handleScroll = useCallback(() => {
+        const container = scrollContainerRef.current;
+        if (container) {
+            const { scrollTop, scrollHeight, clientHeight } = container;
+            // Load more when user is 200px from the bottom
+            if (scrollTop + clientHeight >= scrollHeight - 200) {
+                setVisibleCount(prevCount => Math.min(prevCount + 10, allFlowItems.length));
+            }
+        }
+    }, [allFlowItems.length]);
+    
+    const loadMore = () => {
+        setVisibleCount(prevCount => Math.min(prevCount + 15, allFlowItems.length));
+    };
     
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Flöde" size="2xl">
-            <div className="space-y-3 max-h-[70vh] overflow-y-auto bg-gray-100 p-3 rounded-md">
+            <div
+              ref={scrollContainerRef}
+              onScroll={handleScroll}
+              className="space-y-3 max-h-[70vh] overflow-y-auto bg-gray-100 p-3 rounded-md"
+            >
                 {flowItemsToShow.length > 0 ? (
                     <>
                         {flowItemsToShow.map((item, index) => (
@@ -575,6 +600,13 @@ export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUs
                                 onToggleCommentReaction={onToggleCommentReaction}
                             />
                         ))}
+                        {allFlowItems.length > visibleCount && (
+                            <div className="text-center py-4">
+                                <Button onClick={loadMore} variant="outline">
+                                    Läs in fler händelser
+                                </Button>
+                            </div>
+                        )}
                     </>
                 ) : (
                     <div className="text-center py-10">
