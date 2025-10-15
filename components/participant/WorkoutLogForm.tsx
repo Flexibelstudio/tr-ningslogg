@@ -85,7 +85,10 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   
   const [setToRemove, setSetToRemove] = useState<{ exerciseId: string; setId: string } | null>(null);
 
-  const [quickLogRounds, setQuickLogRounds] = useState(0);
+  // --- New Quick Log State ---
+  const [quickLogStep, setQuickLogStep] = useState<'template' | 'review'>('template');
+  const [quickLogTotalRounds, setQuickLogTotalRounds] = useState('1');
+
   
   const exercisesToLog = useMemo(() => {
     return workout.blocks.reduce((acc, block) => acc.concat(block.exercises), [] as Exercise[]);
@@ -383,9 +386,14 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
     setActiveBlockId(blockId);
 
     if (block?.isQuickLogEnabled) {
-      const virtualExerciseId = `QUICK_LOG_BLOCK_ID::${blockId}`;
-      const entry = logEntries.get(virtualExerciseId);
-      setQuickLogRounds(Number(entry?.[0]?.reps || 0));
+      setQuickLogStep('template');
+      setQuickLogTotalRounds('1');
+      // Clear only the template entries for this block from the main log to start fresh
+      setLogEntries(prev => {
+        const newLogs = new Map(prev);
+        block.exercises.forEach(ex => newLogs.delete(ex.id));
+        return newLogs;
+      });
       setCurrentView('logging_quick_block');
     } else {
       setCurrentStepInBlock(0);
@@ -534,20 +542,80 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
     }
   };
 
+  // --- Quick Log Specific Handlers ---
+  const handleQuickLogExpandToReview = () => {
+    if (!activeBlock) return;
+    const totalRounds = Number(quickLogTotalRounds);
+    if (isNaN(totalRounds) || totalRounds <= 0) {
+      alert("Ange ett giltigt antal varv.");
+      return;
+    }
+  
+    // Validate template round
+    for (const exercise of activeBlock.exercises) {
+        const templateSets = logEntries.get(exercise.id) || [];
+        if (templateSets.length === 0) {
+            alert(`Logga minst ett set för "${exercise.name}" som mall.`);
+            return;
+        }
+        if (!validateSetsFilled(exercise, templateSets)) {
+            alert(`Fyll i mallen för "${exercise.name}" korrekt.`);
+            return;
+        }
+    }
+
+    setLogEntries(prev => {
+        const newLogs = new Map(prev);
+        activeBlock.exercises.forEach(ex => {
+            const templateSets = newLogs.get(ex.id) || [];
+            if (templateSets.length === 0) return;
+
+            const expandedSets: SetDetail[] = [];
+            for (let i = 0; i < totalRounds; i++) {
+                templateSets.forEach(templateSet => {
+                    expandedSets.push({
+                        ...templateSet,
+                        id: crypto.randomUUID(),
+                        isCompleted: false, // Reset completed status for review
+                    });
+                });
+            }
+            newLogs.set(ex.id, expandedSets);
+        });
+        return newLogs;
+    });
+
+    setQuickLogStep('review');
+  };
+
+  const handleQuickLogMarkAllComplete = () => {
+    if (!activeBlock) return;
+    setLogEntries(prev => {
+        const newLogs = new Map(prev);
+        activeBlock.exercises.forEach(ex => {
+            const sets = newLogs.get(ex.id) || [];
+            const completedSets = sets.map(s => ({ ...s, isCompleted: true }));
+            newLogs.set(ex.id, completedSets);
+        });
+        return newLogs;
+    });
+  };
+
   const handleFinishQuickLogBlock = () => {
     if (!activeBlock) return;
-  
+
+    // Add virtual entry for summary modal compatibility
     setLogEntries(prev => {
       const newLogs = new Map(prev);
       const virtualExerciseId = `QUICK_LOG_BLOCK_ID::${activeBlock.id}`;
-      if (quickLogRounds > 0) {
+      const totalRounds = Number(quickLogTotalRounds);
+      
+      if (totalRounds > 0) {
         newLogs.set(virtualExerciseId, [{
           id: crypto.randomUUID(),
-          reps: quickLogRounds,
+          reps: totalRounds,
           isCompleted: true
         }]);
-      } else {
-        newLogs.delete(virtualExerciseId);
       }
       return newLogs;
     });
@@ -663,36 +731,78 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
         
         {currentView === 'logging_quick_block' && activeBlock && (
             <div className="space-y-6">
-                <header className="flex justify-between items-start">
-                <div>
+                <header>
                     <h1 className="text-3xl font-bold text-gray-800">{workout.title}</h1>
                     <p className="text-xl text-gray-600">{activeBlock.name || `Block ${workout.blocks.findIndex(b => b.id === activeBlock.id) + 1}`}</p>
-                </div>
-                <Button onClick={handleAttemptClose} variant="danger">Avbryt & stäng</Button>
                 </header>
-                
-                <div className="p-4 bg-white rounded-2xl shadow-sm border">
-                    <h3 className="text-xl font-semibold text-gray-700 mb-2">Övningar i detta block</h3>
-                    <ul className="list-disc pl-5 space-y-1 text-gray-600">
-                        {activeBlock.exercises.map(ex => <li key={ex.id}>{ex.name}</li>)}
-                    </ul>
-                </div>
 
-                <div className="p-6 bg-white rounded-2xl shadow-sm border text-center">
-                    <label className="text-2xl font-bold text-gray-700 mb-4 block">Hur många varv?</label>
-                    <div className="flex items-center justify-center gap-4">
-                        <Button onClick={() => setQuickLogRounds(r => Math.max(0, r - 1))} className="!rounded-full !w-16 !h-16 !p-0 text-4xl" variant="secondary">-</Button>
-                        <span className="text-7xl font-bold text-flexibel w-32">{quickLogRounds}</span>
-                        <Button onClick={() => setQuickLogRounds(r => r + 1)} className="!rounded-full !w-16 !h-16 !p-0 text-4xl" variant="primary">+</Button>
+                {quickLogStep === 'template' && (
+                    <div className="space-y-8 animate-fade-in">
+                        <h2 className="text-2xl font-semibold text-gray-700">Steg 1: Logga ett "Mallvarv"</h2>
+                        <p className="text-base text-gray-600">Fyll i reps och vikt för ett typiskt varv. Detta kommer att kopieras till alla andra varv.</p>
+                        {activeBlock.exercises.map(ex => (
+                            <ExerciseLogCard
+                                key={ex.id}
+                                exercise={ex}
+                                logEntries={logEntries}
+                                handleUpdateSet={handleUpdateSet}
+                                setSetToRemove={setSetToRemove}
+                                isNewSession={isNewSession}
+                                myWorkoutLogs={myWorkoutLogs}
+                                allWorkouts={allWorkouts}
+                            />
+                        ))}
+                         <Button fullWidth variant="secondary" onClick={() => handleAddSetToGroup({ exercises: activeBlock.exercises })}>
+                           Lägg till set i mall
+                        </Button>
+                        <div className="p-4 bg-white rounded-lg border shadow-sm space-y-3">
+                            <h2 className="text-2xl font-semibold text-gray-700">Steg 2: Ange totalt antal varv</h2>
+                             <Input label="Antal varv totalt" type="number" value={quickLogTotalRounds} onChange={e => setQuickLogTotalRounds(e.target.value)} min="1" />
+                        </div>
+                        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-sm border-t">
+                            <div className="container mx-auto max-w-2xl flex justify-between items-center">
+                                <Button variant="outline" size="lg" onClick={handleBackToBlockSelection}>Tillbaka</Button>
+                                <Button variant="primary" size="lg" onClick={handleQuickLogExpandToReview}>Fyll i varv & Granska</Button>
+                            </div>
+                        </div>
                     </div>
-                </div>
-
-                <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-sm border-t">
-                <div className="container mx-auto max-w-2xl flex justify-between items-center">
-                    <Button variant="outline" size="lg" onClick={handleBackToBlockSelection}>Tillbaka till block</Button>
-                    <Button variant="primary" size="lg" onClick={handleFinishQuickLogBlock}>Avsluta block</Button>
-                </div>
-                </div>
+                )}
+                
+                {quickLogStep === 'review' && (
+                    <div className="space-y-6 animate-fade-in">
+                        <h2 className="text-2xl font-semibold text-gray-700">Steg 3: Granska & Justera</h2>
+                        <p className="text-base text-gray-600">Här är alla dina varv ifyllda. Justera vid behov och markera sedan alla som klara.</p>
+                        <Button onClick={handleQuickLogMarkAllComplete} fullWidth variant="secondary">Markera alla som klara</Button>
+                        <div className="space-y-4">
+                            {activeBlock.exercises.map(ex => {
+                                const setsForExercise = logEntries.get(ex.id) || [];
+                                return (
+                                    <details key={ex.id} className="p-3 bg-white rounded-lg border shadow-sm" open>
+                                        <summary className="text-xl font-bold text-gray-800 cursor-pointer">{ex.name}</summary>
+                                        <div className="mt-2 pt-2 border-t space-y-3">
+                                            {setsForExercise.map((set, setIndex) => (
+                                                <div key={set.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded-md">
+                                                    <span className="font-semibold w-16">Varv {setIndex + 1}</span>
+                                                    {ex.loggableMetrics?.map(metric => {
+                                                        const config = { reps: { key: 'reps', unit: 'reps' }, weight: { key: 'weight', unit: 'kg' }, distance: {key: 'distanceMeters', unit: 'm'}, duration: {key: 'durationSeconds', unit:'sek'}, calories: {key: 'caloriesKcal', unit:'kcal'} }[metric];
+                                                        if (!config) return null;
+                                                        return <Input key={metric} label={config.unit} type="number" inputSize='sm' value={String(set[config.key as keyof SetDetail] || '')} onChange={e => handleUpdateSet(ex.id, set.id, config.key as keyof SetDetail, e.target.value)} />
+                                                    })}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </details>
+                                );
+                            })}
+                        </div>
+                         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-sm border-t">
+                            <div className="container mx-auto max-w-2xl flex justify-between items-center">
+                                <Button variant="outline" size="lg" onClick={() => setQuickLogStep('template')}>Tillbaka till Mall</Button>
+                                <Button variant="primary" size="lg" onClick={handleFinishQuickLogBlock}>Avsluta block</Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         )}
 
