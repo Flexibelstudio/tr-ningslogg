@@ -3,7 +3,7 @@ import { Modal } from '../Modal';
 import { Button } from '../Button';
 import { Input } from '../Input';
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-import { ParticipantProfile, WorkoutLog, GeneralActivityLog, ParticipantGoalData, Workout } from '../../types';
+import { ParticipantProfile, WorkoutLog, GeneralActivityLog, ParticipantGoalData, Workout, Membership } from '../../types';
 
 interface Message {
     id: string;
@@ -20,6 +20,7 @@ interface AICoachModalProps {
     myGeneralActivityLogs: GeneralActivityLog[];
     latestGoal: ParticipantGoalData | null;
     allWorkouts: Workout[];
+    membership: Membership | null;
 }
 
 const SendIcon = () => (
@@ -70,7 +71,8 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
     myWorkoutLogs,
     myGeneralActivityLogs,
     latestGoal,
-    allWorkouts
+    allWorkouts,
+    membership
 }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
@@ -98,7 +100,7 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
     }, [messages]);
     
     const sendMessage = useCallback(async (text: string) => {
-        if (!text.trim() || isLoading || !ai) return;
+        if (!text.trim() || isLoading || !ai || !participantProfile) return;
 
         const userMessage: Message = { id: crypto.randomUUID(), text, sender: 'user' };
         setMessages(prev => [...prev, userMessage]);
@@ -124,6 +126,24 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
                     });
                 }
             });
+
+            // Filter available workouts based on membership
+            const availableWorkouts = allWorkouts.filter(w => {
+                // 1. Include all personally assigned workouts
+                if (w.assignedToParticipantId === participantProfile.id) {
+                    return true;
+                }
+        
+                // 2. Include published workouts that are not restricted by membership
+                if (w.isPublished && !w.assignedToParticipantId) {
+                    if (membership?.restrictedCategories && membership.restrictedCategories.includes(w.category)) {
+                        return false; // This category is restricted
+                    }
+                    return true; // Published and not restricted
+                }
+        
+                return false;
+            }).map(w => ({ title: w.title, category: w.category, focusTags: w.focusTags }));
 
             // Create a more detailed workout history for the AI
             const enrichedRecentWorkouts = myWorkoutLogs.slice(0, 10).map(log => {
@@ -153,7 +173,7 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
                 recentActivities: myGeneralActivityLogs.slice(0, 5).map(log => ({
                     name: log.activityName, duration: log.durationMinutes, completedDate: log.completedDate
                 })),
-                availableWorkouts: allWorkouts.filter(w => w.isPublished && !w.assignedToParticipantId).map(w => ({ title: w.title, category: w.category, focusTags: w.focusTags }))
+                availableWorkouts: availableWorkouts
             };
 
             const prompt = `Du är "Flexibot", en personlig, AI-driven träningscoach från Flexibel Hälsostudio. Din ton är peppande, kunnig och stöttande. Svara alltid på svenska. Ge korta, koncisa och hjälpsamma svar. Använd medlemmens namn ibland.
@@ -165,7 +185,7 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
 
             Baserat på ALL data ovan, ge ett svar.
             - **Om frågan handlar om styrkeutveckling:** Analysera "loggedSets" i "recentWorkouts" för varje övning över tid. Leta efter progression i form av ökad vikt, fler repetitioner med samma vikt, eller högre total volym (vikt * reps). Presentera en tydlig sammanfattning av utvecklingen för de mest relevanta övningarna.
-            - **Om frågan handlar om att rekommendera ett pass:** Använd listan med "availableWorkouts" för att ge ett specifikt förslag och motivera varför det passar baserat på medlemmens mål och historik.
+            - **Om frågan handlar om att rekommendera ett pass:** Använd ENDAST listan med "availableWorkouts" för att ge ett specifikt förslag och motivera varför det passar baserat på medlemmens mål och historik. Föreslå ALDRIG ett pass som inte finns i listan.
             - **Om du inte kan svara:** Förklara varför på ett hjälpsamt sätt. Om du inte kan se en tydlig trend för styrkeutveckling, förklara att fler loggade pass behövs för en djupare analys.`;
 
             const response: GenerateContentResponse = await ai.models.generateContent({
@@ -183,7 +203,7 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
         } finally {
             setIsLoading(false);
         }
-    }, [ai, isLoading, participantProfile, latestGoal, myWorkoutLogs, myGeneralActivityLogs, allWorkouts]);
+    }, [ai, isLoading, participantProfile, latestGoal, myWorkoutLogs, myGeneralActivityLogs, allWorkouts, membership]);
 
     const handleFormSubmit = (e: React.FormEvent) => {
         e.preventDefault();

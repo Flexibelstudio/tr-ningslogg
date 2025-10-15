@@ -1687,6 +1687,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             myGeneralActivityLogs={myGeneralActivityLogs}
             latestGoal={latestActiveGoal}
             allWorkouts={workouts}
+            membership={myMembership}
         />
     </div>
     );
