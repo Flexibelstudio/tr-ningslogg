@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
 import { WorkoutLog, Workout, PostWorkoutSummaryData } from '../../types';
@@ -57,6 +57,22 @@ export const PostWorkoutSummaryModal: React.FC<PostWorkoutSummaryModalProps> = (
       setHasFinalized(false);
     }
   }, [isOpen]);
+
+  const quickLogResults = useMemo(() => {
+    if (!log || !workout) return [];
+    return log.entries
+        .filter(e => e.exerciseId.startsWith('QUICK_LOG_BLOCK_ID::'))
+        .map(entry => {
+            const blockId = entry.exerciseId.split('::')[1];
+            const block = workout.blocks.find(b => b.id === blockId);
+            const rounds = entry.loggedSets[0]?.reps;
+            return {
+                blockName: block?.name || 'Snabbloggat block',
+                rounds
+            };
+        })
+        .filter(item => item.rounds !== undefined);
+  }, [log, workout]);
 
   if (!isOpen || !log || !workout) {
     return null;
@@ -239,6 +255,20 @@ export const PostWorkoutSummaryModal: React.FC<PostWorkoutSummaryModalProps> = (
                         </React.Fragment>
                     ))}.
                 </p>
+            </div>
+          )}
+
+          {quickLogResults.length > 0 && (
+            <div className="mt-6 pt-6 border-t">
+              <h3 className="text-xl font-semibold text-gray-800 mb-3 text-center">⏱️ Snabbloggade Block</h3>
+              <ul className="space-y-2 text-left">
+                {quickLogResults.map((result, index) => (
+                  <li key={index} className="p-3 bg-blue-50 border border-blue-300 rounded-md text-base flex justify-between">
+                    <span className="font-semibold text-blue-700">{result.blockName}</span>
+                    <span className="font-bold">{result.rounds} varv</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

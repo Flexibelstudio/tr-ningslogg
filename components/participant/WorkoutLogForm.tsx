@@ -60,7 +60,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
     myWorkoutLogs,
     integrationSettings,
 }) => {
-  type LogView = 'block_selection' | 'logging_block' | 'finalizing';
+  type LogView = 'block_selection' | 'logging_block' | 'logging_quick_block' | 'finalizing';
 
   const [logEntries, setLogEntries] = useState<Map<string, SetDetail[]>>(new Map());
   const [postWorkoutComment, setPostWorkoutComment] = useState('');
@@ -84,6 +84,8 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   const formTopRef = useRef<HTMLDivElement>(null);
   
   const [setToRemove, setSetToRemove] = useState<{ exerciseId: string; setId: string } | null>(null);
+
+  const [quickLogRounds, setQuickLogRounds] = useState(0);
   
   const exercisesToLog = useMemo(() => {
     return workout.blocks.reduce((acc, block) => acc.concat(block.exercises), [] as Exercise[]);
@@ -377,9 +379,18 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   };
   
   const handleSelectBlock = (blockId: string) => {
+    const block = workout.blocks.find(b => b.id === blockId);
     setActiveBlockId(blockId);
-    setCurrentStepInBlock(0);
-    setCurrentView('logging_block');
+
+    if (block?.isQuickLogEnabled) {
+      const virtualExerciseId = `QUICK_LOG_BLOCK_ID::${blockId}`;
+      const entry = logEntries.get(virtualExerciseId);
+      setQuickLogRounds(Number(entry?.[0]?.reps || 0));
+      setCurrentView('logging_quick_block');
+    } else {
+      setCurrentStepInBlock(0);
+      setCurrentView('logging_block');
+    }
     formTopRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
   
@@ -443,6 +454,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
 
   const validateAllLoggedSets = useCallback((): boolean => {
     for (const block of workout.blocks) {
+        if (block.isQuickLogEnabled) continue; // Skip validation for quick-log blocks
         for (const exercise of block.exercises) {
             const sets = logEntries.get(exercise.id);
             if (sets && sets.length > 0 && !validateSetsFilled(exercise, sets)) {
@@ -457,6 +469,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   
   const hasInProgressBlocks = useCallback((): boolean => {
     for (const block of workout.blocks) {
+        if (block.isQuickLogEnabled) continue;
         const blockExercises = block.exercises || [];
         const hasLoggedEntries = blockExercises.some(ex => (logEntries.get(ex.id) || []).length > 0);
         if (!hasLoggedEntries) continue;
@@ -484,12 +497,13 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   };
 
   const handleBackToBlockSelection = () => {
-    if (!validateActiveBlock()) return;
+    if (currentView === 'logging_block' && !validateActiveBlock()) return;
+    
     setCurrentView('block_selection');
     setActiveBlockId(null);
     formTopRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
-
+  
   const goBackToBlockSelectionWithoutValidation = () => {
     setCurrentView('block_selection');
     setActiveBlockId(null);
@@ -518,6 +532,27 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
     } else {
         goBackToBlockSelectionWithoutValidation();
     }
+  };
+
+  const handleFinishQuickLogBlock = () => {
+    if (!activeBlock) return;
+  
+    setLogEntries(prev => {
+      const newLogs = new Map(prev);
+      const virtualExerciseId = `QUICK_LOG_BLOCK_ID::${activeBlock.id}`;
+      if (quickLogRounds > 0) {
+        newLogs.set(virtualExerciseId, [{
+          id: crypto.randomUUID(),
+          reps: quickLogRounds,
+          isCompleted: true
+        }]);
+      } else {
+        newLogs.delete(virtualExerciseId);
+      }
+      return newLogs;
+    });
+  
+    handleBackToBlockSelection();
   };
 
   return (
@@ -567,12 +602,18 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                 <p className="text-lg text-gray-600">Klicka på ett block för att börja logga.</p>
                 {workout.blocks.map((block, index) => {
                     const blockExercises = block.exercises || [];
+                    const isQuickLogBlock = block.isQuickLogEnabled;
+                    const quickLogEntry = logEntries.get(`QUICK_LOG_BLOCK_ID::${block.id}`);
+                    const hasLoggedQuickLog = isQuickLogBlock && quickLogEntry && quickLogEntry.length > 0 && Number(quickLogEntry[0].reps) > 0;
                     const hasLoggedEntries = blockExercises.some(ex => (logEntries.get(ex.id) || []).length > 0);
                     
                     let blockStatus: 'Ej påbörjat' | 'Pågående' | 'Slutfört' = 'Ej påbörjat';
                     let statusClass = 'bg-slate-100 text-slate-600';
                     
-                    if (hasLoggedEntries) {
+                    if (hasLoggedQuickLog) {
+                        blockStatus = 'Slutfört';
+                        statusClass = 'bg-green-100 text-green-800';
+                    } else if (hasLoggedEntries) {
                         const allExercisesCompleted = blockExercises.every(ex => {
                             const sets = logEntries.get(ex.id) || [];
                             return sets.length > 0 && sets.every(s => s.isCompleted);
@@ -591,7 +632,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                         <button key={block.id} onClick={() => handleSelectBlock(block.id)} className="w-full text-left p-4 bg-white rounded-2xl shadow-sm border-2 border-transparent hover:border-flexibel transition-all flex justify-between items-center">
                             <div>
                                 <h3 className="text-2xl font-bold text-gray-800">{block.name || `Block ${index + 1}`}</h3>
-                                <p className="text-base text-gray-500">{block.exercises.length} övningar</p>
+                                <p className="text-base text-gray-500">{block.exercises.length} övningar {isQuickLogBlock && <span className="text-xs font-bold text-blue-600">(SNABBLOGG)</span>}</p>
                             </div>
                             <div className="flex items-center gap-3">
                                 <span className={`px-3 py-1 text-sm font-semibold rounded-full ${statusClass}`}>
@@ -620,6 +661,41 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
           </div>
         )}
         
+        {currentView === 'logging_quick_block' && activeBlock && (
+            <div className="space-y-6">
+                <header className="flex justify-between items-start">
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-800">{workout.title}</h1>
+                    <p className="text-xl text-gray-600">{activeBlock.name || `Block ${workout.blocks.findIndex(b => b.id === activeBlock.id) + 1}`}</p>
+                </div>
+                <Button onClick={handleAttemptClose} variant="danger">Avbryt & stäng</Button>
+                </header>
+                
+                <div className="p-4 bg-white rounded-2xl shadow-sm border">
+                    <h3 className="text-xl font-semibold text-gray-700 mb-2">Övningar i detta block</h3>
+                    <ul className="list-disc pl-5 space-y-1 text-gray-600">
+                        {activeBlock.exercises.map(ex => <li key={ex.id}>{ex.name}</li>)}
+                    </ul>
+                </div>
+
+                <div className="p-6 bg-white rounded-2xl shadow-sm border text-center">
+                    <label className="text-2xl font-bold text-gray-700 mb-4 block">Hur många varv?</label>
+                    <div className="flex items-center justify-center gap-4">
+                        <Button onClick={() => setQuickLogRounds(r => Math.max(0, r - 1))} className="!rounded-full !w-16 !h-16 !p-0 text-4xl" variant="secondary">-</Button>
+                        <span className="text-7xl font-bold text-flexibel w-32">{quickLogRounds}</span>
+                        <Button onClick={() => setQuickLogRounds(r => r + 1)} className="!rounded-full !w-16 !h-16 !p-0 text-4xl" variant="primary">+</Button>
+                    </div>
+                </div>
+
+                <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-sm border-t">
+                <div className="container mx-auto max-w-2xl flex justify-between items-center">
+                    <Button variant="outline" size="lg" onClick={handleBackToBlockSelection}>Tillbaka till block</Button>
+                    <Button variant="primary" size="lg" onClick={handleFinishQuickLogBlock}>Avsluta block</Button>
+                </div>
+                </div>
+            </div>
+        )}
+
         {currentView === 'logging_block' && activeBlock && currentGroup && (
           <div className="space-y-6">
             <header className="flex justify-between items-center">
