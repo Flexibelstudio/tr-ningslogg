@@ -203,8 +203,8 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Fråga coachen" size="lg">
-            <div className="relative flex flex-col h-[75vh] sm:h-[70vh] -m-6">
-                <div ref={chatContainerRef} className="flex-grow p-4 overflow-y-auto space-y-4 bg-white pb-48">
+            <div className="flex flex-col h-[75vh] sm:h-[70vh] -m-6">
+                <div ref={chatContainerRef} className="flex-grow p-4 overflow-y-auto space-y-4 bg-white">
                     {messages.map(msg => (
                         <div key={msg.id} className={`flex items-end gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                             {msg.sender === 'ai' && <span className="text-2xl mb-1">✨</span>}
@@ -224,16 +224,17 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
                             </div>
                         </div>
                     )}
-                </div>
-
-                <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-gray-50 flex-shrink-0">
-                    <div className="flex flex-wrap gap-2 mb-4">
+                    
+                    <div className="flex flex-wrap gap-2 pt-4">
                         {suggestionButtons.map(s => (
                             <Button key={s} variant="ghost" size="sm" onClick={() => handleSuggestionClick(s)} disabled={isLoading} className="!rounded-full !px-2.5 !py-1 !text-xs bg-orange-100 text-orange-800 hover:bg-orange-200 border border-orange-200">
                                 {s}
                             </Button>
                         ))}
                     </div>
+                </div>
+
+                <div className="p-4 border-t bg-gray-50 flex-shrink-0">
                     <form onSubmit={handleFormSubmit} className="flex items-center gap-3">
                         <Input
                             value={inputValue}
