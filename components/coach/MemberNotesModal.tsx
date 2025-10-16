@@ -239,24 +239,31 @@ const handleConfirmDeleteProgram = () => {
 
   const handleInsertTemplate = () => {
     const today = new Date().toISOString().split('T')[0];
-    const template = `### Avstämning [Datum: ${today}]
+    const template = `AVSTÄMNING [Datum: ${today}]
 
-#### Måluppföljning
-- Hur går det med målen?
-- Behöver vi justera något?
+HUR GÅR DET MED DIN TRÄNING?
 
-#### Träning
-- Känsla & energi i passen:
-- Frekvens & konsistens:
-- Utmaningar eller hinder:
 
-#### Livsstilsfaktorer
-- Sömn:
-- Stress:
-- Kost & energi:
+VAD ÄR DU MEST STOLT ÖVER ATT HA UPPNÅTT DE SENASTE TRE MÅNADERNA (eller sen senaste avstämningen)? (BRIGHT SPOT)
 
-#### Coachanteckningar & Plan framåt
-- `;
+
+VAD HAR VARIT DIN STÖRSTA UTMANING?
+
+
+VILKA ÄR DINA NUVARANDE MÅL?
+
+
+KÄNNER DU ATT DU ÄR PÅ VÄG MOT MÅLET?
+
+
+FÖRNYAT/JUSTERAT MÅL:
+
+
+HUR TAR VI OSS DIT?
+Bra:
+Bättre:
+Bäst:
+`;
 
     setNewNote(prevNote => {
         if (prevNote.trim() === '') {
