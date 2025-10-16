@@ -15,7 +15,7 @@ import { ParticipantActivityView } from './ParticipantActivityView';
 import { PostWorkoutSummaryModal } from './PostWorkoutSummaryModal';
 import { LogGeneralActivityModal } from './LogGeneralActivityModal';
 import { GeneralActivitySummaryModal } from './GeneralActivitySummaryModal';
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import {
     LOCAL_STORAGE_KEYS, WEIGHT_COMPARISONS, FLEXIBEL_PRIMARY_COLOR,
     STRESS_LEVEL_OPTIONS, ENERGY_LEVEL_OPTIONS, SLEEP_QUALITY_OPTIONS, OVERALL_MOOD_OPTIONS,
@@ -1074,7 +1074,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         let aiPrognosisText: string | undefined = undefined;
     
         if (shouldTriggerAi) {
-            if (!ai || !isAiEnabled || !isOnline) {
+            if (!isAiEnabled || !isOnline) {
                 if (!isAiEnabled) {
                     setIsAiUpsellModalOpen(true);
                 }
@@ -1104,15 +1104,28 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             Håll en stöttande och professionell ton. Undvik medicinska råd.`;
     
             try {
-                const response: GenerateContentResponse = await ai.models.generateContent({
-                    model: 'gemini-2.5-flash',
-                    contents: prompt,
+                const cloudFnUrl = `https://europe-west1-${import.meta.env.VITE_FB_PROJECT_ID}.cloudfunctions.net/callGeminiApi`;
+                const response = await fetch(cloudFnUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: 'gemini-2.5-flash',
+                        contents: prompt,
+                    }),
                 });
-                aiPrognosisText = response.text;
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: 'Okänt fel från servern' }));
+                    throw new Error(`Serverfel (${response.status}): ${errorData.error}`);
+                }
+                
+                const data = await response.json();
+                aiPrognosisText = data.text;
                 setAiFeedback(aiPrognosisText);
             } catch (err) {
-                console.error("Error generating AI goal prognosis:", err);
-                setAiFeedbackError("Kunde inte generera en prognos för ditt mål. Försök igen senare.");
+                console.error("Error generating AI goal prognosis via Cloud Function:", err);
+                const errorMessage = err instanceof Error ? err.message : "Kunde inte generera en prognos för ditt mål. Försök igen senare.";
+                setAiFeedbackError(errorMessage);
                 throw err;
             } finally {
                 setIsLoadingAiFeedback(false);
@@ -1185,7 +1198,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             }
             return newGoalsArray;
         });
-    }, [ai, isAiEnabled, isOnline, latestActiveGoal, currentParticipantId, setParticipantGoals, setGoalCompletionLogs]);
+    }, [isAiEnabled, isOnline, latestActiveGoal, currentParticipantId, setParticipantGoals, setGoalCompletionLogs, setAiFeedback, setAiFeedbackError, setIsAiFeedbackModalOpen, setIsLoadingAiFeedback, setCurrentAiModalTitle, setIsAiUpsellModalOpen]);
     
     const handleSaveGeneralActivity = (activityData: Omit<GeneralActivityLog, 'id' | 'completedDate' | 'type' | 'participantId'>) => {
         const newActivity: GeneralActivityLog = {

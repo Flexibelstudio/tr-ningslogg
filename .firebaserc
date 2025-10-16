@@ -1,5 +1,7 @@
 {
   "projects": {
     "default": "smartstudio-da995"
-  }
+  },
+  "targets": {},
+  "etags": {}
 }
