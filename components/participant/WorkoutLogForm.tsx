@@ -773,9 +773,6 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                                 allWorkouts={allWorkouts}
                             />
                         ))}
-                         <Button fullWidth variant="secondary" onClick={() => handleAddSetToGroup({ exercises: activeBlock.exercises })}>
-                           Lägg till set i mall
-                        </Button>
                         <div className="p-4 bg-white rounded-lg border shadow-sm space-y-3">
                             <h2 className="text-2xl font-semibold text-gray-700">Steg 2: Ange totalt antal varv</h2>
                              <Input label="Antal varv totalt" type="number" value={quickLogTotalRounds} onChange={e => setQuickLogTotalRounds(e.target.value)} min="1" />
