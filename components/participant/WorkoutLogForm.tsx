@@ -386,14 +386,22 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
     setActiveBlockId(blockId);
 
     if (block?.isQuickLogEnabled) {
+      const hasTemplateEntries = block.exercises.some(ex => (logEntries.get(ex.id) || []).length > 0);
+      if (!hasTemplateEntries) {
+        setLogEntries(prev => {
+          const newLogs = new Map(prev);
+          block.exercises.forEach(exercise => {
+            const newSet: SetDetail = {
+              id: crypto.randomUUID(),
+              reps: '', weight: '', distanceMeters: '', durationSeconds: '', caloriesKcal: '', isCompleted: false,
+            };
+            newLogs.set(exercise.id, [newSet]);
+          });
+          return newLogs;
+        });
+      }
       setQuickLogStep('template');
       setQuickLogTotalRounds('1');
-      // Clear only the template entries for this block from the main log to start fresh
-      setLogEntries(prev => {
-        const newLogs = new Map(prev);
-        block.exercises.forEach(ex => newLogs.delete(ex.id));
-        return newLogs;
-      });
       setCurrentView('logging_quick_block');
     } else {
       setCurrentStepInBlock(0);
