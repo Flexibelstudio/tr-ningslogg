@@ -236,6 +236,36 @@ const handleConfirmDeleteProgram = () => {
     }
     setNewNote('');
   };
+
+  const handleInsertTemplate = () => {
+    const today = new Date().toISOString().split('T')[0];
+    const template = `### Avstämning [Datum: ${today}]
+
+#### Måluppföljning
+- Hur går det med målen?
+- Behöver vi justera något?
+
+#### Träning
+- Känsla & energi i passen:
+- Frekvens & konsistens:
+- Utmaningar eller hinder:
+
+#### Livsstilsfaktorer
+- Sömn:
+- Stress:
+- Kost & energi:
+
+#### Coachanteckningar & Plan framåt
+- `;
+
+    setNewNote(prevNote => {
+        if (prevNote.trim() === '') {
+            return template;
+        }
+        // Add two newlines for a clear separation
+        return `${prevNote}\n\n${template}`;
+    });
+  };
   
   const handleGenerateAiSummary = async () => {
     if (!ai) return;
@@ -257,7 +287,7 @@ const handleConfirmDeleteProgram = () => {
     2.  **## Målsättning & Progress:** Kommentarer om målet och eventuella tecken på framsteg.
     3.  **## Mående & Engagemang:** Något anmärkningsvärt från kommentarer eller humör?
     4.  **## Rekommendationer för Samtalet:** Ge 1-2 konkreta förslag på diskussionspunkter för coachen.`;
-
+    
     try {
         const response: GenerateContentResponse = await ai.models.generateContent({
           model: "gemini-2.5-flash",
@@ -394,10 +424,41 @@ const handleConfirmDeleteProgram = () => {
                       )}
                       
                       <div className="space-y-2">
-                        <Textarea label={editingNote ? 'Redigera anteckning' : 'Ny anteckning'} value={newNote} onChange={e => setNewNote(e.target.value)} rows={4} />
-                        <div className="flex justify-end gap-2">
-                          {editingNote && <Button variant="secondary" onClick={() => { setEditingNote(null); setNewNote(''); }}>Avbryt</Button>}
-                          <Button onClick={handleSaveNote} disabled={!newNote.trim()}>{editingNote ? 'Spara ändring' : 'Spara anteckning'}</Button>
+                        <Textarea
+                          label={editingNote ? 'Redigera anteckning' : 'Ny anteckning'}
+                          value={newNote}
+                          onChange={(e) => setNewNote(e.target.value)}
+                          rows={4}
+                        />
+                        <div className="flex justify-between items-center pt-2">
+                          <div>
+                            {!editingNote && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={handleInsertTemplate}
+                              >
+                                Infoga Avstämningsmall
+                              </Button>
+                            )}
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            {editingNote && (
+                              <Button
+                                variant="secondary"
+                                onClick={() => {
+                                  setEditingNote(null);
+                                  setNewNote('');
+                                }}
+                              >
+                                Avbryt
+                              </Button>
+                            )}
+                            <Button onClick={handleSaveNote} disabled={!newNote.trim()}>
+                              {editingNote ? 'Spara ändring' : 'Spara anteckning'}
+                            </Button>
+                          </div>
                         </div>
                       </div>
 
