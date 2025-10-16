@@ -8,7 +8,7 @@ import {
     CoachEvent, Connection, Location, StaffMember, Membership, 
     WeeklyHighlightSettings, OneOnOneSession, WorkoutCategoryDefinition, 
     StaffAvailability, IntegrationSettings, GroupClassDefinition, 
-    GroupClassSchedule, ParticipantBooking, AppData, BrandingSettings, ProspectIntroCall, Lead, FlowItem
+    GroupClassSchedule, ParticipantBooking, AppData, BrandingSettings, ProspectIntroCall, Lead
 } from '../types';
 import firebaseService from '../services/firebaseService'; // Use the new service
 import { useAuth } from './AuthContext';
@@ -75,7 +75,6 @@ interface AppContextType extends Omit<OrganizationData, 'workouts' | 'branding'>
   setLeadsData: (updater: React.SetStateAction<AppData['leads']>) => void;
   setProspectIntroCallsData: (updater: React.SetStateAction<AppData['prospectIntroCalls']>) => void;
   setBrandingData: (updater: React.SetStateAction<AppData['branding']>) => void;
-  setFlowItemsData: (updater: React.SetStateAction<AppData['flowItems']>) => void;
 }
 
 // 2. Create the context with a default value (or undefined and check for it)
@@ -140,7 +139,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [leads, setLeads] = useState<Lead[]>([]);
     const [prospectIntroCalls, setProspectIntroCalls] = useState<ProspectIntroCall[]>([]);
     const [branding, setBranding] = useState<BrandingSettings | undefined>(undefined);
-    const [flowItems, setFlowItems] = useState<FlowItem[]>([]);
     const [isGlobalDataLoading, setIsGlobalDataLoading] = useState(true);
     const [isOrgDataLoading, setIsOrgDataLoading] = useState(true);
     const [orgDataError, setOrgDataError] = useState<string | null>(null);
@@ -239,11 +237,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     setLeads(data.leads);
                     setProspectIntroCalls(data.prospectIntroCalls);
                     setBranding(data.branding);
-                    setFlowItems(data.flowItems);
-
-                    // Also update the local cache with the fresh data from Firestore
-                    // This ensures the offline cache is up-to-date
-                    dataService.setOrgData(organizationId, data);
 
                     // Cache logo for faster reloads
                     if (data.branding?.logoBase64) {
@@ -300,7 +293,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setLeads([]);
             setProspectIntroCalls([]);
             setBranding(undefined);
-            setFlowItems([]);
         }
     }, [organizationId]);
   
@@ -423,7 +415,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const smartSetLeads = createSmartCollectionUpdater('leads', setLeads);
     const smartSetProspectIntroCalls = createSmartCollectionUpdater('prospectIntroCalls', setProspectIntroCalls);
     const smartSetBranding = createSingleDocUpdater('branding', setBranding);
-    const smartSetFlowItems = createSmartCollectionUpdater('flowItems', setFlowItems);
 
     const addParticipant = useCallback(async (participant: ParticipantProfile) => {
         smartSetParticipantDirectory(prev => [...prev, participant]);
@@ -489,7 +480,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     leads,
     prospectIntroCalls,
     branding,
-    flowItems,
     isOrgDataLoading,
     isGlobalDataLoading,
     isOrgDataFromFallback,
@@ -532,7 +522,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setLeadsData: smartSetLeads,
     setProspectIntroCallsData: smartSetProspectIntroCalls,
     setBrandingData: smartSetBranding,
-    setFlowItemsData: smartSetFlowItems,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -8,13 +8,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 initializeApp();
 const db = getFirestore();
 
-// Init Gemini SDK med secret
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-
-/**
- * Webhook från Zapier som skapar en lead i Firestore.
- * Kräver header: Authorization: Bearer <ZAPIER_SECRET_KEY>
- */
+// --- Zapier webhook ---
 export const createLeadFromZapier = onRequest(
   {
     region: "europe-west1",
@@ -46,9 +40,7 @@ export const createLeadFromZapier = onRequest(
       !email && "email",
       !locationName && "locationName",
       !orgId && "orgId",
-    ]
-      .filter(Boolean)
-      .join(", ");
+    ].filter(Boolean).join(", ");
 
     if (missing) {
       logger.error("Bad Request: Missing required fields:", missing);
@@ -58,10 +50,8 @@ export const createLeadFromZapier = onRequest(
 
     try {
       const locationsSnapshot = await db
-        .collection("organizations")
-        .doc(orgId)
-        .collection("locations")
-        .get();
+        .collection("organizations").doc(orgId)
+        .collection("locations").get();
 
       const locations = locationsSnapshot.docs.map((doc) => ({
         id: doc.id,
@@ -90,10 +80,8 @@ export const createLeadFromZapier = onRequest(
       };
 
       const leadRef = await db
-        .collection("organizations")
-        .doc(orgId)
-        .collection("leads")
-        .add(newLead);
+        .collection("organizations").doc(orgId)
+        .collection("leads").add(newLead);
 
       logger.info(`Successfully created lead with ID: ${leadRef.id} for org ${orgId}`);
       res.status(201).json({ success: true, leadId: leadRef.id });
@@ -104,10 +92,7 @@ export const createLeadFromZapier = onRequest(
   }
 );
 
-/**
- * Proxy till Gemini API (server-side) med @google/generative-ai.
- * Body: { model: string, contents: string | Content[], config?: GenerationConfig }
- */
+// --- Gemini proxy ---
 export const callGeminiApi = onRequest(
   {
     region: "europe-west1",
@@ -122,32 +107,31 @@ export const callGeminiApi = onRequest(
 
     try {
       const { model, contents, config } = (req.body ?? {}) as any;
-      if (!model || contents === undefined || contents === null) {
+      if (!model || contents == null) {
         logger.error("Bad Request: Missing 'model' or 'contents' in request body.");
         res.status(400).json({ error: "Bad Request: Missing 'model' or 'contents'." });
         return;
       }
 
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
       const llm = genAI.getGenerativeModel({ model });
 
-      let resultText = "";
+      let text = "";
       if (typeof contents === "string") {
-        // Enkel textprompt
         const result = await llm.generateContent({
           contents: [{ role: "user", parts: [{ text: contents }] }],
           generationConfig: config,
         });
-        resultText = result.response.text();
+        text = result.response.text();
       } else {
-        // Avancerat: passa igenom structured contents (roller/parts)
         const result = await llm.generateContent({
           contents,
           generationConfig: config,
         });
-        resultText = result.response.text();
+        text = result.response.text();
       }
 
-      res.status(200).json({ text: resultText });
+      res.status(200).json({ text });
     } catch (error) {
       logger.error("Error calling Gemini API:", error);
       res.status(500).json({ error: "Internal Server Error" });
