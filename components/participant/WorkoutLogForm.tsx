@@ -778,9 +778,9 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                              <Input label="Antal varv totalt" type="number" value={quickLogTotalRounds} onChange={e => setQuickLogTotalRounds(e.target.value)} min="1" />
                         </div>
                         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-sm border-t">
-                            <div className="container mx-auto max-w-2xl flex justify-between items-center gap-2">
-                                <Button variant="outline" size="md" onClick={handleBackToBlockSelection}>Tillbaka</Button>
-                                <Button variant="primary" size="md" onClick={() => handleLogAndAction('review')}>Logga & Granska</Button>
+                            <div className="container mx-auto max-w-2xl flex items-center gap-2">
+                                <Button variant="outline" size="md" onClick={handleBackToBlockSelection} className="flex-1">Tillbaka</Button>
+                                <Button variant="primary" size="md" onClick={() => handleLogAndAction('review')} className="flex-1">Logga & Granska</Button>
                             </div>
                         </div>
                     </div>
