@@ -8,20 +8,25 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 initializeApp();
 const db = getFirestore();
 
-// --- Zapier webhook ---
+/**
+ * Zapier-webhook: skapar lead i Firestore
+ * Header: Authorization: Bearer <ZAPIER_SECRET_KEY>
+ */
 export const createLeadFromZapier = onRequest(
   {
     region: "europe-west1",
     secrets: ["ZAPIER_SECRET_KEY"],
-    cors: true,
+    cors: true, // hantera CORS automatiskt
   },
   async (req, res) => {
+    // Endast POST
     if (req.method !== "POST") {
       logger.warn("Method Not Allowed:", req.method);
       res.status(405).send("Method Not Allowed");
       return;
     }
 
+    // Auth
     const ZAPIER_SECRET_KEY = process.env.ZAPIER_SECRET_KEY;
     const authHeader = req.header("authorization") ?? req.header("Authorization") ?? "";
     const presented = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
@@ -32,7 +37,11 @@ export const createLeadFromZapier = onRequest(
       return;
     }
 
-    const { firstName, lastName, email, phone, locationName, orgId } = (req.body ?? {}) as any;
+    // Body
+    const { firstName, lastName, email, phone, locationName, orgId } = (req.body ?? {}) as Record<
+      string,
+      unknown
+    >;
 
     const missing = [
       !firstName && "firstName",
@@ -40,7 +49,9 @@ export const createLeadFromZapier = onRequest(
       !email && "email",
       !locationName && "locationName",
       !orgId && "orgId",
-    ].filter(Boolean).join(", ");
+    ]
+      .filter(Boolean)
+      .join(", ");
 
     if (missing) {
       logger.error("Bad Request: Missing required fields:", missing);
@@ -49,17 +60,23 @@ export const createLeadFromZapier = onRequest(
     }
 
     try {
+      // Hämta locations och typa dem så TS vet att "name?" kan finnas
       const locationsSnapshot = await db
-        .collection("organizations").doc(orgId)
-        .collection("locations").get();
+        .collection("organizations")
+        .doc(String(orgId))
+        .collection("locations")
+        .get();
 
-      const locations = locationsSnapshot.docs.map((doc) => ({
+      type LocationDoc = { name?: string };
+      const locations: Array<{ id: string; name?: string }> = locationsSnapshot.docs.map((doc) => ({
         id: doc.id,
-        ...(doc.data() as { name?: string }),
+        ...(doc.data() as LocationDoc),
       }));
 
       const targetLocation = locations.find(
-        (loc) => loc.name && loc.name.toLowerCase().includes(String(locationName).toLowerCase())
+        (l) =>
+          typeof l.name === "string" &&
+          l.name.toLowerCase().includes(String(locationName).toLowerCase())
       );
 
       if (!targetLocation) {
@@ -68,11 +85,12 @@ export const createLeadFromZapier = onRequest(
         return;
       }
 
+      // Skapa lead
       const newLead = {
-        firstName,
-        lastName,
+        firstName: String(firstName),
+        lastName: String(lastName),
         email: String(email).toLowerCase(),
-        phone: phone ?? "",
+        phone: phone ? String(phone) : "",
         locationId: targetLocation.id,
         source: "Meta",
         createdDate: new Date().toISOString(),
@@ -80,8 +98,10 @@ export const createLeadFromZapier = onRequest(
       };
 
       const leadRef = await db
-        .collection("organizations").doc(orgId)
-        .collection("leads").add(newLead);
+        .collection("organizations")
+        .doc(String(orgId))
+        .collection("leads")
+        .add(newLead);
 
       logger.info(`Successfully created lead with ID: ${leadRef.id} for org ${orgId}`);
       res.status(201).json({ success: true, leadId: leadRef.id });
@@ -92,7 +112,10 @@ export const createLeadFromZapier = onRequest(
   }
 );
 
-// --- Gemini proxy ---
+/**
+ * Server-side proxy till Gemini (Generative AI)
+ * Body: { model: string, contents: string | Content[], config?: GenerationConfig }
+ */
 export const callGeminiApi = onRequest(
   {
     region: "europe-west1",
@@ -106,7 +129,12 @@ export const callGeminiApi = onRequest(
     }
 
     try {
-      const { model, contents, config } = (req.body ?? {}) as any;
+      const { model, contents, config } = (req.body ?? {}) as {
+        model?: string;
+        contents?: unknown;
+        config?: unknown;
+      };
+
       if (!model || contents == null) {
         logger.error("Bad Request: Missing 'model' or 'contents' in request body.");
         res.status(400).json({ error: "Bad Request: Missing 'model' or 'contents'." });
@@ -120,13 +148,13 @@ export const callGeminiApi = onRequest(
       if (typeof contents === "string") {
         const result = await llm.generateContent({
           contents: [{ role: "user", parts: [{ text: contents }] }],
-          generationConfig: config,
+          generationConfig: config as any,
         });
         text = result.response.text();
       } else {
         const result = await llm.generateContent({
-          contents,
-          generationConfig: config,
+          contents: contents as any, // tillåt “structured contents”
+          generationConfig: config as any,
         });
         text = result.response.text();
       }
