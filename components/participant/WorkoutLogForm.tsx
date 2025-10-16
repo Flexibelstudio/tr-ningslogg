@@ -779,11 +779,8 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                         </div>
                         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-sm border-t">
                             <div className="container mx-auto max-w-2xl flex flex-col sm:flex-row justify-between items-center gap-2">
-                                <Button variant="outline" size="md" onClick={handleBackToBlockSelection}>Tillbaka</Button>
-                                <div className="flex w-full sm:w-auto gap-2">
-                                    <Button variant="secondary" size="md" onClick={() => handleLogAndAction('review')} className="w-1/2 sm:w-auto">Logga & Granska</Button>
-                                    <Button variant="primary" size="md" onClick={() => handleLogAndAction('finish')} className="w-1/2 sm:w-auto">Logga {quickLogTotalRounds} varv & Avsluta</Button>
-                                </div>
+                                <Button variant="outline" size="md" onClick={handleBackToBlockSelection} className="w-full sm:w-auto">Tillbaka</Button>
+                                <Button variant="primary" size="md" onClick={() => handleLogAndAction('review')} className="w-full sm:w-auto">Logga & Granska</Button>
                             </div>
                         </div>
                     </div>
