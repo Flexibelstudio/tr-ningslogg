@@ -54,6 +54,7 @@ import { InstallPwaBanner } from './InstallPwaBanner';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { AchievementToast } from './AchievementToast';
 import { AICoachModal } from './AICoachModal';
+import { callGeminiApiFn } from '../../firebaseClient';
 
 
 const API_KEY = process.env.API_KEY;
@@ -403,6 +404,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         participantGoals, setParticipantGoalsData: setParticipantGoals,
         generalActivityLogs, setGeneralActivityLogsData: setGeneralActivityLogs,
         goalCompletionLogs, setGoalCompletionLogsData: setGoalCompletionLogs,
+        coachNotes,
         userStrengthStats, setUserStrengthStatsData: setUserStrengthStats,
         userConditioningStatsHistory, setUserConditioningStatsHistoryData: setUserConditioningStatsHistory,
         participantPhysiqueHistory, setParticipantPhysiqueHistoryData: setParticipantPhysiqueHistory,
@@ -1104,23 +1106,18 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             Håll en stöttande och professionell ton. Undvik medicinska råd.`;
     
             try {
-                const cloudFnUrl = `https://europe-west1-${import.meta.env.VITE_FB_PROJECT_ID}.cloudfunctions.net/callGeminiApi`;
-                const response = await fetch(cloudFnUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        model: 'gemini-2.5-flash',
-                        contents: prompt,
-                    }),
+                const result = await callGeminiApiFn({
+                    model: 'gemini-2.5-flash',
+                    contents: prompt,
                 });
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ error: 'Okänt fel från servern' }));
-                    throw new Error(`Serverfel (${response.status}): ${errorData.error}`);
+                
+                const { text, error } = result.data as { text?: string; error?: string };
+                
+                if (error) {
+                    throw new Error(`Cloud Function error: ${error}`);
                 }
                 
-                const data = await response.json();
-                aiPrognosisText = data.text;
+                aiPrognosisText = text;
                 setAiFeedback(aiPrognosisText);
             } catch (err) {
                 console.error("Error generating AI goal prognosis via Cloud Function:", err);

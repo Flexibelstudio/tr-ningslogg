@@ -1,4 +1,4 @@
-import { onRequest } from "firebase-functions/v2/https";
+import { onRequest, onCall } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
@@ -16,10 +16,9 @@ export const createLeadFromZapier = onRequest(
   {
     region: "europe-west1",
     secrets: ["ZAPIER_SECRET_KEY"],
-    cors: true, // hantera CORS automatiskt
+    cors: true, // Firebase hanterar CORS-headrarna åt oss
   },
   async (req, res) => {
-    // Endast POST
     if (req.method !== "POST") {
       logger.warn("Method Not Allowed:", req.method);
       res.status(405).send("Method Not Allowed");
@@ -113,56 +112,56 @@ export const createLeadFromZapier = onRequest(
 );
 
 /**
- * Server-side proxy till Gemini (Generative AI)
- * Body: { model: string, contents: string | Content[], config?: GenerationConfig }
+ * Callable: Server-side proxy till Gemini (Generative AI)
+ * Anropas via Firebase SDK (httpsCallable) → ingen CORS.
+ * Data: { model: string, contents: string | Content[], config?: GenerationConfig }
  */
-export const callGeminiApi = onRequest(
+export const callGeminiApi = onCall(
   {
     region: "europe-west1",
     secrets: ["GEMINI_API_KEY"],
     cors: true,
+    // enforceAppCheck: true,          // aktivera om du vill kräva App Check
+    // enforceAppCheckOptional: true,  // eller logga varningar
   },
-  async (req, res) => {
-    if (req.method !== "POST") {
-      res.status(405).send("Method Not Allowed");
-      return;
-    }
-
+  async (request) => {
     try {
-      const { model, contents, config } = (req.body ?? {}) as {
+      const { model, contents, config } = (request.data ?? {}) as {
         model?: string;
         contents?: unknown;
         config?: unknown;
       };
 
       if (!model || contents == null) {
-        logger.error("Bad Request: Missing 'model' or 'contents' in request body.");
-        res.status(400).json({ error: "Bad Request: Missing 'model' or 'contents'." });
-        return;
+        logger.error("Bad Request: Missing 'model' or 'contents'");
+        return { error: "Bad Request: Missing 'model' or 'contents'." };
+        }
+
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return { error: "GEMINI_API_KEY secret not found." };
       }
 
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+      const genAI = new GoogleGenerativeAI(apiKey);
       const llm = genAI.getGenerativeModel({ model });
 
-      let text = "";
-      if (typeof contents === "string") {
-        const result = await llm.generateContent({
-          contents: [{ role: "user", parts: [{ text: contents }] }],
-          generationConfig: config as any,
-        });
-        text = result.response.text();
-      } else {
-        const result = await llm.generateContent({
-          contents: contents as any, // tillåt “structured contents”
-          generationConfig: config as any,
-        });
-        text = result.response.text();
-      }
+      // Stöder både rå text och redan strukturerade contents
+      const result =
+        typeof contents === "string"
+          ? await llm.generateContent({
+              contents: [{ role: "user", parts: [{ text: contents }] }],
+              generationConfig: config as any,
+            })
+          : await llm.generateContent({
+              contents: contents as any, // structured contents
+              generationConfig: config as any,
+            });
 
-      res.status(200).json({ text });
+      return { text: result.response.text() };
     } catch (error) {
       logger.error("Error calling Gemini API:", error);
-      res.status(500).json({ error: "Internal Server Error" });
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      return { error: `Internal Server Error: ${errorMessage}` };
     }
   }
 );
