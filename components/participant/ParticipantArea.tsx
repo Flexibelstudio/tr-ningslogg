@@ -1691,7 +1691,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         <AICoachModal
             isOpen={isAICoachModalOpen}
             onClose={() => setIsAICoachModalOpen(false)}
-            ai={ai}
             participantProfile={participantProfile}
             myWorkoutLogs={myWorkoutLogs}
             myGeneralActivityLogs={myGeneralActivityLogs}

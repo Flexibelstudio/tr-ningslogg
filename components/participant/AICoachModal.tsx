@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
 import { Input } from '../Input';
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { ParticipantProfile, WorkoutLog, GeneralActivityLog, ParticipantGoalData, Workout, Membership } from '../../types';
+import { callGeminiApiFn } from '../../firebaseClient';
 
 interface Message {
     id: string;
@@ -14,7 +14,6 @@ interface Message {
 interface AICoachModalProps {
     isOpen: boolean;
     onClose: () => void;
-    ai: GoogleGenAI | null;
     participantProfile: ParticipantProfile | null;
     myWorkoutLogs: WorkoutLog[];
     myGeneralActivityLogs: GeneralActivityLog[];
@@ -66,7 +65,6 @@ const renderMarkdownContent = (text: string): React.ReactElement[] => {
 export const AICoachModal: React.FC<AICoachModalProps> = ({
     isOpen,
     onClose,
-    ai,
     participantProfile,
     myWorkoutLogs,
     myGeneralActivityLogs,
@@ -100,7 +98,7 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
     }, [messages]);
     
     const sendMessage = useCallback(async (text: string) => {
-        if (!text.trim() || isLoading || !ai || !participantProfile) return;
+        if (!text.trim() || isLoading || !participantProfile) return;
 
         const userMessage: Message = { id: crypto.randomUUID(), text, sender: 'user' };
         setMessages(prev => [...prev, userMessage]);
@@ -188,22 +186,28 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
             - **Om frågan handlar om att rekommendera ett pass:** Använd ENDAST listan med "availableWorkouts" för att ge ett specifikt förslag och motivera varför det passar baserat på medlemmens mål och historik. Föreslå ALDRIG ett pass som inte finns i listan.
             - **Om du inte kan svara:** Förklara varför på ett hjälpsamt sätt. Om du inte kan se en tydlig trend för styrkeutveckling, förklara att fler loggade pass behövs för en djupare analys.`;
 
-            const response: GenerateContentResponse = await ai.models.generateContent({
+            const result = await callGeminiApiFn({
                 model: 'gemini-2.5-flash',
                 contents: prompt,
             });
 
-            const aiMessage: Message = { id: crypto.randomUUID(), text: response.text, sender: 'ai' };
+            const { text: responseText, error } = result.data as { text?: string; error?: string };
+
+            if (error) {
+                throw new Error(`Cloud Function error: ${error}`);
+            }
+
+            const aiMessage: Message = { id: crypto.randomUUID(), text: responseText, sender: 'ai' };
             setMessages(prev => [...prev, aiMessage]);
 
         } catch (error) {
-            console.error("Error calling Gemini API:", error);
+            console.error("Error calling AI Coach:", error);
             const errorMessage: Message = { id: crypto.randomUUID(), text: "Ursäkta, jag har lite problem just nu. Försök igen senare.", sender: 'ai' };
             setMessages(prev => [...prev, errorMessage]);
         } finally {
             setIsLoading(false);
         }
-    }, [ai, isLoading, participantProfile, latestGoal, myWorkoutLogs, myGeneralActivityLogs, allWorkouts, membership]);
+    }, [isLoading, participantProfile, latestGoal, myWorkoutLogs, myGeneralActivityLogs, allWorkouts, membership]);
 
     const handleFormSubmit = (e: React.FormEvent) => {
         e.preventDefault();

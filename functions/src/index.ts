@@ -68,7 +68,7 @@ export const createLeadFromZapier = onRequest(
     }
 
     try {
-      // Hämta locations (typas så att name? känns igen)
+      // Hämta locations
       const locationsSnapshot = await db
         .collection("organizations")
         .doc(String(orgId))
@@ -91,8 +91,8 @@ export const createLeadFromZapier = onRequest(
       if (!targetLocation) {
         logger.error(`Location named '${locationName}' could not be found.`);
         response
-        .status(400)
-        .json({ error: `Bad Request: Location '${locationName}' not found.` });
+          .status(400)
+          .json({ error: `Bad Request: Location '${locationName}' not found.` });
         return;
       }
 
@@ -126,8 +126,7 @@ export const createLeadFromZapier = onRequest(
 );
 
 /**
- * Callable: Server-side proxy till Gemini (Generative AI)
- * Anropas via Firebase SDK (httpsCallable) → ingen CORS.
+ * Callable: proxy till Gemini
  * Data: { model: string, contents: string | Content[], config?: GenerationConfig }
  */
 export const callGeminiApi = onCall(
@@ -176,8 +175,7 @@ export const callGeminiApi = onCall(
       return { text };
     } catch (error) {
       logger.error("Error calling Gemini API:", error);
-      const msg =
-        error instanceof Error ? error.message : "Unknown error";
+      const msg = error instanceof Error ? error.message : "Unknown error";
       return { error: `Internal Server Error: ${msg}` };
     }
   }
