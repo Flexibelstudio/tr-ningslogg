@@ -4,7 +4,6 @@ import { Button } from '../Button';
 import { CreateWorkoutModal } from './CreateWorkoutModal';
 import { AICoachAssistantModal } from './AICoachAssistantModal';
 import { ConfirmationModal } from '../ConfirmationModal';
-import { GoogleGenAI } from '@google/genai';
 import { INTENSITY_LEVELS } from '../../constants';
 import { useAppContext } from '../../context/AppContext';
 import { Modal } from '../Modal';
@@ -106,12 +105,11 @@ const AssignWorkoutModal: React.FC<AssignWorkoutModalProps> = ({ isOpen, onClose
 };
 
 interface WorkoutManagementProps {
-    ai: GoogleGenAI | null;
     participants: ParticipantProfile[];
     isOnline: boolean;
 }
 
-export const WorkoutManagement: React.FC<WorkoutManagementProps> = ({ ai, participants, isOnline }) => {
+export const WorkoutManagement: React.FC<WorkoutManagementProps> = ({ participants, isOnline }) => {
     const { workouts, addWorkout, updateWorkout, deleteWorkout } = useAppContext();
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null);
@@ -239,13 +237,12 @@ export const WorkoutManagement: React.FC<WorkoutManagementProps> = ({ ai, partic
         <>
             <div className="flex flex-col sm:flex-row justify-end items-start sm:items-center gap-4 mb-6">
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                {ai && (
                 <Button 
                     onClick={() => setIsAiAssistantModalOpen(true)} 
                     variant="outline" 
                     className="w-full sm:w-auto"
-                    title={!process.env.API_KEY && !ai ? "API-nyckel saknas för AI-funktioner" : "AI Programassistent"}
-                    disabled={!process.env.API_KEY && !ai || !isOnline}
+                    title={"AI Programassistent"}
+                    disabled={!isOnline}
                 >
                     {isOnline ? 'AI Programassistent' : 'AI Offline'}
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-2 inline" viewBox="0 0 20 20" fill="currentColor">
@@ -253,7 +250,6 @@ export const WorkoutManagement: React.FC<WorkoutManagementProps> = ({ ai, partic
                         <path d="M5 2.5a.5.5 0 01.5-.5H6a.5.5 0 010 1H5.5a.5.5 0 01-.5-.5zM3 5.5a.5.5 0 01.5-.5H4a.5.5 0 010 1H3.5a.5.5 0 01-.5-.5zM2 8.5a.5.5 0 01.5-.5H3a.5.5 0 010 1H2.5a.5.5 0 01-.5-.5zM2 11.5a.5.5 0 01.5-.5H3a.5.5 0 010 1H2.5a.5.5 0 01-.5-.5zM3.5 14a.5.5 0 000 1H4a.5.5 0 000-1h-.5zM5.5 16a.5.5 0 000 1H6a.5.5 0 000-1h-.5z" />
                     </svg>
                 </Button>
-                )}
                 <Button onClick={handleOpenCreateModal} className="w-full sm:w-auto">Nytt Pass</Button>
             </div>
             </div>
@@ -420,17 +416,14 @@ export const WorkoutManagement: React.FC<WorkoutManagementProps> = ({ ai, partic
                 onSaveWorkout={handleSaveWorkout}
                 workoutToEdit={editingWorkout}
                 onUpdateWorkout={handleUpdateWorkout}
-                ai={ai}
                 isOnline={isOnline}
             />
-            {ai && (
+            
             <AICoachAssistantModal
                 isOpen={isAiAssistantModalOpen}
                 onClose={() => setIsAiAssistantModalOpen(false)}
-                ai={ai}
                 onAcceptSuggestion={handleAcceptAiSuggestion}
             />
-            )}
 
             <AssignWorkoutModal
                 isOpen={isAssignModalOpen}

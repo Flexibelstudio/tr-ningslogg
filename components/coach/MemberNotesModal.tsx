@@ -623,7 +623,6 @@ Bäst:
           workoutToEdit={programToEdit}
           participantToAssign={programToEdit ? undefined : participant}
           participantGoal={latestGoal}
-          ai={ai}
           isOnline={isOnline}
       />
 

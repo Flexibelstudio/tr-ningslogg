@@ -1,18 +1,16 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { Modal } from '../Modal';
 import { Input } from '../Input';
 import { Textarea } from '../Textarea';
 import { Button } from '../Button';
-import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import { LiftType, WorkoutBlock, ParticipantProfile, ParticipantGoalData, Exercise } from '../../types';
 import { ALL_LIFT_TYPES } from '../../constants';
 import { stripMarkdown } from '../../utils/textUtils';
+import { callGeminiApiFn } from '../../firebaseClient';
 
 interface AICoachAssistantModalProps {
   isOpen: boolean;
   onClose: () => void;
-  ai: GoogleGenAI;
   participantToAssign?: ParticipantProfile;
   participantGoal?: ParticipantGoalData | null;
   onAcceptSuggestion: (suggestion: { title: string; coachNote?: string; blocksData: WorkoutBlock[] }) => void;
@@ -25,7 +23,6 @@ interface FormData {
 export const AICoachAssistantModal: React.FC<AICoachAssistantModalProps> = ({ 
     isOpen, 
     onClose, 
-    ai, 
     participantToAssign,
     participantGoal,
     onAcceptSuggestion 
@@ -102,18 +99,25 @@ export const AICoachAssistantModal: React.FC<AICoachAssistantModalProps> = ({
     `;
 
     try {
-      const response: GenerateContentResponse = await ai.models.generateContent({
+      const result = await callGeminiApiFn({
         model: "gemini-2.5-flash",
         contents: prompt,
       });
-      setGeneratedSuggestion(response.text);
+
+      const { text, error } = result.data as { text?: string; error?: string };
+      
+      if (error) {
+        throw new Error(`Cloud Function error: ${error}`);
+      }
+
+      setGeneratedSuggestion(text);
     } catch (err) {
       console.error("Error fetching AI coach suggestion:", err);
       setError("Kunde inte generera förslag från AI. Försök igen senare eller kontrollera din API-nyckel.");
     } finally {
       setIsLoading(false);
     }
-  }, [ai, formData, participantToAssign, participantGoal]);
+  }, [formData, participantToAssign, participantGoal]);
   
   const parseAndAcceptSuggestion = () => {
     if (!generatedSuggestion) return;

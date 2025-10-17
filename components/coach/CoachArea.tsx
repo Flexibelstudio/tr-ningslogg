@@ -469,7 +469,6 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
         <div role="tabpanel" hidden={activeTab !== 'programs'}>
             {activeTab === 'programs' && (
                 <WorkoutManagement 
-                    ai={ai}
                     participants={participantsForView}
                     isOnline={isOnline}
                 />

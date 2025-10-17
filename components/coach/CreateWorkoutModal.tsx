@@ -6,7 +6,6 @@ import { Button } from '../Button';
 import { Workout, Exercise, LiftType, WorkoutCategory, WorkoutBlock, LoggableMetric, WorkoutCategoryDefinition, ParticipantProfile, ParticipantGoalData, WorkoutFocusTag } from '../../types';
 import { ALL_LIFT_TYPES, WORKOUT_FOCUS_TAGS } from '../../constants';
 import { AICoachAssistantModal } from './AICoachAssistantModal';
-import { GoogleGenAI } from '@google/genai';
 import { WorkoutStructurePanel } from './WorkoutStructurePanel';
 import { useAppContext } from '../../context/AppContext';
 
@@ -18,7 +17,6 @@ interface CreateWorkoutModalProps {
   onUpdateWorkout?: (workout: Workout) => void;
   participantToAssign?: ParticipantProfile;
   participantGoal?: ParticipantGoalData | null;
-  ai: GoogleGenAI | null;
   isOnline: boolean;
 }
 
@@ -69,7 +67,6 @@ export const CreateWorkoutModal: React.FC<CreateWorkoutModalProps> = ({
     onUpdateWorkout,
     participantToAssign,
     participantGoal,
-    ai,
     isOnline,
 }) => {
     const { workoutCategories, participantDirectory: participants } = useAppContext();
@@ -603,11 +600,9 @@ export const CreateWorkoutModal: React.FC<CreateWorkoutModalProps> = ({
                           <p className="text-sm"><strong className="font-semibold text-gray-600">Mål:</strong> <span className="italic">{participantGoal.fitnessGoals}</span></p>
                           <p className="text-sm"><strong className="font-semibold text-gray-600">Pass/vecka:</strong> {participantGoal.workoutsPerWeekTarget}</p>
                           {participantGoal.coachPrescription && <p className="text-sm"><strong className="font-semibold text-gray-600">Coach Recept:</strong> <span className="italic">"{participantGoal.coachPrescription}"</span></p>}
-                          {ai && (
-                              <Button onClick={() => setIsAiModalOpen(true)} fullWidth size="sm" className="!mt-3" disabled={!isOnline}>
-                                  {isOnline ? 'Skapa med AI-assistent' : 'AI Offline'}
-                              </Button>
-                          )}
+                          <Button onClick={() => setIsAiModalOpen(true)} fullWidth size="sm" className="!mt-3" disabled={!isOnline}>
+                              {isOnline ? 'Skapa med AI-assistent' : 'AI Offline'}
+                          </Button>
                       </div>
                   )}
                   <Input label="Passtitel *" name="workoutTitle" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="T.ex. Vecka 1 – Styrka" required />
@@ -814,11 +809,10 @@ export const CreateWorkoutModal: React.FC<CreateWorkoutModalProps> = ({
         </div>
       </Modal>
 
-      {ai && participantToAssign && (
+      {participantToAssign && (
         <AICoachAssistantModal
             isOpen={isAiModalOpen}
             onClose={() => setIsAiModalOpen(false)}
-            ai={ai}
             participantToAssign={participantToAssign}
             participantGoal={participantGoal}
             onAcceptSuggestion={handleAcceptAiSuggestion}

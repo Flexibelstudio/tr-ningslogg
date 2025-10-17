@@ -8,6 +8,17 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 initializeApp();
 const db = getFirestore();
 
+// Small helper to read Bearer token robustly
+function getBearerToken(req: { header?: (n: string) => string | undefined; headers?: Record<string, any> }) {
+  const h =
+    (typeof req.header === "function" ? req.header("authorization") : undefined) ??
+    (typeof req.header === "function" ? req.header("Authorization") : undefined) ??
+    req.headers?.authorization ??
+    req.headers?.Authorization ??
+    "";
+  return typeof h === "string" && h.startsWith("Bearer ") ? h.slice(7) : "";
+}
+
 /**
  * Zapier-webhook: skapar lead i Firestore
  * Header: Authorization: Bearer <ZAPIER_SECRET_KEY>
@@ -27,11 +38,7 @@ export const createLeadFromZapier = onRequest(
 
     // Auth
     const ZAPIER_SECRET_KEY = process.env.ZAPIER_SECRET_KEY;
-    const authHeader =
-      request.header("authorization") ?? request.header("Authorization") ?? "";
-    const presented = authHeader.startsWith("Bearer ")
-      ? authHeader.slice(7)
-      : "";
+    const presented = getBearerToken(request);
 
     if (!ZAPIER_SECRET_KEY || presented !== ZAPIER_SECRET_KEY) {
       logger.warn("Unauthorized attempt to access webhook.");
@@ -61,9 +68,7 @@ export const createLeadFromZapier = onRequest(
 
     if (missing) {
       logger.error("Bad Request: Missing required fields:", missing);
-      response
-        .status(400)
-        .json({ error: `Bad Request: Missing fields: ${missing}` });
+      response.status(400).json({ error: `Bad Request: Missing fields: ${missing}` });
       return;
     }
 
@@ -76,11 +81,10 @@ export const createLeadFromZapier = onRequest(
         .get();
 
       type LocationDoc = { name?: string };
-      const locations: Array<{ id: string; name?: string }> =
-        locationsSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...(doc.data() as LocationDoc),
-        }));
+      const locations: Array<{ id: string; name?: string }> = locationsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...(doc.data() as LocationDoc),
+      }));
 
       const targetLocation = locations.find(
         (l) =>
@@ -90,9 +94,7 @@ export const createLeadFromZapier = onRequest(
 
       if (!targetLocation) {
         logger.error(`Location named '${locationName}' could not be found.`);
-        response
-          .status(400)
-          .json({ error: `Bad Request: Location '${locationName}' not found.` });
+        response.status(400).json({ error: `Bad Request: Location '${locationName}' not found.` });
         return;
       }
 
@@ -114,9 +116,7 @@ export const createLeadFromZapier = onRequest(
         .collection("leads")
         .add(newLead);
 
-      logger.info(
-        `Successfully created lead with ID: ${leadRef.id} for org ${orgId}`
-      );
+      logger.info(`Successfully created lead with ID: ${leadRef.id} for org ${orgId}`);
       response.status(201).json({ success: true, leadId: leadRef.id });
     } catch (error) {
       logger.error("Error creating lead:", error);
@@ -126,7 +126,8 @@ export const createLeadFromZapier = onRequest(
 );
 
 /**
- * Callable: proxy till Gemini
+ * Callable: Server-side proxy till Gemini (Generative AI)
+ * Anropas via Firebase SDK (httpsCallable) → ingen CORS.
  * Data: { model: string, contents: string | Content[], config?: GenerationConfig }
  */
 export const callGeminiApi = onCall(
@@ -138,7 +139,7 @@ export const callGeminiApi = onCall(
     try {
       const { model, contents, config } = (request.data ?? {}) as {
         model?: string;
-        contents?: unknown;
+        contents?: unknown; // string eller structured contents
         config?: unknown;
       };
 
@@ -156,7 +157,6 @@ export const callGeminiApi = onCall(
       const genAI = new GoogleGenerativeAI(apiKey);
       const llm = genAI.getGenerativeModel({ model });
 
-      // Stöd både ren text och structured contents
       let text: string;
       if (typeof contents === "string") {
         const result = await llm.generateContent({
