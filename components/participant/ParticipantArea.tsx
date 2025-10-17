@@ -1235,6 +1235,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             myStrengthStats,
             myConditioningStats,
             myClubMemberships,
+            // FIX: The variable 'allWorkouts' does not exist in this scope. It should be 'workouts'.
             workouts
         );
 
@@ -1682,7 +1683,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                     setPreWorkoutData(null);
                 }}
                 onContinue={handleContinueFromAIAssistant}
-                ai={ai}
                 workout={preWorkoutData.workout}
                 previousLog={preWorkoutData.previousLog}
                 participant={participantProfile}

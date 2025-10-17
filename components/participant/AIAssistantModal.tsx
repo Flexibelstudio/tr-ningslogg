@@ -3,6 +3,7 @@ import { Modal } from '../Modal';
 import { Button } from '../Button';
 import { Workout, WorkoutLog, ParticipantProfile, Exercise } from '../../types';
 import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
+import { callGeminiApiFn } from '../../firebaseClient';
 
 export interface AiWorkoutTips {
   generalTips: string;
@@ -16,7 +17,6 @@ interface AIAssistantModalProps {
   isOpen: boolean;
   onClose: () => void;
   onContinue: (tips: AiWorkoutTips) => void;
-  ai: GoogleGenAI;
   workout: Workout;
   previousLog: WorkoutLog;
   participant: ParticipantProfile;
@@ -57,7 +57,6 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
   isOpen,
   onClose,
   onContinue,
-  ai,
   workout,
   previousLog,
   participant,
@@ -155,23 +154,29 @@ Exempel på JSON-svar:
         };
 
         try {
-            const response: GenerateContentResponse = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-                config: {
-                    responseMimeType: "application/json",
-                    responseSchema: responseSchema,
-                }
+            const result = await callGeminiApiFn({
+              model: 'gemini-2.5-flash',
+              contents: prompt,
+              config: {
+                responseMimeType: "application/json",
+                responseSchema: responseSchema,
+              },
             });
-            const parsedTips = JSON.parse(response.text);
+      
+            const { text, error } = result.data as { text?: string; error?: string };
+            if (error) {
+              throw new Error(`Cloud Function error: ${error}`);
+            }
+      
+            const parsedTips = JSON.parse(text);
             setTips(parsedTips);
-        } catch (err) {
+          } catch (err) {
             console.error("Error generating AI workout tips:", err);
             setError("Kunde inte generera AI-tips. Du kan starta passet ändå.");
-        } finally {
+          } finally {
             setIsLoading(false);
-        }
-    }, [ai, workout, previousLog, participant]);
+          }
+    }, [workout, previousLog, participant]);
 
     useEffect(() => {
         if (isOpen) {

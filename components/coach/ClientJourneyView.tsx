@@ -290,21 +290,22 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
     setProspectIntroCallsData(prev => prev.map(c => c.id === callToLink.id ? updatedCall : c));
 
     // 2. Create a CoachNote from the intro call data
+    // FIX: Replaced obsolete properties with current ones from the ProspectIntroCall type.
     const noteText = `
 --- INTROSAMTALSAMMANFATTNING ---
 Datum: ${new Date(callToLink.createdDate).toLocaleDateString('sv-SE')}
 
-Bakgrund & Träningshistorik:
-${callToLink.backgroundNotes || 'Ej angivet.'}
+Träningsmål & 'Varför':
+${callToLink.trainingGoals || 'Ej angivet.'}
 
-Målsättningar:
-${callToLink.goalsNotes || 'Ej angivet.'}
+Timing - 'Varför just nu?':
+${callToLink.timingNotes || 'Ej angivet.'}
 
-Nuläge & Livsstil:
-${callToLink.lifestyleNotes || 'Ej angivet.'}
+Sömn & Stress:
+${callToLink.sleepAndStress || 'Ej angivet.'}
 
-Fysiska Förutsättningar:
-${callToLink.physicalNotes || 'Ej angivet.'}
+Skador/Hälsoproblem:
+${callToLink.healthIssues || 'Ej angivet.'}
 
 Coachanteckningar & Nästa Steg:
 ${callToLink.coachSummary || 'Ej angivet.'}
@@ -351,17 +352,18 @@ ${callToLink.coachSummary || 'Ej angivet.'}
         setProspectIntroCallsData(prev => prev.map(c => c.id === updatedCall.id ? updatedCall : c));
         
         // Also create the coach note
+        // FIX: Replaced obsolete properties with current ones from the ProspectIntroCall type.
         const noteText = `
 --- INTROSAMTALSAMMANFATTNING ---
 Datum: ${new Date(callInState.createdDate).toLocaleDateString('sv-SE')}
-Bakgrund & Träningshistorik:
-${callInState.backgroundNotes || 'Ej angivet.'}
-Målsättningar:
-${callInState.goalsNotes || 'Ej angivet.'}
-Nuläge & Livsstil:
-${callInState.lifestyleNotes || 'Ej angivet.'}
-Fysiska Förutsättningar:
-${callInState.physicalNotes || 'Ej angivet.'}
+Träningsmål & 'Varför':
+${callInState.trainingGoals || 'Ej angivet.'}
+Timing - 'Varför just nu?':
+${callInState.timingNotes || 'Ej angivet.'}
+Sömn & Stress:
+${callInState.sleepAndStress || 'Ej angivet.'}
+Skador/Hälsoproblem:
+${callInState.healthIssues || 'Ej angivet.'}
 Coachanteckningar & Nästa Steg:
 ${callInState.coachSummary || 'Ej angivet.'}
         `.trim();

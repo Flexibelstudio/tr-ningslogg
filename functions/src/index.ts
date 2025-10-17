@@ -16,31 +16,38 @@ export const createLeadFromZapier = onRequest(
   {
     region: "europe-west1",
     secrets: ["ZAPIER_SECRET_KEY"],
-    cors: true, // Firebase hanterar CORS-headrarna åt oss
+    cors: true, // Firebase sköter CORS-headrar
   },
-  async (req, res) => {
-    if (req.method !== "POST") {
-      logger.warn("Method Not Allowed:", req.method);
-      res.status(405).send("Method Not Allowed");
+  async (request, response) => {
+    if (request.method !== "POST") {
+      logger.warn("Method Not Allowed:", request.method);
+      response.status(405).send("Method Not Allowed");
       return;
     }
 
     // Auth
     const ZAPIER_SECRET_KEY = process.env.ZAPIER_SECRET_KEY;
-    const authHeader = req.header("authorization") ?? req.header("Authorization") ?? "";
-    const presented = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    const authHeader =
+      request.header("authorization") ?? request.header("Authorization") ?? "";
+    const presented = authHeader.startsWith("Bearer ")
+      ? authHeader.slice(7)
+      : "";
 
     if (!ZAPIER_SECRET_KEY || presented !== ZAPIER_SECRET_KEY) {
       logger.warn("Unauthorized attempt to access webhook.");
-      res.status(401).json({ error: "Unauthorized" });
+      response.status(401).json({ error: "Unauthorized" });
       return;
     }
 
     // Body
-    const { firstName, lastName, email, phone, locationName, orgId } = (req.body ?? {}) as Record<
-      string,
-      unknown
-    >;
+    const {
+      firstName,
+      lastName,
+      email,
+      phone,
+      locationName,
+      orgId,
+    } = (request.body ?? {}) as Record<string, unknown>;
 
     const missing = [
       !firstName && "firstName",
@@ -54,12 +61,14 @@ export const createLeadFromZapier = onRequest(
 
     if (missing) {
       logger.error("Bad Request: Missing required fields:", missing);
-      res.status(400).json({ error: `Bad Request: Missing fields: ${missing}` });
+      response
+        .status(400)
+        .json({ error: `Bad Request: Missing fields: ${missing}` });
       return;
     }
 
     try {
-      // Hämta locations och typa dem så TS vet att "name?" kan finnas
+      // Hämta locations (typas så att name? känns igen)
       const locationsSnapshot = await db
         .collection("organizations")
         .doc(String(orgId))
@@ -67,10 +76,11 @@ export const createLeadFromZapier = onRequest(
         .get();
 
       type LocationDoc = { name?: string };
-      const locations: Array<{ id: string; name?: string }> = locationsSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...(doc.data() as LocationDoc),
-      }));
+      const locations: Array<{ id: string; name?: string }> =
+        locationsSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...(doc.data() as LocationDoc),
+        }));
 
       const targetLocation = locations.find(
         (l) =>
@@ -80,7 +90,9 @@ export const createLeadFromZapier = onRequest(
 
       if (!targetLocation) {
         logger.error(`Location named '${locationName}' could not be found.`);
-        res.status(400).json({ error: `Bad Request: Location '${locationName}' not found.` });
+        response
+        .status(400)
+        .json({ error: `Bad Request: Location '${locationName}' not found.` });
         return;
       }
 
@@ -102,11 +114,13 @@ export const createLeadFromZapier = onRequest(
         .collection("leads")
         .add(newLead);
 
-      logger.info(`Successfully created lead with ID: ${leadRef.id} for org ${orgId}`);
-      res.status(201).json({ success: true, leadId: leadRef.id });
+      logger.info(
+        `Successfully created lead with ID: ${leadRef.id} for org ${orgId}`
+      );
+      response.status(201).json({ success: true, leadId: leadRef.id });
     } catch (error) {
       logger.error("Error creating lead:", error);
-      res.status(500).json({ error: "Internal Server Error" });
+      response.status(500).json({ error: "Internal Server Error" });
     }
   }
 );
@@ -120,9 +134,6 @@ export const callGeminiApi = onCall(
   {
     region: "europe-west1",
     secrets: ["GEMINI_API_KEY"],
-    cors: true,
-    // enforceAppCheck: true,          // aktivera om du vill kräva App Check
-    // enforceAppCheckOptional: true,  // eller logga varningar
   },
   async (request) => {
     try {
@@ -135,33 +146,39 @@ export const callGeminiApi = onCall(
       if (!model || contents == null) {
         logger.error("Bad Request: Missing 'model' or 'contents'");
         return { error: "Bad Request: Missing 'model' or 'contents'." };
-        }
+      }
 
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        return { error: "GEMINI_API_KEY secret not found." };
+        logger.error("GEMINI_API_KEY secret not found on the server.");
+        return { error: "API key is not configured on the server." };
       }
 
       const genAI = new GoogleGenerativeAI(apiKey);
       const llm = genAI.getGenerativeModel({ model });
 
-      // Stöder både rå text och redan strukturerade contents
-      const result =
-        typeof contents === "string"
-          ? await llm.generateContent({
-              contents: [{ role: "user", parts: [{ text: contents }] }],
-              generationConfig: config as any,
-            })
-          : await llm.generateContent({
-              contents: contents as any, // structured contents
-              generationConfig: config as any,
-            });
+      // Stöd både ren text och structured contents
+      let text: string;
+      if (typeof contents === "string") {
+        const result = await llm.generateContent({
+          contents: [{ role: "user", parts: [{ text: contents }] }],
+          generationConfig: config as any,
+        });
+        text = result.response.text();
+      } else {
+        const result = await llm.generateContent({
+          contents: contents as any,
+          generationConfig: config as any,
+        });
+        text = result.response.text();
+      }
 
-      return { text: result.response.text() };
+      return { text };
     } catch (error) {
       logger.error("Error calling Gemini API:", error);
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      return { error: `Internal Server Error: ${errorMessage}` };
+      const msg =
+        error instanceof Error ? error.message : "Unknown error";
+      return { error: `Internal Server Error: ${msg}` };
     }
   }
 );
