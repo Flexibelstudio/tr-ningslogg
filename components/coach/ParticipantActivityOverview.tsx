@@ -129,7 +129,7 @@ export const ParticipantActivityOverview: React.FC<ParticipantActivityOverviewPr
     });
 
     const top3BaseLifts = Object.entries(baseLiftLoggedSetsCount)
-      .sort(([, countA], [, countB]) => countB - a)
+      .sort(([, countA], [, countB]) => countB - countA)
       .slice(0, 3)
       .map(([lift, count]) => ({ lift: lift as LiftType, count }));
 
