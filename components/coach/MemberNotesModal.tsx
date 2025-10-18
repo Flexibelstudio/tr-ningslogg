@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
 import { Textarea } from '../Textarea';
-import { ParticipantProfile, ParticipantGoalData, ActivityLog, CoachNote, OneOnOneSession, StaffMember, GoalCompletionLog, Workout, WorkoutCategoryDefinition, StaffAvailability, UserStrengthStat, ParticipantConditioningStat, ParticipantPhysiqueStat, ParticipantClubMembership } from '../../types';
+import { ParticipantProfile, ParticipantGoalData, ActivityLog, CoachNote, OneOnOneSession, StaffMember, GoalCompletionLog, Workout, WorkoutCategoryDefinition, StaffAvailability, UserStrengthStat, ParticipantConditioningStat, ParticipantPhysiqueStat, ParticipantClubMembership, WorkoutLog, GeneralActivityLog } from '../../types';
 import * as dateUtils from '../../utils/dateUtils';
 import { BookOneOnOneModal } from './BookOneOnOneModal';
 import { GoalForm, GoalFormRef } from '../participant/GoalForm';
@@ -211,21 +211,55 @@ Bäst:
     setIsLoadingAiSummary(true);
     setAiSummary(null);
     
-    // Logic similar to AICoachMemberInsightModal
-    const prompt = `Du är en AI-assistent för en träningscoach. Ge en koncis och insiktsfull sammanfattning av en specifik medlems aktivitet och mående. Fokusera på att ge coachen snabba, användbara insikter för ett check-in samtal. Svara på svenska. Använd Markdown för att formatera ditt svar (## Rubriker, **fet text**, * punktlistor).
+    const lastCheckinNote = notes
+        .filter(n => n.noteType === 'check-in')
+        .sort((a,b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime())[0];
+
+    const sinceDate = lastCheckinNote ? new Date(lastCheckinNote.createdDate) : new Date(0);
+    const logsSinceLastCheckin = myActivityLogs.filter(log => new Date(log.completedDate) > sinceDate);
+
+    let logSummaryForPrompt = "Ingen aktivitet sedan senaste avstämning.";
+    if (logsSinceLastCheckin.length > 0) {
+        const workoutLogs = logsSinceLastCheckin.filter(l => l.type === 'workout') as WorkoutLog[];
+        const generalLogs = logsSinceLastCheckin.filter(l => l.type === 'general') as GeneralActivityLog[];
+        const totalCount = logsSinceLastCheckin.length;
+        const firstLogDate = new Date(logsSinceLastCheckin[logsSinceLastCheckin.length - 1].completedDate);
+        const periodDays = Math.max(1, (new Date().getTime() - firstLogDate.getTime()) / (1000 * 3600 * 24));
+        const weeklyAverage = (totalCount / periodDays * 7).toFixed(1);
+
+        const progressionPBs = workoutLogs
+            .flatMap(log => log.postWorkoutSummary?.newPBs || [])
+            .map(pb => `- ${pb.exerciseName}: ${pb.value}`)
+            .slice(0, 5).join('\n');
+
+        const moodRatings = logsSinceLastCheckin.map(l => l.moodRating).filter((r): r is number => r !== undefined);
+        const avgMood = moodRatings.length > 0 ? (moodRatings.reduce((a, b) => a + b, 0) / moodRatings.length).toFixed(1) : 'N/A';
+
+        logSummaryForPrompt = `
+- Period: Senaste ${Math.round(periodDays)} dagarna.
+- Totala aktiviteter: ${totalCount} (${workoutLogs.length} gympass, ${generalLogs.length} övriga).
+- Snitt per vecka: ${weeklyAverage} pass.
+- Nya Personliga Rekord (PBs):
+${progressionPBs || '  - Inga nya PBs loggade.'}
+- Genomsnittligt mående (1-5): ${avgMood}
+        `;
+    }
+
+    const prompt = `Du är en AI-assistent för en träningscoach. Ge en koncis och insiktsfull sammanfattning av en medlems aktivitet SEDAN SENASTE AVSTÄMNING. Fokusera på att ge coachen snabba, användbara insikter för ett check-in samtal. Svaret ska vara på svenska och formaterat med Markdown.
 
     Medlemmens data:
     - Namn: ${participant.name}
-    - Mål: "${latestGoal?.fitnessGoals || 'Inget aktivt mål satt.'}"
+    - Aktivt mål: "${latestGoal?.fitnessGoals || 'Inget aktivt mål.'}"
     - Mål (pass/vecka): ${latestGoal?.workoutsPerWeekTarget || 'N/A'}
-    - Totalt loggade aktiviteter: ${myActivityLogs.length}
-    - Senaste kommentarer: ${myActivityLogs.slice(0,3).map(l => (l as any).postWorkoutComment || (l as any).comment).filter(Boolean).map(c => `* "${c}"`).join('\n') || '* Inga kommentarer'}
 
-    Baserat på denna data, ge en sammanfattning som inkluderar:
-    1.  **## Aktivitet & Konsistens:** Jämför senaste veckornas aktivitet mot medlemmens mål.
-    2.  **## Målsättning & Progress:** Kommentarer om målet och eventuella tecken på framsteg.
-    3.  **## Mående & Engagemang:** Något anmärkningsvärt från kommentarer eller humör?
-    4.  **## Rekommendationer för Samtalet:** Ge 1-2 konkreta förslag på diskussionspunkter för coachen.`;
+    Sammanfattning av aktivitet sedan senaste avstämning (${lastCheckinNote ? `den ${sinceDate.toLocaleDateString('sv-SE')}` : 'start'}):
+    ${logSummaryForPrompt}
+
+    Baserat på ALL data ovan, ge en sammanfattning som inkluderar:
+    1.  ## Aktivitet & Konsistens: Jämför aktiviteten mot medlemmens mål. Är de på rätt spår?
+    2.  ## Progress: Finns det tecken på framsteg (nya PBs)?
+    3.  ## Mående & Engagemang: Vad indikerar humörskattningen?
+    4.  ## Rekommendationer för Samtalet: Ge 1-2 konkreta förslag på diskussionspunkter för coachen.`;
     
     try {
         const result = await callGeminiApiFn({

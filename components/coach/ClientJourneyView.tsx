@@ -20,7 +20,6 @@ interface ClientJourneyViewProps {
   loggedInStaff: StaffMember | null;
   allParticipantGoals: ParticipantGoalData[];
   coachNotes: CoachNote[];
-  ai: GoogleGenAI | null;
   isOnline: boolean;
 }
 
@@ -74,7 +73,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   loggedInStaff,
   allParticipantGoals,
   coachNotes,
-  ai,
   isOnline,
 }) => {
     const {
@@ -581,7 +579,6 @@ ${callInState.coachSummary || 'Ej angivet.'}
         <MemberNotesModal
             isOpen={isNotesModalOpen}
             onClose={() => setIsNotesModalOpen(false)}
-            ai={ai}
             participant={selectedParticipant}
             notes={coachNotes.filter(n => n.participantId === selectedParticipant.id)}
             allParticipantGoals={allParticipantGoals}

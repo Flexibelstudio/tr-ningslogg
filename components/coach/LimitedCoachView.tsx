@@ -14,7 +14,6 @@ interface LimitedCoachViewProps {
     setGoalCompletionLogs: (logs: GoalCompletionLog[] | ((prev: GoalCompletionLog[]) => GoalCompletionLog[])) => void;
     coachNotes: CoachNote[];
     setCoachNotes: (updater: CoachNote[] | ((prev: CoachNote[]) => CoachNote[])) => void;
-    ai: GoogleGenAI | null;
     locations: Location[];
     memberships: Membership[];
     oneOnOneSessions: OneOnOneSession[];
@@ -66,7 +65,6 @@ export const LimitedCoachView: React.FC<LimitedCoachViewProps> = ({
     setGoalCompletionLogs,
     coachNotes,
     setCoachNotes,
-    ai,
     locations,
     memberships,
     oneOnOneSessions,
@@ -183,11 +181,10 @@ export const LimitedCoachView: React.FC<LimitedCoachViewProps> = ({
                  )}
             </div>
 
-            {ai && selectedParticipant && (
+            {selectedParticipant && (
                 <MemberNotesModal
                     isOpen={isNotesModalOpen}
                     onClose={() => setIsNotesModalOpen(false)}
-                    ai={ai}
                     participant={selectedParticipant}
                     notes={coachNotes.filter(n => n.participantId === selectedParticipant.id)}
                     allParticipantGoals={allParticipantGoals}
