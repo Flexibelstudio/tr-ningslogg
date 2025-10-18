@@ -2,20 +2,19 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
 import { ParticipantProfile, ParticipantGoalData, ActivityLog } from '../../types';
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import * as dateUtils from '../../utils/dateUtils';
 import { renderMarkdown } from '../../utils/textUtils';
+import { callGeminiApiFn } from '../../firebaseClient';
 
 interface AICoachMemberInsightModalProps {
   isOpen: boolean;
   onClose: () => void;
-  ai: GoogleGenAI;
   participant: ParticipantProfile;
   goals: ParticipantGoalData[];
   logs: ActivityLog[];
 }
 
-export const AICoachMemberInsightModal: React.FC<AICoachMemberInsightModalProps> = ({ isOpen, onClose, ai, participant, goals, logs }) => {
+export const AICoachMemberInsightModal: React.FC<AICoachMemberInsightModalProps> = ({ isOpen, onClose, participant, goals, logs }) => {
     const [summary, setSummary] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -75,11 +74,17 @@ export const AICoachMemberInsightModal: React.FC<AICoachMemberInsightModalProps>
                     *   **Vardagsmotion:** Påminn medlemmen om vikten av daglig rörelse för att nå WHO:s rekommendationer (150-300 minuter medelintensiv aktivitet per vecka). Detta är en viktig del av helheten.`;
                 
                 try {
-                    const response: GenerateContentResponse = await ai.models.generateContent({
-                      model: "gemini-2.5-flash",
-                      contents: prompt,
+                    const result = await callGeminiApiFn({
+                        model: "gemini-2.5-flash",
+                        contents: prompt,
                     });
-                    setSummary(response.text);
+
+                    const { text, error } = result.data as { text?: string; error?: string };
+                    if (error) {
+                        throw new Error(`Cloud Function error: ${error}`);
+                    }
+                    
+                    setSummary(text);
                 } catch (err) {
                     console.error("Error generating member insight:", err);
                     setError("Kunde inte generera AI-insikt. Försök igen senare.");
@@ -89,7 +94,7 @@ export const AICoachMemberInsightModal: React.FC<AICoachMemberInsightModalProps>
             };
             generateSummary();
         }
-    }, [isOpen, participant, goals, logs, ai, latestGoal]);
+    }, [isOpen, participant, goals, logs, latestGoal]);
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={`AI Insikt för ${participant.name}`} size="xl">

@@ -442,7 +442,6 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
                         allParticipantGoals={participantGoalsForView}
                         allActivityLogs={allActivityLogsForView}
                         coachNotes={coachNotesForView}
-                        ai={ai}
                         oneOnOneSessions={oneOnOneSessionsForView}
                         loggedInStaff={loggedInStaff}
                         isOnline={isOnline}

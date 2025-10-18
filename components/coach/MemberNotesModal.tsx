@@ -3,7 +3,6 @@ import { Modal } from '../Modal';
 import { Button } from '../Button';
 import { Textarea } from '../Textarea';
 import { ParticipantProfile, ParticipantGoalData, ActivityLog, CoachNote, OneOnOneSession, StaffMember, GoalCompletionLog, Workout, WorkoutCategoryDefinition, StaffAvailability, UserStrengthStat, ParticipantConditioningStat, ParticipantPhysiqueStat, ParticipantClubMembership } from '../../types';
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import * as dateUtils from '../../utils/dateUtils';
 import { BookOneOnOneModal } from './BookOneOnOneModal';
 import { GoalForm, GoalFormRef } from '../participant/GoalForm';
@@ -15,11 +14,12 @@ import { StrengthComparisonModal } from '../participant/StrengthComparisonModal'
 import { ConditioningStatsModal } from '../participant/ConditioningStatsModal';
 import { PhysiqueManagerModal } from '../participant/PhysiqueManagerModal';
 import { Select } from '../Input';
+import { callGeminiApiFn } from '../../firebaseClient';
+import { renderMarkdown } from '../../utils/textUtils';
 
 interface MemberNotesModalProps {
   isOpen: boolean;
   onClose: () => void;
-  ai: GoogleGenAI | null;
   participant: ParticipantProfile;
   notes: CoachNote[];
   allParticipantGoals: ParticipantGoalData[];
@@ -45,76 +45,9 @@ interface MemberNotesModalProps {
 
 type MemberNotesTab = 'notes' | 'goals' | 'sessions' | 'program';
 
-// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-const getIconForHeader = (headerText: string): React.ReactElement | null => {
-    const lowerHeaderText = headerText.toLowerCase();
-    if (lowerHeaderText.includes("aktivitet") || lowerHeaderText.includes("konsistens")) return <span className="mr-2 text-xl" role="img" aria-label="Aktivitet">📊</span>;
-    if (lowerHeaderText.includes("målsättning") || lowerHeaderText.includes("progress")) return <span className="mr-2 text-xl" role="img" aria-label="Målsättning">🎯</span>;
-    if (lowerHeaderText.includes("mående") || lowerHeaderText.includes("engagemang")) return <span className="mr-2 text-xl" role="img" aria-label="Mående">😊</span>;
-    if (lowerHeaderText.includes("rekommendationer")) return <span className="mr-2 text-xl" role="img" aria-label="Rekommendationer">💡</span>;
-    return <span className="mr-2 text-xl" role="img" aria-label="Rubrik">📄</span>;
-};
-
-// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-const renderMarkdownContent = (markdownText: string | null): React.ReactElement[] | null => {
-    if (!markdownText) return null;
-    const lines = markdownText.split('\n');
-    // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-    const renderedElements: React.ReactElement[] = [];
-    // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-    let currentListItems: React.ReactElement[] = [];
-    let listKeySuffix = 0;
-  
-    const flushList = () => {
-      if (currentListItems.length > 0) {
-        renderedElements.push(
-          <ul key={`ul-${renderedElements.length}-${listKeySuffix}`} className="list-disc pl-5 space-y-1 my-2">
-            {currentListItems}
-          </ul>
-        );
-        currentListItems = [];
-        listKeySuffix++;
-      }
-    };
-  
-    for (let i = 0; i < lines.length; i++) {
-      let lineContent = lines[i];
-      lineContent = lineContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-      lineContent = lineContent.replace(/\*(?=\S)(.*?)(?<=\S)\*/g, '<em>$1</em>');
-  
-      if (lineContent.startsWith('## ')) {
-        flushList();
-        const headerText = lineContent.substring(3).trim();
-        const icon = getIconForHeader(headerText.replace(/<\/?(strong|em)>/g, ''));
-        // FIX: Correctly render the icon as a React child instead of trying to access its props for dangerouslySetInnerHTML.
-        // This resolves the "Property 'children' does not exist on type 'unknown'" error.
-        renderedElements.push(
-          <h4 key={`h4-${i}`} className="text-xl font-bold text-gray-800 flex items-center mb-2 mt-4">
-            {icon} <span dangerouslySetInnerHTML={{ __html: headerText }} />
-          </h4>
-        );
-      } else if (lineContent.startsWith('* ') || lineContent.startsWith('- ')) {
-        const listItemText = lineContent.substring(2).trim();
-        currentListItems.push(
-          <li key={`li-${i}`} className="text-base text-gray-700" dangerouslySetInnerHTML={{ __html: listItemText }} />
-        );
-      } else {
-        flushList();
-        if (lineContent.trim() !== '') {
-            renderedElements.push(
-              <p key={`p-${i}`} className="text-base text-gray-700 mb-2" dangerouslySetInnerHTML={{ __html: lineContent }} />
-            );
-        }
-      }
-    }
-    flushList();
-    return renderedElements;
-};
-
 export const MemberNotesModal: React.FC<MemberNotesModalProps> = ({
   isOpen,
   onClose,
-  ai,
   participant,
   notes,
   allParticipantGoals,
@@ -275,7 +208,6 @@ Bäst:
   };
   
   const handleGenerateAiSummary = async () => {
-    if (!ai) return;
     setIsLoadingAiSummary(true);
     setAiSummary(null);
     
@@ -296,11 +228,16 @@ Bäst:
     4.  **## Rekommendationer för Samtalet:** Ge 1-2 konkreta förslag på diskussionspunkter för coachen.`;
     
     try {
-        const response: GenerateContentResponse = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: prompt,
+        const result = await callGeminiApiFn({
+            model: "gemini-2.5-flash",
+            contents: prompt,
         });
-        setAiSummary(response.text);
+        
+        const { text, error } = result.data as { text?: string; error?: string };
+        if (error) {
+            throw new Error(`Cloud Function error: ${error}`);
+        }
+        setAiSummary(text);
     } catch (err) {
       setAiSummary("Kunde inte generera sammanfattning.");
     } finally {
@@ -421,14 +358,12 @@ Bäst:
             <div role="tabpanel" hidden={activeTab !== 'notes'}>
                 {activeTab === 'notes' && (
                   <div className="space-y-4">
-                      {ai && (
-                        <div className="p-3 bg-gray-50 rounded-lg border">
+                      <div className="p-3 bg-gray-50 rounded-lg border">
                           <Button onClick={handleGenerateAiSummary} fullWidth disabled={isLoadingAiSummary || !isOnline}>
                             {isLoadingAiSummary ? 'Genererar...' : (isOnline ? 'Generera AI Sammanfattning' : 'AI Offline')}
                           </Button>
-                          {aiSummary && <div className="mt-3 p-2 bg-white rounded">{renderMarkdownContent(aiSummary)}</div>}
+                          {aiSummary && <div className="mt-3 p-2 bg-white rounded">{renderMarkdown(aiSummary)}</div>}
                         </div>
-                      )}
                       
                       <div className="space-y-2">
                         <Textarea
@@ -495,7 +430,6 @@ Bäst:
                           onSave={handleSaveGoal}
                           onTriggerAiGoalPrognosis={async () => { /* Handled by GoalForm internally for coach view */ }}
                           showCoachFields={true}
-                          ai={ai}
                           isOnline={isOnline}
                       />
                        <div className="flex justify-end pt-4 mt-4 border-t">

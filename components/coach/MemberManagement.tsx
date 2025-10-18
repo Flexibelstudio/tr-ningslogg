@@ -2,7 +2,6 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { ParticipantProfile, ParticipantGoalData, ActivityLog, CoachNote, WorkoutLog, Location, Membership, StaffMember, OneOnOneSession, GoalCompletionLog, Workout, WorkoutCategoryDefinition, StaffAvailability } from '../../types';
 import { Button } from '../Button';
 import { AddMemberModal } from './AddMemberModal';
-import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import * as dateUtils from '../../utils/dateUtils';
 import { Input, Select } from '../Input';
 import { BulkUpdateModal, BulkActionType } from './BulkUpdateModal';
@@ -186,7 +185,6 @@ interface MemberManagementProps {
   allParticipantGoals: ParticipantGoalData[];
   allActivityLogs: ActivityLog[];
   coachNotes: CoachNote[];
-  ai: GoogleGenAI | null;
   oneOnOneSessions: OneOnOneSession[];
   loggedInStaff: StaffMember | null;
   isOnline: boolean;
@@ -209,7 +207,6 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
   allParticipantGoals,
   allActivityLogs,
   coachNotes,
-  ai,
   oneOnOneSessions,
   loggedInStaff,
   isOnline,
@@ -560,7 +557,6 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
             <MemberNotesModal
                 isOpen={isNotesModalOpen}
                 onClose={() => setIsNotesModalOpen(false)}
-                ai={ai}
                 participant={selectedParticipantForNotes}
                 notes={coachNotes.filter(n => n.participantId === selectedParticipantForNotes.id)}
                 allParticipantGoals={allParticipantGoals}
