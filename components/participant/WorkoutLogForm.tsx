@@ -3,7 +3,6 @@ import { Workout, WorkoutLog, WorkoutExerciseLog, SetDetail, Exercise, WorkoutBl
 import { Button } from '../Button';
 import { Input } from '../Input';
 import { Textarea } from '../Textarea';
-import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import { ConfirmationModal } from '../ConfirmationModal';
 import { CLUB_DEFINITIONS, LOCAL_STORAGE_KEYS } from '../../constants';
 import { MoodSelectorInput } from './MoodSelectorInput';
@@ -12,7 +11,6 @@ import { AiWorkoutTips } from './AIAssistantModal';
 import { ExerciseLogCard } from './ExerciseLogCard';
 
 interface WorkoutLogFormProps {
-  ai: GoogleGenAI | null;
   workout: Workout;
   allWorkouts: Workout[];
   logForReferenceOrEdit: WorkoutLog | undefined;
@@ -44,7 +42,6 @@ const liftTypeToPlaceholderKey = (lift: LiftType): string => {
 };
 
 export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
-    ai,
     workout,
     allWorkouts,
     logForReferenceOrEdit,

@@ -10,7 +10,6 @@ import {
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { Navbar } from './components/Navbar';
 import { LOCAL_STORAGE_KEYS } from './constants'; 
-import { GoogleGenAI } from '@google/genai';
 import { WelcomeModal } from './components/participant/WelcomeModal'; 
 import { AppProvider, useAppContext } from './context/AppContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -28,8 +27,6 @@ const SystemOwnerArea = lazy(() => import('./components/SystemOwnerArea').then(m
 const PublicLeadForm = lazy(() => import('./components/public/PublicLeadForm').then(m => ({ default: m.PublicLeadForm })));
 const ZapierWebhookHandler = lazy(() => import('./components/api/ZapierWebhookHandler').then(m => ({ default: m.ZapierWebhookHandler })));
 
-
-const API_KEY = process.env.API_KEY;
 
 const LoadingSpinner = () => (
     <div className="fixed inset-0 flex items-center justify-center bg-gray-100 bg-opacity-75 z-50">
@@ -87,7 +84,6 @@ const AppContent: React.FC = () => {
     const [view, setView] = useState<'login' | 'register'>('login');
     const [registrationPendingMessage, setRegistrationPendingMessage] = useState(false);
 
-    const [ai, setAi] = useState<GoogleGenAI | null>(null);
     const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
     const [welcomeModalShown, setWelcomeModalShown] = useLocalStorage<boolean>(
         LOCAL_STORAGE_KEYS.WELCOME_MESSAGE_SHOWN_PARTICIPANT,
@@ -610,19 +606,6 @@ const AppContent: React.FC = () => {
         setUserConditioningStatsHistoryData, setFlowItemsData
     ]);
 
-
-    useEffect(() => {
-        if (API_KEY) {
-        try {
-            setAi(new GoogleGenAI({ apiKey: API_KEY }));
-        } catch (e) {
-            console.error("Failed to initialize GoogleGenAI:", e);
-        }
-        } else {
-        console.warn("API_KEY for Gemini not found. AI features will be disabled.");
-        }
-    }, []);
-
     const prospectModalShownKey = auth.currentParticipantId ? `flexibel_prospectProfileModalShown_${auth.currentParticipantId}` : null;
 
     useEffect(() => {
@@ -736,7 +719,6 @@ const AppContent: React.FC = () => {
             return (
                 <div className="container mx-auto px-2 sm:px-6 py-6">
                     <CoachArea
-                        ai={ai}
                         onAddComment={handleAddComment}
                         onDeleteComment={handleDeleteComment}
                         onToggleCommentReaction={handleToggleCommentReaction}
