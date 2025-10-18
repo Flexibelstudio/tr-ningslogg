@@ -53,16 +53,18 @@ export const stripMarkdown = (text: string): string => {
 
 const getIconForHeader = (headerText: string): React.ReactElement | null => {
   const lowerHeaderText = headerText.toLowerCase();
-  if (lowerHeaderText.includes("prognos")) return <span className="mr-2 text-xl" role="img" aria-label="Prognos">🔮</span>;
-  if (lowerHeaderText.includes("nyckelpass") || lowerHeaderText.includes("rekommendera")) return <span className="mr-2 text-xl" role="img" aria-label="Rekommenderade pass">🎟️</span>;
-  if (lowerHeaderText.includes("tänka på") || lowerHeaderText.includes("tips") || lowerHeaderText.includes("motivation")) return <span className="mr-2 text-xl" role="img" aria-label="Tips">💡</span>;
-  if (lowerHeaderText.includes("lycka till") || lowerHeaderText.includes("avslutning")) return <span className="mr-2 text-xl" role="img" aria-label="Avslutning">🎉</span>;
-  if (lowerHeaderText.includes("sammanfattning") || lowerHeaderText.includes("uppmuntran")) return <span className="mr-2 text-xl" role="img" aria-label="Sammanfattning">⭐</span>;
-  if (lowerHeaderText.includes("progress") || lowerHeaderText.includes("inbody") || lowerHeaderText.includes("styrka")) return <span className="mr-2 text-xl" role="img" aria-label="Framsteg">💪</span>;
-  if (lowerHeaderText.includes("mentalt välbefinnande") || lowerHeaderText.includes("balans")) return <span className="mr-2 text-xl" role="img" aria-label="Mentalt välbefinnande">🧘</span>;
-  if (lowerHeaderText.includes("observationer") || lowerHeaderText.includes("pass") || lowerHeaderText.includes("aktiviteter")) return <span className="mr-2 text-xl" role="img" aria-label="Observationer">👀</span>;
-  if (lowerHeaderText.includes("särskilda råd")) return <span className="mr-2 text-xl" role="img" aria-label="Särskilda råd">ℹ️</span>;
-  return <span className="mr-2 text-xl" role="img" aria-label="Rubrik">📄</span>;
+  const props = { className: "mr-2 text-xl", role: "img" };
+
+  if (lowerHeaderText.includes("prognos")) return React.createElement('span', { ...props, 'aria-label': 'Prognos' }, '🔮');
+  if (lowerHeaderText.includes("nyckelpass") || lowerHeaderText.includes("rekommendera")) return React.createElement('span', { ...props, 'aria-label': 'Rekommenderade pass' }, '🎟️');
+  if (lowerHeaderText.includes("tänka på") || lowerHeaderText.includes("tips") || lowerHeaderText.includes("motivation")) return React.createElement('span', { ...props, 'aria-label': 'Tips' }, '💡');
+  if (lowerHeaderText.includes("lycka till") || lowerHeaderText.includes("avslutning")) return React.createElement('span', { ...props, 'aria-label': 'Avslutning' }, '🎉');
+  if (lowerHeaderText.includes("sammanfattning") || lowerHeaderText.includes("uppmuntran")) return React.createElement('span', { ...props, 'aria-label': 'Sammanfattning' }, '⭐');
+  if (lowerHeaderText.includes("progress") || lowerHeaderText.includes("inbody") || lowerHeaderText.includes("styrka")) return React.createElement('span', { ...props, 'aria-label': 'Framsteg' }, '💪');
+  if (lowerHeaderText.includes("mentalt välbefinnande") || lowerHeaderText.includes("balans")) return React.createElement('span', { ...props, 'aria-label': 'Mentalt välbefinnande' }, '🧘');
+  if (lowerHeaderText.includes("observationer") || lowerHeaderText.includes("pass") || lowerHeaderText.includes("aktiviteter")) return React.createElement('span', { ...props, 'aria-label': 'Observationer' }, '👀');
+  if (lowerHeaderText.includes("särskilda råd")) return React.createElement('span', { ...props, 'aria-label': 'Särskilda råd' }, 'ℹ️');
+  return React.createElement('span', { ...props, 'aria-label': 'Rubrik' }, '📄');
 };
 
 export const renderMarkdown = (markdownText: string | null): React.ReactElement[] | null => {
@@ -76,9 +78,7 @@ export const renderMarkdown = (markdownText: string | null): React.ReactElement[
   const flushList = () => {
     if (currentListItems.length > 0) {
       renderedElements.push(
-        <ul key={`ul-${renderedElements.length}-${listKeySuffix}`} className="list-disc pl-5 space-y-1 my-2">
-          {currentListItems}
-        </ul>
+        React.createElement('ul', { key: `ul-${renderedElements.length}-${listKeySuffix}`, className: 'list-disc pl-5 space-y-1 my-2' }, ...currentListItems)
       );
       currentListItems = [];
       listKeySuffix++;
@@ -96,30 +96,28 @@ export const renderMarkdown = (markdownText: string | null): React.ReactElement[
         flushList();
         const headerText = lineContent.substring(4).trim();
         const icon = getIconForHeader(headerText.replace(/<\/?(strong|em)>/g, ''));
+        const spanElement = React.createElement('span', { dangerouslySetInnerHTML: { __html: headerText } });
         renderedElements.push(
-          <h5 key={`h5-${i}`} className="text-lg font-bold text-gray-700 flex items-center mb-1 mt-3">
-            {icon} <span dangerouslySetInnerHTML={{ __html: headerText }} />
-          </h5>
+          React.createElement('h5', { key: `h5-${i}`, className: 'text-lg font-bold text-gray-700 flex items-center mb-1 mt-3' }, icon, ' ', spanElement)
         );
     } else if (lineContent.startsWith('## ')) {
       flushList();
       const headerText = lineContent.substring(3).trim();
       const icon = getIconForHeader(headerText.replace(/<\/?(strong|em)>/g, ''));
+      const spanElement = React.createElement('span', { dangerouslySetInnerHTML: { __html: headerText } });
       renderedElements.push(
-        <h4 key={`h4-${i}`} className="text-xl font-bold text-gray-800 flex items-center mb-2 mt-4">
-          {icon} <span dangerouslySetInnerHTML={{ __html: headerText }} />
-        </h4>
+        React.createElement('h4', { key: `h4-${i}`, className: 'text-xl font-bold text-gray-800 flex items-center mb-2 mt-4' }, icon, ' ', spanElement)
       );
     } else if (lineContent.startsWith('* ') || lineContent.startsWith('- ')) {
       const listItemText = lineContent.substring(2).trim();
       currentListItems.push(
-        <li key={`li-${i}`} className="text-base text-gray-700" dangerouslySetInnerHTML={{ __html: listItemText }} />
+        React.createElement('li', { key: `li-${i}`, className: 'text-base text-gray-700', dangerouslySetInnerHTML: { __html: listItemText } })
       );
     } else {
       flushList();
       if (lineContent.trim() !== '') {
         renderedElements.push(
-          <p key={`p-${i}`} className="text-base text-gray-700 mb-2" dangerouslySetInnerHTML={{ __html: lineContent }} />
+          React.createElement('p', { key: `p-${i}`, className: 'text-base text-gray-700 mb-2', dangerouslySetInnerHTML: { __html: lineContent } })
         );
       }
     }
