@@ -21,6 +21,7 @@ import * as dateUtils from '../../utils/dateUtils';
 import { Button } from '../Button';
 import { useAuth } from '../../context/AuthContext';
 import { useNetworkStatus } from '../../context/NetworkStatusContext';
+import { GoogleGenAI } from '@google/genai';
 
 type CoachTab = 'overview' | 'klientresan' | 'programs' | 'bookings' | 'insights' | 'leaderboards' | 'events' | 'personal' | 'settings';
 
@@ -429,8 +430,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
         <div role="tabpanel" hidden={activeTab !== 'overview'}>
             {activeTab === 'overview' && (
                 <>
-                    <EngagementOpportunities 
-                        ai={ai}
+                    <EngagementOpportunities
                         participants={participantsForView}
                         workoutLogs={workoutLogsForView}
                         oneOnOneSessions={oneOnOneSessionsForView}

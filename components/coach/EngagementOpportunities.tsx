@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from 'react';
-import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import { ParticipantProfile, WorkoutLog, OneOnOneSession } from '../../types';
 import { Button } from '../Button';
+import { callGeminiApiFn } from '../../firebaseClient';
+import { Type } from '@google/genai';
 
 interface AIEngagementResult {
   participantId: string;
@@ -10,14 +11,13 @@ interface AIEngagementResult {
 }
 
 interface EngagementOpportunitiesProps {
-  ai: GoogleGenAI | null;
   participants: ParticipantProfile[];
   workoutLogs: WorkoutLog[];
   oneOnOneSessions: OneOnOneSession[];
   isOnline: boolean;
 }
 
-export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = ({ ai, participants, workoutLogs, oneOnOneSessions, isOnline }) => {
+export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = ({ participants, workoutLogs, oneOnOneSessions, isOnline }) => {
   const [activeAnalysis, setActiveAnalysis] = useState<'heroes' | 'churn' | null>(null);
   const [silentHeroes, setSilentHeroes] = useState<AIEngagementResult[]>([]);
   const [churnRisks, setChurnRisks] = useState<AIEngagementResult[]>([]);
@@ -27,11 +27,6 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
   const [errorChurn, setErrorChurn] = useState<string | null>(null);
   
   const findSilentHeroes = useCallback(async () => {
-    if (!ai) {
-      setErrorHeroes("AI-tjänsten är inte tillgänglig.");
-      return;
-    }
-
     setActiveAnalysis('heroes');
     setIsLoadingHeroes(true);
     setErrorHeroes(null);
@@ -85,7 +80,7 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
     };
 
     try {
-        const response: GenerateContentResponse = await ai.models.generateContent({
+        const result = await callGeminiApiFn({
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
@@ -93,7 +88,13 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
                 responseSchema: responseSchema,
             }
         });
-        const parsedHeroes = JSON.parse(response.text);
+
+        const { text, error } = result.data as { text?: string; error?: string };
+        if (error) {
+            throw new Error(`Cloud Function error: ${error}`);
+        }
+
+        const parsedHeroes = JSON.parse(text);
         setSilentHeroes(parsedHeroes);
     } catch (err) {
       console.error("Error finding silent heroes:", err);
@@ -101,14 +102,9 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
     } finally {
       setIsLoadingHeroes(false);
     }
-  }, [ai, participants, workoutLogs]);
+  }, [participants, workoutLogs]);
 
   const findChurnRisks = useCallback(async () => {
-    if (!ai) {
-        setErrorChurn("AI-tjänsten är inte tillgänglig.");
-        return;
-    }
-
     setActiveAnalysis('churn');
     setIsLoadingChurn(true);
     setErrorChurn(null);
@@ -189,7 +185,7 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
     };
     
     try {
-        const response: GenerateContentResponse = await ai.models.generateContent({
+        const result = await callGeminiApiFn({
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
@@ -197,7 +193,13 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
                 responseSchema: responseSchema,
             }
         });
-        const parsedRisks = JSON.parse(response.text);
+
+        const { text, error } = result.data as { text?: string; error?: string };
+        if (error) {
+            throw new Error(`Cloud Function error: ${error}`);
+        }
+
+        const parsedRisks = JSON.parse(text);
         setChurnRisks(parsedRisks);
     } catch (err) {
         console.error("Error finding churn risks:", err);
@@ -205,7 +207,7 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
     } finally {
         setIsLoadingChurn(false);
     }
-  }, [ai, participants, workoutLogs, oneOnOneSessions]);
+  }, [participants, workoutLogs, oneOnOneSessions]);
 
   const renderAIResults = () => {
     if (!activeAnalysis) return null;
@@ -247,14 +249,14 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
         <div className="flex flex-wrap gap-4">
           <Button 
             onClick={findSilentHeroes} 
-            disabled={isLoadingHeroes || !ai || !isOnline} 
+            disabled={isLoadingHeroes || !isOnline} 
             variant="outline"
           >
             {isLoadingHeroes ? 'Söker...' : (isOnline ? 'Hitta Tysta Hjältar' : 'AI Offline')}
           </Button>
           <Button 
             onClick={findChurnRisks} 
-            disabled={isLoadingChurn || !ai || !isOnline} 
+            disabled={isLoadingChurn || !isOnline} 
             variant="secondary"
           >
             {isLoadingChurn ? 'Analyserar...' : (isOnline ? 'Identifiera Risk för Churn' : 'AI Offline')}
