@@ -1,9 +1,9 @@
 
+
 import React from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
-// stripMarkdown is not used for rendering main content anymore.
-// It might be used if there was a "copy raw text" feature, but not for display.
+import { renderMarkdown } from '../../utils/textUtils';
 
 interface AIProgressFeedbackModalProps {
   isOpen: boolean;
@@ -13,104 +13,6 @@ interface AIProgressFeedbackModalProps {
   error: string | null;
   modalTitle?: string; // New prop for dynamic title
 }
-
-// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-const getIconForHeader = (headerText: string): React.ReactElement | null => {
-  const lowerHeaderText = headerText.toLowerCase();
-  if (lowerHeaderText.includes("prognos")) return <span className="mr-2 text-xl" role="img" aria-label="Prognos">🔮</span>;
-  if (lowerHeaderText.includes("nyckelpass") || lowerHeaderText.includes("rekommendera")) return <span className="mr-2 text-xl" role="img" aria-label="Rekommenderade pass">🎟️</span>;
-  if (lowerHeaderText.includes("tänka på") || lowerHeaderText.includes("tips") || lowerHeaderText.includes("motivation")) return <span className="mr-2 text-xl" role="img" aria-label="Tips">💡</span>;
-  if (lowerHeaderText.includes("lycka till") || lowerHeaderText.includes("avslutning")) return <span className="mr-2 text-xl" role="img" aria-label="Avslutning">🎉</span>;
-
-  // Fallback for older or other summary types
-  if (lowerHeaderText.includes("sammanfattning") || lowerHeaderText.includes("uppmuntran")) return <span className="mr-2 text-xl" role="img" aria-label="Sammanfattning">⭐</span>;
-  if (lowerHeaderText.includes("progress") || lowerHeaderText.includes("inbody") || lowerHeaderText.includes("styrka")) return <span className="mr-2 text-xl" role="img" aria-label="Framsteg">💪</span>;
-  if (lowerHeaderText.includes("mentalt välbefinnande") || lowerHeaderText.includes("balans")) return <span className="mr-2 text-xl" role="img" aria-label="Mentalt välbefinnande">🧘</span>;
-  if (lowerHeaderText.includes("observationer") || lowerHeaderText.includes("pass") || lowerHeaderText.includes("aktiviteter")) return <span className="mr-2 text-xl" role="img" aria-label="Observationer">👀</span>;
-  if (lowerHeaderText.includes("särskilda råd")) return <span className="mr-2 text-xl" role="img" aria-label="Särskilda råd">ℹ️</span>;
-
-  return <span className="mr-2 text-xl" role="img" aria-label="Rubrik">📄</span>; // Default icon
-};
-
-// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-const renderFeedbackContent = (feedback: string | null): React.ReactElement[] | null => {
-  if (!feedback) return null;
-
-  const lines = feedback.split('\n');
-  // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-  const renderedElements: React.ReactElement[] = [];
-  // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-  let currentListItems: React.ReactElement[] = [];
-  let listKeySuffix = 0; // To ensure unique keys for lists if multiple lists appear
-
-  const flushList = () => {
-    if (currentListItems.length > 0) {
-      renderedElements.push(
-        <ul key={`ul-${renderedElements.length}-${listKeySuffix}`} className="list-disc pl-5 space-y-1 my-2">
-          {currentListItems}
-        </ul>
-      );
-      currentListItems = [];
-      listKeySuffix++;
-    }
-  };
-
-  for (let i = 0; i < lines.length; i++) {
-    let lineContent = lines[i];
-
-    // Basic Markdown to HTML conversion
-    lineContent = lineContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    lineContent = lineContent.replace(/\*(?=\S)(.*?)(?<=\S)\*/g, '<em>$1</em>');
-    lineContent = lineContent.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-flexibel hover:underline font-semibold">$1</a>');
-
-
-    if (lineContent.startsWith('## ')) {
-      flushList();
-      const headerText = lineContent.substring(3).trim();
-      const icon = getIconForHeader(headerText.replace(/<\/?(strong|em)>/g, ''));
-      renderedElements.push(
-        <h4 key={`h4-${i}`} className="text-xl font-bold text-gray-800 flex items-center mb-2 mt-4">
-          {icon} <span dangerouslySetInnerHTML={{ __html: headerText }} />
-        </h4>
-      );
-    } else if (lineContent.startsWith('### ')) {
-      flushList();
-      const headerText = lineContent.substring(4).trim();
-      const icon = getIconForHeader(headerText.replace(/<\/?(strong|em)>/g, ''));
-      renderedElements.push(
-        <h5 key={`h5-${i}`} className="text-lg font-bold text-gray-700 flex items-center mb-1 mt-3">
-          {icon} <span dangerouslySetInnerHTML={{ __html: headerText }} />
-        </h5>
-      );
-    } else if (lineContent.startsWith('* ') || lineContent.startsWith('- ')) {
-      const listItemText = lineContent.substring(2).trim();
-      currentListItems.push(
-        <li key={`li-${i}`} className="text-base text-gray-700" dangerouslySetInnerHTML={{ __html: listItemText }} />
-      );
-    } else {
-      flushList(); // End any ongoing list
-      if (lineContent.trim() === '') {
-        // Add a visual break for empty lines, if not preceded by another break or list.
-        if (renderedElements.length > 0) {
-          const lastElement = renderedElements[renderedElements.length - 1];
-          // FIX: Cast props to `any` to solve "Property 'className' does not exist on type 'unknown'" error.
-          // The type of props is not strongly inferred here, so a type assertion is needed.
-          if (!(lastElement.type === 'div' && (lastElement.props as any).className?.includes('h-2')) && lastElement.type !== 'ul') {
-            renderedElements.push(<div key={`br-${i}`} className="h-2"></div>);
-          }
-        }
-      } else {
-        renderedElements.push(
-          <p key={`p-${i}`} className="text-base text-gray-700 mb-2" dangerouslySetInnerHTML={{ __html: lineContent }} />
-        );
-      }
-    }
-  }
-  flushList(); // Ensure any trailing list is rendered
-
-  return renderedElements;
-};
-
 
 export const AIProgressFeedbackModal: React.FC<AIProgressFeedbackModalProps> = ({
   isOpen,
@@ -140,8 +42,8 @@ export const AIProgressFeedbackModal: React.FC<AIProgressFeedbackModalProps> = (
         )}
         {aiFeedback && !isLoading && !error && (
           <div className="overflow-y-auto flex-grow p-1 pr-2">
-            <div className="bg-gray-50 rounded-md text-gray-800 leading-relaxed">
-              {renderFeedbackContent(aiFeedback)}
+            <div className="bg-gray-50 rounded-md text-gray-800 leading-relaxed prose prose-base max-w-none">
+              {renderMarkdown(aiFeedback)}
             </div>
           </div>
         )}

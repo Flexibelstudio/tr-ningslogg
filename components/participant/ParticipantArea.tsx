@@ -59,66 +59,6 @@ import { callGeminiApiFn } from '../../firebaseClient';
 
 const API_KEY = process.env.API_KEY;
 
-// Helper function to render AI Markdown content
-// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-const getIconForHeader = (headerText: string): React.ReactElement | null => {
-  const lowerHeaderText = headerText.toLowerCase();
-  if (lowerHeaderText.includes("prognos")) return <span className="mr-2 text-xl" role="img" aria-label="Prognos">🔮</span>;
-  if (lowerHeaderText.includes("nyckelpass") || lowerHeaderText.includes("rekommendera")) return <span className="mr-2 text-xl" role="img" aria-label="Rekommenderade pass">🎟️</span>;
-  if (lowerHeaderText.includes("tänka på") || lowerHeaderText.includes("tips") || lowerHeaderText.includes("motivation")) return <span className="mr-2 text-xl" role="img" aria-label="Tips">💡</span>;
-  if (lowerHeaderText.includes("lycka till") || lowerHeaderText.includes("avslutning")) return <span className="mr-2 text-xl" role="img" aria-label="Avslutning">🎉</span>;
-  if (lowerHeaderText.includes("sammanfattning") || lowerHeaderText.includes("uppmuntran")) return <span className="mr-2 text-xl" role="img" aria-label="Sammanfattning">⭐</span>;
-  if (lowerHeaderText.includes("progress") || lowerHeaderText.includes("inbody") || lowerHeaderText.includes("styrka")) return <span className="mr-2 text-xl" role="img" aria-label="Framsteg">💪</span>;
-  if (lowerHeaderText.includes("mentalt välbefinnande") || lowerHeaderText.includes("balans")) return <span className="mr-2 text-xl" role="img" aria-label="Mentalt välbefinnande">🧘</span>;
-  if (lowerHeaderText.includes("observationer") || lowerHeaderText.includes("pass") || lowerHeaderText.includes("aktiviteter")) return <span className="mr-2 text-xl" role="img" aria-label="Observationer">👀</span>;
-  if (lowerHeaderText.includes("särskilda råd")) return <span className="mr-2 text-xl" role="img" aria-label="Särskilda råd">ℹ️</span>;
-  return <span className="mr-2 text-xl" role="img" aria-label="Rubrik">📄</span>;
-};
-
-// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-const renderFormattedMarkdown = (feedback: string | null): React.ReactElement[] | null => {
-  if (!feedback) return null;
-  const lines = feedback.split('\n');
-  // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-  const renderedElements: React.ReactElement[] = [];
-  // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-  let currentListItems: React.ReactElement[] = [];
-  let listKeySuffix = 0;
-  const flushList = () => {
-    if (currentListItems.length > 0) {
-      renderedElements.push(<ul key={`ul-${renderedElements.length}-${listKeySuffix}`} className="list-disc pl-5 space-y-1 my-2">{currentListItems}</ul>);
-      currentListItems = [];
-      listKeySuffix++;
-    }
-  };
-  for (let i = 0; i < lines.length; i++) {
-    let lineContent = lines[i];
-    lineContent = lineContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    lineContent = lineContent.replace(/\*(?=\S)(.*?)(?<=\S)\*/g, '<em>$1</em>');
-    if (lineContent.startsWith('## ')) {
-      flushList();
-      const headerText = lineContent.substring(3).trim();
-      const icon = getIconForHeader(headerText.replace(/<\/?(strong|em)>/g, ''));
-      renderedElements.push(<h4 key={`h4-${i}`} className="text-xl font-bold text-gray-800 flex items-center mb-2 mt-4">{icon} <span dangerouslySetInnerHTML={{ __html: headerText }} /></h4>);
-    } else if (lineContent.startsWith('### ')) {
-      flushList();
-      const headerText = lineContent.substring(4).trim();
-      const icon = getIconForHeader(headerText.replace(/<\/?(strong|em)>/g, ''));
-      renderedElements.push(<h5 key={`h5-${i}`} className="text-lg font-bold text-gray-700 flex items-center mb-1 mt-3">{icon} <span dangerouslySetInnerHTML={{ __html: headerText }} /></h5>);
-    } else if (lineContent.startsWith('* ') || lineContent.startsWith('- ')) {
-      const listItemText = lineContent.substring(2).trim();
-      currentListItems.push(<li key={`li-${i}`} className="text-base text-gray-700" dangerouslySetInnerHTML={{ __html: listItemText }} />);
-    } else {
-      flushList();
-      if (lineContent.trim() !== '') {
-        renderedElements.push(<p key={`p-${i}`} className="text-base text-gray-700 mb-2" dangerouslySetInnerHTML={{ __html: lineContent }} />);
-      }
-    }
-  }
-  flushList();
-  return renderedElements;
-};
-
 const getInBodyScoreInterpretation = (score: number | undefined | null): { label: string; color: string; } | null => {
     if (score === undefined || score === null || isNaN(score)) return null;
     if (score >= 90) return { label: 'Utmärkt', color: '#14b8a6' }; // teal-500
@@ -434,8 +374,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   const [isLogFormOpen, setIsLogFormOpen] = useState(false);
   const [currentWorkoutForForm, setCurrentWorkoutForForm] = useState<Workout | null>(null);
 
-  const [ai, setAi] = useState<GoogleGenAI | null>(null);
-
   const [lastFeedbackPromptTime, setLastFeedbackPromptTime] = useLocalStorage<number>(LOCAL_STORAGE_KEYS.LAST_FEEDBACK_PROMPT_TIME, 0);
 
   const [isAiFeedbackModalOpen, setIsAiFeedbackModalOpen] = useState(false);
@@ -669,16 +607,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   const myMembership = useMemo(() => memberships.find(m => m.id === participantProfile?.membershipId), [memberships, participantProfile]);
   const myOneOnOneSessions = useMemo(() => oneOnOneSessions.filter(s => s.participantId === currentParticipantId), [oneOnOneSessions, currentParticipantId]);
   
-   useEffect(() => {
-    if (API_KEY) {
-      try {
-        setAi(new GoogleGenAI({apiKey: API_KEY}));
-      } catch (e) {
-        console.error("Failed to initialize GoogleGenAI in ParticipantArea:", e);
-      }
-    }
-  }, []);
-
   useEffect(() => {
     if (openProfileModalOnInit) {
         setIsProfileModalOpen(true);
@@ -1008,7 +936,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         setLogForReference(undefined); // Clear reference log for new sessions
 
         // If a previous log exists and AI is enabled, show the AI assistant.
-        if (previousLogForThisTemplate && ai && isAiEnabled && isOnline) {
+        if (previousLogForThisTemplate && isAiEnabled && isOnline) {
             setPreWorkoutData({ workout, previousLog: previousLogForThisTemplate });
             setIsAIAssistantModalOpen(true);
             setIsSelectWorkoutModalOpen(false);
@@ -1261,7 +1189,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         <div className="bg-gray-100 bg-dotted-pattern bg-dotted-size bg-fixed min-h-screen">
         {isLogFormOpen && currentWorkoutForForm ? (
             <WorkoutLogForm
-            ai={ai}
             workout={currentWorkoutForForm}
             allWorkouts={workouts}
             logForReferenceOrEdit={currentWorkoutLog}
@@ -1675,7 +1602,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             confirmButtonText="Ja, ta bort"
             cancelButtonText="Avbryt"
         />
-        {preWorkoutData && ai && participantProfile && (
+        {preWorkoutData && participantProfile && (
             <AIAssistantModal
                 isOpen={isAIAssistantModalOpen}
                 onClose={() => {

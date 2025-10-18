@@ -3,7 +3,7 @@
 import React from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
-import { stripMarkdown } from '../../utils/textUtils'; // Import the new utility
+import { renderMarkdown } from '../../utils/textUtils';
 
 interface AICoachActivitySummaryModalProps {
   isOpen: boolean;
@@ -22,8 +22,6 @@ export const AICoachActivitySummaryModal: React.FC<AICoachActivitySummaryModalPr
 }) => {
   if (!isOpen) return null;
 
-  const cleanSummary = aiSummary ? stripMarkdown(aiSummary) : null;
-
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="AI Sammanfattning" size="xl">
       <div className="space-y-4 min-h-[250px] max-h-[70vh] flex flex-col">
@@ -40,14 +38,11 @@ export const AICoachActivitySummaryModal: React.FC<AICoachActivitySummaryModalPr
             <p className="mt-1 text-base">{error}</p>
           </div>
         )}
-        {cleanSummary && !isLoading && !error && (
+        {aiSummary && !isLoading && !error && (
           <div className="overflow-y-auto flex-grow p-1">
             <h4 className="text-xl font-semibold text-flexibel mb-3 sticky top-0 bg-white pb-2">AI Insikter:</h4>
-            <div 
-              className="text-base text-gray-800 leading-relaxed"
-              style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}
-            >
-              {cleanSummary}
+            <div className="text-base text-gray-800 leading-relaxed prose prose-base max-w-none">
+              {renderMarkdown(aiSummary)}
             </div>
           </div>
         )}

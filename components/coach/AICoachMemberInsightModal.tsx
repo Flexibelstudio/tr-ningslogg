@@ -4,6 +4,7 @@ import { Button } from '../Button';
 import { ParticipantProfile, ParticipantGoalData, ActivityLog } from '../../types';
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import * as dateUtils from '../../utils/dateUtils';
+import { renderMarkdown } from '../../utils/textUtils';
 
 interface AICoachMemberInsightModalProps {
   isOpen: boolean;
@@ -13,72 +14,6 @@ interface AICoachMemberInsightModalProps {
   goals: ParticipantGoalData[];
   logs: ActivityLog[];
 }
-
-// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-const getIconForHeader = (headerText: string): React.ReactElement | null => {
-    const lowerHeaderText = headerText.toLowerCase();
-    if (lowerHeaderText.includes("aktivitet") || lowerHeaderText.includes("konsistens")) return <span className="mr-2 text-xl" role="img" aria-label="Aktivitet">📊</span>;
-    if (lowerHeaderText.includes("målsättning") || lowerHeaderText.includes("progress")) return <span className="mr-2 text-xl" role="img" aria-label="Målsättning">🎯</span>;
-    if (lowerHeaderText.includes("mående") || lowerHeaderText.includes("engagemang")) return <span className="mr-2 text-xl" role="img" aria-label="Mående">😊</span>;
-    if (lowerHeaderText.includes("rekommendationer")) return <span className="mr-2 text-xl" role="img" aria-label="Rekommendationer">💡</span>;
-    return <span className="mr-2 text-xl" role="img" aria-label="Rubrik">📄</span>;
-};
-
-// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-const renderSummaryContent = (summary: string | null): React.ReactElement[] | null => {
-    if (!summary) return null;
-    const lines = summary.split('\n');
-    // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-    const renderedElements: React.ReactElement[] = [];
-    // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-    let currentListItems: React.ReactElement[] = [];
-    let listKeySuffix = 0;
-  
-    const flushList = () => {
-      if (currentListItems.length > 0) {
-        renderedElements.push(
-          <ul key={`ul-${renderedElements.length}-${listKeySuffix}`} className="list-disc pl-5 space-y-1 my-2">
-            {currentListItems}
-          </ul>
-        );
-        currentListItems = [];
-        listKeySuffix++;
-      }
-    };
-  
-    for (let i = 0; i < lines.length; i++) {
-      let lineContent = lines[i];
-      lineContent = lineContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-      lineContent = lineContent.replace(/\*(?=\S)(.*?)(?<=\S)\*/g, '<em>$1</em>');
-      lineContent = lineContent.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-flexibel hover:underline font-semibold">$1</a>');
-  
-      if (lineContent.startsWith('## ')) {
-        flushList();
-        const headerText = lineContent.substring(3).trim();
-        const icon = getIconForHeader(headerText.replace(/<\/?(strong|em)>/g, ''));
-        renderedElements.push(
-          <h4 key={`h4-${i}`} className="text-xl font-bold text-gray-800 flex items-center mb-2 mt-4">
-            {icon} <span dangerouslySetInnerHTML={{ __html: headerText }} />
-          </h4>
-        );
-      } else if (lineContent.startsWith('* ') || lineContent.startsWith('- ')) {
-        const listItemText = lineContent.substring(2).trim();
-        currentListItems.push(
-          <li key={`li-${i}`} className="text-base text-gray-700" dangerouslySetInnerHTML={{ __html: listItemText }} />
-        );
-      } else {
-        flushList();
-        if (lineContent.trim() !== '') {
-            renderedElements.push(
-              <p key={`p-${i}`} className="text-base text-gray-700 mb-2" dangerouslySetInnerHTML={{ __html: lineContent }} />
-            );
-        }
-      }
-    }
-    flushList();
-    return renderedElements;
-};
-
 
 export const AICoachMemberInsightModal: React.FC<AICoachMemberInsightModalProps> = ({ isOpen, onClose, ai, participant, goals, logs }) => {
     const [summary, setSummary] = useState<string | null>(null);
@@ -173,8 +108,8 @@ export const AICoachMemberInsightModal: React.FC<AICoachMemberInsightModalProps>
                 )}
                 {summary && !isLoading && !error && (
                     <div className="overflow-y-auto flex-grow p-1 pr-2">
-                        <div className="bg-gray-50 rounded-md text-gray-800 leading-relaxed">
-                            {renderSummaryContent(summary)}
+                        <div className="bg-gray-50 rounded-md text-gray-800 leading-relaxed prose prose-base max-w-none">
+                            {renderMarkdown(summary)}
                         </div>
                     </div>
                 )}

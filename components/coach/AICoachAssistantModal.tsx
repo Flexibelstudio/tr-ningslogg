@@ -5,7 +5,7 @@ import { Textarea } from '../Textarea';
 import { Button } from '../Button';
 import { LiftType, WorkoutBlock, ParticipantProfile, ParticipantGoalData, Exercise } from '../../types';
 import { ALL_LIFT_TYPES } from '../../constants';
-import { stripMarkdown } from '../../utils/textUtils';
+import { renderMarkdown } from '../../utils/textUtils';
 import { callGeminiApiFn } from '../../firebaseClient';
 
 interface AICoachAssistantModalProps {
@@ -82,8 +82,8 @@ export const AICoachAssistantModal: React.FC<AICoachAssistantModalProps> = ({
       **Ditt Uppdrag:**
       Skapa ett komplett programförslag. Ditt svar MÅSTE vara en enda textsträng och följa denna struktur med Markdown:
 
-      **1. Titel:** Börja med en passande och inspirerande titel för passet. Exempel: \`Styrkefokus Underkropp - Vecka 1\`.
-      **2. Coachanteckning (valfritt):** Efter titeln, om du vill, lägg till en rad som börjar med \`Coachanteckning: \` följt av en kort, övergripande anteckning till medlemmen.
+      **1. Titel:** Börja med en passande och inspirerande titel för passet. Exempel: \`**Titel:** Styrkefokus Underkropp - Vecka 1\`.
+      **2. Coachanteckning (valfritt):** Efter titeln, om du vill, lägg till en rad som börjar med \`**Coachanteckning:** \` följt av en kort, övergripande anteckning till medlemmen.
       **3. Block:**
           - Använd H3-rubriker för varje block (t.ex. \`### Block A: Uppvärmning\`).
           - Lista övningarna inom blocket som punktlistor (\`* \`).
@@ -130,19 +130,16 @@ export const AICoachAssistantModal: React.FC<AICoachAssistantModalProps> = ({
     let currentBlock: WorkoutBlock | null = null;
   
     // Find title and optional coach note first
-    if (lines.length > 0) {
-      const firstLine = lines[0].trim();
-      if (!firstLine.startsWith('#')) {
-        workoutTitle = firstLine;
-        lines.shift(); 
-      }
+    const titleLineIndex = lines.findIndex(line => line.toLowerCase().includes('**titel:**'));
+    if (titleLineIndex !== -1) {
+        workoutTitle = lines[titleLineIndex].replace(/\*\*Titel:\*\*/i, '').trim();
+        lines.splice(titleLineIndex, 1);
     }
-    if (lines.length > 0) {
-        const secondLine = lines[0].trim();
-        if (secondLine.toLowerCase().startsWith('coachanteckning:')) {
-            coachNote = secondLine.substring('coachanteckning:'.length).trim();
-            lines.shift();
-        }
+
+    const coachNoteLineIndex = lines.findIndex(line => line.toLowerCase().includes('**coachanteckning:**'));
+    if (coachNoteLineIndex !== -1) {
+        coachNote = lines[coachNoteLineIndex].replace(/\*\*Coachanteckning:\*\*/i, '').trim();
+        lines.splice(coachNoteLineIndex, 1);
     }
   
     const blockHeadingRegex = /^###\s*(.*)/;
@@ -253,10 +250,9 @@ export const AICoachAssistantModal: React.FC<AICoachAssistantModalProps> = ({
           <div className="space-y-3 pt-4 border-t">
             <h4 className="text-xl font-semibold text-flexibel">AI Förslag:</h4>
             <div
-              className="p-4 bg-gray-50 rounded-md max-h-[40vh] overflow-y-auto text-sm text-gray-800 leading-relaxed prose prose-sm max-w-none"
-              style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}
+              className="p-4 bg-gray-50 rounded-md max-h-[40vh] overflow-y-auto text-base text-gray-800 leading-relaxed prose prose-base max-w-none"
             >
-              {generatedSuggestion}
+              {renderMarkdown(generatedSuggestion)}
             </div>
           </div>
         )}
