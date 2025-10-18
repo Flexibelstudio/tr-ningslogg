@@ -3,7 +3,6 @@ import { Workout, WorkoutLog, ParticipantProfile, ParticipantGoalData, GeneralAc
 import { MemberManagement } from './MemberManagement';
 import { ParticipantActivityOverview } from './ParticipantActivityOverview'; 
 import { WorkoutManagement } from './WorkoutManagement';
-import { GoogleGenAI } from '@google/genai';
 import { LeaderboardManagement } from './LeaderboardManagement';
 import { EventManagement } from './EventManagement';
 import { SettingsManagement } from './SettingsManagement';
@@ -114,7 +113,6 @@ const TodaysClassesView: React.FC<TodaysClassesViewProps> = ({ schedules, defini
 };
 
 interface CoachAreaProps {
-  ai: GoogleGenAI | null;
   onAddComment: (logId: string, logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session', text: string) => void;
   onDeleteComment: (logId: string, logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session', commentId: string) => void;
   onToggleCommentReaction: (logId: string, logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session', commentId: string) => void;
@@ -126,7 +124,6 @@ interface CoachAreaProps {
 }
 
 export const CoachArea: React.FC<CoachAreaProps> = ({ 
-  ai,
   onAddComment,
   onDeleteComment,
   onToggleCommentReaction,
@@ -431,7 +428,6 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
             {activeTab === 'overview' && (
                 <>
                     <EngagementOpportunities 
-                        ai={ai}
                         participants={participantsForView}
                         workoutLogs={workoutLogsForView}
                         oneOnOneSessions={oneOnOneSessionsForView}
@@ -453,7 +449,6 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
         <div role="tabpanel" hidden={activeTab !== 'klientresan'}>
             {activeTab === 'klientresan' && loggedInStaff && (
                 <ClientJourneyView
-                    ai={ai}
                     participants={participantsForView}
                     allActivityLogs={allActivityLogsForView}
                     oneOnOneSessions={oneOnOneSessionsForView}
@@ -599,11 +594,9 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
                     <ParticipantActivityOverview 
                         workoutLogs={workoutLogsForView} 
                         workouts={workouts} 
-                        ai={ai} 
                         isOnline={isOnline}
                     />
                     <AIBusinessInsights
-                        ai={ai}
                         locations={locations}
                         participants={participantsForView}
                         allActivityLogs={allActivityLogsForView}
@@ -640,7 +633,6 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
                     setEvents={setCoachEventsData}
                     participants={participantDirectory}
                     workoutLogs={workoutLogs}
-                    ai={ai}
                     weeklyHighlightSettings={weeklyHighlightSettings}
                     setWeeklyHighlightSettings={setWeeklyHighlightSettingsData}
                 />

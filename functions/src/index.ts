@@ -2,14 +2,17 @@ import { onRequest, onCall } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, type GenerationConfig } from "@google/generative-ai";
 
 // Init Admin SDK
 initializeApp();
 const db = getFirestore();
 
-// Small helper to read Bearer token robustly
-function getBearerToken(req: { header?: (n: string) => string | undefined; headers?: Record<string, any> }) {
+// Robust sätt att läsa Bearer-token från headers
+function getBearerToken(req: {
+  header?: (n: string) => string | undefined;
+  headers?: Record<string, any>;
+}) {
   const h =
     (typeof req.header === "function" ? req.header("authorization") : undefined) ??
     (typeof req.header === "function" ? req.header("Authorization") : undefined) ??
@@ -39,7 +42,6 @@ export const createLeadFromZapier = onRequest(
     // Auth
     const ZAPIER_SECRET_KEY = process.env.ZAPIER_SECRET_KEY;
     const presented = getBearerToken(request);
-
     if (!ZAPIER_SECRET_KEY || presented !== ZAPIER_SECRET_KEY) {
       logger.warn("Unauthorized attempt to access webhook.");
       response.status(401).json({ error: "Unauthorized" });
@@ -140,7 +142,7 @@ export const callGeminiApi = onCall(
       const { model, contents, config } = (request.data ?? {}) as {
         model?: string;
         contents?: unknown; // string eller structured contents
-        config?: unknown;
+        config?: GenerationConfig;
       };
 
       if (!model || contents == null) {
@@ -157,21 +159,19 @@ export const callGeminiApi = onCall(
       const genAI = new GoogleGenerativeAI(apiKey);
       const llm = genAI.getGenerativeModel({ model });
 
-      let text: string;
-      if (typeof contents === "string") {
-        const result = await llm.generateContent({
-          contents: [{ role: "user", parts: [{ text: contents }] }],
-          generationConfig: config as any,
-        });
-        text = result.response.text();
-      } else {
-        const result = await llm.generateContent({
-          contents: contents as any,
-          generationConfig: config as any,
-        });
-        text = result.response.text();
-      }
+      // Stöd både ren sträng och structured contents
+      const result =
+        typeof contents === "string"
+          ? await llm.generateContent({
+              contents: [{ role: "user", parts: [{ text: contents }] }],
+              generationConfig: config,
+            })
+          : await llm.generateContent({
+              contents: contents as any,
+              generationConfig: config,
+            });
 
+      const text = result.response.text();
       return { text };
     } catch (error) {
       logger.error("Error calling Gemini API:", error);
