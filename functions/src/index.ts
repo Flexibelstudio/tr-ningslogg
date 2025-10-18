@@ -2,13 +2,13 @@ import { onRequest, onCall } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { GoogleGenerativeAI, type GenerationConfig } from "@google/generative-ai";
+import { GoogleGenAI, type GenerationConfig } from "@google/genai";
 
 // Init Admin SDK
 initializeApp();
 const db = getFirestore();
 
-// Robust sätt att läsa Bearer-token från headers
+// Robust way to read Bearer token from headers
 function getBearerToken(req: {
   header?: (n: string) => string | undefined;
   headers?: Record<string, any>;
@@ -23,14 +23,14 @@ function getBearerToken(req: {
 }
 
 /**
- * Zapier-webhook: skapar lead i Firestore
+ * Zapier webhook: creates lead in Firestore
  * Header: Authorization: Bearer <ZAPIER_SECRET_KEY>
  */
 export const createLeadFromZapier = onRequest(
   {
     region: "europe-west1",
     secrets: ["ZAPIER_SECRET_KEY"],
-    cors: true, // Firebase sköter CORS-headrar
+    cors: true, // Firebase handles CORS headers
   },
   async (request, response) => {
     if (request.method !== "POST") {
@@ -75,7 +75,7 @@ export const createLeadFromZapier = onRequest(
     }
 
     try {
-      // Hämta locations
+      // Get locations
       const locationsSnapshot = await db
         .collection("organizations")
         .doc(String(orgId))
@@ -100,7 +100,7 @@ export const createLeadFromZapier = onRequest(
         return;
       }
 
-      // Skapa lead
+      // Create lead
       const newLead = {
         firstName: String(firstName),
         lastName: String(lastName),
@@ -128,8 +128,8 @@ export const createLeadFromZapier = onRequest(
 );
 
 /**
- * Callable: Server-side proxy till Gemini (Generative AI)
- * Anropas via Firebase SDK (httpsCallable) → ingen CORS.
+ * Callable: Server-side proxy to Gemini (Generative AI)
+ * Called via Firebase SDK (httpsCallable) -> no CORS.
  * Data: { model: string, contents: string | Content[], config?: GenerationConfig }
  */
 export const callGeminiApi = onCall(
@@ -141,7 +141,7 @@ export const callGeminiApi = onCall(
     try {
       const { model, contents, config } = (request.data ?? {}) as {
         model?: string;
-        contents?: unknown; // string eller structured contents
+        contents?: unknown; // string or structured contents
         config?: GenerationConfig;
       };
 
@@ -156,23 +156,18 @@ export const callGeminiApi = onCall(
         return { error: "API key is not configured on the server." };
       }
 
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const llm = genAI.getGenerativeModel({ model });
+      // Use the new SDK
+      const ai = new GoogleGenAI({ apiKey });
 
-      // Stöd både ren sträng och structured contents
-      const result =
-        typeof contents === "string"
-          ? await llm.generateContent({
-              contents: [{ role: "user", parts: [{ text: contents }] }],
-              generationConfig: config,
-            })
-          : await llm.generateContent({
-              contents: contents as any,
-              generationConfig: config,
-            });
+      const response = await ai.models.generateContent({
+        model,
+        contents: contents as any, // Cast as any to handle string or structured content
+        config,
+      });
 
-      const text = result.response.text();
+      const text = response.text;
       return { text };
+
     } catch (error) {
       logger.error("Error calling Gemini API:", error);
       const msg = error instanceof Error ? error.message : "Unknown error";

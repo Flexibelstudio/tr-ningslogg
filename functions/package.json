@@ -14,7 +14,7 @@
   },
   "main": "lib/index.js",
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
+    "@google/genai": "^1.25.0",
     "copy-of-skarp-traningslogg-28-aug": "file:..",
     "firebase-admin": "^12.6.0",
     "firebase-functions": "^6.5.0"
