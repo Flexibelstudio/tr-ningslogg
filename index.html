@@ -77,28 +77,36 @@
 
     const link = document.getElementById('tw-built');
 
-    // FIX: Add a null-check to prevent a crash if the element isn't in the DOM when the script runs.
     if (!link) {
-        // If the link tag is missing, assume it's a preview environment and load the CDN directly.
-        loadCdn();
-        return;
+      loadCdn();
+      return;
     }
 
-    // Om länken 404:ar eller inte kan läsas ➜ fallback
-    link.addEventListener('error', loadCdn);
+    // This handles the 404 case (e.g., in AI Studio preview)
+    link.addEventListener('error', function() {
+      console.warn('[tailwind] Byggd CSS kunde inte laddas, laddar CDN-fallback.');
+      loadCdn();
+    });
 
-    // Om “byggd” CSS laddades men innehåller 0 regler (dvs. inte processad) ➜ fallback
-    setTimeout(function () {
+    // This handles the race condition on slow networks. It waits for the file to load
+    // before checking if it's empty (unprocessed).
+    link.addEventListener('load', function () {
       try {
         const sheet = [...document.styleSheets].find(ss => ss.ownerNode === link);
-        const ok = sheet && sheet.cssRules && sheet.cssRules.length > 0;
-        if (!ok) loadCdn();
-        else     console.info('[tailwind] använder byggd CSS');
-      } catch {
-        // Säkerhetsfel i vissa miljöer ➜ ta CDN
+        // An un-processed CSS file will load but have 0 rules.
+        if (!sheet || sheet.cssRules.length === 0) {
+          console.warn('[tailwind] Byggd CSS är tom eller kunde inte läsas, laddar CDN-fallback.');
+          loadCdn();
+        } else {
+          console.info('[tailwind] använder byggd CSS');
+        }
+      } catch (e) {
+        // A security error might occur if we try to access a cross-origin sheet.
+        // It's safer to just load the CDN as a fallback.
+        console.error('[tailwind] Säkerhetsfel vid inspektion av stylesheet, laddar CDN-fallback.', e);
         loadCdn();
       }
-    }, 600);
+    });
   })();
   </script>
 
