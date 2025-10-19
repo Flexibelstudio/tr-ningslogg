@@ -77,6 +77,13 @@
 
     const link = document.getElementById('tw-built');
 
+    // FIX: Add a null-check to prevent a crash if the element isn't in the DOM when the script runs.
+    if (!link) {
+        // If the link tag is missing, assume it's a preview environment and load the CDN directly.
+        loadCdn();
+        return;
+    }
+
     // Om länken 404:ar eller inte kan läsas ➜ fallback
     link.addEventListener('error', loadCdn);
 

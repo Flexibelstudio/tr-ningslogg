@@ -5,12 +5,11 @@ import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { GoogleGenAI, type GenerationConfig } from "@google/genai";
 
-// -- Init Admin SDK
+// Init Admin SDK
 initializeApp();
 const db = getFirestore();
 
-/* --------------------------------- Helpers -------------------------------- */
-
+// Helper to get ISO week number (to avoid client-side dependencies)
 function getISOWeek(date: Date): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -19,6 +18,7 @@ function getISOWeek(date: Date): number {
   return weekNo;
 }
 
+// Robust way to read Bearer token from headers
 function getBearerToken(req: {
   header?: (n: string) => string | undefined;
   headers?: Record<string, any>;
@@ -32,21 +32,18 @@ function getBearerToken(req: {
   return typeof h === "string" && h.startsWith("Bearer ") ? h.slice(7) : "";
 }
 
-function chunkArray<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
-}
-
-/* --------------------------- Zapier → Create Lead -------------------------- */
-
+/**
+ * Zapier webhook: creates lead in Firestore
+ * Header: Authorization: Bearer <ZAPIER_SECRET_KEY>
+ */
 export const createLeadFromZapier = onRequest(
   {
     region: "europe-west1",
     secrets: ["ZAPIER_SECRET_KEY"],
-    cors: true, // Firebase sätter CORS-headrar
+    cors: true, // Firebase handles CORS headers
   },
-  // Typa req/res som any för att undvika lokala Express-typskillnader i buildmiljö
+  // FIX: Explicitly type request and response as 'any' to bypass TypeScript type inference issues
+  // in the build environment where Express types might not be correctly resolved for onRequest handlers.
   async (request: any, response: any) => {
     if (request.method !== "POST") {
       logger.warn("Method Not Allowed:", request.method);
@@ -54,6 +51,7 @@ export const createLeadFromZapier = onRequest(
       return;
     }
 
+    // Auth
     const ZAPIER_SECRET_KEY = process.env.ZAPIER_SECRET_KEY;
     const presented = getBearerToken(request);
     if (!ZAPIER_SECRET_KEY || presented !== ZAPIER_SECRET_KEY) {
@@ -62,6 +60,7 @@ export const createLeadFromZapier = onRequest(
       return;
     }
 
+    // Body
     const {
       firstName,
       lastName,
@@ -88,6 +87,7 @@ export const createLeadFromZapier = onRequest(
     }
 
     try {
+      // Get locations
       const locationsSnapshot = await db
         .collection("organizations")
         .doc(String(orgId))
@@ -112,6 +112,7 @@ export const createLeadFromZapier = onRequest(
         return;
       }
 
+      // Create lead
       const newLead = {
         firstName: String(firstName),
         lastName: String(lastName),
@@ -138,8 +139,11 @@ export const createLeadFromZapier = onRequest(
   }
 );
 
-/* ---------------------------- Callable → Gemini ---------------------------- */
-
+/**
+ * Callable: Server-side proxy to Gemini (Generative AI)
+ * Called via Firebase SDK (httpsCallable) -> no CORS.
+ * Data: { model: string, contents: string | Content[], config?: GenerationConfig }
+ */
 export const callGeminiApi = onCall(
   {
     region: "europe-west1",
@@ -149,7 +153,7 @@ export const callGeminiApi = onCall(
     try {
       const { model, contents, config } = (request.data ?? {}) as {
         model?: string;
-        contents?: unknown; // string eller structured contents
+        contents?: unknown; // string or structured contents
         config?: GenerationConfig;
       };
 
@@ -164,15 +168,18 @@ export const callGeminiApi = onCall(
         return { error: "API key is not configured on the server." };
       }
 
+      // Use the new SDK
       const ai = new GoogleGenAI({ apiKey });
-      const result = await ai.models.generateContent({
+
+      const response = await ai.models.generateContent({
         model,
-        contents: contents as any,
+        contents: contents as any, // Cast as any to handle string or structured content
         config,
       });
 
-      const text = typeof result.text === "string" ? result.text : "";
+      const text = response.text;
       return { text };
+
     } catch (error) {
       logger.error("Error calling Gemini API:", error);
       const msg = error instanceof Error ? error.message : "Unknown error";
@@ -181,199 +188,146 @@ export const callGeminiApi = onCall(
   }
 );
 
-/* --------------------- Schedule → Weekly Highlights (AI) ------------------- */
 
-export const generateWeeklyHighlights = onSchedule(
-  {
-    schedule: "every 1 hours",
-    region: "europe-west1",
-    secrets: ["GEMINI_API_KEY"],
-    timeZone: "Europe/Stockholm",
-  },
-  async () => {
-    logger.info("Running scheduled job: generateWeeklyHighlights");
-    const now = new Date();
-    const currentDay = now.getDay() === 0 ? 7 : now.getDay(); // Mon=1, Sun=7
-    const currentHour = now.getHours();
-    const currentWeek = getISOWeek(now);
+/**
+ * Scheduled: Automatically generates and posts "Weekly Highlights".
+ * Runs hourly, checks org settings for timing.
+ */
+export const generateWeeklyHighlights = onSchedule({
+  schedule: "every 1 hours",
+  region: "europe-west1",
+  secrets: ["GEMINI_API_KEY"],
+  timeZone: "Europe/Stockholm", // Run on Swedish time
+}, async (event) => {
+  logger.info("Running scheduled job: generateWeeklyHighlights");
+  const now = new Date();
+  const currentDay = now.getDay() === 0 ? 7 : now.getDay(); // Mon=1, Sun=7
+  const currentHour = now.getHours();
+  const currentWeek = getISOWeek(now);
 
-    const orgsSnapshot = await db.collection("organizations").get();
+  const orgsSnapshot = await db.collection("organizations").get();
 
-    for (const orgDoc of orgsSnapshot.docs) {
-      const orgId = orgDoc.id;
-      logger.info(`Checking organization: ${orgId}`);
+  for (const orgDoc of orgsSnapshot.docs) {
+    const orgId = orgDoc.id;
+    logger.info(`Checking organization: ${orgId}`);
 
-      const settingsRef = db
-        .collection("organizations")
-        .doc(orgId)
-        .collection("weeklyHighlightSettings")
-        .doc("settings");
+    const settingsRef = db.collection("organizations").doc(orgId).collection("weeklyHighlightSettings").doc("settings");
+    const settingsDoc = await settingsRef.get();
 
-      const settingsDoc = await settingsRef.get();
-      if (!settingsDoc.exists) {
-        logger.info(`No settings found for org ${orgId}. Skipping.`);
-        continue;
+    if (!settingsDoc.exists) {
+      logger.info(`No settings found for org ${orgId}. Skipping.`);
+      continue;
+    }
+
+    const settings = settingsDoc.data() as any;
+
+    if (!settings.isEnabled) {
+      logger.info(`Highlights disabled for org ${orgId}. Skipping.`);
+      continue;
+    }
+
+    const lastGenTimestamp = settings.lastGeneratedTimestamp ? new Date(settings.lastGeneratedTimestamp) : null;
+    if (lastGenTimestamp && getISOWeek(lastGenTimestamp) === currentWeek) {
+      logger.info(`Highlights already generated this week for org ${orgId}. Skipping.`);
+      continue;
+    }
+
+    const scheduledDay = settings.dayOfWeek; // 1-7
+    const scheduledHour = parseInt(settings.time.split(":")[0], 10);
+
+    if (currentDay !== scheduledDay || currentHour !== scheduledHour) {
+      logger.info(`Not scheduled time for org ${orgId}. Current: D${currentDay} H${currentHour}, Scheduled: D${scheduledDay} H${scheduledHour}. Skipping.`);
+      continue;
+    }
+
+    logger.info(`Scheduled time matched for org ${orgId}. Generating highlights...`);
+
+    try {
+      const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      
+      const locationsSnapshot = await db.collection("organizations").doc(orgId).collection("locations").get();
+      const locations = locationsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() as {name: string} }));
+
+      const targets: { studioTarget: "all" | "salem" | "karra", locationName: string }[] = [];
+      if (settings.studioTarget === 'separate') {
+        targets.push({ studioTarget: 'salem', locationName: 'Salem' });
+        targets.push({ studioTarget: 'karra', locationName: 'Kärra' });
+      } else {
+        targets.push({ studioTarget: settings.studioTarget, locationName: 'Alla' });
       }
-      const settings = settingsDoc.data() as any;
 
-      if (!settings.isEnabled) {
-        logger.info(`Highlights disabled for org ${orgId}. Skipping.`);
-        continue;
-      }
+      for (const target of targets) {
+        logger.info(`Generating for target: ${target.studioTarget}`);
+        let participantQuery = db.collection("organizations").doc(orgId).collection("participantDirectory").where('enableLeaderboardParticipation', '==', true);
+        if (target.studioTarget !== 'all') {
+          const location = locations.find((l) => l.name.toLowerCase().includes(target.studioTarget));
+          if (location) {
+            participantQuery = participantQuery.where('locationId', '==', location.id);
+          }
+        }
+        const participantsSnapshot = await participantQuery.get();
+        const targetParticipants = participantsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() as {name: string} }));
+        const targetParticipantIds = targetParticipants.map((p) => p.id);
 
-      const lastGenTimestamp = settings.lastGeneratedTimestamp
-        ? new Date(settings.lastGeneratedTimestamp)
-        : null;
-      if (lastGenTimestamp && getISOWeek(lastGenTimestamp) === currentWeek) {
-        logger.info(`Highlights already generated this week for org ${orgId}. Skipping.`);
-        continue;
-      }
-
-      const scheduledDay = Number(settings.dayOfWeek); // 1-7
-      const scheduledHour = Number(String(settings.time).split(":")[0] ?? "0");
-
-      if (currentDay !== scheduledDay || currentHour !== scheduledHour) {
-        logger.info(
-          `Not scheduled time for org ${orgId}. Current: D${currentDay} H${currentHour}, Scheduled: D${scheduledDay} H${scheduledHour}. Skipping.`
-        );
-        continue;
-      }
-
-      logger.info(`Scheduled time matched for org ${orgId}. Generating highlights...`);
-
-      try {
-        const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-        const locationsSnapshot = await db
-          .collection("organizations")
-          .doc(orgId)
-          .collection("locations")
-          .get();
-        const locations = locationsSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...(doc.data() as { name?: string }),
-        }));
-
-        const targets: { studioTarget: "all" | "salem" | "karra"; locationName: string }[] = [];
-        if (settings.studioTarget === "separate") {
-          targets.push({ studioTarget: "salem", locationName: "Salem" });
-          targets.push({ studioTarget: "karra", locationName: "Kärra" });
-        } else {
-          targets.push({ studioTarget: settings.studioTarget ?? "all", locationName: "Alla" });
+        if (targetParticipantIds.length === 0) {
+          logger.info(`No participants for target ${target.studioTarget}. Skipping.`);
+          continue;
         }
 
+        const workoutLogsSnapshot = await db.collection("organizations").doc(orgId).collection("workoutLogs")
+          .where('participantId', 'in', targetParticipantIds)
+          .where('completedDate', '>=', oneWeekAgo.toISOString())
+          .get();
+        
+        const logsLastWeek = workoutLogsSnapshot.docs.map((doc) => doc.data());
+        
+        const pbsLastWeek = logsLastWeek
+          .flatMap((log) => {
+            const participant = targetParticipants.find((p) => p.id === log.participantId);
+            return (log.postWorkoutSummary?.newPBs || []).map((pb: any) => ({ ...pb, participantName: participant?.name || 'Okänd' }));
+          }).slice(0, 10);
+
+        const prompt = `Du är "Flexibot", en AI-assistent för Flexibel Hälsostudio. Din uppgift är att skapa ett "Veckans Höjdpunkter"-inlägg för community-flödet. Svaret MÅSTE vara på svenska och formaterat med Markdown.
+
+            **Data från den gångna veckan:**
+            - Totalt antal loggade pass: ${logsLastWeek.length}
+            - Antal medlemmar som tränat: ${new Set(logsLastWeek.map((l) => l.participantId)).size}
+            - Några av veckans personliga rekord (PBs):
+            ${pbsLastWeek.length > 0 ? pbsLastWeek.map((pb) => `  * ${pb.participantName} slog PB i ${pb.exerciseName} med ${pb.value}!`).join('\n') : '  * Inga nya PBs loggade denna vecka.'}
+
+            **Ditt uppdrag:**
+            1.  Skapa en titel i formatet: \`Veckans Höjdpunkter - v${getISOWeek(new Date())}\`.
+            2.  Skriv en kort, peppande sammanfattning av veckans aktivitet.
+            3.  Lyft fram 2-3 av de mest imponerande PBs från listan.
+            4.  Avsluta med en uppmuntrande fras om att fortsätta kämpa.
+            5.  Formatera hela texten med Markdown. Kombinera titel och beskrivning till en enda textsträng.
+            `;
+        
         const apiKey = process.env.GEMINI_API_KEY!;
         const ai = new GoogleGenAI({ apiKey });
+        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+        const text = response.text;
+        
+        const lines = (text || "").split('\n');
+        const title = lines.find((l) => l.trim().length > 0)?.replace(/#/g, '').trim() || `Veckans Höjdpunkter - v${currentWeek}`;
+        const description = lines.slice(1).join('\n').trim();
 
-        for (const target of targets) {
-          logger.info(`Generating for target: ${target.studioTarget}`);
+        const newEvent = {
+          title,
+          description,
+          type: 'news',
+          studioTarget: target.studioTarget,
+          createdDate: now.toISOString(),
+        };
 
-          // participants
-          let participantQuery = db
-            .collection("organizations")
-            .doc(orgId)
-            .collection("participantDirectory")
-            .where("enableLeaderboardParticipation", "==", true);
-
-          if (target.studioTarget !== "all") {
-            const loc = locations.find(
-              (l) => typeof l.name === "string" && l.name.toLowerCase().includes(target.studioTarget)
-            );
-            if (loc) {
-              participantQuery = participantQuery.where("locationId", "==", loc.id);
-            }
-          }
-
-          const participantsSnapshot = await participantQuery.get();
-          const targetParticipants = participantsSnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...(doc.data() as { name?: string }),
-          }));
-          const targetParticipantIds = targetParticipants.map((p) => p.id);
-
-          if (targetParticipantIds.length === 0) {
-            logger.info(`No participants for target ${target.studioTarget}. Skipping.`);
-            continue;
-          }
-
-          // Firestore "in" supports max 10 values → chunk
-          const idChunks = chunkArray(targetParticipantIds, 10);
-          const logsLastWeek: any[] = [];
-          for (const ids of idChunks) {
-            const snap = await db
-              .collection("organizations")
-              .doc(orgId)
-              .collection("workoutLogs")
-              .where("participantId", "in", ids)
-              .where("completedDate", ">=", oneWeekAgo.toISOString())
-              .get();
-            logsLastWeek.push(...snap.docs.map((d) => d.data()));
-          }
-
-          const pbsLastWeek = logsLastWeek
-            .flatMap((log) => {
-              const participant = targetParticipants.find((p) => p.id === log.participantId);
-              const list = (log.postWorkoutSummary?.newPBs ?? []) as any[];
-              return list.map((pb) => ({
-                ...pb,
-                participantName: participant?.name ?? "Okänd",
-              }));
-            })
-            .slice(0, 10);
-
-          const prompt = `Du är "Flexibot", en AI-assistent för Flexibel Hälsostudio. Din uppgift är att skapa ett "Veckans Höjdpunkter"-inlägg för community-flödet. Svaret MÅSTE vara på svenska och formaterat med Markdown.
-
-**Data från den gångna veckan:**
-- Totalt antal loggade pass: ${logsLastWeek.length}
-- Antal medlemmar som tränat: ${new Set(logsLastWeek.map((l) => l.participantId)).size}
-- Några av veckans personliga rekord (PBs):
-${pbsLastWeek.length > 0 ? pbsLastWeek.map((pb) => `  * ${pb.participantName} slog PB i ${pb.exerciseName} med ${pb.value}!`).join('\n') : '  * Inga nya PBs loggade denna vecka.'}
-
-**Ditt uppdrag:**
-1. Skapa en titel i formatet: \`Veckans Höjdpunkter - v${getISOWeek(new Date())}\`.
-2. Skriv en kort, peppande sammanfattning av veckans aktivitet.
-3. Lyft fram 2–3 av de mest imponerande PBs från listan.
-4. Avsluta med en uppmuntrande fras om att fortsätta kämpa.
-5. Formatera hela texten med Markdown. Kombinera titel och beskrivning till en enda textsträng.`;
-
-          const result = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-          });
-
-          // Guard: result.text kan vara undefined
-          const text = typeof result.text === "string" ? result.text : "";
-          if (!text) {
-            logger.warn(
-              `Gemini returned empty text for org ${orgId}, target ${target.studioTarget}. Skipping.`
-            );
-            continue;
-          }
-
-          const lines = text.split("\n");
-          const title =
-            lines.find((l) => l.trim().length > 0)?.replace(/#/g, "").trim() ||
-            `Veckans Höjdpunkter - v${currentWeek}`;
-          const description = lines.slice(1).join("\n").trim();
-
-          const newEvent = {
-            title,
-            description,
-            type: "news",
-            studioTarget: target.studioTarget,
-            createdDate: now.toISOString(),
-          };
-
-          await db.collection("organizations").doc(orgId).collection("coachEvents").add(newEvent);
-          logger.info(`Posted highlight for org ${orgId}, target ${target.studioTarget}`);
-        }
-
-        // Markera att veckans post är genererad
-        await settingsRef.update({ lastGeneratedTimestamp: now.toISOString() });
-        logger.info(`Updated lastGeneratedTimestamp for org ${orgId}`);
-      } catch (error) {
-        logger.error(`Failed to generate highlights for org ${orgId}:`, error);
+        await db.collection("organizations").doc(orgId).collection("coachEvents").add(newEvent);
+        logger.info(`Posted highlight for org ${orgId}, target ${target.studioTarget}`);
       }
+      
+      await settingsRef.update({ lastGeneratedTimestamp: now.toISOString() });
+      logger.info(`Updated lastGeneratedTimestamp for org ${orgId}`);
+    } catch (error) {
+      logger.error(`Failed to generate highlights for org ${orgId}:`, error);
     }
   }
-);
+});
