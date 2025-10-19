@@ -1,14 +1,24 @@
 import { onRequest, onCall } from "firebase-functions/v2/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { GoogleGenAI, type GenerationConfig } from "@google/genai";
 
-// Init Admin SDK
+// -- Init Admin SDK
 initializeApp();
 const db = getFirestore();
 
-// Robust way to read Bearer token from headers
+/* --------------------------------- Helpers -------------------------------- */
+
+function getISOWeek(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return weekNo;
+}
+
 function getBearerToken(req: {
   header?: (n: string) => string | undefined;
   headers?: Record<string, any>;
@@ -22,24 +32,28 @@ function getBearerToken(req: {
   return typeof h === "string" && h.startsWith("Bearer ") ? h.slice(7) : "";
 }
 
-/**
- * Zapier webhook: creates lead in Firestore
- * Header: Authorization: Bearer <ZAPIER_SECRET_KEY>
- */
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+/* --------------------------- Zapier → Create Lead -------------------------- */
+
 export const createLeadFromZapier = onRequest(
   {
     region: "europe-west1",
     secrets: ["ZAPIER_SECRET_KEY"],
-    cors: true, // Firebase handles CORS headers
+    cors: true, // Firebase sätter CORS-headrar
   },
-  async (request, response) => {
+  // Typa req/res som any för att undvika lokala Express-typskillnader i buildmiljö
+  async (request: any, response: any) => {
     if (request.method !== "POST") {
       logger.warn("Method Not Allowed:", request.method);
       response.status(405).send("Method Not Allowed");
       return;
     }
 
-    // Auth
     const ZAPIER_SECRET_KEY = process.env.ZAPIER_SECRET_KEY;
     const presented = getBearerToken(request);
     if (!ZAPIER_SECRET_KEY || presented !== ZAPIER_SECRET_KEY) {
@@ -48,7 +62,6 @@ export const createLeadFromZapier = onRequest(
       return;
     }
 
-    // Body
     const {
       firstName,
       lastName,
@@ -75,7 +88,6 @@ export const createLeadFromZapier = onRequest(
     }
 
     try {
-      // Get locations
       const locationsSnapshot = await db
         .collection("organizations")
         .doc(String(orgId))
@@ -100,7 +112,6 @@ export const createLeadFromZapier = onRequest(
         return;
       }
 
-      // Create lead
       const newLead = {
         firstName: String(firstName),
         lastName: String(lastName),
@@ -127,11 +138,8 @@ export const createLeadFromZapier = onRequest(
   }
 );
 
-/**
- * Callable: Server-side proxy to Gemini (Generative AI)
- * Called via Firebase SDK (httpsCallable) -> no CORS.
- * Data: { model: string, contents: string | Content[], config?: GenerationConfig }
- */
+/* ---------------------------- Callable → Gemini ---------------------------- */
+
 export const callGeminiApi = onCall(
   {
     region: "europe-west1",
@@ -141,7 +149,7 @@ export const callGeminiApi = onCall(
     try {
       const { model, contents, config } = (request.data ?? {}) as {
         model?: string;
-        contents?: unknown; // string or structured contents
+        contents?: unknown; // string eller structured contents
         config?: GenerationConfig;
       };
 
@@ -156,22 +164,216 @@ export const callGeminiApi = onCall(
         return { error: "API key is not configured on the server." };
       }
 
-      // Use the new SDK
       const ai = new GoogleGenAI({ apiKey });
-
-      const response = await ai.models.generateContent({
+      const result = await ai.models.generateContent({
         model,
-        contents: contents as any, // Cast as any to handle string or structured content
+        contents: contents as any,
         config,
       });
 
-      const text = response.text;
+      const text = typeof result.text === "string" ? result.text : "";
       return { text };
-
     } catch (error) {
       logger.error("Error calling Gemini API:", error);
       const msg = error instanceof Error ? error.message : "Unknown error";
       return { error: `Internal Server Error: ${msg}` };
+    }
+  }
+);
+
+/* --------------------- Schedule → Weekly Highlights (AI) ------------------- */
+
+export const generateWeeklyHighlights = onSchedule(
+  {
+    schedule: "every 1 hours",
+    region: "europe-west1",
+    secrets: ["GEMINI_API_KEY"],
+    timeZone: "Europe/Stockholm",
+  },
+  async () => {
+    logger.info("Running scheduled job: generateWeeklyHighlights");
+    const now = new Date();
+    const currentDay = now.getDay() === 0 ? 7 : now.getDay(); // Mon=1, Sun=7
+    const currentHour = now.getHours();
+    const currentWeek = getISOWeek(now);
+
+    const orgsSnapshot = await db.collection("organizations").get();
+
+    for (const orgDoc of orgsSnapshot.docs) {
+      const orgId = orgDoc.id;
+      logger.info(`Checking organization: ${orgId}`);
+
+      const settingsRef = db
+        .collection("organizations")
+        .doc(orgId)
+        .collection("weeklyHighlightSettings")
+        .doc("settings");
+
+      const settingsDoc = await settingsRef.get();
+      if (!settingsDoc.exists) {
+        logger.info(`No settings found for org ${orgId}. Skipping.`);
+        continue;
+      }
+      const settings = settingsDoc.data() as any;
+
+      if (!settings.isEnabled) {
+        logger.info(`Highlights disabled for org ${orgId}. Skipping.`);
+        continue;
+      }
+
+      const lastGenTimestamp = settings.lastGeneratedTimestamp
+        ? new Date(settings.lastGeneratedTimestamp)
+        : null;
+      if (lastGenTimestamp && getISOWeek(lastGenTimestamp) === currentWeek) {
+        logger.info(`Highlights already generated this week for org ${orgId}. Skipping.`);
+        continue;
+      }
+
+      const scheduledDay = Number(settings.dayOfWeek); // 1-7
+      const scheduledHour = Number(String(settings.time).split(":")[0] ?? "0");
+
+      if (currentDay !== scheduledDay || currentHour !== scheduledHour) {
+        logger.info(
+          `Not scheduled time for org ${orgId}. Current: D${currentDay} H${currentHour}, Scheduled: D${scheduledDay} H${scheduledHour}. Skipping.`
+        );
+        continue;
+      }
+
+      logger.info(`Scheduled time matched for org ${orgId}. Generating highlights...`);
+
+      try {
+        const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+        const locationsSnapshot = await db
+          .collection("organizations")
+          .doc(orgId)
+          .collection("locations")
+          .get();
+        const locations = locationsSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...(doc.data() as { name?: string }),
+        }));
+
+        const targets: { studioTarget: "all" | "salem" | "karra"; locationName: string }[] = [];
+        if (settings.studioTarget === "separate") {
+          targets.push({ studioTarget: "salem", locationName: "Salem" });
+          targets.push({ studioTarget: "karra", locationName: "Kärra" });
+        } else {
+          targets.push({ studioTarget: settings.studioTarget ?? "all", locationName: "Alla" });
+        }
+
+        const apiKey = process.env.GEMINI_API_KEY!;
+        const ai = new GoogleGenAI({ apiKey });
+
+        for (const target of targets) {
+          logger.info(`Generating for target: ${target.studioTarget}`);
+
+          // participants
+          let participantQuery = db
+            .collection("organizations")
+            .doc(orgId)
+            .collection("participantDirectory")
+            .where("enableLeaderboardParticipation", "==", true);
+
+          if (target.studioTarget !== "all") {
+            const loc = locations.find(
+              (l) => typeof l.name === "string" && l.name.toLowerCase().includes(target.studioTarget)
+            );
+            if (loc) {
+              participantQuery = participantQuery.where("locationId", "==", loc.id);
+            }
+          }
+
+          const participantsSnapshot = await participantQuery.get();
+          const targetParticipants = participantsSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...(doc.data() as { name?: string }),
+          }));
+          const targetParticipantIds = targetParticipants.map((p) => p.id);
+
+          if (targetParticipantIds.length === 0) {
+            logger.info(`No participants for target ${target.studioTarget}. Skipping.`);
+            continue;
+          }
+
+          // Firestore "in" supports max 10 values → chunk
+          const idChunks = chunkArray(targetParticipantIds, 10);
+          const logsLastWeek: any[] = [];
+          for (const ids of idChunks) {
+            const snap = await db
+              .collection("organizations")
+              .doc(orgId)
+              .collection("workoutLogs")
+              .where("participantId", "in", ids)
+              .where("completedDate", ">=", oneWeekAgo.toISOString())
+              .get();
+            logsLastWeek.push(...snap.docs.map((d) => d.data()));
+          }
+
+          const pbsLastWeek = logsLastWeek
+            .flatMap((log) => {
+              const participant = targetParticipants.find((p) => p.id === log.participantId);
+              const list = (log.postWorkoutSummary?.newPBs ?? []) as any[];
+              return list.map((pb) => ({
+                ...pb,
+                participantName: participant?.name ?? "Okänd",
+              }));
+            })
+            .slice(0, 10);
+
+          const prompt = `Du är "Flexibot", en AI-assistent för Flexibel Hälsostudio. Din uppgift är att skapa ett "Veckans Höjdpunkter"-inlägg för community-flödet. Svaret MÅSTE vara på svenska och formaterat med Markdown.
+
+**Data från den gångna veckan:**
+- Totalt antal loggade pass: ${logsLastWeek.length}
+- Antal medlemmar som tränat: ${new Set(logsLastWeek.map((l) => l.participantId)).size}
+- Några av veckans personliga rekord (PBs):
+${pbsLastWeek.length > 0 ? pbsLastWeek.map((pb) => `  * ${pb.participantName} slog PB i ${pb.exerciseName} med ${pb.value}!`).join('\n') : '  * Inga nya PBs loggade denna vecka.'}
+
+**Ditt uppdrag:**
+1. Skapa en titel i formatet: \`Veckans Höjdpunkter - v${getISOWeek(new Date())}\`.
+2. Skriv en kort, peppande sammanfattning av veckans aktivitet.
+3. Lyft fram 2–3 av de mest imponerande PBs från listan.
+4. Avsluta med en uppmuntrande fras om att fortsätta kämpa.
+5. Formatera hela texten med Markdown. Kombinera titel och beskrivning till en enda textsträng.`;
+
+          const result = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+          });
+
+          // Guard: result.text kan vara undefined
+          const text = typeof result.text === "string" ? result.text : "";
+          if (!text) {
+            logger.warn(
+              `Gemini returned empty text for org ${orgId}, target ${target.studioTarget}. Skipping.`
+            );
+            continue;
+          }
+
+          const lines = text.split("\n");
+          const title =
+            lines.find((l) => l.trim().length > 0)?.replace(/#/g, "").trim() ||
+            `Veckans Höjdpunkter - v${currentWeek}`;
+          const description = lines.slice(1).join("\n").trim();
+
+          const newEvent = {
+            title,
+            description,
+            type: "news",
+            studioTarget: target.studioTarget,
+            createdDate: now.toISOString(),
+          };
+
+          await db.collection("organizations").doc(orgId).collection("coachEvents").add(newEvent);
+          logger.info(`Posted highlight for org ${orgId}, target ${target.studioTarget}`);
+        }
+
+        // Markera att veckans post är genererad
+        await settingsRef.update({ lastGeneratedTimestamp: now.toISOString() });
+        logger.info(`Updated lastGeneratedTimestamp for org ${orgId}`);
+      } catch (error) {
+        logger.error(`Failed to generate highlights for org ${orgId}:`, error);
+      }
     }
   }
 );

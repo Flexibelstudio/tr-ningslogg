@@ -77,7 +77,7 @@ const AppContent: React.FC = () => {
         userConditioningStatsHistory, setUserConditioningStatsHistoryData,
         connections,
         lastFlowViewTimestamp,
-        flowItems, setFlowItemsData,
+        // FIX: Removed 'flowItems' and 'setFlowItemsData' as they are not part of the AppContext and the logic to update flow items should target the source collections directly.
     } = useAppContext();
     
     const auth = useAuth();
@@ -473,13 +473,13 @@ const AppContent: React.FC = () => {
             case 'participant_physique_stat': setParticipantPhysiqueHistoryData(updater); break;
             case 'participant_goal_data': setParticipantGoalsData(updater); break;
             case 'participant_conditioning_stat': setUserConditioningStatsHistoryData(updater); break;
-            case 'flow_item': setFlowItemsData(updater); break;
+            // FIX: Removed invalid 'flow_item' case. The switch handles all valid FlowItemLogType values, and updates should go to the source collections, not a non-existent 'flowItems' collection.
             default: console.warn(`Unsupported logType for reaction: ${logType}`);
         }
     }, [
         auth.currentParticipantId, setWorkoutLogsData, setGeneralActivityLogsData, setCoachEventsData,
         setGoalCompletionLogsData, setClubMembershipsData, setUserStrengthStatsData,
-        setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData, setFlowItemsData
+        setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData
     ]);
 
     const handleAddComment = useCallback((logId: string, logType: FlowItemLogType, text: string) => {
@@ -518,14 +518,14 @@ const AppContent: React.FC = () => {
             case 'participant_physique_stat': setParticipantPhysiqueHistoryData(updater); break;
             case 'participant_goal_data': setParticipantGoalsData(updater); break;
             case 'participant_conditioning_stat': setUserConditioningStatsHistoryData(updater); break;
-            case 'flow_item': setFlowItemsData(updater); break;
+            // FIX: Removed invalid 'flow_item' case.
             default: console.warn(`Unsupported logType for add comment: ${logType}`);
         }
     }, [
         auth.user, auth.isStaffViewingAsParticipant, auth.currentParticipantId, participantDirectory,
         setWorkoutLogsData, setGeneralActivityLogsData, setCoachEventsData, setOneOnOneSessionsData,
         setGoalCompletionLogsData, setClubMembershipsData, setUserStrengthStatsData,
-        setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData, setFlowItemsData
+        setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData
     ]);
 
     const handleDeleteComment = useCallback((logId: string, logType: FlowItemLogType, commentId: string) => {
@@ -550,13 +550,13 @@ const AppContent: React.FC = () => {
             case 'participant_physique_stat': setParticipantPhysiqueHistoryData(updater); break;
             case 'participant_goal_data': setParticipantGoalsData(updater); break;
             case 'participant_conditioning_stat': setUserConditioningStatsHistoryData(updater); break;
-            case 'flow_item': setFlowItemsData(updater); break;
+            // FIX: Removed invalid 'flow_item' case.
             default: console.warn(`Unsupported logType for delete comment: ${logType}`);
         }
     }, [
         setWorkoutLogsData, setGeneralActivityLogsData, setCoachEventsData, setOneOnOneSessionsData,
         setGoalCompletionLogsData, setClubMembershipsData, setUserStrengthStatsData,
-        setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData, setFlowItemsData
+        setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData
     ]);
 
     const handleToggleCommentReaction = useCallback((logId: string, logType: FlowItemLogType, commentId: string) => {
@@ -596,14 +596,14 @@ const AppContent: React.FC = () => {
             case 'participant_physique_stat': setParticipantPhysiqueHistoryData(updater); break;
             case 'participant_goal_data': setParticipantGoalsData(updater); break;
             case 'participant_conditioning_stat': setUserConditioningStatsHistoryData(updater); break;
-            case 'flow_item': setFlowItemsData(updater); break;
+            // FIX: Removed invalid 'flow_item' case.
             default: console.warn(`Unsupported logType for comment reaction: ${logType}`);
         }
     }, [
         auth.currentParticipantId, setWorkoutLogsData, setGeneralActivityLogsData, setCoachEventsData,
         setOneOnOneSessionsData, setGoalCompletionLogsData, setClubMembershipsData,
         setUserStrengthStatsData, setParticipantPhysiqueHistoryData, setParticipantGoalsData,
-        setUserConditioningStatsHistoryData, setFlowItemsData
+        setUserConditioningStatsHistoryData
     ]);
 
     const prospectModalShownKey = auth.currentParticipantId ? `flexibel_prospectProfileModalShown_${auth.currentParticipantId}` : null;
