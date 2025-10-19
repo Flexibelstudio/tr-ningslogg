@@ -29,28 +29,19 @@ let auth: firebase.auth.Auth | undefined;
 let db: firebase.firestore.Firestore | undefined;
 
 try {
-  // Initiera bara om nödvärdiga värden finns
+  // Initiera bara om nödvändiga värden finns
   if (firebaseConfig.apiKey && firebaseConfig.projectId) {
     app = !firebase.apps.length ? firebase.initializeApp(firebaseConfig) : firebase.app();
     auth = firebase.auth(app);
+
+    // Modern offline-persistence med tab-synk (modular API)
+    // Detta anrop konfigurerar persistence för hela Firestore-instansen.
+    initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    });
     
-    // NEW: Initialize Firestore using the modular API to set up persistence correctly.
-    // This will prevent the deprecation warning.
-    try {
-        initializeFirestore(app, {
-            localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
-        });
-    } catch (err: any) {
-      if (err?.code === 'failed-precondition') {
-        console.warn('Firebase persistence: flera flikar öppna – skippar synk.');
-      } else if (err?.code === 'unimplemented') {
-        console.warn('Firebase persistence stöds ej i denna browser – kör online-only.');
-      } else {
-        console.warn('Firebase persistence kunde inte aktiveras:', err);
-      }
-    }
-    
-    // Get the compat instance. It should use the already initialized Firestore instance.
+    // Hämta compat-versionen av db som resten av appen använder.
+    // Den kommer att ärva persistence-inställningarna som sattes ovan.
     db = firebase.firestore(app);
 
   } else {
