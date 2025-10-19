@@ -308,8 +308,7 @@ export const generateWeeklyHighlights = onSchedule({
         const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
         const text = response.text;
         
-        const lines = (text || "").split('\n');
-        const title = lines.find((l) => l.trim().length > 0)?.replace(/#/g, '').trim() || `Veckans Höjdpunkter - v${currentWeek}`;
+const lines = text ? text.split("\n") : [];        const title = lines.find((l) => l.trim().length > 0)?.replace(/#/g, '').trim() || `Veckans Höjdpunkter - v${currentWeek}`;
         const description = lines.slice(1).join('\n').trim();
 
         const newEvent = {

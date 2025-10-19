@@ -10,6 +10,74 @@
   <link rel="apple-touch-icon" href="/icon-180x180.png">
   <meta name="theme-color" content="#3bab5a">
 
+  <!-- Tailwind via CDN (ok i dev; i prod rekommenderas PostCSS/CLI) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          backgroundImage: {
+            'dotted-pattern': "radial-gradient(hsl(215 20% 85%) 1px, transparent 0)",
+          },
+          backgroundSize: {
+            'dotted-size': '25px 25px',
+          },
+          colors: {
+            flexibel: '#3bab5a',
+            'flexibel-orange': '#f97316',
+            slate: {
+              50: '#f8fafc',
+              100: '#f1f5f9',
+              200: '#e2e8f0',
+              300: '#cbd5e1',
+              400: '#94a3b8',
+              500: '#64748b',
+              600: '#475569',
+              700: '#334155',
+              800: '#1e293b',
+              900: '#0f172a',
+            },
+            blue: { 500: '#3b82f6' }
+          },
+          animation: {
+            'fade-in-down': 'fadeInDown 0.5s ease-out',
+            'pulse-cta': 'pulse-cta 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'pulse-icon': 'pulse-icon 1.5s ease-in-out infinite',
+            'fade-in': 'fadeIn 0.3s ease-out',
+            'scale-in': 'scaleIn 0.2s ease-out',
+            'highlight-new': 'highlight-fade 3s ease-out'
+          },
+          keyframes: {
+            fadeInDown: {
+              '0%': { opacity: '0', transform: 'translateY(-10px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
+            },
+            'pulse-cta': {
+              '0%, 100%': { transform: 'scale(1)' },
+              '50%': { transform: 'scale(1.05)' },
+            },
+            'pulse-icon': {
+              '0%, 100%': { transform: 'scale(1)', opacity: '1' },
+              '50%': { transform: 'scale(1.25)', opacity: '0.75' },
+            },
+            fadeIn: {
+              '0%': { opacity: '0' },
+              '100%': { opacity: '1' },
+            },
+            scaleIn: {
+              '0%': { opacity: '0', transform: 'scale(0.95)' },
+              '100%': { opacity: '1', transform: 'scale(1)' },
+            },
+            'highlight-fade': {
+              '0%': { backgroundColor: '#dcfce7' },
+              '100%': { backgroundColor: 'transparent' },
+            },
+          }
+        }
+      }
+    }
+  </script>
+
   <style>
     @keyframes confetti-fall {
       0%   { transform: translateY(0) rotateZ(0deg) rotateY(0deg); opacity: 1; }
@@ -24,91 +92,6 @@
       will-change: transform, opacity;
     }
   </style>
-
-  <!-- För bygg/“riktig” app: den här filen kommer att finnas och vara minifierad -->
-  <link id="tw-built" rel="stylesheet" href="/index.css" />
-
-  <!-- Fallback: om byggd CSS saknas (t.ex. AI Studio-preview), ladda Tailwind CDN -->
-  <script>
-  (function () {
-    const FORCE_CDN = location.search.includes('tailwind=cdn') || localStorage.getItem('tw:mode') === 'cdn';
-    let cdnLoaded = false;
-
-    function loadCdn() {
-      if (cdnLoaded) return;
-      cdnLoaded = true;
-      
-      // Konfigurera tailwind.config här för custom theme i CDN-läget
-      window.tailwind = {
-        theme: {
-          extend: {
-            backgroundImage: { 'dotted-pattern': "radial-gradient(hsl(215 20% 85%) 1px, transparent 0)", },
-            backgroundSize: { 'dotted-size': '25px 25px', },
-            colors: {
-              flexibel: '#3bab5a',
-              'flexibel-orange': '#f97316',
-              slate: { 50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1', 400: '#94a3b8', 500: '#64748b', 600: '#475569', 700: '#334155', 800: '#1e293b', 900: '#0f172a', },
-              blue: { 500: '#3b82f6' }
-            },
-            animation: { 'fade-in-down': 'fadeInDown 0.5s ease-out', 'pulse-cta': 'pulse-cta 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite', 'pulse-icon': 'pulse-icon 1.5s ease-in-out infinite', 'fade-in': 'fadeIn 0.3s ease-out', 'scale-in': 'scaleIn 0.2s ease-out', 'highlight-new': 'highlight-fade 3s ease-out' },
-            keyframes: {
-              fadeInDown: { '0%': { opacity: '0', transform: 'translateY(-10px)' }, '100%': { opacity: '1', transform: 'translateY(0)' }, },
-              'pulse-cta': { '0%, 100%': { transform: 'scale(1)' }, '50%': { transform: 'scale(1.05)' }, },
-              'pulse-icon': { '0%, 100%': { transform: 'scale(1)', opacity: '1' }, '50%': { transform: 'scale(1.25)', opacity: '0.75' }, },
-              fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' }, },
-              scaleIn: { '0%': { opacity: '0', transform: 'scale(0.95)' }, '100%': { opacity: '1', transform: 'scale(1)' }, },
-              'highlight-fade': { '0%': { backgroundColor: '#dcfce7' }, '100%': { backgroundColor: 'transparent' }, },
-            }
-          }
-        }
-      };
-
-      const s = document.createElement('script');
-      s.src = 'https://cdn.tailwindcss.com';
-      s.referrerPolicy = 'no-referrer';
-      document.head.appendChild(s);
-      console.info('[tailwind] använder CDN-fallback');
-    }
-
-    if (FORCE_CDN) {
-      loadCdn();
-      return;
-    }
-
-    const link = document.getElementById('tw-built');
-
-    if (!link) {
-      loadCdn();
-      return;
-    }
-
-    // This handles the 404 case (e.g., in AI Studio preview)
-    link.addEventListener('error', function() {
-      console.warn('[tailwind] Byggd CSS kunde inte laddas, laddar CDN-fallback.');
-      loadCdn();
-    });
-
-    // This handles the race condition on slow networks. It waits for the file to load
-    // before checking if it's empty (unprocessed).
-    link.addEventListener('load', function () {
-      try {
-        const sheet = [...document.styleSheets].find(ss => ss.ownerNode === link);
-        // An un-processed CSS file will load but have 0 rules.
-        if (!sheet || sheet.cssRules.length === 0) {
-          console.warn('[tailwind] Byggd CSS är tom eller kunde inte läsas, laddar CDN-fallback.');
-          loadCdn();
-        } else {
-          console.info('[tailwind] använder byggd CSS');
-        }
-      } catch (e) {
-        // A security error might occur if we try to access a cross-origin sheet.
-        // It's safer to just load the CDN as a fallback.
-        console.error('[tailwind] Säkerhetsfel vid inspektion av stylesheet, laddar CDN-fallback.', e);
-        loadCdn();
-      }
-    });
-  })();
-  </script>
 
   <!-- Import map för ESM-bibliotek -->
   <script type="importmap">
@@ -138,6 +121,7 @@
 }
 </script>
 
+  <link rel="stylesheet" href="/index.css">
 </head>
 <body class="bg-gray-100 text-gray-800 antialiased" style="background-color: #f3f4f6;">
   <div id="root"></div>
