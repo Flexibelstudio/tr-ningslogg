@@ -17,7 +17,7 @@ ReactDOM.createRoot(rootElement).render(
 // --- Service Worker-hantering ---
 
 // (DEV) Avregistrera ev. gamla SW + rensa caches en gång när du kör lokalt
-if (import.meta.env.DEV && 'serviceWorker' in navigator) {
+if (import.meta.env?.DEV && 'serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((r) => r.unregister()));
   if ('caches' in window) {
     caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))));
@@ -25,7 +25,7 @@ if (import.meta.env.DEV && 'serviceWorker' in navigator) {
 }
 
 // (PROD/STAGING) Registrera SW och tvinga auto-uppdatering
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
+if ('serviceWorker' in navigator && import.meta.env?.PROD) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/sw.js')
