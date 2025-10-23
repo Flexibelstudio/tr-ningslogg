@@ -474,24 +474,62 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
             </div>
 
              <div role="tabpanel" hidden={activeTab !== 'sessions'}>
-                {activeTab === 'sessions' && (
-                    <div>
-                        <Button onClick={() => { setSessionToEdit(null); setIsBookingModalOpen(true); }} fullWidth>Boka ny 1-on-1 session</Button>
-                         <div className="mt-4 space-y-2 max-h-60 overflow-y-auto pr-2">
-                            <h4 className="text-lg font-semibold">Bokade Sessioner</h4>
-                             {oneOnOneSessions.filter(s => s.participantId === participant.id).sort((a,b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()).map(session => (
-                                <div key={session.id} className="p-2 bg-white border rounded">
-                                    <p className="font-semibold">{session.title}</p>
-                                    <p className="text-sm">{new Date(session.startTime).toLocaleString('sv-SE')}</p>
-                                    <div className="flex justify-end gap-2 mt-1">
-                                      <Button size="sm" variant="outline" className="!text-xs" onClick={() => { setSessionToEdit(session); setIsBookingModalOpen(true); }}>Redigera</Button>
-                                      <Button size="sm" variant="danger" className="!text-xs" onClick={() => setSessionToDelete(session)}>Ta bort</Button>
+                {activeTab === 'sessions' && (() => {
+                    const now = new Date();
+                    const participantSessions = oneOnOneSessions.filter(s => s.participantId === participant.id);
+                    const upcomingSessions = participantSessions.filter(s => new Date(s.startTime) >= now).sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+                    const pastSessions = participantSessions.filter(s => new Date(s.startTime) < now).sort((a,b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+
+                    const formatDateTime = (isoString: string) => {
+                        const d = new Date(isoString);
+                        const datePart = d.toISOString().split('T')[0];
+                        const timePart = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                        return `${datePart} ${timePart}`;
+                    };
+                    
+                    return (
+                        <div>
+                            <Button onClick={() => { setSessionToEdit(null); setIsBookingModalOpen(true); }} fullWidth>Boka ny 1-on-1 session</Button>
+                            
+                            <div className="mt-4 space-y-4 max-h-80 overflow-y-auto pr-2">
+                                <h4 className="text-xl font-semibold text-gray-800">Kommande Sessioner</h4>
+                                {upcomingSessions.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {upcomingSessions.map(session => (
+                                            <div key={session.id} className="p-4 bg-white border rounded-lg shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                                                <div>
+                                                    <p className="font-bold text-lg text-gray-900">{session.title}</p>
+                                                    <p className="text-base text-gray-600">{formatDateTime(session.startTime)}</p>
+                                                </div>
+                                                <div className="flex gap-2 mt-2 sm:mt-0 self-end sm:self-center">
+                                                    <Button size="sm" variant="outline" className="!text-xs" onClick={() => { setSessionToEdit(session); setIsBookingModalOpen(true); }}>Redigera</Button>
+                                                    <Button size="sm" variant="danger" className="!text-xs" onClick={() => setSessionToDelete(session)}>Ta bort</Button>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
-                                </div>
-                             ))}
-                         </div>
-                    </div>
-                )}
+                                ) : <p className="text-gray-500 italic">Inga kommande sessioner bokade.</p>}
+
+                                {pastSessions.length > 0 && (
+                                    <details className="pt-4 border-t">
+                                        <summary className="text-xl font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center group">
+                                            Tidigare Sessioner
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500 transition-transform duration-200 group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                                        </summary>
+                                        <div className="mt-3 space-y-3">
+                                            {pastSessions.map(session => (
+                                                <div key={session.id} className="p-4 bg-gray-50 border rounded-lg opacity-80">
+                                                    <p className="font-semibold text-lg text-gray-700">{session.title}</p>
+                                                    <p className="text-base text-gray-500">{formatDateTime(session.startTime)}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </details>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })()}
             </div>
              <div role="tabpanel" hidden={activeTab !== 'program'}>
                 {activeTab === 'program' && (

@@ -1,3 +1,4 @@
+// services/firebaseService.ts
 import { 
     MockDB, OrganizationData, Organization, User 
 } from '../types';
@@ -105,6 +106,7 @@ const firebaseService = {
             email: email.toLowerCase(),
             roles: { participant: orgId },
             linkedParticipantProfileId: firebaseUser.uid,
+            termsAcceptedTimestamp: new Date().toISOString(),
         };
 
         const batch = db.batch();

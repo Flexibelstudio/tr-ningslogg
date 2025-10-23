@@ -239,7 +239,7 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
     const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
     const [selectedParticipantForNotes, setSelectedParticipantForNotes] = useState<ParticipantProfile | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'prospect'>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'prospect'>('active');
     const [locationFilter, setLocationFilter] = useState<string>('all');
     const [sortConfig, setSortConfig] = useState<{ key: SortableKeys, direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
     const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
@@ -445,7 +445,7 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
       <div className="space-y-6">
         <div className="flex justify-between items-start">
             <h2 className="text-3xl font-bold tracking-tight text-gray-800 flex items-center gap-2">
-                <MemberIcon /> Medlemsregister
+                Medlemsregister
             </h2>
         </div>
         
@@ -474,8 +474,14 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
         )}
         
         <div className="p-4 bg-gray-50 rounded-lg border space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Input placeholder="Sök på namn eller e-post..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+            <div className="flex flex-wrap items-end gap-4">
+                <Input 
+                    label="Sök"
+                    placeholder="Sök på namn eller e-post..." 
+                    value={searchTerm} 
+                    onChange={e => setSearchTerm(e.target.value)}
+                    containerClassName="flex-grow min-w-[250px]"
+                />
                 <Select
                     label="Status"
                     value={statusFilter}
@@ -486,6 +492,7 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
                         { value: 'inactive', label: 'Inaktiva' },
                         { value: 'prospect', label: 'Startprogram' },
                     ]}
+                    containerClassName="w-full sm:w-auto"
                 />
                 {isAdmin && (
                     <Select
@@ -493,6 +500,7 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
                         value={locationFilter}
                         onChange={(e) => setLocationFilter(e.target.value)}
                         options={[{ value: 'all', label: 'Alla Orter' }, ...locations.map(l => ({ value: l.id, label: l.name }))]}
+                        containerClassName="w-full sm:w-auto"
                     />
                 )}
             </div>

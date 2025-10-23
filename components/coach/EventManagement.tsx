@@ -184,7 +184,7 @@ export const EventManagement: React.FC<EventManagementProps> = ({ events, setEve
         </div>
 
         <div className="mt-8 pt-6 border-t">
-            <h3 className="text-2xl font-bold text-gray-800 mb-2">Automated Community Highlights (AI)</h3>
+            <h3 className="text-2xl font-bold text-gray-800 mb-2">Automatisera Veckans Höjdpunkter (AI)</h3>
             <p className="text-base text-gray-600 mb-4">
                 Generera automatiskt ett "Veckans Höjdpunkter"-inlägg för flödet baserat på medlemmarnas prestationer den senaste veckan. Endast medlemmar som godkänt att delta i topplistor inkluderas.
             </p>

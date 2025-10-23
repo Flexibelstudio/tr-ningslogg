@@ -32,6 +32,7 @@ export interface User {
     participant?: string; // Participant is only in one org
   };
   linkedParticipantProfileId?: string;
+  termsAcceptedTimestamp?: string;
 }
 
 export interface Organization {

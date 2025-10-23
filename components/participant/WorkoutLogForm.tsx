@@ -16,7 +16,7 @@ interface WorkoutLogFormProps {
   logForReferenceOrEdit: WorkoutLog | undefined;
   logForReference?: WorkoutLog;
   isNewSession: boolean;
-  onSaveLog: (log: WorkoutLog) => void;
+  onSaveLog: (log: WorkoutLog) => Promise<void>;
   onClose: () => void;
   latestGoal: ParticipantGoalData | null;
   participantProfile: ParticipantProfile | null;
@@ -326,57 +326,57 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
     setShowExitConfirmationModal(true);
   };
 
-  const handleFinalSave = () => {
-    setIsSaving(true);
-    setHasSaved(false);
-    const finalEntries: WorkoutExerciseLog[] = [];
-    logEntries.forEach((sets, exerciseId) => {
-        const cleanedSets = sets.map(s => {
-            const repsStr = (s.reps || '').toString();
-            const weightStr = (s.weight || '').toString();
-            const distStr = (s.distanceMeters || '').toString();
-            const durStr = (s.durationSeconds || '').toString();
-            const calStr = (s.caloriesKcal || '').toString();
-            return {
-                ...s,
-                reps: repsStr.trim() ? Number(repsStr.replace(',', '.')) : undefined,
-                weight: weightStr.trim() ? Number(weightStr.replace(',', '.')) : undefined,
-                distanceMeters: distStr.trim() ? Number(distStr.replace(',', '.')) : undefined,
-                durationSeconds: durStr.trim() ? Number(durStr.replace(',', '.')) : undefined,
-                caloriesKcal: calStr.trim() ? Number(calStr.replace(',', '.')) : undefined,
-            };
-        }).filter(s => s.reps !== undefined || s.weight !== undefined || s.distanceMeters !== undefined || s.durationSeconds !== undefined || s.caloriesKcal !== undefined);
-        if (cleanedSets.length > 0) {
-            finalEntries.push({ exerciseId, loggedSets: cleanedSets });
+    const handleFinalSave = async () => {
+        setIsSaving(true);
+        setHasSaved(false);
+
+        const finalEntries: WorkoutExerciseLog[] = Array.from(logEntries.entries()).map(([exerciseId, sets]) => {
+            const cleanedSets = sets.map(s => {
+                const repsStr = (s.reps || '').toString();
+                const weightStr = (s.weight || '').toString();
+                const distStr = (s.distanceMeters || '').toString();
+                const durStr = (s.durationSeconds || '').toString();
+                const calStr = (s.caloriesKcal || '').toString();
+                return {
+                    ...s,
+                    reps: repsStr.trim() ? Number(repsStr.replace(',', '.')) : undefined,
+                    weight: weightStr.trim() ? Number(weightStr.replace(',', '.')) : undefined,
+                    distanceMeters: distStr.trim() ? Number(distStr.replace(',', '.')) : undefined,
+                    durationSeconds: durStr.trim() ? Number(durStr.replace(',', '.')) : undefined,
+                    caloriesKcal: calStr.trim() ? Number(calStr.replace(',', '.')) : undefined,
+                };
+            }).filter(s => s.reps !== undefined || s.weight !== undefined || s.distanceMeters !== undefined || s.durationSeconds !== undefined || s.caloriesKcal !== undefined);
+            return { exerciseId, loggedSets: cleanedSets };
+        }).filter(entry => entry.loggedSets.length > 0);
+
+        const originalTime = (!isNewSession && logForReferenceOrEdit)
+            ? new Date(logForReferenceOrEdit.completedDate).toTimeString().split(' ')[0]
+            : new Date().toTimeString().split(' ')[0];
+        
+        const finalCompletedDate = new Date(`${completedDate}T${originalTime}`).toISOString();
+
+        const logData: WorkoutLog = {
+            type: 'workout',
+            id: !isNewSession && logForReferenceOrEdit ? logForReferenceOrEdit.id : crypto.randomUUID(),
+            workoutId: workout.id,
+            participantId: '',
+            entries: finalEntries,
+            completedDate: finalCompletedDate,
+            postWorkoutComment: postWorkoutComment.trim(),
+            moodRating: moodRating || undefined,
+            selectedExercisesForModifiable: workout.isModifiable ? exercisesToLog : undefined,
+        };
+
+        try {
+            await onSaveLog(logData);
+            if (storageKey) {
+                localStorage.removeItem(storageKey);
+            }
+        } catch (error) {
+            console.error(error); // Error is alerted in parent
+            setIsSaving(false); // Reset button on failure
         }
-    });
-
-    const originalTime = (!isNewSession && logForReferenceOrEdit)
-      ? new Date(logForReferenceOrEdit.completedDate).toTimeString().split(' ')[0]
-      : new Date().toTimeString().split(' ')[0];
-    
-    const finalCompletedDate = new Date(`${completedDate}T${originalTime}`).toISOString();
-
-    const logData: WorkoutLog = {
-      type: 'workout',
-      id: !isNewSession && logForReferenceOrEdit ? logForReferenceOrEdit.id : crypto.randomUUID(),
-      workoutId: workout.id,
-      participantId: '',
-      entries: finalEntries,
-      completedDate: finalCompletedDate,
-      postWorkoutComment: postWorkoutComment.trim(),
-      moodRating: moodRating || undefined,
-      selectedExercisesForModifiable: workout.isModifiable ? exercisesToLog : undefined,
     };
-    onSaveLog(logData);
-    
-    // Clean up localStorage on successful save.
-    if (storageKey) {
-      localStorage.removeItem(storageKey);
-    }
-
-    setHasSaved(true);
-  };
   
   const handleSelectBlock = (blockId: string) => {
     const block = workout.blocks.find(b => b.id === blockId);
@@ -862,7 +862,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
             <MoodSelectorInput currentRating={moodRating} onSelectRating={setMoodRating} />
             <div className="flex flex-col sm:flex-row justify-between gap-4 pt-6 border-t">
               <Button onClick={() => setCurrentView('block_selection')} variant="outline" size="lg">Tillbaka till block</Button>
-              <Button onClick={handleFinalSave} size="lg" disabled={isSaving}>{isSaving ? (hasSaved ? 'Sparat! ✓' : 'Sparar...') : 'Spara & Avsluta'}</Button>
+              <Button onClick={handleFinalSave} size="lg" disabled={isSaving}>{isSaving ? 'Sparar...' : 'Spara & Avsluta'}</Button>
             </div>
           </div>
         )}

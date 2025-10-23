@@ -20,6 +20,7 @@ import { NetworkStatusProvider } from './context/NetworkStatusContext';
 import { OfflineBanner } from './components/OfflineBanner';
 import { UpdateNoticeModal } from './components/participant/UpdateNoticeModal';
 import { DevToolbar } from './components/DevToolbar';
+import { TermsModal } from './components/TermsModal';
 
 const CoachArea = lazy(() => import('./components/coach/CoachArea').then(m => ({ default: m.CoachArea })));
 const ParticipantArea = lazy(() => import('./components/participant/ParticipantArea').then(m => ({ default: m.ParticipantArea })));
@@ -77,6 +78,7 @@ const AppContent: React.FC = () => {
         userConditioningStatsHistory, setUserConditioningStatsHistoryData,
         connections,
         lastFlowViewTimestamp,
+        updateUser,
         // FIX: Removed 'flowItems' and 'setFlowItemsData' as they are not part of the AppContext and the logic to update flow items should target the source collections directly.
     } = useAppContext();
     
@@ -98,6 +100,28 @@ const AppContent: React.FC = () => {
         }
         return null;
     });
+
+    const [showTermsModal, setShowTermsModal] = useState(false);
+    const [hasCheckedTerms, setHasCheckedTerms] = useState(false);
+
+    useEffect(() => {
+        if (auth.user && !auth.user.termsAcceptedTimestamp && !hasCheckedTerms) {
+            setShowTermsModal(true);
+            setHasCheckedTerms(true);
+        }
+    }, [auth.user, hasCheckedTerms]);
+
+    const handleAcceptTerms = async () => {
+        if (auth.user) {
+            try {
+                await updateUser(auth.user.id, { termsAcceptedTimestamp: new Date().toISOString() });
+                setShowTermsModal(false);
+            } catch (error) {
+                console.error("Failed to accept terms:", error);
+                alert("Kunde inte spara ditt godkännande. Vänligen försök igen.");
+            }
+        }
+    };
 
     // --- Update Notice Logic ---
     const UPDATE_NOTICE_KEY = 'updateNotice_v3_AICoach'; // Unique key for this update version
@@ -794,6 +818,15 @@ const AppContent: React.FC = () => {
                 <UpdateNoticeModal 
                     show={showLatestUpdateView} 
                     onClose={() => setShowLatestUpdateView(false)} 
+                />
+            )}
+
+            {showTermsModal && (
+                <TermsModal
+                    isOpen={showTermsModal}
+                    onClose={() => {}} // Block closing
+                    onAccept={handleAcceptTerms}
+                    isBlocking={true}
                 />
             )}
         </div>

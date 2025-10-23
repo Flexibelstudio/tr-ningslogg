@@ -6,6 +6,7 @@ import { useAppContext } from '../context/AppContext';
 import { Location } from '../types';
 import { useNetworkStatus } from '../context/NetworkStatusContext';
 import dataService from '../services/dataService';
+import { TermsModal } from './TermsModal';
 
 interface RegisterProps {
   onSwitchToLogin: () => void;
@@ -24,13 +25,13 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
   const [confirmPassword, setConfirmPassword] = useState('');
   const [selectedOrgId, setSelectedOrgId] = useState('');
   const [selectedLocationId, setSelectedLocationId] = useState('');
-
   const [locationsForOrg, setLocationsForOrg] = useState<Location[]>([]);
   const [isLoadingLocations, setIsLoadingLocations] = useState(false);
-
   const [apiError, setApiError] = useState('');
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   useEffect(() => {
     if (selectedOrgId) {
@@ -79,6 +80,7 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
     if (password !== confirmPassword) newErrors.confirmPassword = 'Lösenorden matchar inte.';
     if (!selectedOrgId) newErrors.orgId = 'Du måste välja en organisation.';
     if (!selectedLocationId) newErrors.locationId = 'Du måste välja en studio/ort.';
+    if (!termsAccepted) newErrors.terms = 'Du måste godkänna villkoren för att skapa ett konto.';
     setFormErrors(newErrors);
 
     if (Object.keys(newErrors).length > 0) return;
@@ -120,108 +122,145 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
   const locationOptions = locationsForOrg.map(loc => ({ value: loc.id, label: loc.name }));
 
   return (
-    <div className="min-h-screen flex flex-col bg-dotted-pattern bg-dotted-size bg-gray-100">
-      {/* Gör sidan alltid scrollbar på små skärmar; centrerad på större skärmar */}
-      <main className="min-h-screen flex flex-col sm:flex-row sm:items-center justify-center py-8 sm:py-12 px-4 overflow-y-auto">
-        <div
-          className="bg-white p-6 sm:p-10 rounded-2xl shadow-2xl w-full max-w-lg space-y-6 animate-fade-in-down"
-          style={{ animationDelay: '0.1s' }}
-        >
-          <div className="text-center">
-            <img src="/icon-180x180.png" alt="Logotyp" className="mx-auto h-20 w-auto mb-4" />
-            <h1 className="text-3xl font-bold text-gray-800">Välkommen</h1>
-            <p className="text-gray-600 mt-2">Skapa ditt konto nedan.</p>
-          </div>
-
-          {apiError && <p className="text-center bg-red-100 text-red-700 p-3 rounded-lg">{apiError}</p>}
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                label="Förnamn *"
-                id="reg-firstname"
-                type="text"
-                value={firstName}
-                onChange={e => setFirstName(e.target.value)}
-                required
-                error={formErrors.firstName}
-              />
-              <Input
-                label="Efternamn *"
-                id="reg-lastname"
-                type="text"
-                value={lastName}
-                onChange={e => setLastName(e.target.value)}
-                required
-                error={formErrors.lastName}
-              />
+    <>
+      <div className="min-h-screen flex flex-col bg-dotted-pattern bg-dotted-size bg-gray-100">
+        <main className="min-h-screen flex flex-col sm:flex-row sm:items-center justify-center py-8 sm:py-12 px-4 overflow-y-auto">
+          <div
+            className="bg-white p-6 sm:p-10 rounded-2xl shadow-2xl w-full max-w-lg space-y-6 animate-fade-in-down"
+            style={{ animationDelay: '0.1s' }}
+          >
+            <div className="text-center">
+              <img src="/icon-180x180.png" alt="Logotyp" className="mx-auto h-20 w-auto mb-4" />
+              <h1 className="text-3xl font-bold text-gray-800">Välkommen</h1>
+              <p className="text-gray-600 mt-2">Skapa ditt konto nedan.</p>
             </div>
 
-            <Input
-              label="E-post *"
-              id="reg-email"
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              onBlur={() => setEmail(e => e.trim())}
-              required
-              error={formErrors.email}
-            />
+            {apiError && <p className="text-center bg-red-100 text-red-700 p-3 rounded-lg">{apiError}</p>}
 
-            <Input
-              label="Lösenord *"
-              id="reg-password"
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              error={formErrors.password}
-            />
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Förnamn *"
+                  id="reg-firstname"
+                  type="text"
+                  value={firstName}
+                  onChange={e => setFirstName(e.target.value)}
+                  required
+                  error={formErrors.firstName}
+                />
+                <Input
+                  label="Efternamn *"
+                  id="reg-lastname"
+                  type="text"
+                  value={lastName}
+                  onChange={e => setLastName(e.target.value)}
+                  required
+                  error={formErrors.lastName}
+                />
+              </div>
 
-            <Input
-              label="Bekräfta Lösenord *"
-              id="reg-confirm-password"
-              type="password"
-              value={confirmPassword}
-              onChange={e => setConfirmPassword(e.target.value)}
-              required
-              error={formErrors.confirmPassword}
-            />
-
-            <Select
-              label="Välj Organisation *"
-              value={selectedOrgId}
-              onChange={e => setSelectedOrgId(e.target.value)}
-              options={[{ value: '', label: 'Välj en organisation...' }, ...orgOptions]}
-              required
-              error={formErrors.orgId}
-            />
-
-            {isLoadingLocations && <p className="text-sm text-gray-500">Laddar orter...</p>}
-
-            {selectedOrgId && !isLoadingLocations && locationsForOrg.length > 0 && (
-              <Select
-                label="Välj Studio / Ort *"
-                value={selectedLocationId}
-                onChange={e => setSelectedLocationId(e.target.value)}
-                options={[{ value: '', label: 'Välj en ort...' }, ...locationOptions]}
+              <Input
+                label="E-post *"
+                id="reg-email"
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                onBlur={() => setEmail(e => e.trim())}
                 required
-                error={formErrors.locationId}
+                error={formErrors.email}
               />
-            )}
 
-            <Button type="submit" fullWidth size="lg" disabled={isLoading || !isOnline}>
-              {isLoading ? 'Registrerar...' : isOnline ? 'Skapa konto' : 'Offline'}
-            </Button>
-          </form>
+              <Input
+                label="Lösenord *"
+                id="reg-password"
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                error={formErrors.password}
+              />
 
-          <div className="text-center mt-4">
-            <button onClick={onSwitchToLogin} className="text-flexibel hover:underline font-semibold">
-              Har du redan ett konto? Logga in
-            </button>
+              <Input
+                label="Bekräfta Lösenord *"
+                id="reg-confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                required
+                error={formErrors.confirmPassword}
+              />
+
+              <Select
+                label="Välj Organisation *"
+                value={selectedOrgId}
+                onChange={e => setSelectedOrgId(e.target.value)}
+                options={[{ value: '', label: 'Välj en organisation...' }, ...orgOptions]}
+                required
+                error={formErrors.orgId}
+              />
+
+              {isLoadingLocations && <p className="text-sm text-gray-500">Laddar orter...</p>}
+
+              {selectedOrgId && !isLoadingLocations && locationsForOrg.length > 0 && (
+                <Select
+                  label="Välj Studio / Ort *"
+                  value={selectedLocationId}
+                  onChange={e => setSelectedLocationId(e.target.value)}
+                  options={[{ value: '', label: 'Välj en ort...' }, ...locationOptions]}
+                  required
+                  error={formErrors.locationId}
+                />
+              )}
+
+              <div className="pt-2">
+                <label className="flex items-start space-x-3">
+                    <input
+                        type="checkbox"
+                        id="terms"
+                        checked={termsAccepted}
+                        onChange={(e) => {
+                            setTermsAccepted(e.target.checked);
+                            setFormErrors(prev => {
+                                const newErrors = { ...prev };
+                                delete newErrors.terms;
+                                return newErrors;
+                            });
+                        }}
+                        className="h-5 w-5 mt-0.5 text-flexibel border-gray-300 rounded focus:ring-flexibel"
+                    />
+                    <span className="text-gray-700 text-base">
+                        Jag har läst och godkänner{' '}
+                        <button type="button" onClick={() => setIsTermsModalOpen(true)} className="text-flexibel hover:underline font-semibold">
+                            Användarvillkoren & Integritetspolicyn
+                        </button>
+                        .
+                    </span>
+                </label>
+                {formErrors.terms && <p className="text-sm text-red-600 mt-1">{formErrors.terms}</p>}
+              </div>
+
+              <Button type="submit" fullWidth size="lg" disabled={isLoading || !isOnline || !termsAccepted}>
+                {isLoading ? 'Registrerar...' : isOnline ? 'Skapa konto' : 'Offline'}
+              </Button>
+            </form>
+
+            <div className="text-center mt-4">
+              <button onClick={onSwitchToLogin} className="text-flexibel hover:underline font-semibold">
+                Har du redan ett konto? Logga in
+              </button>
+            </div>
           </div>
-        </div>
-      </main>
-    </div>
+        </main>
+      </div>
+      <TermsModal 
+        isOpen={isTermsModalOpen}
+        onClose={() => setIsTermsModalOpen(false)}
+        onAccept={() => {
+            setTermsAccepted(true);
+            setIsTermsModalOpen(false);
+        }}
+        isBlocking={false}
+      />
+    </>
   );
 };
