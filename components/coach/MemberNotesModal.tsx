@@ -99,6 +99,8 @@ export const MemberNotesModal: React.FC<MemberNotesModalProps> = ({
   const [isStrengthModalOpen, setIsStrengthModalOpen] = useState(false);
   const [isConditioningModalOpen, setIsConditioningModalOpen] = useState(false);
   const [isPhysiqueModalOpen, setIsPhysiqueModalOpen] = useState(false);
+  const [followUpBooked, setFollowUpBooked] = useState(false);
+
 
   const myGoals = useMemo(() => allParticipantGoals.filter(g => g.participantId === participant.id), [allParticipantGoals, participant.id]);
   const latestGoal = useMemo(() => {
@@ -132,6 +134,7 @@ export const MemberNotesModal: React.FC<MemberNotesModalProps> = ({
       setAssignSuccessMessage('');
       setProgramToEdit(null);
       setProgramToDelete(null);
+      setFollowUpBooked(false);
     }
   }, [isOpen]);
 
@@ -363,6 +366,8 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
     ...templateWorkouts.map(w => ({ value: w.id, label: w.title }))
   ];
   
+  const isCheckinNote = newNote.toUpperCase().includes('AVSTÄMNING');
+
   return (
     <>
       <Modal isOpen={isOpen} onClose={onClose} title={`Klientkort: ${participant.name}`} size="6xl">
@@ -406,6 +411,23 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
                           onChange={(e) => setNewNote(e.target.value)}
                           rows={4}
                         />
+
+                        {isCheckinNote && (
+                            <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                <label className="flex items-center space-x-3 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={followUpBooked}
+                                        onChange={(e) => setFollowUpBooked(e.target.checked)}
+                                        className="h-5 w-5 text-flexibel border-gray-300 rounded focus:ring-flexibel"
+                                    />
+                                    <span className="text-base font-medium text-gray-700">
+                                        Nytt avstämningssamtal bokat
+                                    </span>
+                                </label>
+                            </div>
+                        )}
+
                         <div className="flex justify-between items-center pt-2">
                           <div>
                             {!editingNote && (
@@ -581,7 +603,7 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
                         
                         <div className="p-4 border rounded-lg bg-gray-50 space-y-3">
                             <h4 className="text-lg font-semibold text-gray-800">Skapa nytt program</h4>
-                            <p className="text-sm text-gray-600">Skapa ett helt nytt, anpassat program från grunden och tilldela det direkt till {participant.name}.</p>
+                            <p className="text-sm text-gray-600">Skapa ett helt nytt, anpassat program från grunden och tilldela det direkt till ${participant.name}.</p>
                             <Button onClick={handleOpenNewProgramModal}>
                                 Skapa & Tilldela Nytt Program
                             </Button>
