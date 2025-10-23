@@ -398,6 +398,7 @@ export interface ProspectIntroCall {
 
   // New fields from the form
   studioId?: string;
+  referralSource?: string;
 
   trainingGoals?: string; // Fråga 1
   timingNotes?: string; // Fråga 2
@@ -417,6 +418,10 @@ export interface ProspectIntroCall {
   // Status to handle linking later
   status: 'unlinked' | 'linked';
   linkedParticipantId?: string; // Filled when the link is made
+
+  // New: For call outcome
+  outcome?: 'bought_starter' | 'bought_other' | 'thinking' | 'not_interested';
+  tshirtHandedOut?: boolean;
 }
 
 export interface ParticipantGoalData {

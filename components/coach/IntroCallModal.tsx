@@ -5,6 +5,7 @@ import { Input, Select } from '../Input';
 import { Textarea } from '../Textarea';
 import { ProspectIntroCall } from '../../types';
 import { useAppContext } from '../../context/AppContext';
+import { REFERRAL_SOURCE_OPTIONS, INTRO_CALL_OUTCOME_OPTIONS } from '../../constants';
 
 interface IntroCallModalProps {
   isOpen: boolean;
@@ -23,6 +24,8 @@ export const IntroCallModal: React.FC<IntroCallModalProps> = ({ isOpen, onClose,
   const [prospectEmail, setProspectEmail] = useState('');
   const [prospectPhone, setProspectPhone] = useState('');
   const [studioId, setStudioId] = useState('');
+  const [referralSource, setReferralSource] = useState('');
+  const [referralSourceOther, setReferralSourceOther] = useState('');
 
   const [trainingGoals, setTrainingGoals] = useState('');
   const [timingNotes, setTimingNotes] = useState('');
@@ -35,6 +38,9 @@ export const IntroCallModal: React.FC<IntroCallModalProps> = ({ isOpen, onClose,
   
   const [whyNeedHelp, setWhyNeedHelp] = useState('');
   const [coachSummary, setCoachSummary] = useState('');
+
+  const [outcome, setOutcome] = useState<ProspectIntroCall['outcome']>(undefined);
+  const [tshirtHandedOut, setTshirtHandedOut] = useState(false);
   
   const [error, setError] = useState('');
 
@@ -45,6 +51,8 @@ export const IntroCallModal: React.FC<IntroCallModalProps> = ({ isOpen, onClose,
     setProspectEmail('');
     setProspectPhone('');
     setStudioId(locations.length > 0 ? locations[0].id : '');
+    setReferralSource('');
+    setReferralSourceOther('');
     setTrainingGoals('');
     setTimingNotes('');
     setEngagementLevel(undefined);
@@ -54,6 +62,8 @@ export const IntroCallModal: React.FC<IntroCallModalProps> = ({ isOpen, onClose,
     setHealthIssues('');
     setWhyNeedHelp('');
     setCoachSummary('');
+    setOutcome(undefined);
+    setTshirtHandedOut(false);
     setError('');
   };
 
@@ -73,12 +83,31 @@ export const IntroCallModal: React.FC<IntroCallModalProps> = ({ isOpen, onClose,
         setHealthIssues(introCallToEdit.healthIssues || '');
         setWhyNeedHelp(introCallToEdit.whyNeedHelp || '');
         setCoachSummary(introCallToEdit.coachSummary || '');
+        setOutcome(introCallToEdit.outcome);
+        setTshirtHandedOut(introCallToEdit.tshirtHandedOut || false);
+
+        const source = introCallToEdit.referralSource;
+        if (source) {
+            const isPredefined = REFERRAL_SOURCE_OPTIONS.some(opt => opt.value === source && opt.value !== 'Annat');
+            if (isPredefined) {
+                setReferralSource(source);
+                setReferralSourceOther('');
+            } else {
+                setReferralSource('Annat');
+                setReferralSourceOther(source);
+            }
+        } else {
+            setReferralSource('');
+            setReferralSourceOther('');
+        }
       } else if (initialData) {
         setProspectName(initialData.prospectName || '');
         setProspectEmail(initialData.prospectEmail || '');
         setProspectPhone(initialData.prospectPhone || '');
         // Reset other fields as initialData only has basic info
         setStudioId(locations.length > 0 ? locations[0].id : '');
+        setReferralSource('');
+        setReferralSourceOther('');
         setTrainingGoals('');
         setTimingNotes('');
         setEngagementLevel(undefined);
@@ -88,6 +117,8 @@ export const IntroCallModal: React.FC<IntroCallModalProps> = ({ isOpen, onClose,
         setHealthIssues('');
         setWhyNeedHelp('');
         setCoachSummary('');
+        setOutcome(undefined);
+        setTshirtHandedOut(false);
       } else {
         resetForm();
       }
@@ -102,11 +133,16 @@ export const IntroCallModal: React.FC<IntroCallModalProps> = ({ isOpen, onClose,
     }
     setError('');
 
+    const finalReferralSource = referralSource === 'Annat'
+        ? (referralSourceOther.trim() || undefined)
+        : (referralSource || undefined);
+
     const callData = {
       prospectName: prospectName.trim(),
       prospectEmail: prospectEmail.trim() || undefined,
       prospectPhone: prospectPhone.trim() || undefined,
       studioId,
+      referralSource: finalReferralSource,
       trainingGoals: trainingGoals.trim() || undefined,
       timingNotes: timingNotes.trim() || undefined,
       engagementLevel,
@@ -116,6 +152,8 @@ export const IntroCallModal: React.FC<IntroCallModalProps> = ({ isOpen, onClose,
       healthIssues: healthIssues.trim() || undefined,
       whyNeedHelp: whyNeedHelp.trim() || undefined,
       coachSummary: coachSummary.trim() || undefined,
+      outcome,
+      tshirtHandedOut: outcome === 'bought_starter' ? tshirtHandedOut : undefined,
     };
 
     if (isEditing && onUpdate && introCallToEdit) {
@@ -154,6 +192,34 @@ export const IntroCallModal: React.FC<IntroCallModalProps> = ({ isOpen, onClose,
                   </label>
                 ))}
               </div>
+            </div>
+            <div>
+                <p className="block text-base font-medium text-gray-700 mb-2">Hur hittade du oss?</p>
+                <div className="space-y-2">
+                    {REFERRAL_SOURCE_OPTIONS.map(opt => (
+                        <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="radio"
+                                name="referralSource"
+                                value={opt.value}
+                                checked={referralSource === opt.value}
+                                onChange={() => setReferralSource(opt.value)}
+                                className="h-5 w-5 text-flexibel"
+                            />
+                            <span className="text-base">{opt.label}</span>
+                        </label>
+                    ))}
+                    {referralSource === 'Annat' && (
+                        <div className="pl-7 pt-1 animate-fade-in-down">
+                            <Input
+                                placeholder="Vänligen specificera..."
+                                value={referralSourceOther}
+                                onChange={e => setReferralSourceOther(e.target.value)}
+                                inputSize="sm"
+                            />
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
         
@@ -201,6 +267,43 @@ export const IntroCallModal: React.FC<IntroCallModalProps> = ({ isOpen, onClose,
             <h3 className="text-xl font-semibold text-gray-800">Avslutning & Nästa Steg</h3>
             <Textarea label={'8. Sista stora frågan: Varför kan du inte göra detta själv? Varför behöver du vår hjälp?'} value={whyNeedHelp} onChange={e => setWhyNeedHelp(e.target.value)} rows={3} />
             <Textarea label="Coachanteckningar & Rekommendation" value={coachSummary} onChange={e => setCoachSummary(e.target.value)} rows={4} placeholder={'Namnlös rubrik\n"Okej, låt mig bara sammanfatta ..."\n(IDENTIFIERA BEHOV: RUTOR 1, 2 och 9)\n"Stämmer det?"\n"Okej, låt mig visa dig hur vi gör saker." Gå igenom din rekommendation och fyll även i det nedan. Växla mellan denna sidan och prislistan.'} />
+        </div>
+
+        {/* Resultat & Nästa Steg */}
+        <div className="p-4 border rounded-lg bg-violet-50/50 space-y-4">
+            <h3 className="text-xl font-semibold text-gray-800">Resultat & Nästa Steg</h3>
+            <div>
+                <p className="block text-base font-medium text-gray-700 mb-2">Vad blev resultatet av samtalet?</p>
+                <div className="space-y-2">
+                    {INTRO_CALL_OUTCOME_OPTIONS.map(opt => (
+                        <label key={opt.value} className="flex items-center gap-2 cursor-pointer p-2 rounded-md hover:bg-violet-100">
+                            <input
+                                type="radio"
+                                name="outcome"
+                                value={opt.value}
+                                checked={outcome === opt.value}
+                                onChange={() => setOutcome(opt.value)}
+                                className="h-5 w-5 text-flexibel"
+                            />
+                            <span className="text-base">{opt.label}</span>
+                        </label>
+                    ))}
+                </div>
+            </div>
+            
+            {outcome === 'bought_starter' && (
+                <div className="pl-2 pt-2 border-t border-violet-200 animate-fade-in-down">
+                    <label className="flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-violet-100">
+                        <input
+                            type="checkbox"
+                            checked={tshirtHandedOut}
+                            onChange={(e) => setTshirtHandedOut(e.target.checked)}
+                            className="h-6 w-6 text-flexibel border-gray-300 rounded focus:ring-flexibel"
+                        />
+                        <span className="text-base font-medium text-gray-700">T-shirt utlämnad</span>
+                    </label>
+                </div>
+            )}
         </div>
       </div>
 
