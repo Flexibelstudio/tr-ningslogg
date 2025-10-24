@@ -11,7 +11,6 @@ import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../Modal';
 import { Select, Input } from '../Input';
 import { ConfirmationModal } from '../ConfirmationModal';
-import { AddMemberModal } from './AddMemberModal';
 
 interface ClientJourneyViewProps {
   participants: ParticipantProfile[];
@@ -189,8 +188,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   const [activeTab, setActiveTab] = useState<ClientJourneyTab>('leads');
   const [leadBeingConverted, setLeadBeingConverted] = useState<Lead | null>(null);
   const [leadToMarkAsJunk, setLeadToMarkAsJunk] = useState<Lead | null>(null);
-  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
-  const [introCallForMemberCreation, setIntroCallForMemberCreation] = useState<ProspectIntroCall | null>(null);
   const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
 
   const journeyData = useMemo<ClientJourneyEntry[]>(() => {
@@ -211,7 +208,12 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         const daysSinceLastActivity = lastActivityDate ? Math.floor((today.getTime() - lastActivityDate.getTime()) / (1000 * 60 * 60 * 24)) : Infinity;
 
         let engagementLevel: 'green' | 'yellow' | 'red' | 'neutral' = 'neutral';
-        if (lastActivityDate) {
+        if (p.isProspect) {
+            // Prospects don't have an engagement level in the same way
+            engagementLevel = 'neutral';
+        } else if (p.isActive === false) {
+            engagementLevel = 'red';
+        } else if (lastActivityDate) {
             if (daysSinceLastActivity > 14) engagementLevel = 'red';
             else if (daysSinceLastActivity > 7) engagementLevel = 'yellow';
             else engagementLevel = 'green';
@@ -415,51 +417,6 @@ ${callToLink.coachSummary || 'Ej angivet.'}
     setLeadToMarkAsJunk(null);
   };
   
-  const handleOpenMemberCreation = (introCall: ProspectIntroCall) => {
-    setIntroCallForMemberCreation(introCall);
-    setIsAddMemberModalOpen(true);
-  };
-
-  const handleSaveNewMemberFromIntroCall = async (memberData: ParticipantProfile) => {
-    await addParticipant(memberData);
-    if (introCallForMemberCreation) {
-      // Find the intro call again in state (important in case of re-renders)
-      const callInState = prospectIntroCalls.find(c => c.id === introCallForMemberCreation.id);
-      if (callInState) {
-        // Link the intro call to the newly created member
-        const updatedCall = { ...callInState, status: 'linked' as const, linkedParticipantId: memberData.id };
-        setProspectIntroCallsData(prev => prev.map(c => c.id === updatedCall.id ? updatedCall : c));
-        
-        // Also create the coach note
-        // FIX: Replaced obsolete properties with current ones from the ProspectIntroCall type.
-        const noteText = `
---- INTROSAMTALSAMMANFATTNING ---
-Datum: ${new Date(callInState.createdDate).toLocaleDateString('sv-SE')}
-Träningsmål & 'Varför':
-${callInState.trainingGoals || 'Ej angivet.'}
-Timing - 'Varför just nu?':
-${callInState.timingNotes || 'Ej angivet.'}
-Sömn & Stress:
-${callInState.sleepAndStress || 'Ej angivet.'}
-Skador/Hälsoproblem:
-${callInState.healthIssues || 'Ej angivet.'}
-Coachanteckningar & Nästa Steg:
-${callInState.coachSummary || 'Ej angivet.'}
-        `.trim();
-
-        const newNote: CoachNote = {
-            id: crypto.randomUUID(),
-            participantId: memberData.id,
-            noteText: noteText,
-            createdDate: new Date().toISOString(),
-            noteType: 'intro-session'
-        };
-        setCoachNotesData(prev => [...prev, newNote]);
-      }
-    }
-    setIntroCallForMemberCreation(null);
-  };
-
   const handleSaveLead = (newLeadData: Pick<Lead, 'firstName' | 'lastName' | 'email' | 'phone' | 'locationId'>) => {
     const newLead: Lead = {
         id: crypto.randomUUID(),
@@ -592,7 +549,6 @@ ${callInState.coachSummary || 'Ej angivet.'}
                                     </div>
                                     <div className="flex gap-2 self-start sm:self-center flex-shrink-0">
                                         <Button size="sm" variant="outline" onClick={() => { setCallToEdit(call); setIsIntroCallModalOpen(true); }}>Redigera</Button>
-                                        <Button size="sm" variant="secondary" onClick={() => handleOpenMemberCreation(call)}>Skapa ny medlem</Button>
                                         <Button size="sm" variant="primary" onClick={() => { setCallToLink(call); setParticipantToLinkId(''); }}>Länka</Button>
                                     </div>
                                 </div>
@@ -769,23 +725,6 @@ ${callInState.coachSummary || 'Ej angivet.'}
         confirmButtonText="Ja, ta bort"
         confirmButtonVariant="danger"
       />
-      {introCallForMemberCreation && (
-        <AddMemberModal
-          isOpen={isAddMemberModalOpen}
-          onClose={() => setIsAddMemberModalOpen(false)}
-          onSaveMember={handleSaveNewMemberFromIntroCall}
-          memberToEdit={{
-              id: '', // Will be generated
-              name: introCallForMemberCreation.prospectName,
-              email: introCallForMemberCreation.prospectEmail,
-              // Other fields will be set to default or can be filled in
-          } as ParticipantProfile}
-          existingEmails={participants.map(p => p.email || '')}
-          locations={locations}
-          memberships={memberships}
-          loggedInStaff={loggedInStaff}
-        />
-      )}
        <AddLeadModal
             isOpen={isAddLeadModalOpen}
             onClose={() => setIsAddLeadModalOpen(false)}
