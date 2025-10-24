@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { ParticipantProfile, OneOnOneSession, ActivityLog, StaffMember, CoachNote, ParticipantGoalData, WorkoutLog, Membership, ProspectIntroCall, Lead } from '../../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { ParticipantProfile, OneOnOneSession, ActivityLog, StaffMember, CoachNote, ParticipantGoalData, WorkoutLog, Membership, ProspectIntroCall, Lead, Location } from '../../types';
 import { GoogleGenAI } from '@google/genai';
 import { Button } from '../Button';
 import { MemberNotesModal } from './MemberNotesModal';
@@ -9,7 +9,7 @@ import { useAppContext } from '../../context/AppContext';
 import { IntroCallModal } from './IntroCallModal';
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../Modal';
-import { Select } from '../Input';
+import { Select, Input } from '../Input';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { AddMemberModal } from './AddMemberModal';
 
@@ -66,6 +66,86 @@ interface ClientJourneyEntry extends ParticipantProfile {
 
 type ClientJourneyTab = 'leads' | 'introCalls' | 'memberJourney';
 
+interface AddLeadModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (newLeadData: Pick<Lead, 'firstName' | 'lastName' | 'email' | 'phone' | 'locationId'>) => void;
+  locations: Location[];
+}
+
+const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onSave, locations }) => {
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
+    const [email, setEmail] = useState('');
+    const [phone, setPhone] = useState('');
+    const [locationId, setLocationId] = useState('');
+    const [errors, setErrors] = useState<Record<string, string>>({});
+
+    const locationOptions = useMemo(() => [
+        { value: '', label: 'Välj studio/ort...' },
+        ...locations.map(loc => ({ value: loc.id, label: loc.name }))
+    ], [locations]);
+    
+    useEffect(() => {
+        if (isOpen) {
+            setFirstName('');
+            setLastName('');
+            setEmail('');
+            setPhone('');
+            setLocationId(locations.length > 0 ? locations[0].id : '');
+            setErrors({});
+        }
+    }, [isOpen, locations]);
+
+    const validate = () => {
+        const newErrors: Record<string, string> = {};
+        if (!firstName.trim()) newErrors.firstName = "Förnamn är obligatoriskt.";
+        if (!lastName.trim()) newErrors.lastName = "Efternamn är obligatoriskt.";
+        if (!email.trim()) {
+            newErrors.email = "E-post är obligatoriskt.";
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+            newErrors.email = "Ogiltig e-postadress.";
+        }
+        if (!locationId) newErrors.locationId = "Du måste välja en studio/ort.";
+        
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+
+    const handleSave = () => {
+        if (validate()) {
+            onSave({ 
+                firstName: firstName.trim(), 
+                lastName: lastName.trim(), 
+                email: email.trim(), 
+                phone: phone.trim() || undefined, 
+                locationId 
+            });
+            onClose();
+        }
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Lägg till Lead Manuellt">
+            <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input label="Förnamn *" value={firstName} onChange={e => setFirstName(e.target.value)} error={errors.firstName} required />
+                    <Input label="Efternamn *" value={lastName} onChange={e => setLastName(e.target.value)} error={errors.lastName} required />
+                </div>
+                <Input label="E-post *" type="email" value={email} onChange={e => setEmail(e.target.value)} error={errors.email} required />
+                <Input label="Mobilnummer" type="tel" value={phone} onChange={e => setPhone(e.target.value)} />
+                <Select label="Studio/Ort *" value={locationId} onChange={e => setLocationId(e.target.value)} options={locationOptions} error={errors.locationId} required />
+
+                <div className="flex justify-end space-x-3 pt-4 border-t">
+                    <Button onClick={onClose} variant="secondary">Avbryt</Button>
+                    <Button onClick={handleSave}>Spara Lead</Button>
+                </div>
+            </div>
+        </Modal>
+    );
+};
+
+
 export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   participants,
   oneOnOneSessions,
@@ -111,6 +191,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   const [leadToMarkAsJunk, setLeadToMarkAsJunk] = useState<Lead | null>(null);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
   const [introCallForMemberCreation, setIntroCallForMemberCreation] = useState<ProspectIntroCall | null>(null);
+  const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
 
   const journeyData = useMemo<ClientJourneyEntry[]>(() => {
     return participants
@@ -379,6 +460,17 @@ ${callInState.coachSummary || 'Ej angivet.'}
     setIntroCallForMemberCreation(null);
   };
 
+  const handleSaveLead = (newLeadData: Pick<Lead, 'firstName' | 'lastName' | 'email' | 'phone' | 'locationId'>) => {
+    const newLead: Lead = {
+        id: crypto.randomUUID(),
+        ...newLeadData,
+        source: 'Manuell',
+        status: 'new',
+        createdDate: new Date().toISOString(),
+    };
+    setLeadsData(prev => [...prev, newLead]);
+  };
+
   if (!loggedInStaff) return <div>Laddar...</div>;
 
   const priorityClasses: Record<'high' | 'medium' | 'low', string> = {
@@ -420,7 +512,7 @@ ${callInState.coachSummary || 'Ej angivet.'}
        <div className="border-b border-gray-200">
             <nav className="-mb-px flex space-x-4" aria-label="Tabs">
                 <button onClick={() => setActiveTab('leads')} className={`relative whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('leads')}`}>
-                    Nya Leads
+                    Leads
                     {newLeads.length > 0 && <span className="ml-2 inline-block bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">{newLeads.length}</span>}
                 </button>
                 <button onClick={() => setActiveTab('introCalls')} className={`relative whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('introCalls')}`}>
@@ -433,8 +525,15 @@ ${callInState.coachSummary || 'Ej angivet.'}
             </nav>
         </div>
       
-      {/* Nya Leads Tab */}
+      {/* Leads Tab */}
       <div role="tabpanel" hidden={activeTab !== 'leads'} className="animate-fade-in space-y-6">
+        <div className="flex justify-between items-center mb-4">
+            <h3 className="text-xl font-bold text-gray-800">Leads ({newLeads.length})</h3>
+            <Button onClick={() => setIsAddLeadModalOpen(true)}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
+                Lägg till lead manuellt
+            </Button>
+        </div>
         {newLeads.length > 0 ? (
             <div className="space-y-3">
                 {newLeads.map(lead => {
@@ -461,7 +560,7 @@ ${callInState.coachSummary || 'Ej angivet.'}
             </div>
         ) : (
             <div className="text-center p-8 bg-gray-50 rounded-lg">
-                <p className="text-lg text-gray-500">Inga nya leads att hantera. Bra jobbat!</p>
+                <p className="text-lg text-gray-500">Inga leads att hantera. Bra jobbat!</p>
             </div>
         )}
       </div>
@@ -687,6 +786,12 @@ ${callInState.coachSummary || 'Ej angivet.'}
           loggedInStaff={loggedInStaff}
         />
       )}
+       <AddLeadModal
+            isOpen={isAddLeadModalOpen}
+            onClose={() => setIsAddLeadModalOpen(false)}
+            onSave={handleSaveLead}
+            locations={locations}
+        />
     </div>
   );
 };
