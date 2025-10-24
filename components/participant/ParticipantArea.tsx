@@ -1166,12 +1166,11 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         });
     }, [isAiEnabled, isOnline, latestActiveGoal, currentParticipantId, setParticipantGoalsData, setGoalCompletionLogsData, setAiFeedback, setAiFeedbackError, setIsAiFeedbackModalOpen, setIsLoadingAiFeedback, setCurrentAiModalTitle, setIsAiUpsellModalOpen]);
     
-    const handleSaveGeneralActivity = (activityData: Omit<GeneralActivityLog, 'id' | 'completedDate' | 'type' | 'participantId'>) => {
+    const handleSaveGeneralActivity = (activityData: Omit<GeneralActivityLog, 'id' | 'type' | 'participantId'>) => {
         const newActivity: GeneralActivityLog = {
             ...activityData,
             id: crypto.randomUUID(),
             participantId: currentParticipantId,
-            completedDate: new Date().toISOString(),
             type: 'general',
         };
         setGeneralActivityLogsData(prev => [...prev, newActivity]);
