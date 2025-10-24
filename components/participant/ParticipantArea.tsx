@@ -15,7 +15,7 @@ import { ParticipantActivityView } from './ParticipantActivityView';
 import { PostWorkoutSummaryModal } from './PostWorkoutSummaryModal';
 import { LogGeneralActivityModal } from './LogGeneralActivityModal';
 import { GeneralActivitySummaryModal } from './GeneralActivitySummaryModal';
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import {
     LOCAL_STORAGE_KEYS, WEIGHT_COMPARISONS, FLEXIBEL_PRIMARY_COLOR,
     STRESS_LEVEL_OPTIONS, ENERGY_LEVEL_OPTIONS, SLEEP_QUALITY_OPTIONS, OVERALL_MOOD_OPTIONS,
@@ -54,69 +54,11 @@ import { InstallPwaBanner } from './InstallPwaBanner';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { AchievementToast } from './AchievementToast';
 import { AICoachModal } from './AICoachModal';
+import { callGeminiApiFn } from '../../firebaseClient';
+import { db } from '../../firebaseConfig';
 
 
 const API_KEY = process.env.API_KEY;
-
-// Helper function to render AI Markdown content
-// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-const getIconForHeader = (headerText: string): React.ReactElement | null => {
-  const lowerHeaderText = headerText.toLowerCase();
-  if (lowerHeaderText.includes("prognos")) return <span className="mr-2 text-xl" role="img" aria-label="Prognos">🔮</span>;
-  if (lowerHeaderText.includes("nyckelpass") || lowerHeaderText.includes("rekommendera")) return <span className="mr-2 text-xl" role="img" aria-label="Rekommenderade pass">🎟️</span>;
-  if (lowerHeaderText.includes("tänka på") || lowerHeaderText.includes("tips") || lowerHeaderText.includes("motivation")) return <span className="mr-2 text-xl" role="img" aria-label="Tips">💡</span>;
-  if (lowerHeaderText.includes("lycka till") || lowerHeaderText.includes("avslutning")) return <span className="mr-2 text-xl" role="img" aria-label="Avslutning">🎉</span>;
-  if (lowerHeaderText.includes("sammanfattning") || lowerHeaderText.includes("uppmuntran")) return <span className="mr-2 text-xl" role="img" aria-label="Sammanfattning">⭐</span>;
-  if (lowerHeaderText.includes("progress") || lowerHeaderText.includes("inbody") || lowerHeaderText.includes("styrka")) return <span className="mr-2 text-xl" role="img" aria-label="Framsteg">💪</span>;
-  if (lowerHeaderText.includes("mentalt välbefinnande") || lowerHeaderText.includes("balans")) return <span className="mr-2 text-xl" role="img" aria-label="Mentalt välbefinnande">🧘</span>;
-  if (lowerHeaderText.includes("observationer") || lowerHeaderText.includes("pass") || lowerHeaderText.includes("aktiviteter")) return <span className="mr-2 text-xl" role="img" aria-label="Observationer">👀</span>;
-  if (lowerHeaderText.includes("särskilda råd")) return <span className="mr-2 text-xl" role="img" aria-label="Särskilda råd">ℹ️</span>;
-  return <span className="mr-2 text-xl" role="img" aria-label="Rubrik">📄</span>;
-};
-
-// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-const renderFormattedMarkdown = (feedback: string | null): React.ReactElement[] | null => {
-  if (!feedback) return null;
-  const lines = feedback.split('\n');
-  // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-  const renderedElements: React.ReactElement[] = [];
-  // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-  let currentListItems: React.ReactElement[] = [];
-  let listKeySuffix = 0;
-  const flushList = () => {
-    if (currentListItems.length > 0) {
-      renderedElements.push(<ul key={`ul-${renderedElements.length}-${listKeySuffix}`} className="list-disc pl-5 space-y-1 my-2">{currentListItems}</ul>);
-      currentListItems = [];
-      listKeySuffix++;
-    }
-  };
-  for (let i = 0; i < lines.length; i++) {
-    let lineContent = lines[i];
-    lineContent = lineContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    lineContent = lineContent.replace(/\*(?=\S)(.*?)(?<=\S)\*/g, '<em>$1</em>');
-    if (lineContent.startsWith('## ')) {
-      flushList();
-      const headerText = lineContent.substring(3).trim();
-      const icon = getIconForHeader(headerText.replace(/<\/?(strong|em)>/g, ''));
-      renderedElements.push(<h4 key={`h4-${i}`} className="text-xl font-bold text-gray-800 flex items-center mb-2 mt-4">{icon} <span dangerouslySetInnerHTML={{ __html: headerText }} /></h4>);
-    } else if (lineContent.startsWith('### ')) {
-      flushList();
-      const headerText = lineContent.substring(4).trim();
-      const icon = getIconForHeader(headerText.replace(/<\/?(strong|em)>/g, ''));
-      renderedElements.push(<h5 key={`h5-${i}`} className="text-lg font-bold text-gray-700 flex items-center mb-1 mt-3">{icon} <span dangerouslySetInnerHTML={{ __html: headerText }} /></h5>);
-    } else if (lineContent.startsWith('* ') || lineContent.startsWith('- ')) {
-      const listItemText = lineContent.substring(2).trim();
-      currentListItems.push(<li key={`li-${i}`} className="text-base text-gray-700" dangerouslySetInnerHTML={{ __html: listItemText }} />);
-    } else {
-      flushList();
-      if (lineContent.trim() !== '') {
-        renderedElements.push(<p key={`p-${i}`} className="text-base text-gray-700 mb-2" dangerouslySetInnerHTML={{ __html: lineContent }} />);
-      }
-    }
-  }
-  flushList();
-  return renderedElements;
-};
 
 const getInBodyScoreInterpretation = (score: number | undefined | null): { label: string; color: string; } | null => {
     if (score === undefined || score === null || isNaN(score)) return null;
@@ -376,6 +318,27 @@ interface ParticipantAreaProps {
   newFlowItemsCount?: number;
 }
 
+// Helper function to remove undefined values, which Firestore doesn't accept.
+const sanitizeDataForFirebase = (data: any): any => {
+    if (Array.isArray(data)) {
+        return data.map(item => sanitizeDataForFirebase(item));
+    }
+    if (data instanceof Date) {
+        return data;
+    }
+    if (data !== null && typeof data === 'object') {
+        const sanitized: { [key: string]: any } = {};
+        for (const key of Object.keys(data)) {
+            const value = data[key];
+            if (value !== undefined) {
+                sanitized[key] = sanitizeDataForFirebase(value);
+            }
+        }
+        return sanitized;
+    }
+    return data;
+};
+
 // Main ParticipantArea Component
 export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   currentParticipantId,
@@ -399,20 +362,21 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         participantDirectory,
         updateParticipantProfile,
         workouts,
-        workoutLogs, setWorkoutLogsData: setWorkoutLogs,
-        participantGoals, setParticipantGoalsData: setParticipantGoals,
-        generalActivityLogs, setGeneralActivityLogsData: setGeneralActivityLogs,
-        goalCompletionLogs, setGoalCompletionLogsData: setGoalCompletionLogs,
-        userStrengthStats, setUserStrengthStatsData: setUserStrengthStats,
-        userConditioningStatsHistory, setUserConditioningStatsHistoryData: setUserConditioningStatsHistory,
-        participantPhysiqueHistory, setParticipantPhysiqueHistoryData: setParticipantPhysiqueHistory,
-        participantMentalWellbeing, setParticipantMentalWellbeingData: setParticipantMentalWellbeing,
-        participantGamificationStats, setParticipantGamificationStatsData: setParticipantGamificationStats,
-        clubMemberships, setClubMembershipsData: setClubMemberships,
+        workoutLogs, setWorkoutLogsData,
+        participantGoals, setParticipantGoalsData,
+        generalActivityLogs, setGeneralActivityLogsData,
+        goalCompletionLogs, setGoalCompletionLogsData,
+        coachNotes,
+        userStrengthStats, setUserStrengthStatsData,
+        userConditioningStatsHistory, setUserConditioningStatsHistoryData,
+        participantPhysiqueHistory, setParticipantPhysiqueHistoryData,
+        participantMentalWellbeing, setParticipantMentalWellbeingData,
+        participantGamificationStats, setParticipantGamificationStatsData,
+        clubMemberships, setClubMembershipsData,
         leaderboardSettings,
         coachEvents,
-        connections, setConnectionsData: setConnections,
-        lastFlowViewTimestamp, setLastFlowViewTimestampData: setLastFlowViewTimestamp,
+        connections, setConnectionsData,
+        lastFlowViewTimestamp, setLastFlowViewTimestampData,
         locations,
         memberships,
         staffMembers,
@@ -423,7 +387,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         groupClassDefinitions,
         participantBookings: allParticipantBookings,
     } = useAppContext();
-    const { currentRole } = useAuth();
+    const { organizationId, currentRole } = useAuth();
     const { isOnline } = useNetworkStatus();
 
   const [currentWorkoutLog, setCurrentWorkoutLog] = useState<WorkoutLog | undefined>(undefined);
@@ -431,8 +395,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   const [isNewSessionForLog, setIsNewSessionForLog] = useState(true);
   const [isLogFormOpen, setIsLogFormOpen] = useState(false);
   const [currentWorkoutForForm, setCurrentWorkoutForForm] = useState<Workout | null>(null);
-
-  const [ai, setAi] = useState<GoogleGenAI | null>(null);
 
   const [lastFeedbackPromptTime, setLastFeedbackPromptTime] = useLocalStorage<number>(LOCAL_STORAGE_KEYS.LAST_FEEDBACK_PROMPT_TIME, 0);
 
@@ -584,11 +546,11 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
 
   const handleDeleteActivity = (activityId: string, activityType: 'workout' | 'general' | 'goal_completion') => {
     if (activityType === 'workout') {
-        setWorkoutLogs(prev => prev.filter(log => log.id !== activityId));
+        setWorkoutLogsData(prev => prev.filter(log => log.id !== activityId));
     } else if (activityType === 'general') {
-        setGeneralActivityLogs(prev => prev.filter(log => log.id !== activityId));
+        setGeneralActivityLogsData(prev => prev.filter(log => log.id !== activityId));
     } else if (activityType === 'goal_completion') {
-        setGoalCompletionLogs(prev => prev.filter(log => log.id !== activityId));
+        setGoalCompletionLogsData(prev => prev.filter(log => log.id !== activityId));
     }
   };
 
@@ -667,16 +629,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   const myMembership = useMemo(() => memberships.find(m => m.id === participantProfile?.membershipId), [memberships, participantProfile]);
   const myOneOnOneSessions = useMemo(() => oneOnOneSessions.filter(s => s.participantId === currentParticipantId), [oneOnOneSessions, currentParticipantId]);
   
-   useEffect(() => {
-    if (API_KEY) {
-      try {
-        setAi(new GoogleGenAI({apiKey: API_KEY}));
-      } catch (e) {
-        console.error("Failed to initialize GoogleGenAI in ParticipantArea:", e);
-      }
-    }
-  }, []);
-
   useEffect(() => {
     if (openProfileModalOnInit) {
         setIsProfileModalOpen(true);
@@ -865,97 +817,116 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     }
   }, [myMentalWellbeing]);
 
-  const handleSaveLog = (logData: WorkoutLog) => {
-    if (!participantProfile?.id) {
-        alert("Profilinformation saknas. Kan inte spara logg.");
-        return;
-    }
-
-    const logWithParticipantId: WorkoutLog = { ...logData, participantId: participantProfile.id };
-
-    // 1. Calculate summary using the new service
-    const summary = calculatePostWorkoutSummary(
-        logWithParticipantId, 
-        workouts, 
-        myWorkoutLogs, // Pass this as an argument now
-        latestStrengthStats
-    );
-    const logWithSummary = logWithParticipantId.entries.length > 0
-        ? { ...logWithParticipantId, postWorkoutSummary: summary }
-        : logWithParticipantId;
-
-    // 2. Check for PBs and update strength stats using the new service
-    const { needsUpdate, updatedStats } = findAndUpdateStrengthStats(
-        logWithParticipantId,
-        workouts,
-        latestStrengthStats
-    );
-
-    if (needsUpdate) {
-        const newStatRecord: UserStrengthStat = {
-            id: crypto.randomUUID(),
-            participantId: participantProfile.id,
-            lastUpdated: new Date().toISOString(),
-            bodyweightKg: latestStrengthStats?.bodyweightKg || participantProfile.bodyweightKg,
-            squat1RMaxKg: updatedStats.squat1RMaxKg,
-            benchPress1RMaxKg: updatedStats.benchPress1RMaxKg,
-            deadlift1RMaxKg: updatedStats.deadlift1RMaxKg,
-            overheadPress1RMaxKg: updatedStats.overheadPress1RMaxKg,
-        };
-        setUserStrengthStats(prev => [...prev, newStatRecord]);
-    }
-
-    // 3. Save the log itself
-    const existingLogIndex = workoutLogs.findIndex(l => l.id === logWithSummary.id);
-    const updatedWorkoutLogsList = existingLogIndex > -1
-        ? workoutLogs.map((l, index) => index === existingLogIndex ? logWithSummary : l)
-        : [...workoutLogs, logWithSummary];
+    const handleSaveLog = async (logData: WorkoutLog) => {
+        if (!participantProfile?.id || !organizationId) {
+            throw new Error("Profil- eller organisationsinformation saknas. Kan inte spara logg.");
+        }
     
-    setWorkoutLogs(updatedWorkoutLogsList);
+        // --- 1. Prepare all data objects ---
+        const logWithParticipantId: WorkoutLog = { ...logData, participantId: participantProfile.id };
     
-    // 4. Update streaks and gamification using the new service
-    const { updatedGoals, updatedGamificationStats } = calculateUpdatedStreakAndGamification(
-        myParticipantGoals, 
-        myGamificationStats, 
-        participantProfile.id, 
-        [...updatedWorkoutLogsList, ...myGeneralActivityLogs, ...myGoalCompletionLogs]
-    );
-    setParticipantGoals(prev => [...prev.filter(g => g.participantId !== currentParticipantId), ...updatedGoals]);
-    if (updatedGamificationStats) {
-      setParticipantGamificationStats(prev => [...prev.filter(s => s.id !== currentParticipantId), updatedGamificationStats]);
-    }
-
-    // 5. Final UI steps
-    setIsLogFormOpen(false);
-    setCurrentWorkoutLog(undefined);
-    setLogForReference(undefined);
-    setCurrentWorkoutForForm(null);
-
-    if (logWithSummary.entries.length > 0) {
-        setLogForSummaryModal(logWithSummary);
-        const workoutTemplateForSummary = workouts.find(w => w.id === logWithSummary.workoutId);
-        setWorkoutForSummaryModal(workoutTemplateForSummary || null);
-        setIsNewCompletion(true);
-        setIsPostWorkoutSummaryModalOpen(true);
-    } else if (logWithSummary.postWorkoutComment || logWithSummary.moodRating) {
-        // If only comment/mood was saved, show a simpler summary modal for feedback
-        const workoutTemplateForSummary = workouts.find(w => w.id === logWithSummary.workoutId);
-        const simpleSummaryLog: GeneralActivityLog = {
-            type: 'general', 
-            id: logWithSummary.id,
-            participantId: logWithSummary.participantId,
-            activityName: `Kommentar för: ${workoutTemplateForSummary?.title || 'Okänt pass'}`,
-            durationMinutes: 0,
-            comment: logWithSummary.postWorkoutComment,
-            moodRating: logWithSummary.moodRating,
-            completedDate: logWithSummary.completedDate,
-        };
-        setLastGeneralActivity(simpleSummaryLog);
-        setIsGeneralActivitySummaryOpen(true);
-    } else {
-        openMentalCheckinIfNeeded();
-    }
-  };
+        const summary = calculatePostWorkoutSummary(logWithParticipantId, workouts, myWorkoutLogs, latestStrengthStats);
+        const logWithSummary = logWithParticipantId.entries.length > 0 ? { ...logWithParticipantId, postWorkoutSummary: summary } : logWithParticipantId;
+    
+        const { needsUpdate, updatedStats } = findAndUpdateStrengthStats(logWithParticipantId, workouts, latestStrengthStats);
+    
+        let newStatRecord: UserStrengthStat | undefined;
+        if (needsUpdate) {
+            newStatRecord = {
+                id: crypto.randomUUID(),
+                participantId: participantProfile.id,
+                lastUpdated: new Date().toISOString(),
+                bodyweightKg: latestStrengthStats?.bodyweightKg || participantProfile.bodyweightKg,
+                squat1RMaxKg: updatedStats.squat1RMaxKg,
+                benchPress1RMaxKg: updatedStats.benchPress1RMaxKg,
+                deadlift1RMaxKg: updatedStats.deadlift1RMaxKg,
+                overheadPress1RMaxKg: updatedStats.overheadPress1RMaxKg,
+            };
+        }
+    
+        const tempUpdatedWorkoutLogs = workoutLogs.some(l => l.id === logWithSummary.id)
+            ? workoutLogs.map(l => (l.id === logWithSummary.id ? logWithSummary : l))
+            : [...workoutLogs, logWithSummary];
+    
+        const { updatedGoals, updatedGamificationStats } = calculateUpdatedStreakAndGamification(
+            myParticipantGoals, myGamificationStats, participantProfile.id,
+            [...tempUpdatedWorkoutLogs, ...myGeneralActivityLogs, ...myGoalCompletionLogs]
+        );
+    
+        // --- 2. Create and populate the batch ---
+        const batch = db.batch();
+    
+        const { id: logId, ...logSaveData } = logWithSummary;
+        const logRef = db.collection('organizations').doc(organizationId).collection('workoutLogs').doc(logId);
+        batch.set(logRef, sanitizeDataForFirebase(logSaveData));
+    
+        if (newStatRecord) {
+            const { id: statId, ...statSaveData } = newStatRecord;
+            const statRef = db.collection('organizations').doc(organizationId).collection('userStrengthStats').doc(statId);
+            batch.set(statRef, sanitizeDataForFirebase(statSaveData));
+        }
+    
+        const oldGoalsMap = new Map(myParticipantGoals.map(g => [g.id, g]));
+        updatedGoals.forEach(goal => {
+            const oldGoal = oldGoalsMap.get(goal.id);
+            if (!oldGoal || JSON.stringify(oldGoal) !== JSON.stringify(goal)) {
+                const { id: goalId, ...goalSaveData } = goal;
+                const goalRef = db.collection('organizations').doc(organizationId).collection('participantGoals').doc(goalId);
+                batch.set(goalRef, sanitizeDataForFirebase(goalSaveData));
+            }
+        });
+    
+        if (updatedGamificationStats) {
+            const { id: gamificationId, ...gamificationSaveData } = updatedGamificationStats;
+            const gamificationRef = db.collection('organizations').doc(organizationId).collection('participantGamificationStats').doc(gamificationId);
+            batch.set(gamificationRef, sanitizeDataForFirebase(gamificationSaveData));
+        }
+    
+        // --- 3. Commit the batch and update state on success ---
+        try {
+            await batch.commit();
+    
+            // On success, update local state
+            if (newStatRecord) {
+                setUserStrengthStatsData(prev => [...prev, newStatRecord]);
+            }
+            setWorkoutLogsData(tempUpdatedWorkoutLogs);
+            setParticipantGoalsData(prev => [...prev.filter(g => g.participantId !== currentParticipantId), ...updatedGoals]);
+            if (updatedGamificationStats) {
+                setParticipantGamificationStatsData(prev => [...prev.filter(s => s.id !== currentParticipantId), updatedGamificationStats]);
+            }
+    
+            // --- 4. Final UI steps ---
+            setIsLogFormOpen(false);
+            setCurrentWorkoutLog(undefined);
+            setLogForReference(undefined);
+            setCurrentWorkoutForForm(null);
+    
+            if (logWithSummary.entries.length > 0) {
+                setLogForSummaryModal(logWithSummary);
+                const workoutTemplateForSummary = workouts.find(w => w.id === logWithSummary.workoutId);
+                setWorkoutForSummaryModal(workoutTemplateForSummary || null);
+                setIsNewCompletion(true);
+                setIsPostWorkoutSummaryModalOpen(true);
+            } else if (logWithSummary.postWorkoutComment || logWithSummary.moodRating) {
+                const workoutTemplateForSummary = workouts.find(w => w.id === logWithSummary.workoutId);
+                const simpleSummaryLog: GeneralActivityLog = {
+                    type: 'general', id: logWithSummary.id, participantId: logWithSummary.participantId,
+                    activityName: `Kommentar för: ${workoutTemplateForSummary?.title || 'Okänt pass'}`,
+                    durationMinutes: 0, comment: logWithSummary.postWorkoutComment,
+                    moodRating: logWithSummary.moodRating, completedDate: logWithSummary.completedDate,
+                };
+                setLastGeneralActivity(simpleSummaryLog);
+                setIsGeneralActivitySummaryOpen(true);
+            } else {
+                openMentalCheckinIfNeeded();
+            }
+        } catch (error) {
+            console.error("Failed to save workout log batch:", error);
+            alert("Kunde inte spara passet. Kontrollera din anslutning och försök igen. Dina ändringar har inte sparats.");
+            throw error; // Propagate error to the form
+        }
+    };
 
   const handleFinalizePostWorkoutSummary = () => {
     setIsPostWorkoutSummaryModalOpen(false);
@@ -1006,7 +977,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         setLogForReference(undefined); // Clear reference log for new sessions
 
         // If a previous log exists and AI is enabled, show the AI assistant.
-        if (previousLogForThisTemplate && ai && isAiEnabled && isOnline) {
+        if (previousLogForThisTemplate && isAiEnabled && isOnline) {
             setPreWorkoutData({ workout, previousLog: previousLogForThisTemplate });
             setIsAIAssistantModalOpen(true);
             setIsSelectWorkoutModalOpen(false);
@@ -1074,7 +1045,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         let aiPrognosisText: string | undefined = undefined;
     
         if (shouldTriggerAi) {
-            if (!ai || !isAiEnabled || !isOnline) {
+            if (!isAiEnabled || !isOnline) {
                 if (!isAiEnabled) {
                     setIsAiUpsellModalOpen(true);
                 }
@@ -1104,22 +1075,30 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             Håll en stöttande och professionell ton. Undvik medicinska råd.`;
     
             try {
-                const response: GenerateContentResponse = await ai.models.generateContent({
+                const result = await callGeminiApiFn({
                     model: 'gemini-2.5-flash',
                     contents: prompt,
                 });
-                aiPrognosisText = response.text;
+                
+                const { text, error } = result.data as { text?: string; error?: string };
+                
+                if (error) {
+                    throw new Error(`Cloud Function error: ${error}`);
+                }
+                
+                aiPrognosisText = text;
                 setAiFeedback(aiPrognosisText);
             } catch (err) {
-                console.error("Error generating AI goal prognosis:", err);
-                setAiFeedbackError("Kunde inte generera en prognos för ditt mål. Försök igen senare.");
+                console.error("Error generating AI goal prognosis via Cloud Function:", err);
+                const errorMessage = err instanceof Error ? err.message : "Kunde inte generera en prognos för ditt mål. Försök igen senare.";
+                setAiFeedbackError(errorMessage);
                 throw err;
             } finally {
                 setIsLoadingAiFeedback(false);
             }
         }
     
-        setParticipantGoals(prevGoals => {
+        setParticipantGoalsData(prevGoals => {
             let newGoalsArray = [...prevGoals];
             const participantOldGoals = newGoalsArray.filter(g => g.participantId === currentParticipantId);
     
@@ -1137,7 +1116,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                         goalDescription: latestExistingGoal.fitnessGoals,
                         completedDate: new Date().toISOString(),
                     };
-                    setGoalCompletionLogs(prev => [...prev, newGoalCompletionLog]);
+                    setGoalCompletionLogsData(prev => [...prev, newGoalCompletionLog]);
                     
                     newGoalsArray = newGoalsArray.map(g => 
                         g.id === latestExistingGoal.id 
@@ -1185,17 +1164,16 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             }
             return newGoalsArray;
         });
-    }, [ai, isAiEnabled, isOnline, latestActiveGoal, currentParticipantId, setParticipantGoals, setGoalCompletionLogs]);
+    }, [isAiEnabled, isOnline, latestActiveGoal, currentParticipantId, setParticipantGoalsData, setGoalCompletionLogsData, setAiFeedback, setAiFeedbackError, setIsAiFeedbackModalOpen, setIsLoadingAiFeedback, setCurrentAiModalTitle, setIsAiUpsellModalOpen]);
     
-    const handleSaveGeneralActivity = (activityData: Omit<GeneralActivityLog, 'id' | 'completedDate' | 'type' | 'participantId'>) => {
+    const handleSaveGeneralActivity = (activityData: Omit<GeneralActivityLog, 'id' | 'type' | 'participantId'>) => {
         const newActivity: GeneralActivityLog = {
             ...activityData,
             id: crypto.randomUUID(),
             participantId: currentParticipantId,
-            completedDate: new Date().toISOString(),
             type: 'general',
         };
-        setGeneralActivityLogs(prev => [...prev, newActivity]);
+        setGeneralActivityLogsData(prev => [...prev, newActivity]);
         setLastGeneralActivity(newActivity);
         setIsGeneralActivitySummaryOpen(true);
     };
@@ -1225,11 +1203,12 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             myStrengthStats,
             myConditioningStats,
             myClubMemberships,
+            // FIX: The variable 'allWorkouts' does not exist in this scope. It should be 'workouts'.
             workouts
         );
 
         if (newAchievements.length > 0) {
-            setClubMemberships(prev => [...prev, ...newAchievements]);
+            setClubMembershipsData(prev => [...prev, ...newAchievements]);
             
             // Show toast for the first new achievement
             const firstNewClubId = newAchievements[0].clubId;
@@ -1244,13 +1223,12 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             }
         }
 
-    }, [allActivityLogs, myStrengthStats, myConditioningStats, participantProfile, myClubMemberships, workouts, setClubMemberships, isNewUser]);
+    }, [allActivityLogs, myStrengthStats, myConditioningStats, participantProfile, myClubMemberships, workouts, setClubMembershipsData, isNewUser]);
 
     return (
         <div className="bg-gray-100 bg-dotted-pattern bg-dotted-size bg-fixed min-h-screen">
         {isLogFormOpen && currentWorkoutForForm ? (
             <WorkoutLogForm
-            ai={ai}
             workout={currentWorkoutForForm}
             allWorkouts={workouts}
             logForReferenceOrEdit={currentWorkoutLog}
@@ -1474,7 +1452,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             currentWellbeing={myMentalWellbeing || null}
             participantId={participantProfile?.id}
             onSave={(wellbeingData) => {
-                setParticipantMentalWellbeing(prev => {
+                setParticipantMentalWellbeingData(prev => {
                     const existing = prev.find(w => w.id === wellbeingData.id);
                     if (existing) {
                         return prev.map(w => w.id === wellbeingData.id ? wellbeingData : w);
@@ -1505,7 +1483,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             latestGoal={latestGoal}
             userStrengthStatsHistory={myStrengthStats}
             clubMemberships={myClubMemberships}
-            onSaveStrengthStats={(stats) => setUserStrengthStats(prev => [...prev.filter(s => s.participantId !== currentParticipantId), stats])}
+            onSaveStrengthStats={(stats) => setUserStrengthStatsData(prev => [...prev.filter(s => s.participantId !== currentParticipantId), stats])}
             onOpenPhysiqueModal={handleOpenPhysiqueFromStrength}
         />
         <ConditioningStatsModal
@@ -1520,7 +1498,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                     participantId: currentParticipantId,
                     ...statsData,
                 };
-                setUserConditioningStatsHistory(prev => [...prev, newStat]);
+                setUserConditioningStatsHistoryData(prev => [...prev, newStat]);
             }}
         />
         <PhysiqueManagerModal
@@ -1534,7 +1512,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                     lastUpdated: new Date().toISOString(),
                     ...physiqueData,
                 };
-                setParticipantPhysiqueHistory(prev => [...prev, newHistoryEntry]);
+                setParticipantPhysiqueHistoryData(prev => [...prev, newHistoryEntry]);
                 updateParticipantProfile(currentParticipantId, physiqueData);
             }}
         />
@@ -1544,13 +1522,13 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             currentParticipantId={currentParticipantId}
             allParticipants={participantDirectory}
             connections={connections}
-            setConnections={setConnections}
+            setConnections={setConnectionsData}
         />
         <FlowModal 
             isOpen={isFlowModalOpen}
             onClose={() => {
                 setIsFlowModalOpen(false);
-                setLastFlowViewTimestamp(new Date().toISOString());
+                setLastFlowViewTimestampData(new Date().toISOString());
             }}
             currentUserId={currentParticipantId}
             allParticipants={participantDirectory}
@@ -1664,7 +1642,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             confirmButtonText="Ja, ta bort"
             cancelButtonText="Avbryt"
         />
-        {preWorkoutData && ai && participantProfile && (
+        {preWorkoutData && participantProfile && (
             <AIAssistantModal
                 isOpen={isAIAssistantModalOpen}
                 onClose={() => {
@@ -1672,7 +1650,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                     setPreWorkoutData(null);
                 }}
                 onContinue={handleContinueFromAIAssistant}
-                ai={ai}
                 workout={preWorkoutData.workout}
                 previousLog={preWorkoutData.previousLog}
                 participant={participantProfile}
@@ -1681,12 +1658,12 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         <AICoachModal
             isOpen={isAICoachModalOpen}
             onClose={() => setIsAICoachModalOpen(false)}
-            ai={ai}
             participantProfile={participantProfile}
             myWorkoutLogs={myWorkoutLogs}
             myGeneralActivityLogs={myGeneralActivityLogs}
             latestGoal={latestActiveGoal}
             allWorkouts={workouts}
+            membership={myMembership}
         />
     </div>
     );

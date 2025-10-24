@@ -6,17 +6,16 @@ import { ConfirmationModal } from '../ConfirmationModal';
 import { DEFAULT_COACH_EVENT_ICON, STUDIO_TARGET_OPTIONS } from '../../constants';
 import { Textarea } from '../Textarea';
 import * as dateUtils from '../../utils/dateUtils';
-import { GoogleGenAI } from '@google/genai';
 import { Input, Select } from '../Input';
 import { ToggleSwitch } from '../ToggleSwitch';
 import { useAppContext } from '../../context/AppContext';
+import { callGeminiApiFn } from '../../firebaseClient';
 
 interface EventManagementProps {
   events: CoachEvent[];
   setEvents: (events: CoachEvent[] | ((prev: CoachEvent[]) => CoachEvent[])) => void;
   participants: ParticipantProfile[];
   workoutLogs: WorkoutLog[];
-  ai: GoogleGenAI | null;
   weeklyHighlightSettings: WeeklyHighlightSettings;
   setWeeklyHighlightSettings: (settings: WeeklyHighlightSettings | ((prev: WeeklyHighlightSettings) => WeeklyHighlightSettings)) => void;
 }
@@ -44,11 +43,13 @@ const HIGHLIGHT_STUDIO_OPTIONS = [
     { value: 'karra', label: 'Endast Kärra centrum' }
 ];
 
-export const EventManagement: React.FC<EventManagementProps> = ({ events, setEvents, participants, workoutLogs, ai, weeklyHighlightSettings, setWeeklyHighlightSettings }) => {
+export const EventManagement: React.FC<EventManagementProps> = ({ events, setEvents, participants, workoutLogs, weeklyHighlightSettings, setWeeklyHighlightSettings }) => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CoachEvent | null>(null);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<CoachEvent | null>(null);
+  const [isLoadingAiHighlights, setIsLoadingAiHighlights] = useState(false);
+  const [aiHighlightsError, setAiHighlightsError] = useState<string | null>(null);
 
   const handleSaveEvent = (newEventData: Omit<CoachEvent, 'id'>) => {
     const newEvent: CoachEvent = { ...newEventData, id: crypto.randomUUID(), createdDate: new Date().toISOString() };
@@ -91,6 +92,61 @@ export const EventManagement: React.FC<EventManagementProps> = ({ events, setEve
   const handleSettingChange = (field: keyof WeeklyHighlightSettings, value: any) => {
     setWeeklyHighlightSettings(prev => ({...prev, [field]: value}));
   };
+  
+  const handleGenerateWeeklyHighlights = async () => {
+    setIsLoadingAiHighlights(true);
+    setAiHighlightsError(null);
+
+    const oneWeekAgo = dateUtils.addDays(new Date(), -7);
+    const logsLastWeek = workoutLogs.filter(log => new Date(log.completedDate) >= oneWeekAgo);
+
+    const pbsLastWeek = logsLastWeek
+      .flatMap(log => {
+        const participant = participants.find(p => p.id === log.participantId);
+        return (log.postWorkoutSummary?.newPBs || []).map(pb => ({ ...pb, participantName: participant?.name || 'Okänd' }));
+      })
+      .slice(0, 10); // Limit to 10 PBs for prompt length
+
+    const prompt = `Du är "Flexibot", en AI-assistent för Flexibel Hälsostudio. Din uppgift är att skapa ett "Veckans Höjdpunkter"-inlägg för community-flödet. Svaret MÅSTE vara på svenska och formaterat med Markdown.
+
+    **Data från den gångna veckan:**
+    - Totalt antal loggade pass: ${logsLastWeek.length}
+    - Antal medlemmar som tränat: ${new Set(logsLastWeek.map(l => l.participantId)).size}
+    - Några av veckans personliga rekord (PBs):
+    ${pbsLastWeek.length > 0 ? pbsLastWeek.map(pb => `  * ${pb.participantName} slog PB i ${pb.exerciseName} med ${pb.value}!`).join('\n') : '  * Inga nya PBs loggade denna vecka.'}
+
+    **Ditt uppdrag:**
+    1.  Skapa en titel i formatet: \`Veckans Höjdpunkter - v${dateUtils.getISOWeek(new Date())}\`.
+    2.  Skriv en kort, peppande sammanfattning av veckans aktivitet.
+    3.  Lyft fram 2-3 av de mest imponerande PBs från listan.
+    4.  Avsluta med en uppmuntrande fras om att fortsätta kämpa.
+    5.  Formatera hela texten med Markdown. Kombinera titel och beskrivning till en enda textsträng.
+    `;
+
+    try {
+        const result = await callGeminiApiFn({ model: 'gemini-2.5-flash', contents: prompt });
+        const { text, error } = result.data as { text?: string; error?: string };
+        if (error) throw new Error(error);
+        
+        const lines = text.split('\n');
+        const title = lines.find(l => l.trim().length > 0) || `Veckans Höjdpunkter - v${dateUtils.getISOWeek(new Date())}`;
+        const description = lines.slice(1).join('\n');
+
+        const highlightEvent: Omit<CoachEvent, 'id' | 'createdDate'> = {
+            title: title.replace(/#/g, '').trim(),
+            description: description.trim(),
+            type: 'news',
+            studioTarget: 'all',
+        };
+
+        setEditingEvent({ ...highlightEvent, id: 'temp-ai-highlight', createdDate: new Date().toISOString() });
+        setIsCreateModalOpen(true);
+    } catch (err) {
+        setAiHighlightsError(`Kunde inte generera höjdpunkter: ${err instanceof Error ? err.message : 'Okänt fel'}`);
+    } finally {
+        setIsLoadingAiHighlights(false);
+    }
+  };
 
   return (
     <div className="p-4 sm:p-6 bg-white rounded-lg shadow-xl">
@@ -128,11 +184,15 @@ export const EventManagement: React.FC<EventManagementProps> = ({ events, setEve
         </div>
 
         <div className="mt-8 pt-6 border-t">
-            <h3 className="text-2xl font-bold text-gray-800 mb-2">Automated Community Highlights (AI)</h3>
+            <h3 className="text-2xl font-bold text-gray-800 mb-2">Automatisera Veckans Höjdpunkter (AI)</h3>
             <p className="text-base text-gray-600 mb-4">
                 Generera automatiskt ett "Veckans Höjdpunkter"-inlägg för flödet baserat på medlemmarnas prestationer den senaste veckan. Endast medlemmar som godkänt att delta i topplistor inkluderas.
             </p>
             <div className="p-4 bg-gray-50 rounded-lg border space-y-4">
+                 <Button onClick={handleGenerateWeeklyHighlights} disabled={isLoadingAiHighlights}>
+                    {isLoadingAiHighlights ? 'Genererar...' : 'Generera "Veckans Höjdpunkter" med AI'}
+                </Button>
+                {aiHighlightsError && <p className="text-sm text-red-600">{aiHighlightsError}</p>}
                 <ToggleSwitch
                     id="highlight-toggle"
                     checked={weeklyHighlightSettings.isEnabled}
@@ -171,7 +231,7 @@ export const EventManagement: React.FC<EventManagementProps> = ({ events, setEve
         <CreateEventModal
             isOpen={isCreateModalOpen}
             onClose={() => setIsCreateModalOpen(false)}
-            onSaveEvent={editingEvent ? handleUpdateEvent : handleSaveEvent}
+            onSaveEvent={editingEvent?.id === 'temp-ai-highlight' ? handleSaveEvent : (editingEvent ? handleUpdateEvent : handleSaveEvent)}
             eventToEdit={editingEvent}
         />
 

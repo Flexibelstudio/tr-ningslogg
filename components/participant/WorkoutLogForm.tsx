@@ -3,7 +3,6 @@ import { Workout, WorkoutLog, WorkoutExerciseLog, SetDetail, Exercise, WorkoutBl
 import { Button } from '../Button';
 import { Input } from '../Input';
 import { Textarea } from '../Textarea';
-import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import { ConfirmationModal } from '../ConfirmationModal';
 import { CLUB_DEFINITIONS, LOCAL_STORAGE_KEYS } from '../../constants';
 import { MoodSelectorInput } from './MoodSelectorInput';
@@ -12,13 +11,12 @@ import { AiWorkoutTips } from './AIAssistantModal';
 import { ExerciseLogCard } from './ExerciseLogCard';
 
 interface WorkoutLogFormProps {
-  ai: GoogleGenAI | null;
   workout: Workout;
   allWorkouts: Workout[];
   logForReferenceOrEdit: WorkoutLog | undefined;
   logForReference?: WorkoutLog;
   isNewSession: boolean;
-  onSaveLog: (log: WorkoutLog) => void;
+  onSaveLog: (log: WorkoutLog) => Promise<void>;
   onClose: () => void;
   latestGoal: ParticipantGoalData | null;
   participantProfile: ParticipantProfile | null;
@@ -44,7 +42,6 @@ const liftTypeToPlaceholderKey = (lift: LiftType): string => {
 };
 
 export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
-    ai,
     workout,
     allWorkouts,
     logForReferenceOrEdit,
@@ -60,7 +57,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
     myWorkoutLogs,
     integrationSettings,
 }) => {
-  type LogView = 'block_selection' | 'logging_block' | 'finalizing';
+  type LogView = 'block_selection' | 'logging_block' | 'logging_quick_block' | 'finalizing';
 
   const [logEntries, setLogEntries] = useState<Map<string, SetDetail[]>>(new Map());
   const [postWorkoutComment, setPostWorkoutComment] = useState('');
@@ -84,6 +81,11 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   const formTopRef = useRef<HTMLDivElement>(null);
   
   const [setToRemove, setSetToRemove] = useState<{ exerciseId: string; setId: string } | null>(null);
+
+  // --- New Quick Log State ---
+  const [quickLogStep, setQuickLogStep] = useState<'template' | 'review'>('template');
+  const [quickLogTotalRounds, setQuickLogTotalRounds] = useState('1');
+
   
   const exercisesToLog = useMemo(() => {
     return workout.blocks.reduce((acc, block) => acc.concat(block.exercises), [] as Exercise[]);
@@ -324,62 +326,84 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
     setShowExitConfirmationModal(true);
   };
 
-  const handleFinalSave = () => {
-    setIsSaving(true);
-    setHasSaved(false);
-    const finalEntries: WorkoutExerciseLog[] = [];
-    logEntries.forEach((sets, exerciseId) => {
-        const cleanedSets = sets.map(s => {
-            const repsStr = (s.reps || '').toString();
-            const weightStr = (s.weight || '').toString();
-            const distStr = (s.distanceMeters || '').toString();
-            const durStr = (s.durationSeconds || '').toString();
-            const calStr = (s.caloriesKcal || '').toString();
-            return {
-                ...s,
-                reps: repsStr.trim() ? Number(repsStr.replace(',', '.')) : undefined,
-                weight: weightStr.trim() ? Number(weightStr.replace(',', '.')) : undefined,
-                distanceMeters: distStr.trim() ? Number(distStr.replace(',', '.')) : undefined,
-                durationSeconds: durStr.trim() ? Number(durStr.replace(',', '.')) : undefined,
-                caloriesKcal: calStr.trim() ? Number(calStr.replace(',', '.')) : undefined,
-            };
-        }).filter(s => s.reps !== undefined || s.weight !== undefined || s.distanceMeters !== undefined || s.durationSeconds !== undefined || s.caloriesKcal !== undefined);
-        if (cleanedSets.length > 0) {
-            finalEntries.push({ exerciseId, loggedSets: cleanedSets });
+    const handleFinalSave = async () => {
+        setIsSaving(true);
+        setHasSaved(false);
+
+        const finalEntries: WorkoutExerciseLog[] = Array.from(logEntries.entries()).map(([exerciseId, sets]) => {
+            const cleanedSets = sets.map(s => {
+                const repsStr = (s.reps || '').toString();
+                const weightStr = (s.weight || '').toString();
+                const distStr = (s.distanceMeters || '').toString();
+                const durStr = (s.durationSeconds || '').toString();
+                const calStr = (s.caloriesKcal || '').toString();
+                return {
+                    ...s,
+                    reps: repsStr.trim() ? Number(repsStr.replace(',', '.')) : undefined,
+                    weight: weightStr.trim() ? Number(weightStr.replace(',', '.')) : undefined,
+                    distanceMeters: distStr.trim() ? Number(distStr.replace(',', '.')) : undefined,
+                    durationSeconds: durStr.trim() ? Number(durStr.replace(',', '.')) : undefined,
+                    caloriesKcal: calStr.trim() ? Number(calStr.replace(',', '.')) : undefined,
+                };
+            }).filter(s => s.reps !== undefined || s.weight !== undefined || s.distanceMeters !== undefined || s.durationSeconds !== undefined || s.caloriesKcal !== undefined);
+            return { exerciseId, loggedSets: cleanedSets };
+        }).filter(entry => entry.loggedSets.length > 0);
+
+        const originalTime = (!isNewSession && logForReferenceOrEdit)
+            ? new Date(logForReferenceOrEdit.completedDate).toTimeString().split(' ')[0]
+            : new Date().toTimeString().split(' ')[0];
+        
+        const finalCompletedDate = new Date(`${completedDate}T${originalTime}`).toISOString();
+
+        const logData: WorkoutLog = {
+            type: 'workout',
+            id: !isNewSession && logForReferenceOrEdit ? logForReferenceOrEdit.id : crypto.randomUUID(),
+            workoutId: workout.id,
+            participantId: '',
+            entries: finalEntries,
+            completedDate: finalCompletedDate,
+            postWorkoutComment: postWorkoutComment.trim(),
+            moodRating: moodRating || undefined,
+            selectedExercisesForModifiable: workout.isModifiable ? exercisesToLog : undefined,
+        };
+
+        try {
+            await onSaveLog(logData);
+            if (storageKey) {
+                localStorage.removeItem(storageKey);
+            }
+        } catch (error) {
+            console.error(error); // Error is alerted in parent
+            setIsSaving(false); // Reset button on failure
         }
-    });
-
-    const originalTime = (!isNewSession && logForReferenceOrEdit)
-      ? new Date(logForReferenceOrEdit.completedDate).toTimeString().split(' ')[0]
-      : new Date().toTimeString().split(' ')[0];
-    
-    const finalCompletedDate = new Date(`${completedDate}T${originalTime}`).toISOString();
-
-    const logData: WorkoutLog = {
-      type: 'workout',
-      id: !isNewSession && logForReferenceOrEdit ? logForReferenceOrEdit.id : crypto.randomUUID(),
-      workoutId: workout.id,
-      participantId: '',
-      entries: finalEntries,
-      completedDate: finalCompletedDate,
-      postWorkoutComment: postWorkoutComment.trim(),
-      moodRating: moodRating || undefined,
-      selectedExercisesForModifiable: workout.isModifiable ? exercisesToLog : undefined,
     };
-    onSaveLog(logData);
-    
-    // Clean up localStorage on successful save.
-    if (storageKey) {
-      localStorage.removeItem(storageKey);
-    }
-
-    setHasSaved(true);
-  };
   
   const handleSelectBlock = (blockId: string) => {
+    const block = workout.blocks.find(b => b.id === blockId);
     setActiveBlockId(blockId);
-    setCurrentStepInBlock(0);
-    setCurrentView('logging_block');
+
+    if (block?.isQuickLogEnabled) {
+      const hasTemplateEntries = block.exercises.some(ex => (logEntries.get(ex.id) || []).length > 0);
+      if (!hasTemplateEntries) {
+        setLogEntries(prev => {
+          const newLogs = new Map(prev);
+          block.exercises.forEach(exercise => {
+            const newSet: SetDetail = {
+              id: crypto.randomUUID(),
+              reps: '', weight: '', distanceMeters: '', durationSeconds: '', caloriesKcal: '', isCompleted: false,
+            };
+            newLogs.set(exercise.id, [newSet]);
+          });
+          return newLogs;
+        });
+      }
+      setQuickLogStep('template');
+      setQuickLogTotalRounds('1');
+      setCurrentView('logging_quick_block');
+    } else {
+      setCurrentStepInBlock(0);
+      setCurrentView('logging_block');
+    }
     formTopRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
   
@@ -443,6 +467,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
 
   const validateAllLoggedSets = useCallback((): boolean => {
     for (const block of workout.blocks) {
+        if (block.isQuickLogEnabled) continue; // Skip validation for quick-log blocks
         for (const exercise of block.exercises) {
             const sets = logEntries.get(exercise.id);
             if (sets && sets.length > 0 && !validateSetsFilled(exercise, sets)) {
@@ -457,6 +482,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   
   const hasInProgressBlocks = useCallback((): boolean => {
     for (const block of workout.blocks) {
+        if (block.isQuickLogEnabled) continue;
         const blockExercises = block.exercises || [];
         const hasLoggedEntries = blockExercises.some(ex => (logEntries.get(ex.id) || []).length > 0);
         if (!hasLoggedEntries) continue;
@@ -484,12 +510,13 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   };
 
   const handleBackToBlockSelection = () => {
-    if (!validateActiveBlock()) return;
+    if (currentView === 'logging_block' && !validateActiveBlock()) return;
+    
     setCurrentView('block_selection');
     setActiveBlockId(null);
     formTopRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
-
+  
   const goBackToBlockSelectionWithoutValidation = () => {
     setCurrentView('block_selection');
     setActiveBlockId(null);
@@ -518,6 +545,100 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
     } else {
         goBackToBlockSelectionWithoutValidation();
     }
+  };
+
+  // --- Quick Log Specific Handlers ---
+  const handleLogAndAction = (action: 'finish' | 'review') => {
+    if (!activeBlock) return;
+    const totalRounds = Number(quickLogTotalRounds);
+    if (isNaN(totalRounds) || totalRounds <= 0) {
+      alert("Ange ett giltigt antal varv (större än 0).");
+      return;
+    }
+  
+    // Validate template round
+    for (const exercise of activeBlock.exercises) {
+        const templateSets = logEntries.get(exercise.id) || [];
+        if (templateSets.length === 0) {
+            alert(`Logga minst ett set för "${exercise.name}" som mall.`);
+            return;
+        }
+        if (!validateSetsFilled(exercise, templateSets)) {
+            alert(`Fyll i mallen för "${exercise.name}" korrekt.`);
+            return;
+        }
+    }
+
+    setLogEntries(prev => {
+        const newLogs = new Map(prev);
+        activeBlock.exercises.forEach(ex => {
+            const templateSets = newLogs.get(ex.id) || [];
+            if (templateSets.length === 0) return;
+
+            const expandedSets: SetDetail[] = [];
+            for (let i = 0; i < totalRounds; i++) {
+                templateSets.forEach(templateSet => {
+                    expandedSets.push({
+                        ...templateSet,
+                        id: crypto.randomUUID(),
+                        isCompleted: true, // Mark all as complete immediately
+                    });
+                });
+            }
+            newLogs.set(ex.id, expandedSets);
+        });
+        
+        if (action === 'finish') {
+            const virtualExerciseId = `QUICK_LOG_BLOCK_ID::${activeBlock.id}`;
+            newLogs.set(virtualExerciseId, [{
+                id: crypto.randomUUID(),
+                reps: totalRounds,
+                isCompleted: true
+            }]);
+        }
+        return newLogs;
+    });
+
+    if (action === 'finish') {
+        handleBackToBlockSelection();
+    } else { // action === 'review'
+        setQuickLogStep('review');
+    }
+  };
+
+  const handleBackToTemplate = () => {
+    if (!activeBlock) return;
+    setLogEntries(prev => {
+        const newLogs = new Map(prev);
+        activeBlock.exercises.forEach(ex => {
+            newLogs.delete(ex.id);
+        });
+        return newLogs;
+    });
+    setQuickLogStep('template');
+  };
+
+  const handleFinishQuickLogBlock = () => {
+    if (!activeBlock) return;
+    if (!validateActiveBlock()) return;
+
+    // Add virtual entry for summary modal compatibility
+    setLogEntries(prev => {
+      const newLogs = new Map(prev);
+      const virtualExerciseId = `QUICK_LOG_BLOCK_ID::${activeBlock.id}`;
+      const totalRounds = Number(quickLogTotalRounds);
+      
+      if (totalRounds > 0) {
+        newLogs.set(virtualExerciseId, [{
+          id: crypto.randomUUID(),
+          reps: totalRounds,
+          isCompleted: true
+        }]);
+      }
+      return newLogs;
+    });
+  
+    handleBackToBlockSelection();
   };
 
   return (
@@ -567,12 +688,18 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                 <p className="text-lg text-gray-600">Klicka på ett block för att börja logga.</p>
                 {workout.blocks.map((block, index) => {
                     const blockExercises = block.exercises || [];
+                    const isQuickLogBlock = block.isQuickLogEnabled;
+                    const quickLogEntry = logEntries.get(`QUICK_LOG_BLOCK_ID::${block.id}`);
+                    const hasLoggedQuickLog = isQuickLogBlock && quickLogEntry && quickLogEntry.length > 0 && Number(quickLogEntry[0].reps) > 0;
                     const hasLoggedEntries = blockExercises.some(ex => (logEntries.get(ex.id) || []).length > 0);
                     
                     let blockStatus: 'Ej påbörjat' | 'Pågående' | 'Slutfört' = 'Ej påbörjat';
                     let statusClass = 'bg-slate-100 text-slate-600';
                     
-                    if (hasLoggedEntries) {
+                    if (hasLoggedQuickLog) {
+                        blockStatus = 'Slutfört';
+                        statusClass = 'bg-green-100 text-green-800';
+                    } else if (hasLoggedEntries) {
                         const allExercisesCompleted = blockExercises.every(ex => {
                             const sets = logEntries.get(ex.id) || [];
                             return sets.length > 0 && sets.every(s => s.isCompleted);
@@ -591,7 +718,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                         <button key={block.id} onClick={() => handleSelectBlock(block.id)} className="w-full text-left p-4 bg-white rounded-2xl shadow-sm border-2 border-transparent hover:border-flexibel transition-all flex justify-between items-center">
                             <div>
                                 <h3 className="text-2xl font-bold text-gray-800">{block.name || `Block ${index + 1}`}</h3>
-                                <p className="text-base text-gray-500">{block.exercises.length} övningar</p>
+                                <p className="text-base text-gray-500">{block.exercises.length} övningar {isQuickLogBlock && <span className="text-xs font-bold text-blue-600">(SNABBLOGG)</span>}</p>
                             </div>
                             <div className="flex items-center gap-3">
                                 <span className={`px-3 py-1 text-sm font-semibold rounded-full ${statusClass}`}>
@@ -620,6 +747,71 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
           </div>
         )}
         
+        {currentView === 'logging_quick_block' && activeBlock && (
+            <div className="space-y-6">
+                <header>
+                    <h1 className="text-3xl font-bold text-gray-800">{workout.title}</h1>
+                    <p className="text-xl text-gray-600">{activeBlock.name || `Block ${workout.blocks.findIndex(b => b.id === activeBlock.id) + 1}`}</p>
+                </header>
+
+                {quickLogStep === 'template' && (
+                    <div className="space-y-8 animate-fade-in">
+                        <h2 className="text-2xl font-semibold text-gray-700">Steg 1: Logga ett "Mallvarv"</h2>
+                        <p className="text-base text-gray-600">Fyll i reps och vikt för ett typiskt varv. Detta kommer att kopieras till alla andra varv.</p>
+                        {activeBlock.exercises.map(ex => (
+                            <ExerciseLogCard
+                                key={ex.id}
+                                exercise={ex}
+                                logEntries={logEntries}
+                                handleUpdateSet={handleUpdateSet}
+                                setSetToRemove={setSetToRemove}
+                                isNewSession={isNewSession}
+                                myWorkoutLogs={myWorkoutLogs}
+                                allWorkouts={allWorkouts}
+                            />
+                        ))}
+                        <div className="p-4 bg-white rounded-lg border shadow-sm space-y-3">
+                            <h2 className="text-2xl font-semibold text-gray-700">Steg 2: Ange totalt antal varv</h2>
+                             <Input label="Antal varv totalt" type="number" value={quickLogTotalRounds} onChange={e => setQuickLogTotalRounds(e.target.value)} min="1" />
+                        </div>
+                        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-sm border-t">
+                            <div className="container mx-auto max-w-2xl flex items-center gap-2">
+                                <Button variant="outline" size="md" onClick={handleBackToBlockSelection} className="flex-1">Tillbaka</Button>
+                                <Button variant="primary" size="md" onClick={() => handleLogAndAction('review')} className="flex-1">Logga & Granska</Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                
+                {quickLogStep === 'review' && (
+                    <div className="space-y-6 animate-fade-in">
+                        <h2 className="text-2xl font-semibold text-gray-700">Steg 3: Granska & Justera</h2>
+                        <p className="text-base text-gray-600">Här är alla dina varv ifyllda. Justera vid behov och avsluta sedan blocket.</p>
+                        <div className="space-y-4">
+                            {activeBlock.exercises.map(ex => (
+                                <ExerciseLogCard
+                                    key={ex.id}
+                                    exercise={ex}
+                                    logEntries={logEntries}
+                                    handleUpdateSet={handleUpdateSet}
+                                    setSetToRemove={setSetToRemove}
+                                    isNewSession={isNewSession}
+                                    myWorkoutLogs={myWorkoutLogs}
+                                    allWorkouts={allWorkouts}
+                                />
+                            ))}
+                        </div>
+                         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-sm border-t">
+                            <div className="container mx-auto max-w-2xl flex justify-between items-center">
+                                <Button variant="outline" size="lg" onClick={handleBackToTemplate}>Tillbaka till Mall</Button>
+                                <Button variant="primary" size="lg" onClick={handleFinishQuickLogBlock}>Avsluta block</Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        )}
+
         {currentView === 'logging_block' && activeBlock && currentGroup && (
           <div className="space-y-6">
             <header className="flex justify-between items-center">
@@ -670,7 +862,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
             <MoodSelectorInput currentRating={moodRating} onSelectRating={setMoodRating} />
             <div className="flex flex-col sm:flex-row justify-between gap-4 pt-6 border-t">
               <Button onClick={() => setCurrentView('block_selection')} variant="outline" size="lg">Tillbaka till block</Button>
-              <Button onClick={handleFinalSave} size="lg" disabled={isSaving}>{isSaving ? (hasSaved ? 'Sparat! ✓' : 'Sparar...') : 'Spara & Avsluta'}</Button>
+              <Button onClick={handleFinalSave} size="lg" disabled={isSaving}>{isSaving ? 'Sparar...' : 'Spara & Avsluta'}</Button>
             </div>
           </div>
         )}

@@ -2,8 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
 import { Textarea } from '../Textarea';
-import { ParticipantProfile, ParticipantGoalData, ActivityLog, CoachNote, OneOnOneSession, StaffMember, GoalCompletionLog, Workout, WorkoutCategoryDefinition, StaffAvailability, UserStrengthStat, ParticipantConditioningStat, ParticipantPhysiqueStat, ParticipantClubMembership } from '../../types';
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { ParticipantProfile, ParticipantGoalData, ActivityLog, CoachNote, OneOnOneSession, StaffMember, GoalCompletionLog, Workout, WorkoutCategoryDefinition, StaffAvailability, UserStrengthStat, ParticipantConditioningStat, ParticipantPhysiqueStat, ParticipantClubMembership, WorkoutLog, GeneralActivityLog } from '../../types';
 import * as dateUtils from '../../utils/dateUtils';
 import { BookOneOnOneModal } from './BookOneOnOneModal';
 import { GoalForm, GoalFormRef } from '../participant/GoalForm';
@@ -15,11 +14,12 @@ import { StrengthComparisonModal } from '../participant/StrengthComparisonModal'
 import { ConditioningStatsModal } from '../participant/ConditioningStatsModal';
 import { PhysiqueManagerModal } from '../participant/PhysiqueManagerModal';
 import { Select } from '../Input';
+import { callGeminiApiFn } from '../../firebaseClient';
+import { renderMarkdown } from '../../utils/textUtils';
 
 interface MemberNotesModalProps {
   isOpen: boolean;
   onClose: () => void;
-  ai: GoogleGenAI | null;
   participant: ParticipantProfile;
   notes: CoachNote[];
   allParticipantGoals: ParticipantGoalData[];
@@ -45,76 +45,9 @@ interface MemberNotesModalProps {
 
 type MemberNotesTab = 'notes' | 'goals' | 'sessions' | 'program';
 
-// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-const getIconForHeader = (headerText: string): React.ReactElement | null => {
-    const lowerHeaderText = headerText.toLowerCase();
-    if (lowerHeaderText.includes("aktivitet") || lowerHeaderText.includes("konsistens")) return <span className="mr-2 text-xl" role="img" aria-label="Aktivitet">📊</span>;
-    if (lowerHeaderText.includes("målsättning") || lowerHeaderText.includes("progress")) return <span className="mr-2 text-xl" role="img" aria-label="Målsättning">🎯</span>;
-    if (lowerHeaderText.includes("mående") || lowerHeaderText.includes("engagemang")) return <span className="mr-2 text-xl" role="img" aria-label="Mående">😊</span>;
-    if (lowerHeaderText.includes("rekommendationer")) return <span className="mr-2 text-xl" role="img" aria-label="Rekommendationer">💡</span>;
-    return <span className="mr-2 text-xl" role="img" aria-label="Rubrik">📄</span>;
-};
-
-// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-const renderMarkdownContent = (markdownText: string | null): React.ReactElement[] | null => {
-    if (!markdownText) return null;
-    const lines = markdownText.split('\n');
-    // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-    const renderedElements: React.ReactElement[] = [];
-    // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
-    let currentListItems: React.ReactElement[] = [];
-    let listKeySuffix = 0;
-  
-    const flushList = () => {
-      if (currentListItems.length > 0) {
-        renderedElements.push(
-          <ul key={`ul-${renderedElements.length}-${listKeySuffix}`} className="list-disc pl-5 space-y-1 my-2">
-            {currentListItems}
-          </ul>
-        );
-        currentListItems = [];
-        listKeySuffix++;
-      }
-    };
-  
-    for (let i = 0; i < lines.length; i++) {
-      let lineContent = lines[i];
-      lineContent = lineContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-      lineContent = lineContent.replace(/\*(?=\S)(.*?)(?<=\S)\*/g, '<em>$1</em>');
-  
-      if (lineContent.startsWith('## ')) {
-        flushList();
-        const headerText = lineContent.substring(3).trim();
-        const icon = getIconForHeader(headerText.replace(/<\/?(strong|em)>/g, ''));
-        // FIX: Correctly render the icon as a React child instead of trying to access its props for dangerouslySetInnerHTML.
-        // This resolves the "Property 'children' does not exist on type 'unknown'" error.
-        renderedElements.push(
-          <h4 key={`h4-${i}`} className="text-xl font-bold text-gray-800 flex items-center mb-2 mt-4">
-            {icon} <span dangerouslySetInnerHTML={{ __html: headerText }} />
-          </h4>
-        );
-      } else if (lineContent.startsWith('* ') || lineContent.startsWith('- ')) {
-        const listItemText = lineContent.substring(2).trim();
-        currentListItems.push(
-          <li key={`li-${i}`} className="text-base text-gray-700" dangerouslySetInnerHTML={{ __html: listItemText }} />
-        );
-      } else {
-        flushList();
-        if (lineContent.trim() !== '') {
-            renderedElements.push(
-              <p key={`p-${i}`} className="text-base text-gray-700 mb-2" dangerouslySetInnerHTML={{ __html: lineContent }} />
-            );
-        }
-      }
-    }
-    flushList();
-    return renderedElements;
-};
-
 export const MemberNotesModal: React.FC<MemberNotesModalProps> = ({
   isOpen,
   onClose,
-  ai,
   participant,
   notes,
   allParticipantGoals,
@@ -166,6 +99,8 @@ export const MemberNotesModal: React.FC<MemberNotesModalProps> = ({
   const [isStrengthModalOpen, setIsStrengthModalOpen] = useState(false);
   const [isConditioningModalOpen, setIsConditioningModalOpen] = useState(false);
   const [isPhysiqueModalOpen, setIsPhysiqueModalOpen] = useState(false);
+  const [followUpBooked, setFollowUpBooked] = useState(false);
+
 
   const myGoals = useMemo(() => allParticipantGoals.filter(g => g.participantId === participant.id), [allParticipantGoals, participant.id]);
   const latestGoal = useMemo(() => {
@@ -199,6 +134,7 @@ export const MemberNotesModal: React.FC<MemberNotesModalProps> = ({
       setAssignSuccessMessage('');
       setProgramToEdit(null);
       setProgramToDelete(null);
+      setFollowUpBooked(false);
     }
   }, [isOpen]);
 
@@ -236,34 +172,109 @@ const handleConfirmDeleteProgram = () => {
     }
     setNewNote('');
   };
+
+  const handleInsertTemplate = () => {
+    const today = new Date().toISOString().split('T')[0];
+    const template = `AVSTÄMNING [Datum: ${today}]
+
+HUR GÅR DET MED DIN TRÄNING?
+
+
+VAD ÄR DU MEST STOLT ÖVER ATT HA UPPNÅTT DE SENASTE TRE MÅNADERNA (eller sen senaste avstämningen)? (BRIGHT SPOT)
+
+
+VAD HAR VARIT DIN STÖRSTA UTMANING?
+
+
+VILKA ÄR DINA NUVARANDE MÅL?
+
+
+KÄNNER DU ATT DU ÄR PÅ VÄG MOT MÅLET?
+
+
+FÖRNYAT/JUSTERAT MÅL:
+
+
+HUR TAR VI OSS DIT?
+Bra:
+Bättre:
+Bäst:
+`;
+
+    setNewNote(prevNote => {
+        if (prevNote.trim() === '') {
+            return template;
+        }
+        // Add two newlines for a clear separation
+        return `${prevNote}\n\n${template}`;
+    });
+  };
   
   const handleGenerateAiSummary = async () => {
-    if (!ai) return;
     setIsLoadingAiSummary(true);
     setAiSummary(null);
     
-    // Logic similar to AICoachMemberInsightModal
-    const prompt = `Du är en AI-assistent för en träningscoach. Ge en koncis och insiktsfull sammanfattning av en specifik medlems aktivitet och mående. Fokusera på att ge coachen snabba, användbara insikter för ett check-in samtal. Svara på svenska. Använd Markdown för att formatera ditt svar (## Rubriker, **fet text**, * punktlistor).
+    const lastCheckinNote = notes
+        .filter(n => n.noteType === 'check-in')
+        .sort((a,b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime())[0];
+
+    const sinceDate = lastCheckinNote ? new Date(lastCheckinNote.createdDate) : new Date(0);
+    const logsSinceLastCheckin = myActivityLogs.filter(log => new Date(log.completedDate) > sinceDate);
+
+    let logSummaryForPrompt = "Ingen aktivitet sedan senaste avstämning.";
+    if (logsSinceLastCheckin.length > 0) {
+        const workoutLogs = logsSinceLastCheckin.filter(l => l.type === 'workout') as WorkoutLog[];
+        const generalLogs = logsSinceLastCheckin.filter(l => l.type === 'general') as GeneralActivityLog[];
+        const totalCount = logsSinceLastCheckin.length;
+        const firstLogDate = new Date(logsSinceLastCheckin[logsSinceLastCheckin.length - 1].completedDate);
+        const periodDays = Math.max(1, (new Date().getTime() - firstLogDate.getTime()) / (1000 * 3600 * 24));
+        const weeklyAverage = (totalCount / periodDays * 7).toFixed(1);
+
+        const progressionPBs = workoutLogs
+            .flatMap(log => log.postWorkoutSummary?.newPBs || [])
+            .map(pb => `- ${pb.exerciseName}: ${pb.value}`)
+            .slice(0, 5).join('\n');
+
+        const moodRatings = logsSinceLastCheckin.map(l => l.moodRating).filter((r): r is number => r !== undefined);
+        const avgMood = moodRatings.length > 0 ? (moodRatings.reduce((a, b) => a + b, 0) / moodRatings.length).toFixed(1) : 'N/A';
+
+        logSummaryForPrompt = `
+- Period: Senaste ${Math.round(periodDays)} dagarna.
+- Totala aktiviteter: ${totalCount} (${workoutLogs.length} gympass, ${generalLogs.length} övriga).
+- Snitt per vecka: ${weeklyAverage} pass.
+- Nya Personliga Rekord (PBs):
+${progressionPBs || '  - Inga nya PBs loggade.'}
+- Genomsnittligt mående (1-5): ${avgMood}
+        `;
+    }
+
+    const prompt = `Du är en AI-assistent för en träningscoach. Ge en koncis och insiktsfull sammanfattning av en medlems aktivitet SEDAN SENASTE AVSTÄMNING. Fokusera på att ge coachen snabba, användbara insikter för ett check-in samtal. Svaret ska vara på svenska och formaterat med Markdown.
 
     Medlemmens data:
     - Namn: ${participant.name}
-    - Mål: "${latestGoal?.fitnessGoals || 'Inget aktivt mål satt.'}"
+    - Aktivt mål: "${latestGoal?.fitnessGoals || 'Inget aktivt mål.'}"
     - Mål (pass/vecka): ${latestGoal?.workoutsPerWeekTarget || 'N/A'}
-    - Totalt loggade aktiviteter: ${myActivityLogs.length}
-    - Senaste kommentarer: ${myActivityLogs.slice(0,3).map(l => (l as any).postWorkoutComment || (l as any).comment).filter(Boolean).map(c => `* "${c}"`).join('\n') || '* Inga kommentarer'}
 
-    Baserat på denna data, ge en sammanfattning som inkluderar:
-    1.  **## Aktivitet & Konsistens:** Jämför senaste veckornas aktivitet mot medlemmens mål.
-    2.  **## Målsättning & Progress:** Kommentarer om målet och eventuella tecken på framsteg.
-    3.  **## Mående & Engagemang:** Något anmärkningsvärt från kommentarer eller humör?
-    4.  **## Rekommendationer för Samtalet:** Ge 1-2 konkreta förslag på diskussionspunkter för coachen.`;
+    Sammanfattning av aktivitet sedan senaste avstämning (${lastCheckinNote ? `den ${sinceDate.toLocaleDateString('sv-SE')}` : 'start'}):
+    ${logSummaryForPrompt}
 
+    Baserat på ALL data ovan, ge en sammanfattning som inkluderar:
+    1.  ## Aktivitet & Konsistens: Jämför aktiviteten mot medlemmens mål. Är de på rätt spår?
+    2.  ## Progress: Finns det tecken på framsteg (nya PBs)?
+    3.  ## Mående & Engagemang: Vad indikerar humörskattningen?
+    4.  ## Rekommendationer för Samtalet: Ge 1-2 konkreta förslag på diskussionspunkter för coachen.`;
+    
     try {
-        const response: GenerateContentResponse = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: prompt,
+        const result = await callGeminiApiFn({
+            model: "gemini-2.5-flash",
+            contents: prompt,
         });
-        setAiSummary(response.text);
+        
+        const { text, error } = result.data as { text?: string; error?: string };
+        if (error) {
+            throw new Error(`Cloud Function error: ${error}`);
+        }
+        setAiSummary(text);
     } catch (err) {
       setAiSummary("Kunde inte generera sammanfattning.");
     } finally {
@@ -355,6 +366,8 @@ const handleConfirmDeleteProgram = () => {
     ...templateWorkouts.map(w => ({ value: w.id, label: w.title }))
   ];
   
+  const isCheckinNote = newNote.toUpperCase().includes('AVSTÄMNING');
+
   return (
     <>
       <Modal isOpen={isOpen} onClose={onClose} title={`Klientkort: ${participant.name}`} size="6xl">
@@ -384,20 +397,66 @@ const handleConfirmDeleteProgram = () => {
             <div role="tabpanel" hidden={activeTab !== 'notes'}>
                 {activeTab === 'notes' && (
                   <div className="space-y-4">
-                      {ai && (
-                        <div className="p-3 bg-gray-50 rounded-lg border">
+                      <div className="p-3 bg-gray-50 rounded-lg border">
                           <Button onClick={handleGenerateAiSummary} fullWidth disabled={isLoadingAiSummary || !isOnline}>
                             {isLoadingAiSummary ? 'Genererar...' : (isOnline ? 'Generera AI Sammanfattning' : 'AI Offline')}
                           </Button>
-                          {aiSummary && <div className="mt-3 p-2 bg-white rounded">{renderMarkdownContent(aiSummary)}</div>}
+                          {aiSummary && <div className="mt-3 p-2 bg-white rounded">{renderMarkdown(aiSummary)}</div>}
                         </div>
-                      )}
                       
                       <div className="space-y-2">
-                        <Textarea label={editingNote ? 'Redigera anteckning' : 'Ny anteckning'} value={newNote} onChange={e => setNewNote(e.target.value)} rows={4} />
-                        <div className="flex justify-end gap-2">
-                          {editingNote && <Button variant="secondary" onClick={() => { setEditingNote(null); setNewNote(''); }}>Avbryt</Button>}
-                          <Button onClick={handleSaveNote} disabled={!newNote.trim()}>{editingNote ? 'Spara ändring' : 'Spara anteckning'}</Button>
+                        <Textarea
+                          label={editingNote ? 'Redigera anteckning' : 'Ny anteckning'}
+                          value={newNote}
+                          onChange={(e) => setNewNote(e.target.value)}
+                          rows={4}
+                        />
+
+                        {isCheckinNote && (
+                            <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                <label className="flex items-center space-x-3 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={followUpBooked}
+                                        onChange={(e) => setFollowUpBooked(e.target.checked)}
+                                        className="h-5 w-5 text-flexibel border-gray-300 rounded focus:ring-flexibel"
+                                    />
+                                    <span className="text-base font-medium text-gray-700">
+                                        Nytt avstämningssamtal bokat
+                                    </span>
+                                </label>
+                            </div>
+                        )}
+
+                        <div className="flex justify-between items-center pt-2">
+                          <div>
+                            {!editingNote && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={handleInsertTemplate}
+                              >
+                                Infoga Avstämningsmall
+                              </Button>
+                            )}
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            {editingNote && (
+                              <Button
+                                variant="secondary"
+                                onClick={() => {
+                                  setEditingNote(null);
+                                  setNewNote('');
+                                }}
+                              >
+                                Avbryt
+                              </Button>
+                            )}
+                            <Button onClick={handleSaveNote} disabled={!newNote.trim()}>
+                              {editingNote ? 'Spara ändring' : 'Spara anteckning'}
+                            </Button>
+                          </div>
                         </div>
                       </div>
 
@@ -427,7 +486,6 @@ const handleConfirmDeleteProgram = () => {
                           onSave={handleSaveGoal}
                           onTriggerAiGoalPrognosis={async () => { /* Handled by GoalForm internally for coach view */ }}
                           showCoachFields={true}
-                          ai={ai}
                           isOnline={isOnline}
                       />
                        <div className="flex justify-end pt-4 mt-4 border-t">
@@ -438,24 +496,62 @@ const handleConfirmDeleteProgram = () => {
             </div>
 
              <div role="tabpanel" hidden={activeTab !== 'sessions'}>
-                {activeTab === 'sessions' && (
-                    <div>
-                        <Button onClick={() => { setSessionToEdit(null); setIsBookingModalOpen(true); }} fullWidth>Boka ny 1-on-1 session</Button>
-                         <div className="mt-4 space-y-2 max-h-60 overflow-y-auto pr-2">
-                            <h4 className="text-lg font-semibold">Bokade Sessioner</h4>
-                             {oneOnOneSessions.filter(s => s.participantId === participant.id).sort((a,b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()).map(session => (
-                                <div key={session.id} className="p-2 bg-white border rounded">
-                                    <p className="font-semibold">{session.title}</p>
-                                    <p className="text-sm">{new Date(session.startTime).toLocaleString('sv-SE')}</p>
-                                    <div className="flex justify-end gap-2 mt-1">
-                                      <Button size="sm" variant="outline" className="!text-xs" onClick={() => { setSessionToEdit(session); setIsBookingModalOpen(true); }}>Redigera</Button>
-                                      <Button size="sm" variant="danger" className="!text-xs" onClick={() => setSessionToDelete(session)}>Ta bort</Button>
+                {activeTab === 'sessions' && (() => {
+                    const now = new Date();
+                    const participantSessions = oneOnOneSessions.filter(s => s.participantId === participant.id);
+                    const upcomingSessions = participantSessions.filter(s => new Date(s.startTime) >= now).sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+                    const pastSessions = participantSessions.filter(s => new Date(s.startTime) < now).sort((a,b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+
+                    const formatDateTime = (isoString: string) => {
+                        const d = new Date(isoString);
+                        const datePart = d.toISOString().split('T')[0];
+                        const timePart = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                        return `${datePart} ${timePart}`;
+                    };
+                    
+                    return (
+                        <div>
+                            <Button onClick={() => { setSessionToEdit(null); setIsBookingModalOpen(true); }} fullWidth>Boka ny 1-on-1 session</Button>
+                            
+                            <div className="mt-4 space-y-4 max-h-80 overflow-y-auto pr-2">
+                                <h4 className="text-xl font-semibold text-gray-800">Kommande Sessioner</h4>
+                                {upcomingSessions.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {upcomingSessions.map(session => (
+                                            <div key={session.id} className="p-4 bg-white border rounded-lg shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                                                <div>
+                                                    <p className="font-bold text-lg text-gray-900">{session.title}</p>
+                                                    <p className="text-base text-gray-600">{formatDateTime(session.startTime)}</p>
+                                                </div>
+                                                <div className="flex gap-2 mt-2 sm:mt-0 self-end sm:self-center">
+                                                    <Button size="sm" variant="outline" className="!text-xs" onClick={() => { setSessionToEdit(session); setIsBookingModalOpen(true); }}>Redigera</Button>
+                                                    <Button size="sm" variant="danger" className="!text-xs" onClick={() => setSessionToDelete(session)}>Ta bort</Button>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
-                                </div>
-                             ))}
-                         </div>
-                    </div>
-                )}
+                                ) : <p className="text-gray-500 italic">Inga kommande sessioner bokade.</p>}
+
+                                {pastSessions.length > 0 && (
+                                    <details className="pt-4 border-t">
+                                        <summary className="text-xl font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center group">
+                                            Tidigare Sessioner
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500 transition-transform duration-200 group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                                        </summary>
+                                        <div className="mt-3 space-y-3">
+                                            {pastSessions.map(session => (
+                                                <div key={session.id} className="p-4 bg-gray-50 border rounded-lg opacity-80">
+                                                    <p className="font-semibold text-lg text-gray-700">{session.title}</p>
+                                                    <p className="text-base text-gray-500">{formatDateTime(session.startTime)}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </details>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })()}
             </div>
              <div role="tabpanel" hidden={activeTab !== 'program'}>
                 {activeTab === 'program' && (
@@ -507,7 +603,7 @@ const handleConfirmDeleteProgram = () => {
                         
                         <div className="p-4 border rounded-lg bg-gray-50 space-y-3">
                             <h4 className="text-lg font-semibold text-gray-800">Skapa nytt program</h4>
-                            <p className="text-sm text-gray-600">Skapa ett helt nytt, anpassat program från grunden och tilldela det direkt till {participant.name}.</p>
+                            <p className="text-sm text-gray-600">Skapa ett helt nytt, anpassat program från grunden och tilldela det direkt till ${participant.name}.</p>
                             <Button onClick={handleOpenNewProgramModal}>
                                 Skapa & Tilldela Nytt Program
                             </Button>
@@ -555,7 +651,6 @@ const handleConfirmDeleteProgram = () => {
           workoutToEdit={programToEdit}
           participantToAssign={programToEdit ? undefined : participant}
           participantGoal={latestGoal}
-          ai={ai}
           isOnline={isOnline}
       />
 

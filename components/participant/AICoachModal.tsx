@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
 import { Input } from '../Input';
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-import { ParticipantProfile, WorkoutLog, GeneralActivityLog, ParticipantGoalData, Workout } from '../../types';
+import { ParticipantProfile, WorkoutLog, GeneralActivityLog, ParticipantGoalData, Workout, Membership } from '../../types';
+import { callGeminiApiFn } from '../../firebaseClient';
 
 interface Message {
     id: string;
@@ -14,12 +14,12 @@ interface Message {
 interface AICoachModalProps {
     isOpen: boolean;
     onClose: () => void;
-    ai: GoogleGenAI | null;
     participantProfile: ParticipantProfile | null;
     myWorkoutLogs: WorkoutLog[];
     myGeneralActivityLogs: GeneralActivityLog[];
     latestGoal: ParticipantGoalData | null;
     allWorkouts: Workout[];
+    membership: Membership | null;
 }
 
 const SendIcon = () => (
@@ -65,12 +65,12 @@ const renderMarkdownContent = (text: string): React.ReactElement[] => {
 export const AICoachModal: React.FC<AICoachModalProps> = ({
     isOpen,
     onClose,
-    ai,
     participantProfile,
     myWorkoutLogs,
     myGeneralActivityLogs,
     latestGoal,
-    allWorkouts
+    allWorkouts,
+    membership
 }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
@@ -98,7 +98,7 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
     }, [messages]);
     
     const sendMessage = useCallback(async (text: string) => {
-        if (!text.trim() || isLoading || !ai) return;
+        if (!text.trim() || isLoading || !participantProfile) return;
 
         const userMessage: Message = { id: crypto.randomUUID(), text, sender: 'user' };
         setMessages(prev => [...prev, userMessage]);
@@ -124,6 +124,24 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
                     });
                 }
             });
+
+            // Filter available workouts based on membership
+            const availableWorkouts = allWorkouts.filter(w => {
+                // 1. Include all personally assigned workouts
+                if (w.assignedToParticipantId === participantProfile.id) {
+                    return true;
+                }
+        
+                // 2. Include published workouts that are not restricted by membership
+                if (w.isPublished && !w.assignedToParticipantId) {
+                    if (membership?.restrictedCategories && membership.restrictedCategories.includes(w.category)) {
+                        return false; // This category is restricted
+                    }
+                    return true; // Published and not restricted
+                }
+        
+                return false;
+            }).map(w => ({ title: w.title, category: w.category, focusTags: w.focusTags }));
 
             // Create a more detailed workout history for the AI
             const enrichedRecentWorkouts = myWorkoutLogs.slice(0, 10).map(log => {
@@ -153,7 +171,7 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
                 recentActivities: myGeneralActivityLogs.slice(0, 5).map(log => ({
                     name: log.activityName, duration: log.durationMinutes, completedDate: log.completedDate
                 })),
-                availableWorkouts: allWorkouts.filter(w => w.isPublished && !w.assignedToParticipantId).map(w => ({ title: w.title, category: w.category, focusTags: w.focusTags }))
+                availableWorkouts: availableWorkouts
             };
 
             const prompt = `Du är "Flexibot", en personlig, AI-driven träningscoach från Flexibel Hälsostudio. Din ton är peppande, kunnig och stöttande. Svara alltid på svenska. Ge korta, koncisa och hjälpsamma svar. Använd medlemmens namn ibland.
@@ -165,25 +183,31 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
 
             Baserat på ALL data ovan, ge ett svar.
             - **Om frågan handlar om styrkeutveckling:** Analysera "loggedSets" i "recentWorkouts" för varje övning över tid. Leta efter progression i form av ökad vikt, fler repetitioner med samma vikt, eller högre total volym (vikt * reps). Presentera en tydlig sammanfattning av utvecklingen för de mest relevanta övningarna.
-            - **Om frågan handlar om att rekommendera ett pass:** Använd listan med "availableWorkouts" för att ge ett specifikt förslag och motivera varför det passar baserat på medlemmens mål och historik.
+            - **Om frågan handlar om att rekommendera ett pass:** Använd ENDAST listan med "availableWorkouts" för att ge ett specifikt förslag och motivera varför det passar baserat på medlemmens mål och historik. Föreslå ALDRIG ett pass som inte finns i listan.
             - **Om du inte kan svara:** Förklara varför på ett hjälpsamt sätt. Om du inte kan se en tydlig trend för styrkeutveckling, förklara att fler loggade pass behövs för en djupare analys.`;
 
-            const response: GenerateContentResponse = await ai.models.generateContent({
+            const result = await callGeminiApiFn({
                 model: 'gemini-2.5-flash',
                 contents: prompt,
             });
 
-            const aiMessage: Message = { id: crypto.randomUUID(), text: response.text, sender: 'ai' };
+            const { text: responseText, error } = result.data as { text?: string; error?: string };
+
+            if (error) {
+                throw new Error(`Cloud Function error: ${error}`);
+            }
+
+            const aiMessage: Message = { id: crypto.randomUUID(), text: responseText, sender: 'ai' };
             setMessages(prev => [...prev, aiMessage]);
 
         } catch (error) {
-            console.error("Error calling Gemini API:", error);
+            console.error("Error calling AI Coach:", error);
             const errorMessage: Message = { id: crypto.randomUUID(), text: "Ursäkta, jag har lite problem just nu. Försök igen senare.", sender: 'ai' };
             setMessages(prev => [...prev, errorMessage]);
         } finally {
             setIsLoading(false);
         }
-    }, [ai, isLoading, participantProfile, latestGoal, myWorkoutLogs, myGeneralActivityLogs, allWorkouts]);
+    }, [isLoading, participantProfile, latestGoal, myWorkoutLogs, myGeneralActivityLogs, allWorkouts, membership]);
 
     const handleFormSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -203,8 +227,8 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Fråga coachen" size="lg">
-            <div className="relative flex flex-col h-[75vh] sm:h-[70vh] -m-6">
-                <div ref={chatContainerRef} className="flex-grow p-4 overflow-y-auto space-y-4 bg-white pb-48">
+            <div className="flex flex-col h-[75vh] sm:h-[70vh] -m-6">
+                <div ref={chatContainerRef} className="flex-grow p-4 overflow-y-auto space-y-4 bg-white">
                     {messages.map(msg => (
                         <div key={msg.id} className={`flex items-end gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                             {msg.sender === 'ai' && <span className="text-2xl mb-1">✨</span>}
@@ -224,16 +248,17 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
                             </div>
                         </div>
                     )}
-                </div>
-
-                <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-gray-50 flex-shrink-0">
-                    <div className="flex flex-wrap gap-2 mb-4">
+                    
+                    <div className="flex flex-wrap gap-2 pt-4">
                         {suggestionButtons.map(s => (
                             <Button key={s} variant="ghost" size="sm" onClick={() => handleSuggestionClick(s)} disabled={isLoading} className="!rounded-full !px-2.5 !py-1 !text-xs bg-orange-100 text-orange-800 hover:bg-orange-200 border border-orange-200">
                                 {s}
                             </Button>
                         ))}
                     </div>
+                </div>
+
+                <div className="p-4 border-t bg-gray-50 flex-shrink-0">
                     <form onSubmit={handleFormSubmit} className="flex items-center gap-3">
                         <Input
                             value={inputValue}

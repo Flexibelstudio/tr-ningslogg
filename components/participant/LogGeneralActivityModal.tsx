@@ -13,7 +13,7 @@ const EXISTING_GENERAL_ACTIVITIES = ["HIIT", "Workout", "Mindfulness", "Yin Yoga
 interface LogGeneralActivityModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSaveActivity: (activityData: Omit<GeneralActivityLog, 'id' | 'completedDate' | 'type' | 'participantId'>) => void;
+  onSaveActivity: (activityData: Omit<GeneralActivityLog, 'id' | 'type' | 'participantId'>) => void;
 }
 
 export const LogGeneralActivityModal: React.FC<LogGeneralActivityModalProps> = ({ isOpen, onClose, onSaveActivity }) => {
@@ -22,7 +22,8 @@ export const LogGeneralActivityModal: React.FC<LogGeneralActivityModalProps> = (
   const [caloriesBurned, setCaloriesBurned] = useState<string>('');
   const [distanceKm, setDistanceKm] = useState<string>('');
   const [comment, setComment] = useState('');
-  const [selectedMood, setSelectedMood] = useState<number | null>(null); 
+  const [selectedMood, setSelectedMood] = useState<number | null>(null);
+  const [completedDate, setCompletedDate] = useState('');
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSaving, setIsSaving] = useState(false);
   const [hasSaved, setHasSaved] = useState(false);
@@ -46,6 +47,7 @@ export const LogGeneralActivityModal: React.FC<LogGeneralActivityModalProps> = (
       setDistanceKm('');
       setComment('');
       setSelectedMood(null); 
+      setCompletedDate(new Date().toISOString().split('T')[0]);
       setErrors({});
       setIsSaving(false);
       setHasSaved(false);
@@ -79,20 +81,23 @@ export const LogGeneralActivityModal: React.FC<LogGeneralActivityModalProps> = (
       setIsSaving(false);
       return;
     }
+
+    const originalTime = new Date().toTimeString().split(' ')[0];
+    const finalCompletedDate = new Date(`${completedDate}T${originalTime}`).toISOString();
+
     onSaveActivity({
       activityName: activityName.trim(),
       durationMinutes: Number(durationMinutes),
       caloriesBurned: caloriesBurned.trim() ? Number(caloriesBurned) : undefined,
       distanceKm: distanceKm.trim() ? Number(distanceKm) : undefined,
       comment: comment.trim() || undefined,
-      moodRating: selectedMood !== null ? selectedMood : undefined, 
+      moodRating: selectedMood !== null ? selectedMood : undefined,
+      completedDate: finalCompletedDate,
     });
     
     setHasSaved(true);
     setTimeout(() => {
         onClose();
-        // setIsSaving(false); // Will be reset by useEffect on isOpen
-        // setHasSaved(false); // Will be reset by useEffect on isOpen
     }, 800);
   };
 
@@ -114,6 +119,14 @@ export const LogGeneralActivityModal: React.FC<LogGeneralActivityModalProps> = (
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Logga Aktivitet" size="md">
       <div className="space-y-4">
+        <Input
+          label="Datum"
+          type="date"
+          value={completedDate}
+          onChange={(e) => setCompletedDate(e.target.value)}
+          max={new Date().toISOString().split('T')[0]}
+          required
+        />
         <div>
           <label className="block text-base font-medium text-gray-700 mb-2">Vanliga aktiviteter:</label>
           <div className="flex flex-wrap gap-2">

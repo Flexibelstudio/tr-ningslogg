@@ -10,7 +10,6 @@ import {
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { Navbar } from './components/Navbar';
 import { LOCAL_STORAGE_KEYS } from './constants'; 
-import { GoogleGenAI } from '@google/genai';
 import { WelcomeModal } from './components/participant/WelcomeModal'; 
 import { AppProvider, useAppContext } from './context/AppContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -21,14 +20,14 @@ import { NetworkStatusProvider } from './context/NetworkStatusContext';
 import { OfflineBanner } from './components/OfflineBanner';
 import { UpdateNoticeModal } from './components/participant/UpdateNoticeModal';
 import { DevToolbar } from './components/DevToolbar';
+import { TermsModal } from './components/TermsModal';
 
 const CoachArea = lazy(() => import('./components/coach/CoachArea').then(m => ({ default: m.CoachArea })));
 const ParticipantArea = lazy(() => import('./components/participant/ParticipantArea').then(m => ({ default: m.ParticipantArea })));
 const SystemOwnerArea = lazy(() => import('./components/SystemOwnerArea').then(m => ({ default: m.SystemOwnerArea })));
 const PublicLeadForm = lazy(() => import('./components/public/PublicLeadForm').then(m => ({ default: m.PublicLeadForm })));
+const ZapierWebhookHandler = lazy(() => import('./components/api/ZapierWebhookHandler').then(m => ({ default: m.ZapierWebhookHandler })));
 
-
-const API_KEY = process.env.API_KEY;
 
 const LoadingSpinner = () => (
     <div className="fixed inset-0 flex items-center justify-center bg-gray-100 bg-opacity-75 z-50">
@@ -41,10 +40,19 @@ const LoadingSpinner = () => (
 
 const AppContent: React.FC = () => {
     // NEW ROUTING LOGIC for public lead form
-    if (window.location.pathname.startsWith('/lead-form')) {
+    if (window.location.pathname.startsWith('/public/lead-form')) {
         return (
             <Suspense fallback={<LoadingSpinner />}>
                 <PublicLeadForm />
+            </Suspense>
+        );
+    }
+    
+    // Add back webhook handler for preview environment
+    if (window.location.pathname.startsWith('/api/zapier-lead-webhook')) {
+        return (
+            <Suspense fallback={<div>Processing...</div>}>
+                <ZapierWebhookHandler />
             </Suspense>
         );
     }
@@ -70,13 +78,14 @@ const AppContent: React.FC = () => {
         userConditioningStatsHistory, setUserConditioningStatsHistoryData,
         connections,
         lastFlowViewTimestamp,
+        updateUser,
+        // FIX: Removed 'flowItems' and 'setFlowItemsData' as they are not part of the AppContext and the logic to update flow items should target the source collections directly.
     } = useAppContext();
     
     const auth = useAuth();
     const [view, setView] = useState<'login' | 'register'>('login');
     const [registrationPendingMessage, setRegistrationPendingMessage] = useState(false);
 
-    const [ai, setAi] = useState<GoogleGenAI | null>(null);
     const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
     const [welcomeModalShown, setWelcomeModalShown] = useLocalStorage<boolean>(
         LOCAL_STORAGE_KEYS.WELCOME_MESSAGE_SHOWN_PARTICIPANT,
@@ -91,6 +100,28 @@ const AppContent: React.FC = () => {
         }
         return null;
     });
+
+    const [showTermsModal, setShowTermsModal] = useState(false);
+    const [hasCheckedTerms, setHasCheckedTerms] = useState(false);
+
+    useEffect(() => {
+        if (auth.user && !auth.user.termsAcceptedTimestamp && !hasCheckedTerms) {
+            setShowTermsModal(true);
+            setHasCheckedTerms(true);
+        }
+    }, [auth.user, hasCheckedTerms]);
+
+    const handleAcceptTerms = async () => {
+        if (auth.user) {
+            try {
+                await updateUser(auth.user.id, { termsAcceptedTimestamp: new Date().toISOString() });
+                setShowTermsModal(false);
+            } catch (error) {
+                console.error("Failed to accept terms:", error);
+                alert("Kunde inte spara ditt godkännande. Vänligen försök igen.");
+            }
+        }
+    };
 
     // --- Update Notice Logic ---
     const UPDATE_NOTICE_KEY = 'updateNotice_v3_AICoach'; // Unique key for this update version
@@ -466,6 +497,7 @@ const AppContent: React.FC = () => {
             case 'participant_physique_stat': setParticipantPhysiqueHistoryData(updater); break;
             case 'participant_goal_data': setParticipantGoalsData(updater); break;
             case 'participant_conditioning_stat': setUserConditioningStatsHistoryData(updater); break;
+            // FIX: Removed invalid 'flow_item' case. The switch handles all valid FlowItemLogType values, and updates should go to the source collections, not a non-existent 'flowItems' collection.
             default: console.warn(`Unsupported logType for reaction: ${logType}`);
         }
     }, [
@@ -510,6 +542,7 @@ const AppContent: React.FC = () => {
             case 'participant_physique_stat': setParticipantPhysiqueHistoryData(updater); break;
             case 'participant_goal_data': setParticipantGoalsData(updater); break;
             case 'participant_conditioning_stat': setUserConditioningStatsHistoryData(updater); break;
+            // FIX: Removed invalid 'flow_item' case.
             default: console.warn(`Unsupported logType for add comment: ${logType}`);
         }
     }, [
@@ -541,6 +574,7 @@ const AppContent: React.FC = () => {
             case 'participant_physique_stat': setParticipantPhysiqueHistoryData(updater); break;
             case 'participant_goal_data': setParticipantGoalsData(updater); break;
             case 'participant_conditioning_stat': setUserConditioningStatsHistoryData(updater); break;
+            // FIX: Removed invalid 'flow_item' case.
             default: console.warn(`Unsupported logType for delete comment: ${logType}`);
         }
     }, [
@@ -586,6 +620,7 @@ const AppContent: React.FC = () => {
             case 'participant_physique_stat': setParticipantPhysiqueHistoryData(updater); break;
             case 'participant_goal_data': setParticipantGoalsData(updater); break;
             case 'participant_conditioning_stat': setUserConditioningStatsHistoryData(updater); break;
+            // FIX: Removed invalid 'flow_item' case.
             default: console.warn(`Unsupported logType for comment reaction: ${logType}`);
         }
     }, [
@@ -594,19 +629,6 @@ const AppContent: React.FC = () => {
         setUserStrengthStatsData, setParticipantPhysiqueHistoryData, setParticipantGoalsData,
         setUserConditioningStatsHistoryData
     ]);
-
-
-    useEffect(() => {
-        if (API_KEY) {
-        try {
-            setAi(new GoogleGenAI({ apiKey: API_KEY }));
-        } catch (e) {
-            console.error("Failed to initialize GoogleGenAI:", e);
-        }
-        } else {
-        console.warn("API_KEY for Gemini not found. AI features will be disabled.");
-        }
-    }, []);
 
     const prospectModalShownKey = auth.currentParticipantId ? `flexibel_prospectProfileModalShown_${auth.currentParticipantId}` : null;
 
@@ -721,7 +743,6 @@ const AppContent: React.FC = () => {
             return (
                 <div className="container mx-auto px-2 sm:px-6 py-6">
                     <CoachArea
-                        ai={ai}
                         onAddComment={handleAddComment}
                         onDeleteComment={handleDeleteComment}
                         onToggleCommentReaction={handleToggleCommentReaction}
@@ -797,6 +818,15 @@ const AppContent: React.FC = () => {
                 <UpdateNoticeModal 
                     show={showLatestUpdateView} 
                     onClose={() => setShowLatestUpdateView(false)} 
+                />
+            )}
+
+            {showTermsModal && (
+                <TermsModal
+                    isOpen={showTermsModal}
+                    onClose={() => {}} // Block closing
+                    onAccept={handleAcceptTerms}
+                    isBlocking={true}
                 />
             )}
         </div>

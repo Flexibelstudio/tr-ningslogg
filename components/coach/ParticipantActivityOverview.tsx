@@ -2,17 +2,14 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { WorkoutLog, Workout, Exercise, SetDetail, WorkoutExerciseLog, LiftType } from '../../types';
 import { Button } from '../Button';
 import { AICoachActivitySummaryModal } from './AICoachActivitySummaryModal';
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import * as dateUtils from '../../utils/dateUtils';
 import { MOOD_OPTIONS } from '../../constants';
 import { useAppContext } from '../../context/AppContext';
-
-const API_KEY = process.env.API_KEY;
+import { callGeminiApiFn } from '../../firebaseClient';
 
 interface ParticipantActivityOverviewProps {
   workoutLogs: WorkoutLog[];
   workouts: Workout[];
-  ai: GoogleGenAI | null;
   isOnline: boolean;
 }
 
@@ -67,7 +64,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, iconPath, unit, isTex
 );
 
 
-export const ParticipantActivityOverview: React.FC<ParticipantActivityOverviewProps> = ({ workoutLogs, workouts, ai, isOnline }) => {
+export const ParticipantActivityOverview: React.FC<ParticipantActivityOverviewProps> = ({ workoutLogs, workouts, isOnline }) => {
   const [isAiSummaryModalOpen, setIsAiSummaryModalOpen] = useState(false);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [isLoadingAiSummary, setIsLoadingAiSummary] = useState(false);
@@ -115,7 +112,7 @@ export const ParticipantActivityOverview: React.FC<ParticipantActivityOverviewPr
       if (workoutTemplate) {
         log.entries.forEach(entry => {
           let exerciseDetail: Exercise | undefined;
-          for (const block of workoutTemplate.blocks) {
+          for (const block of (workoutTemplate.blocks || [])) {
             const foundEx = block.exercises.find(ex => ex.id === entry.exerciseId);
             if (foundEx) {
               exerciseDetail = foundEx;
@@ -160,8 +157,8 @@ export const ParticipantActivityOverview: React.FC<ParticipantActivityOverviewPr
   }, [workoutLogs, workouts]);
 
   const generateAiSummary = useCallback(async () => {
-    if (!ai || workoutLogs.length === 0) {
-      setAiSummaryError("AI-tjänsten är inte tillgänglig eller inga loggar finns att analysera.");
+    if (workoutLogs.length === 0) {
+      setAiSummaryError("Inga loggar finns att analysera.");
       setIsAiSummaryModalOpen(true);
       return;
     }
@@ -225,11 +222,16 @@ ${summaryOfLogs}
 Ge en koncis rapport till coachen.`;
 
     try {
-      const response: GenerateContentResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-      });
-      setAiSummary(response.text);
+        const result = await callGeminiApiFn({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+        });
+
+        const { text, error } = result.data as { text?: string; error?: string };
+        if (error) {
+            throw new Error(`Cloud Function error: ${error}`);
+        }
+        setAiSummary(text);
     } catch (error) {
       console.error("Error generating AI summary:", error);
       setAiSummaryError("Kunde inte generera AI-sammanfattning.");
@@ -237,12 +239,12 @@ Ge en koncis rapport till coachen.`;
       setIsLoadingAiSummary(false);
       setIsAiSummaryModalOpen(true);
     }
-  }, [ai, workoutLogs, workouts]);
+  }, [workoutLogs, workouts]);
 
   return (
     <div className="mt-10 mb-8 p-4 sm:p-6 bg-white rounded-lg shadow-xl">
         <div className="flex flex-col sm:flex-row justify-end items-start sm:items-center mb-6 pb-4 border-b">
-            {ai && workoutLogs.length > 0 && (
+            {workoutLogs.length > 0 && (
                 <Button onClick={generateAiSummary} disabled={isLoadingAiSummary || !isOnline} className="mt-3 sm:mt-0">
                     {isLoadingAiSummary ? 'Analyserar...' : (isOnline ? 'AI Sammanfattning' : 'AI Offline')}
                 </Button>

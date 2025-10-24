@@ -32,6 +32,7 @@ export interface User {
     participant?: string; // Participant is only in one org
   };
   linkedParticipantProfileId?: string;
+  termsAcceptedTimestamp?: string;
 }
 
 export interface Organization {
@@ -394,17 +395,33 @@ export interface ProspectIntroCall {
   prospectPhone?: string;
   createdDate: string; // ISO string
   coachId: string;
+
+  // New fields from the form
+  studioId?: string;
+  referralSource?: string;
+
+  trainingGoals?: string; // Fråga 1
+  timingNotes?: string; // Fråga 2
+  engagementLevel?: number; // Fråga 3A (1-10)
+  engagementReason?: string; // Fråga 3B
   
-  // Fields from the template
-  backgroundNotes?: string;
-  goalsNotes?: string;
-  lifestyleNotes?: string;
-  physicalNotes?: string;
+  sleepAndStress?: string; // Fråga 4a & 4b combined
+  
+  isSickListed?: boolean; // Fråga 5
+  
+  healthIssues?: string; // Fråga 6 & 7 combined
+  
+  whyNeedHelp?: string; // Fråga 8
+
   coachSummary?: string;
   
   // Status to handle linking later
   status: 'unlinked' | 'linked';
   linkedParticipantId?: string; // Filled when the link is made
+
+  // New: For call outcome
+  outcome?: 'bought_starter' | 'bought_other' | 'thinking' | 'not_interested';
+  tshirtHandedOut?: boolean;
 }
 
 export interface ParticipantGoalData {

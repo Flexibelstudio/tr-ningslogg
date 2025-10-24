@@ -88,6 +88,22 @@ export const COMMON_FITNESS_GOALS_OPTIONS: { id: string; label: string }[] = [
   { id: 'goal_general_wellbeing', label: 'Allmän hälsa' },
 ];
 
+export const REFERRAL_SOURCE_OPTIONS = [
+  { value: 'Sociala medier', label: 'Sociala medier (Facebook, Instagram)' },
+  { value: 'Googlesökning', label: 'Googlesökning' },
+  { value: 'Rekommendation', label: 'Rekommendation från vän/familj' },
+  { value: 'Gick förbi studion', label: 'Gick förbi studion' },
+  { value: 'Lokal annonsering', label: 'Lokal annonsering (tidning, event etc.)' },
+  { value: 'Annat', label: 'Annat...' },
+];
+
+export const INTRO_CALL_OUTCOME_OPTIONS: { value: 'bought_starter' | 'bought_other' | 'thinking' | 'not_interested', label: string }[] = [
+  { value: 'bought_starter', label: 'Köpte Startprogram' },
+  { value: 'bought_other', label: 'Köpte annat medlemskap' },
+  { value: 'thinking', label: 'Tänker på saken / Återkommer' },
+  { value: 'not_interested', label: 'Ej intresserad' },
+];
+
 export const ALL_LIFT_TYPES: LiftType[] = [
   'Knäböj', 
   'Bänkpress', 

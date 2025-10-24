@@ -238,10 +238,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     setProspectIntroCalls(data.prospectIntroCalls);
                     setBranding(data.branding);
 
-                    // Also update the local cache with the fresh data from Firestore
-                    // This ensures the offline cache is up-to-date
-                    dataService.setOrgData(organizationId, data);
-
                     // Cache logo for faster reloads
                     if (data.branding?.logoBase64) {
                         localStorage.setItem(`flexibel_logo_${organizationId}`, data.branding.logoBase64);

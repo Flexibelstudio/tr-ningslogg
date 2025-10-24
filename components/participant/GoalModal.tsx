@@ -43,13 +43,22 @@ export const GoalModal: React.FC<GoalModalProps> = ({
     if (formRef.current) {
         setIsSaving(true);
         setHasSaved(false);
-        const savedSuccessfully = await formRef.current.submitForm();
-        if (savedSuccessfully) {
-            setHasSaved(true);
-            setTimeout(() => {
-                onClose();
-            }, 800);
-        } else {
+        try {
+            const savedSuccessfully = await formRef.current.submitForm();
+            if (savedSuccessfully) {
+                setHasSaved(true);
+                setTimeout(() => {
+                    onClose();
+                }, 800);
+            } else {
+                // This path is unlikely if submitForm throws on failure, but included for safety.
+                setIsSaving(false);
+            }
+        } catch (error) {
+            // Catches errors thrown from the onSave promise chain (e.g., failed fetch).
+            console.error("Error during save process:", error);
+            // The error message should be displayed in the AI feedback modal,
+            // which is opened by the onSave function. We just need to reset the UI here.
             setIsSaving(false);
         }
     }
