@@ -18,19 +18,6 @@ function getISOWeek(date: Date): number {
   return weekNo;
 }
 
-// Robust way to read Bearer token from headers
-function getBearerToken(req: {
-  header?: (n: string) => string | undefined;
-  headers?: Record<string, any>;
-}) {
-  const h =
-    (typeof req.header === "function" ? req.header("authorization") : undefined) ??
-    (typeof req.header === "function" ? req.header("Authorization") : undefined) ??
-    req.headers?.authorization ??
-    req.headers?.Authorization ??
-    "";
-  return typeof h === "string" && h.startsWith("Bearer ") ? h.slice(7) : "";
-}
 
 /**
  * Zapier webhook: creates lead in Firestore
@@ -40,101 +27,162 @@ export const createLeadFromZapier = onRequest(
   {
     region: "europe-west1",
     secrets: ["ZAPIER_SECRET_KEY"],
-    cors: true, // Firebase handles CORS headers
+    cors: true,
   },
-  // FIX: Explicitly type request and response as 'any' to bypass TypeScript type inference issues
-  // in the build environment where Express types might not be correctly resolved for onRequest handlers.
+  // explicit any för att slippa Express-typer som kan strula i vissa miljöer
   async (request: any, response: any) => {
-    if (request.method !== "POST") {
-      logger.warn("Method Not Allowed:", request.method);
-      response.status(405).send("Method Not Allowed");
-      return;
-    }
-
-    // Auth
-    const ZAPIER_SECRET_KEY = process.env.ZAPIER_SECRET_KEY;
-    const presented = getBearerToken(request);
-    if (!ZAPIER_SECRET_KEY || presented !== ZAPIER_SECRET_KEY) {
-      logger.warn("Unauthorized attempt to access webhook.");
-      response.status(401).json({ error: "Unauthorized" });
-      return;
-    }
-
-    // Body
-    const {
-      firstName,
-      lastName,
-      email,
-      phone,
-      locationName,
-      orgId,
-    } = (request.body ?? {}) as Record<string, unknown>;
-
-    const missing = [
-      !firstName && "firstName",
-      !lastName && "lastName",
-      !email && "email",
-      !locationName && "locationName",
-      !orgId && "orgId",
-    ]
-      .filter(Boolean)
-      .join(", ");
-
-    if (missing) {
-      logger.error("Bad Request: Missing required fields:", missing);
-      response.status(400).json({ error: `Bad Request: Missing fields: ${missing}` });
-      return;
-    }
-
     try {
-      // Get locations
+      if (request.method !== "POST") {
+        logger.warn("Method Not Allowed:", request.method);
+        response.status(405).send("Method Not Allowed");
+        return;
+      }
+
+      // Auth (robust)
+const ZAPIER_SECRET_KEY = process.env.ZAPIER_SECRET_KEY ?? "";
+
+// Plocka ut Authorization-headern (kan vara string eller string[])
+const rawAuth =
+  (request.headers?.authorization as string | string[] | undefined) ??
+  (request.headers as any)?.Authorization;
+
+const auth = Array.isArray(rawAuth) ? rawAuth[0] : (rawAuth ?? "");
+
+// Matcha "Bearer <token>" (case-insensitive) och trimma
+const match = /^Bearer\s+(.+)$/i.exec(auth);
+const presented = match?.[1]?.trim() ?? "";
+
+if (!ZAPIER_SECRET_KEY || presented !== ZAPIER_SECRET_KEY) {
+  logger.warn("Unauthorized attempt to access webhook.");
+  response.status(401).json({ error: "Unauthorized" });
+  return;
+}
+
+      // Body
+      const {
+        firstName,
+        lastName,
+        email,
+        phone,
+        locationName,
+        orgId,
+        source,
+      } = (request.body ?? {}) as Record<string, unknown>;
+
+      const missing = [
+        !firstName && "firstName",
+        !lastName && "lastName",
+        !email && "email",
+        !locationName && "locationName",
+        !orgId && "orgId",
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      if (missing) {
+        logger.error("Bad Request: Missing required fields:", missing);
+        response
+          .status(400)
+          .json({ error: `Bad Request: Missing fields: ${missing}` });
+        return;
+      }
+
+      // Logga inkommande data för felsökning (innehåller INTE hemligheter)
+      logger.info("Incoming lead payload", {
+        firstName,
+        lastName,
+        email,
+        phone,
+        locationName,
+        orgId,
+        source,
+      });
+
+      // Hämta locations för org
+      const orgIdStr = String(orgId);
       const locationsSnapshot = await db
         .collection("organizations")
-        .doc(String(orgId))
+        .doc(orgIdStr)
         .collection("locations")
         .get();
 
+      logger.info(`Found ${locationsSnapshot.size} locations for org ${orgIdStr}`);
+
+      if (locationsSnapshot.empty) {
+        response.status(400).json({
+          error:
+            "Bad Request: No locations found for provided orgId. Verify orgId and your Firestore data.",
+        });
+        return;
+      }
+
+      // Funktion som normaliserar text (tar bort diakritik, gör lower-case)
+      const norm = (s: unknown) =>
+        String(s ?? "")
+          .normalize("NFD")
+          .replace(/\p{Diacritic}/gu, "")
+          .toLowerCase()
+          .trim();
+
       type LocationDoc = { name?: string };
-      const locations: Array<{ id: string; name?: string }> = locationsSnapshot.docs.map((doc) => ({
+      const wanted = norm(locationName);
+
+      // Matcha location: exakt namn eller substring (utan diakritik)
+      const locations = locationsSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...(doc.data() as LocationDoc),
       }));
 
-      const targetLocation = locations.find(
-        (l) =>
-          typeof l.name === "string" &&
-          l.name.toLowerCase().includes(String(locationName).toLowerCase())
-      );
+      const targetLocation =
+        locations.find((l) => norm(l.name) === wanted) ||
+        locations.find((l) => norm(l.name).includes(wanted));
 
       if (!targetLocation) {
-        logger.error(`Location named '${locationName}' could not be found.`);
-        response.status(400).json({ error: `Bad Request: Location '${locationName}' not found.` });
+        logger.error(
+          `Location '${locationName}' not matched in org ${orgIdStr}. Available: ${locations
+            .map((l) => l.name)
+            .join(", ")}`
+        );
+        response.status(400).json({
+          error: `Bad Request: Location '${locationName}' not found for org '${orgIdStr}'.`,
+        });
         return;
       }
 
-      // Create lead
+      // Telefonnormalisering (valfritt): ersätt inledande +46 eller 0046 med 0
+      const phoneStr = String(phone ?? "").trim();
+      const phoneNormalized = phoneStr
+        .replace(/^\s*\+46/, "0")
+        .replace(/^\s*0046/, "0");
+
+      // Skapa lead
       const newLead = {
         firstName: String(firstName),
         lastName: String(lastName),
         email: String(email).toLowerCase(),
-        phone: phone ? String(phone) : "",
+        phone: phoneNormalized,
         locationId: targetLocation.id,
-        source: "Meta",
+        // sätt källa – låt incoming source vinna om den finns, annars "Meta"
+        source: source ? String(source) : "Meta",
         createdDate: new Date().toISOString(),
         status: "new",
       };
 
       const leadRef = await db
         .collection("organizations")
-        .doc(String(orgId))
+        .doc(orgIdStr)
         .collection("leads")
         .add(newLead);
 
-      logger.info(`Successfully created lead with ID: ${leadRef.id} for org ${orgId}`);
+      logger.info(
+        `Successfully created lead with ID: ${leadRef.id} for org ${orgIdStr}`
+      );
       response.status(201).json({ success: true, leadId: leadRef.id });
-    } catch (error) {
-      logger.error("Error creating lead:", error);
-      response.status(500).json({ error: "Internal Server Error" });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : JSON.stringify(err);
+      logger.error("Error creating lead:", err);
+      // TILLFÄLLIGT: skicka tillbaka 'details' för snabb felsökning
+      response.status(500).json({ error: "Internal Server Error", details: msg });
     }
   }
 );

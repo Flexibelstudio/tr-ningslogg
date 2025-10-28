@@ -32,6 +32,7 @@ interface AuthContextType {
   
   viewAsParticipant: () => void;
   stopViewingAsParticipant: () => void;
+  updateCurrentUser: (data: Partial<Omit<User, 'id'>>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -82,6 +83,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     email: userData.email,
                     roles: userData.roles,
                     linkedParticipantProfileId: userData.linkedParticipantProfileId,
+                    termsAcceptedTimestamp: userData.termsAcceptedTimestamp,
                 });
             } else {
                 if (isNewUser) {
@@ -104,6 +106,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     return () => unsubscribe();
   }, []);
+
+  const updateCurrentUser = useCallback(async (data: Partial<Omit<User, 'id'>>) => {
+    if (!user) {
+        throw new Error("No user is currently logged in to update.");
+    }
+    if (!firebaseService.isOffline()) {
+        await firebaseService.updateUser(user.id, data);
+    }
+    const updatedUser = { ...user, ...data };
+    setUser(updatedUser);
+
+    if (firebaseService.isOffline()) {
+        dataService.set('users', (prev) =>
+            prev.map((u) => (u.id === user.id ? updatedUser : u))
+        );
+    }
+  }, [user]);
 
 
   const organizationId = useMemo(() => {
@@ -273,6 +292,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     stopImpersonating,
     viewAsParticipant,
     stopViewingAsParticipant,
+    updateCurrentUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

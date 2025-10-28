@@ -101,21 +101,12 @@ const AppContent: React.FC = () => {
         return null;
     });
 
-    const [showTermsModal, setShowTermsModal] = useState(false);
-    const [hasCheckedTerms, setHasCheckedTerms] = useState(false);
-
-    useEffect(() => {
-        if (auth.user && !auth.user.termsAcceptedTimestamp && !hasCheckedTerms) {
-            setShowTermsModal(true);
-            setHasCheckedTerms(true);
-        }
-    }, [auth.user, hasCheckedTerms]);
+    const showTermsModal = auth.user && !auth.user.termsAcceptedTimestamp;
 
     const handleAcceptTerms = async () => {
         if (auth.user) {
             try {
-                await updateUser(auth.user.id, { termsAcceptedTimestamp: new Date().toISOString() });
-                setShowTermsModal(false);
+                await auth.updateCurrentUser({ termsAcceptedTimestamp: new Date().toISOString() });
             } catch (error) {
                 console.error("Failed to accept terms:", error);
                 alert("Kunde inte spara ditt godkännande. Vänligen försök igen.");
