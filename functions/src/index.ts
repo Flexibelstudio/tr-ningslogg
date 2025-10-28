@@ -18,19 +18,6 @@ function getISOWeek(date: Date): number {
   return weekNo;
 }
 
-// Robust way to read Bearer token from headers
-function getBearerToken(req: {
-  header?: (n: string) => string | undefined;
-  headers?: Record<string, any>;
-}) {
-  const h =
-    (typeof req.header === "function" ? req.header("authorization") : undefined) ??
-    (typeof req.header === "function" ? req.header("Authorization") : undefined) ??
-    req.headers?.authorization ??
-    req.headers?.Authorization ??
-    "";
-  return typeof h === "string" && h.startsWith("Bearer ") ? h.slice(7) : "";
-}
 
 /**
  * Zapier webhook: creates lead in Firestore
@@ -51,17 +38,25 @@ export const createLeadFromZapier = onRequest(
         return;
       }
 
-      // Auth
-      const ZAPIER_SECRET_KEY = process.env.ZAPIER_SECRET_KEY;
-      const authHeader: string = request.headers?.authorization ?? "";
-      const presented = authHeader.startsWith("Bearer ")
-        ? authHeader.slice(7)
-        : "";
-      if (!ZAPIER_SECRET_KEY || presented !== ZAPIER_SECRET_KEY) {
-        logger.warn("Unauthorized attempt to access webhook.");
-        response.status(401).json({ error: "Unauthorized" });
-        return;
-      }
+      // Auth (robust)
+const ZAPIER_SECRET_KEY = process.env.ZAPIER_SECRET_KEY ?? "";
+
+// Plocka ut Authorization-headern (kan vara string eller string[])
+const rawAuth =
+  (request.headers?.authorization as string | string[] | undefined) ??
+  (request.headers as any)?.Authorization;
+
+const auth = Array.isArray(rawAuth) ? rawAuth[0] : (rawAuth ?? "");
+
+// Matcha "Bearer <token>" (case-insensitive) och trimma
+const match = /^Bearer\s+(.+)$/i.exec(auth);
+const presented = match?.[1]?.trim() ?? "";
+
+if (!ZAPIER_SECRET_KEY || presented !== ZAPIER_SECRET_KEY) {
+  logger.warn("Unauthorized attempt to access webhook.");
+  response.status(401).json({ error: "Unauthorized" });
+  return;
+}
 
       // Body
       const {
