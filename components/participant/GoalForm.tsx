@@ -4,7 +4,7 @@ import { Input } from '../Input';
 import { Textarea } from '../Textarea';
 import { ParticipantGoalData } from '../../types';
 import { COMMON_FITNESS_GOALS_OPTIONS } from '../../constants';
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { callGeminiApiFn } from '../../firebaseClient';
 import { renderMarkdown } from '../../utils/textUtils';
 
 export interface GoalFormRef {
@@ -29,7 +29,6 @@ interface GoalFormProps {
   ) => Promise<void>;
   onTriggerAiGoalPrognosis?: (goalDataOverride?: Omit<ParticipantGoalData, 'id' | 'participantId' | 'currentWeeklyStreak' | 'lastStreakUpdateEpochWeekId' | 'setDate'| 'isCompleted' | 'completedDate'>) => Promise<void>;
   showCoachFields?: boolean;
-  ai?: GoogleGenAI | null;
   isOnline?: boolean;
 }
 
@@ -39,7 +38,6 @@ export const GoalForm = forwardRef<GoalFormRef, GoalFormProps>(({
   onSave,
   onTriggerAiGoalPrognosis,
   showCoachFields = false,
-  ai,
   isOnline,
 }, ref) => {
   const [hasNoSpecificGoals, setHasNoSpecificGoals] = useState(false);
@@ -186,8 +184,6 @@ export const GoalForm = forwardRef<GoalFormRef, GoalFormProps>(({
   };
 
   const handleGenerateSmartGoal = async () => {
-    if (!ai) return;
-
     const commonGoalLabels = selectedCommonGoals
         .map(id => COMMON_FITNESS_GOALS_OPTIONS.find(opt => opt.id === id)?.label)
         .filter(Boolean);
@@ -206,11 +202,15 @@ export const GoalForm = forwardRef<GoalFormRef, GoalFormProps>(({
 Användarens mål: "${goalInput}"`;
 
     try {
-        const response: GenerateContentResponse = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt
+        const result = await callGeminiApiFn({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
         });
-        setCustomFitnessGoalText(response.text);
+        const { text, error } = result.data as { text?: string; error?: string };
+        if (error) { throw new Error(`Cloud Function error: ${error}`); }
+        if (!text) { throw new Error("Received empty response from AI."); }
+        
+        setCustomFitnessGoalText(text);
         setSelectedCommonGoals([]); // Clear selections as they are now incorporated
     } catch (err) {
         console.error("Error generating SMART goal:", err);
@@ -506,7 +506,7 @@ Användarens mål: "${goalInput}"`;
             />
         )}
 
-        {showCoachFields && ai && onTriggerAiGoalPrognosis && (
+        {showCoachFields && onTriggerAiGoalPrognosis && (
             <div className="pt-4 border-t">
                 <Button 
                     onClick={handleTriggerPrognosisClick} 

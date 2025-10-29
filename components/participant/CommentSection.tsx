@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Comment, FlowItemLogType } from '../../types';
 import { Button } from '../Button';
 import { Textarea } from '../Textarea';
+// FIX: Correct the import path for dateUtils.
 import { formatRelativeTime } from '../../utils/dateUtils';
 
 
@@ -55,13 +56,13 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
             const myLike = comment.reactions?.find(r => r.participantId === currentUserId && r.emoji === '❤️');
             const likeCount = comment.reactions?.filter(r => r.emoji === '❤️').length || 0;
             return (
-              <div key={comment.id} className="group flex items-start gap-2 text-base p-1.5 rounded-md hover:bg-gray-100">
+              <div key={comment.id} className="group flex items-start gap-2 text-base p-1.5 rounded-md hover:bg-gray-100 active:bg-gray-200">
                 <div className="flex-grow">
                   <div>
                     <span className="font-semibold text-gray-800">
                         {comment.authorId === currentUserId ? 'Du' : comment.authorName.split(' ')[0]}
                     </span>
-                    <span className="text-gray-500 ml-2 text-sm">{formatRelativeTime(comment.createdDate)}</span>
+                    <span className="text-gray-500 ml-2 text-sm">{formatRelativeTime(comment.createdDate).relative}</span>
                   </div>
                   <p className="text-gray-700 whitespace-pre-wrap break-words mt-0.5">{comment.text}</p>
                   
@@ -69,7 +70,7 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
                   <div className="mt-1 flex items-center">
                       <button
                           onClick={() => onToggleCommentReaction(logId, logType, comment.id)}
-                          className="flex items-center gap-1 text-sm text-gray-500 hover:text-red-500 transition-colors rounded-full p-1 -ml-1"
+                          className="flex items-center gap-1 text-sm text-gray-500 hover:text-red-500 transition-colors rounded-full p-1.5 -ml-1.5"
                           aria-pressed={!!myLike}
                           aria-label={myLike ? 'Ta bort gilla-markering' : 'Gilla kommentar'}
                       >
@@ -85,7 +86,7 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
                 {comment.authorId === currentUserId && (
                   <button
                     onClick={() => onDeleteComment(logId, logType, comment.id)}
-                    className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 p-1 rounded-full transition-opacity flex-shrink-0"
+                    className="opacity-40 hover:opacity-100 focus:opacity-100 text-red-500 hover:text-red-700 p-2 rounded-full transition-opacity flex-shrink-0"
                     aria-label="Ta bort kommentar"
                     title="Ta bort kommentar"
                   >

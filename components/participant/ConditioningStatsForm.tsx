@@ -42,8 +42,14 @@ const ClubProgressDisplay: React.FC<{
                         }
                     }
 
+                    const chipClasses = `flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border transition ${
+                        isAchieved 
+                        ? 'bg-green-100 border-green-300 text-green-800' 
+                        : 'bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200'
+                    }`;
+
                     return (
-                        <div key={club.id} title={club.description} className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border ${isAchieved ? 'bg-green-100 border-green-300 text-green-800' : 'bg-gray-100 border-gray-300 text-gray-600'}`}>
+                        <div key={club.id} title={club.description} className={chipClasses}>
                             {isAchieved && <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
                             <span className="font-semibold">{targetValueStr || club.name}</span>
                         </div>
@@ -90,12 +96,12 @@ export const ConditioningStatsForm = forwardRef<ConditioningStatsFormRef, Condit
     setErrors({});
   }, [statsHistory]);
 
-  // FIX: Narrow the key type to ConditioningMetric to avoid type conflicts with non-numeric properties like 'comments'.
-  const findPreviousValue = useCallback((key: ConditioningMetric) => {
-    for (let i = statsHistory.length - 1; i >= 0; i--) {
-        const stat = statsHistory[i][key];
-        if (stat !== undefined && stat !== null) {
-            return { value: stat, date: statsHistory[i].lastUpdated };
+  const findPreviousValue = useCallback((key: ConditioningMetric): {value: string, date: string} | null => {
+    // FIX: Add optional chaining and a fallback to an empty array to prevent an error if statsHistory is undefined.
+    for (let i = (statsHistory || []).length - 1; i >= 0; i--) {
+        const statValue = statsHistory[i][key];
+        if (statValue !== undefined && statValue !== null) {
+            return { value: String(statValue), date: statsHistory[i].lastUpdated };
         }
     }
     return null;
@@ -203,7 +209,7 @@ export const ConditioningStatsForm = forwardRef<ConditioningStatsFormRef, Condit
         Fyll i dina senaste resultat från konditionstesterna. Du behöver bara fylla i de tester du har genomfört.
       </p>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         {renderInputWithHistory(
             "Airbike 4 min (kcal)",
             'airbike4MinKcal',
@@ -234,8 +240,8 @@ export const ConditioningStatsForm = forwardRef<ConditioningStatsFormRef, Condit
         )}
         
         {/* Special case for 2000m row */}
-        <div className="space-y-2 md:col-span-2">
-            <label className="block text-base font-medium text-gray-700">Rodd 2000m (tid)</label>
+        <div className="space-y-2 sm:col-span-2">
+            <label className="block text-sm font-medium text-gray-600">Rodd 2000m (tid)</label>
             <div className="flex items-start gap-2">
                 <Input
                     label="Minuter"
@@ -267,7 +273,7 @@ export const ConditioningStatsForm = forwardRef<ConditioningStatsFormRef, Condit
             </div>
             {findPreviousValue('rower2000mTimeSeconds') && (
                 <p className="text-xs text-gray-500 px-1">
-                    Föregående: {Math.floor((findPreviousValue('rower2000mTimeSeconds')?.value || 0) / 60)} min { (findPreviousValue('rower2000mTimeSeconds')?.value || 0) % 60 } sek (
+                    Föregående: {Math.floor(Number(findPreviousValue('rower2000mTimeSeconds')?.value || 0) / 60)} min { (Number(findPreviousValue('rower2000mTimeSeconds')?.value || 0)) % 60 } sek (
                     {new Date(findPreviousValue('rower2000mTimeSeconds')?.date as string).toLocaleDateString('sv-SE')})
                 </p>
             )}

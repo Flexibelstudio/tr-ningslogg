@@ -51,10 +51,10 @@ const StudioFilterControl: React.FC<{
                 <button
                     key={option.value}
                     onClick={() => onChange(option.value)}
-                    className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors w-1/2 ${
+                    className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors w-1/2 ${
                         value === option.value
                             ? 'bg-white text-flexibel shadow'
-                            : 'text-gray-600 hover:bg-gray-200'
+                            : 'text-gray-600 active:bg-gray-200'
                     }`}
                 >
                     {option.label}
@@ -218,7 +218,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
     const getSubTabButtonStyle = (tabName: LeaderboardSubTab) => {
         return activeTab === tabName
             ? 'bg-flexibel/20 text-flexibel'
-            : 'bg-gray-100 text-gray-600 hover:bg-gray-200';
+            : 'bg-gray-100 text-gray-600 active:bg-gray-200';
     };
 
     if (!leaderboardSettings.leaderboardsEnabled) {
@@ -232,10 +232,10 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
     return (
         <div className="space-y-4 max-h-[60vh] overflow-y-auto">
             <div className="p-2 bg-gray-100 rounded-lg flex justify-center gap-2">
-                <button onClick={() => setActiveTab('weekly')} className={`py-1.5 px-3 font-medium text-sm rounded-md ${getSubTabButtonStyle('weekly')}`}>
+                <button onClick={() => setActiveTab('weekly')} className={`py-2.5 px-4 font-medium text-sm rounded-md ${getSubTabButtonStyle('weekly')}`}>
                     Veckans Utmaningar
                 </button>
-                <button onClick={() => setActiveTab('all-time')} className={`py-1.5 px-3 font-medium text-sm rounded-md ${getSubTabButtonStyle('all-time')}`}>
+                <button onClick={() => setActiveTab('all-time')} className={`py-2.5 px-4 font-medium text-sm rounded-md ${getSubTabButtonStyle('all-time')}`}>
                     All-Time
                 </button>
             </div>

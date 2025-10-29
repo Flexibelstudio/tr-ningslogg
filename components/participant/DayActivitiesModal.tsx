@@ -6,6 +6,7 @@ import { ConfirmationModal } from '../ConfirmationModal';
 import { MOOD_OPTIONS, CLUB_DEFINITIONS, DEFAULT_COACH_EVENT_ICON, STUDIO_TARGET_OPTIONS } from '../../constants'; 
 import * as dateUtils from '../../utils/dateUtils';
 import { getHighestClubAchievements } from '../../services/gamificationService';
+import { useAppContext } from '../../context/AppContext';
 
 interface DayActivitiesModalProps {
   isOpen: boolean;
@@ -31,6 +32,8 @@ interface DayActivitiesModalProps {
   locations: Location[];
   onCancelBooking: (bookingId: string) => void;
   integrationSettings: IntegrationSettings;
+  loggedInCoachId?: string | null;
+  onManageClassClick?: (instance: { scheduleId: string; date: string }) => void;
 }
 
 const TrashIcon = () => (
@@ -69,7 +72,11 @@ type FullBookingInfo = ParticipantBooking & {
     className: string;
     startTime: string;
     coachName: string;
+    coachId: string;
     startDateTime: Date;
+    isWaitlistedByMe: boolean;
+    myWaitlistPosition: number;
+    color: string;
 };
 
 export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
@@ -95,8 +102,11 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
   allParticipantBookings,
   locations,
   onCancelBooking,
-  integrationSettings
+  integrationSettings,
+  loggedInCoachId,
+  onManageClassClick,
 }) => {
+  const { getColorForCategory } = useAppContext();
   const [showConfirmDeleteModal, setShowConfirmDeleteModal] = useState(false);
   const [activityToConfirmDelete, setActivityToConfirmDelete] = useState<ActivityLog | null>(null);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
@@ -140,17 +150,32 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
   const oneOnOneSessionsForDay = useMemo(() => {
     if (!selectedDate || !participantProfile) return [];
     return oneOnOneSessions
-        .filter(s => s.participantId === participantProfile.id && dateUtils.isSameDay(new Date(s.startTime), selectedDate))
+        .filter(s => s.participantId === participantProfile.id && s.status === 'scheduled' && dateUtils.isSameDay(new Date(s.startTime), selectedDate) && !dateUtils.isPast(new Date(s.endTime)))
         .sort((a,b) => new Date(a.startTime).getTime() - new Date(a.startTime).getTime());
   }, [selectedDate, oneOnOneSessions, participantProfile]);
 
   const groupClassesForDay = useMemo((): FullBookingInfo[] => {
     if (!selectedDate || !participantProfile) return [];
-    const myBookingsToday = allParticipantBookings.filter(b => b.participantId === participantProfile.id && b.classDate === selectedDate.toISOString().split('T')[0]);
     
-    return myBookingsToday.map(booking => {
-        const schedule = groupClassSchedules.find(s => s.id === booking.scheduleId);
-        if (!schedule) return null;
+    const dateStr = dateUtils.toYYYYMMDD(selectedDate);
+    const dayOfWeek = selectedDate.getDay() === 0 ? 7 : selectedDate.getDay();
+    const now = new Date();
+
+    const schedulesToday = groupClassSchedules.filter(schedule => {
+        const [startYear, startMonth, startDay] = schedule.startDate.split('-').map(Number);
+        const startDate = new Date(startYear, startMonth - 1, startDay);
+        const [endYear, endMonth, endDay] = schedule.endDate.split('-').map(Number);
+        const endDate = new Date(endYear, endMonth - 1, endDay);
+        endDate.setHours(23, 59, 59, 999);
+        return schedule.daysOfWeek.includes(dayOfWeek) && selectedDate >= startDate && selectedDate <= endDate;
+    });
+
+    return schedulesToday.map(schedule => {
+        const myBooking = allParticipantBookings.find(b => b.participantId === participantProfile.id && b.scheduleId === schedule.id && b.classDate === dateStr && b.status !== 'CANCELLED');
+        const isMyClassAsCoach = loggedInCoachId === schedule.coachId;
+
+        if (!myBooking && !isMyClassAsCoach) return null;
+
         const classDef = groupClassDefinitions.find(d => d.id === schedule.groupClassId);
         const coach = staffMembers.find(s => s.id === schedule.coachId);
         if (!classDef || !coach) return null;
@@ -158,16 +183,38 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
         const [hour, minute] = schedule.startTime.split(':').map(Number);
         const classStartDateTime = new Date(selectedDate);
         classStartDateTime.setHours(hour, minute, 0, 0);
+        
+        const classEndDateTime = new Date(classStartDateTime.getTime() + schedule.durationMinutes * 60000);
+        if (classEndDateTime < now) {
+            return null; // Don't show past classes
+        }
+
+        const waitlistedUsers = allParticipantBookings.filter(b => b.scheduleId === schedule.id && b.classDate === dateStr && b.status === 'WAITLISTED').sort((a,b) => new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime());
+        let myPosition = 0;
+        if (myBooking?.status === 'WAITLISTED') {
+            myPosition = waitlistedUsers.findIndex(b => b.id === myBooking.id) + 1;
+        }
 
         return {
-            ...booking,
+            ...(myBooking || {
+                id: `coach-view-${schedule.id}`,
+                participantId: participantProfile.id,
+                bookingDate: '',
+                status: 'BOOKED' as const,
+            }),
+            scheduleId: schedule.id,
+            classDate: dateStr,
             className: classDef.name,
             startTime: schedule.startTime,
             coachName: coach.name,
-            startDateTime: classStartDateTime
+            coachId: coach.id,
+            startDateTime: classStartDateTime,
+            isWaitlistedByMe: myBooking?.status === 'WAITLISTED',
+            myWaitlistPosition: myPosition,
+            color: classDef.color || getColorForCategory(classDef.name),
         };
-    }).filter((b): b is NonNullable<typeof b> => b !== null).sort((a, b) => a.startTime.localeCompare(b.startTime));
-  }, [selectedDate, participantProfile, allParticipantBookings, groupClassSchedules, groupClassDefinitions, staffMembers]);
+    }).filter((b): b is FullBookingInfo => b !== null).sort((a, b) => a.startTime.localeCompare(b.startTime));
+  }, [selectedDate, participantProfile, allParticipantBookings, groupClassSchedules, groupClassDefinitions, staffMembers, loggedInCoachId, getColorForCategory]);
 
 
   const specialEventsForDay = useMemo(() => {
@@ -188,13 +235,11 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
     }
 
     if (physiqueHistory.some(h => dateUtils.isSameDay(new Date(h.lastUpdated), selectedDate) && (h.inbodyScore || h.muscleMassKg))) {
-        events.push({ icon: '🧬', text: 'InBody-mätning / Profil uppdaterad' });
+        events.push({ icon: '🧬', text: `InBody-mätning / Profil uppdaterad` });
     }
-
     if (strengthStatsHistory.some(s => dateUtils.isSameDay(new Date(s.lastUpdated), selectedDate))) {
         events.push({ icon: '🏋️', text: 'Styrketest loggat' });
     }
-
     if (conditioningStatsHistory.some(s => dateUtils.isSameDay(new Date(s.lastUpdated), selectedDate))) {
         events.push({ icon: '💨', text: 'Konditionstest loggat' });
     }
@@ -310,9 +355,13 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
                           const now = new Date();
                           const cutoffHours = integrationSettings.cancellationCutoffHours ?? 2;
                           const canCancel = booking.startDateTime.getTime() - now.getTime() > cutoffHours * 3600 * 1000;
+                          const isMyClassAsCoach = loggedInCoachId === booking.coachId;
                           
                           return (
-                            <li key={booking.id} className="flex items-center text-lg p-2 bg-white rounded-md">
+                            <li key={booking.id} 
+                                className="flex items-center text-lg p-2 bg-white rounded-md border-l-4"
+                                style={{ borderColor: booking.color }}
+                            >
                                 <span className="text-2xl mr-2">🎟️</span>
                                 <div className="flex-grow">
                                     <div className="flex items-center gap-2">
@@ -320,18 +369,23 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
                                       {booking.status === 'CHECKED-IN' && <span className="text-xs font-bold bg-green-200 text-green-800 px-2 py-0.5 rounded-full">Incheckad</span>}
                                     </div>
                                     <p className="text-base text-gray-500">med {booking.coachName}</p>
+                                    {booking.isWaitlistedByMe && <p className="text-sm font-semibold text-amber-600 mt-1">Köplats #{booking.myWaitlistPosition}</p>}
                                 </div>
-                                {booking.status !== 'CHECKED-IN' && (
-                                    <Button 
-                                    size="sm" 
-                                    variant="danger" 
-                                    className="!text-xs self-center"
-                                    onClick={() => setBookingToCancel(booking)}
-                                    disabled={!canCancel}
-                                    title={!canCancel ? `Avbokning måste ske senast ${cutoffHours} timmar innan.` : 'Avboka passet'}
-                                    >
-                                    {canCancel ? 'Avboka' : 'För sent'}
-                                    </Button>
+                                {isMyClassAsCoach ? (
+                                    <Button size="sm" onClick={() => onManageClassClick?.({ scheduleId: booking.scheduleId, date: booking.classDate })}>Hantera</Button>
+                                ) : (
+                                    booking.status !== 'CHECKED-IN' && (
+                                        <Button 
+                                        size="sm" 
+                                        variant="danger" 
+                                        className="!text-xs self-center"
+                                        onClick={() => setBookingToCancel(booking)}
+                                        disabled={!canCancel}
+                                        title={!canCancel ? `Avbokning måste ske senast ${cutoffHours} timmar innan.` : 'Avboka passet'}
+                                        >
+                                        {canCancel ? 'Avboka' : 'För sent'}
+                                        </Button>
+                                    )
                                 )}
                             </li>
                           );
@@ -381,12 +435,15 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
               </div>
           )}
           {sortedActivities.length === 0 && specialEventsForDay.length === 0 && !hasGoalTargetForDay && oneOnOneSessionsForDay.length === 0 && groupClassesForDay.length === 0 && coachEventsForDay.length === 0 ? (
-            <p className="text-gray-600 text-center py-4 text-xl">Inga aktiviteter loggade denna dag.</p>
+            <div className="text-center py-4">
+                <p className="text-gray-600 text-xl">Inga aktiviteter loggade denna dag.</p>
+                <p className="text-gray-500 text-base italic">Inga kommande pass eller möten.</p>
+            </div>
           ) : (
             <ul className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
               {sortedActivities.map((log, index) => {
                 const isSelected = log.id === selectedActivityId;
-                const baseItemStyle = "p-2.5 rounded-lg shadow-sm cursor-pointer transition-all duration-150 ease-in-out";
+                const baseItemStyle = "p-2.5 rounded-lg shadow-sm cursor-pointer transition-all duration-150 ease-in-out border-l-4";
                 const selectedStyle = isSelected ? "ring-2 ring-flexibel ring-offset-1 shadow-md" : "hover:shadow-md";
                 const moodEmoji = getMoodEmoji(log.moodRating);
                 
@@ -394,6 +451,7 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
                   const workoutLog = log as WorkoutLog;
                   const workoutTemplate = workouts.find(w => w.id === workoutLog.workoutId);
                   let displayTitle = workoutTemplate?.title || "Okänt Gympass";
+                  const categoryColor = getColorForCategory(workoutTemplate?.category);
                   let exerciseSummary: string | null = null;
 
                   if (workoutTemplate?.isModifiable && workoutLog.selectedExercisesForModifiable && workoutLog.selectedExercisesForModifiable.length > 0) {
@@ -410,13 +468,14 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
                     <li 
                       key={log.id} 
                       className={`${baseItemStyle} ${isSelected ? `bg-flexibel/10 ${selectedStyle}` : `bg-gray-100 ${selectedStyle}`}`}
-                      style={{ animation: `fadeInDown 0.5s ease-out ${index * 50}ms backwards` }}
+                      style={{ animation: `fadeInDown 0.5s ease-out ${index * 50}ms backwards`, borderColor: categoryColor }}
                       onClick={() => handleSelectActivity(log.id)}
                       onKeyDown={(e) => e.key === 'Enter' && handleSelectActivity(log.id)}
                       tabIndex={0}
                       role="button"
                       aria-pressed={isSelected}
                       aria-label={`Välj logg för ${displayTitle}`}
+                      title={workoutTemplate?.category}
                     >
                       <div className="flex flex-col gap-2">
                         <div className="flex justify-between items-start gap-3">
@@ -451,14 +510,15 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
                   return (
                     <li 
                       key={log.id} 
-                      className={`${baseItemStyle} ${isSelected ? `bg-flexibel/10 ${selectedStyle}` : `bg-blue-50 border border-blue-200 ${selectedStyle}`}`}
-                      style={{ animation: `fadeInDown 0.5s ease-out ${index * 50}ms backwards` }}
+                      className={`${baseItemStyle} ${isSelected ? `bg-flexibel/10 ${selectedStyle}` : `bg-blue-50 border-blue-200 ${selectedStyle}`}`}
+                      style={{ animation: `fadeInDown 0.5s ease-out ${index * 50}ms backwards`, borderColor: '#9e9e9e' }}
                       onClick={() => handleSelectActivity(log.id)}
                       onKeyDown={(e) => e.key === 'Enter' && handleSelectActivity(log.id)}
                       tabIndex={0}
                       role="button"
                       aria-pressed={isSelected}
                       aria-label={`Välj aktivitet ${generalLog.activityName}`}
+                      title={generalLog.activityName}
                     >
                       <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-2">
                           <div className="flex-grow">
@@ -490,14 +550,15 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
                     return (
                       <li 
                         key={log.id} 
-                        className={`${baseItemStyle} ${isSelected ? `bg-yellow-200 ${selectedStyle}` : `bg-yellow-50 border border-yellow-200 ${selectedStyle}`}`}
-                        style={{ animation: `fadeInDown 0.5s ease-out ${index * 50}ms backwards` }}
+                        className={`${baseItemStyle} ${isSelected ? `bg-yellow-200 ${selectedStyle}` : `bg-yellow-50 border-yellow-200 ${selectedStyle}`}`}
+                        style={{ animation: `fadeInDown 0.5s ease-out ${index * 50}ms backwards`, borderColor: '#facc15' }}
                         onClick={() => handleSelectActivity(log.id)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSelectActivity(log.id)}
                         tabIndex={0}
                         role="button"
                         aria-pressed={isSelected}
                         aria-label={`Välj slutfört mål`}
+                        title="Mål slutfört"
                       >
                          <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-2">
                             <div className="flex-grow">
@@ -553,9 +614,17 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
         isOpen={!!bookingToCancel}
         onClose={() => setBookingToCancel(null)}
         onConfirm={handleConfirmCancel}
-        title={`Avboka ${bookingToCancel?.className}?`}
-        message={`Är du säker på att du vill avboka din plats på ${bookingToCancel?.className} den ${bookingToCancel?.startDateTime.toLocaleDateString('sv-SE')}?`}
-        confirmButtonText="Ja, avboka"
+        title={
+            bookingToCancel?.isWaitlistedByMe
+                ? `Lämna kön för ${bookingToCancel?.className}?`
+                : `Avboka ${bookingToCancel?.className}?`
+        }
+        message={
+            bookingToCancel?.isWaitlistedByMe
+                ? `Är du säker på att du vill lämna kön för ${bookingToCancel?.className} den ${bookingToCancel?.startDateTime.toLocaleDateString('sv-SE')}?`
+                : `Är du säker på att du vill avboka din plats på ${bookingToCancel?.className} den ${bookingToCancel?.startDateTime.toLocaleDateString('sv-SE')}?`
+        }
+        confirmButtonText={bookingToCancel?.isWaitlistedByMe ? 'Ja, lämna kön' : 'Ja, avboka'}
         confirmButtonVariant="danger"
       />
     </>

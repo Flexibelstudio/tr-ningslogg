@@ -176,7 +176,7 @@ export const getDateFromEpochWeekId = (epochWeekId: string): Date => {
   // Then adjust based on what day Jan 1st actually was.
   let daysToAdd = (parts.week - 1) * 7;
   // If Jan 1st is Mon, dayOffset = 0. If Tue, dayOffset = -1. If Sun, dayOffset = 1.
-  // Target: Monday. dayOfWeek (1=Mon, 7=Sun). Target is 1.
+  // Target: Monday. dayOfWeekISO (1=Mon, 7=Sun). Target is 1.
   // (1 - dayOfWeekISO)
   const dayOffset = 1 - firstDayOfYear; 
   daysToAdd += dayOffset;
@@ -202,33 +202,118 @@ export const getPreviousEpochWeekId = (epochWeekId: string): string => {
   return getEpochWeekId(dateInPreviousWeek);
 };
 
-export const formatRelativeTime = (dateInput: string | Date): string => {
+export const isPast = (date: Date): boolean => {
+  return date.getTime() < new Date().getTime();
+};
+
+// FIX: Modified function to return an object with both absolute and relative time strings to satisfy usage in multiple components. Also handle null input.
+export const formatRelativeTime = (dateInput: string | Date | null): { absolute: string, relative: string } => {
+  if (!dateInput) return { absolute: '', relative: 'Aldrig' };
   const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
   const now = new Date();
   const diffSeconds = Math.round((now.getTime() - date.getTime()) / 1000);
 
+  const absolute = date.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' });
+  let relative = '';
+
   if (diffSeconds < 60) {
-    return 'just nu';
-  }
-
-  const diffMinutes = Math.round(diffSeconds / 60);
-  if (diffMinutes < 60) {
-    return `för ${diffMinutes} min sedan`;
-  }
-
-  const diffHours = Math.round(diffMinutes / 60);
-  if (diffHours < 24) {
-    return `för ${diffHours} tim sedan`;
-  }
-
-  const diffDays = Math.round(diffHours / 24);
-  if (diffDays === 1) {
-    return 'igår';
-  }
-  if (diffDays < 7) {
-    const weekdays = ['söndags', 'måndags', 'tisdags', 'onsdags', 'torsdags', 'fredags', 'lördags'];
-    return `i ${weekdays[date.getDay()]}`;
+    relative = 'just nu';
+  } else if (diffSeconds < 3600) {
+    relative = `för ${Math.round(diffSeconds / 60)} min sedan`;
+  } else if (diffSeconds < 86400) {
+    relative = `för ${Math.round(diffSeconds / 3600)} tim sedan`;
+  } else {
+    const diffDays = Math.round(diffSeconds / 86400);
+    if (diffDays === 1) {
+      relative = 'igår';
+    } else if (diffDays < 7) {
+      const weekdays = ['söndags', 'måndags', 'tisdags', 'onsdags', 'torsdags', 'fredags', 'lördags'];
+      relative = `i ${weekdays[date.getDay()]}`;
+    } else {
+      relative = date.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' });
+    }
   }
   
-  return date.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' });
+  return { absolute, relative };
+};
+
+export interface Holiday {
+  date: Date;
+  name: string;
+  type: 'holiday' | 'special';
+  icon?: string;
+}
+
+// Computus algorithm to find Easter Sunday for a given year
+const getEasterSunday = (year: number): Date => {
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31); // 3 = March, 4 = April
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(year, month - 1, day);
+};
+
+export const getSwedishHolidays = (year: number): Holiday[] => {
+    const holidays: Holiday[] = [];
+
+    // Fixed holidays
+    holidays.push({ date: new Date(year, 0, 1), name: 'Nyårsdagen', type: 'holiday', icon: '🎆' });
+    holidays.push({ date: new Date(year, 0, 6), name: 'Trettondedag jul', type: 'holiday', icon: '✨' });
+    holidays.push({ date: new Date(year, 4, 1), name: 'Första maj', type: 'holiday', icon: '✊' });
+    holidays.push({ date: new Date(year, 5, 6), name: 'Nationaldagen', type: 'holiday', icon: '🇸🇪' });
+    holidays.push({ date: new Date(year, 11, 24), name: 'Julafton', type: 'special', icon: '🎄' });
+    holidays.push({ date: new Date(year, 11, 25), name: 'Juldagen', type: 'holiday', icon: '🎅' });
+    holidays.push({ date: new Date(year, 11, 26), name: 'Annandag jul', type: 'holiday', icon: '🎁' });
+    holidays.push({ date: new Date(year, 11, 31), name: 'Nyårsafton', type: 'special', icon: '🍾' });
+
+    // Movable holidays based on Easter
+    const easterSunday = getEasterSunday(year);
+    holidays.push({ date: addDays(easterSunday, -2), name: 'Långfredagen', type: 'holiday', icon: '✝️' });
+    holidays.push({ date: easterSunday, name: 'Påskdagen', type: 'holiday', icon: '🕊️' });
+    holidays.push({ date: addDays(easterSunday, 1), name: 'Annandag påsk', type: 'holiday', icon: '🌿' });
+    holidays.push({ date: addDays(easterSunday, 39), name: 'Kristi himmelsfärdsdag', type: 'holiday', icon: '☁️' });
+    holidays.push({ date: addDays(easterSunday, 49), name: 'Pingstdagen', type: 'holiday', icon: '🔥' });
+
+    // Midsommardagen: The Saturday between June 20th and 26th.
+    // Midsommarafton is the Friday between June 19th and 25th.
+    for (let day = 19; day <= 25; day++) {
+        const date = new Date(year, 5, day);
+        if (date.getDay() === 5) { // 5 = Friday
+            holidays.push({ date, name: 'Midsommarafton', type: 'special', icon: '🌸' });
+            holidays.push({ date: addDays(date, 1), name: 'Midsommardagen', type: 'holiday', icon: '🌞' });
+            break;
+        }
+    }
+
+    // Alla helgons dag: The Saturday between Oct 31st and Nov 6th.
+    const allaHelgonsStart = new Date(year, 9, 31); // Oct 31
+    for (let i = 0; i < 7; i++) {
+        const date = addDays(allaHelgonsStart, i);
+        if (date.getDay() === 6) { // Saturday
+            holidays.push({ date, name: 'Alla helgons dag', type: 'holiday', icon: '🕯️' });
+            break;
+        }
+    }
+    
+    return holidays.sort((a,b) => a.date.getTime() - b.date.getTime());
+};
+
+/**
+ * Formats a Date object into a 'YYYY-MM-DD' string, respecting the local timezone.
+ */
+export const toYYYYMMDD = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };

@@ -34,7 +34,7 @@ export const UpcomingMeetingCard: React.FC<UpcomingMeetingCardProps> = ({ sessio
     return (
         <button 
             onClick={() => onOpenModal(session)}
-            className={`w-full text-left p-3 rounded-xl shadow-lg border animate-fade-in-down transition-all duration-200 hover:shadow-xl hover:border-flexibel ${isSoon ? 'bg-amber-50 border-amber-400' : 'bg-white border-gray-200'}`}
+            className={`w-full text-left p-3 rounded-xl shadow-lg border animate-fade-in-down transition-all duration-200 active:shadow-xl active:border-flexibel ${isSoon ? 'bg-amber-50 border-amber-400' : 'bg-white border-gray-200'}`}
             aria-label={`Visa detaljer för mötet: ${session.title} med ${staffMember?.name || 'Coach'}`}
         >
             <div className="flex items-center justify-between gap-3">

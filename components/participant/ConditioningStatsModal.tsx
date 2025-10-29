@@ -1,4 +1,5 @@
 
+
 import React, { useRef, useState, useEffect } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
@@ -70,7 +71,7 @@ export const ConditioningStatsModal: React.FC<ConditioningStatsModalProps> = ({
             clubMemberships={clubMemberships}
           />
         </div>
-        <div className="flex justify-end space-x-3 pt-4 border-t mt-auto">
+        <div className="flex justify-end gap-3 pt-4 border-t mt-6">
           <Button onClick={onClose} variant="secondary" disabled={isSaving}>
             Stäng
           </Button>

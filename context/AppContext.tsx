@@ -1,4 +1,4 @@
-import React, { useState, useCallback, createContext, useContext, ReactNode, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, createContext, useContext, ReactNode, useEffect, useMemo, useRef } from 'react';
 import { 
     Organization, User,
     OrganizationData, ParticipantProfile, Workout, WorkoutLog, ParticipantGoalData, 
@@ -14,6 +14,7 @@ import firebaseService from '../services/firebaseService'; // Use the new servic
 import { useAuth } from './AuthContext';
 import { db } from '../firebaseConfig';
 import dataService from '../services/dataService';
+import { COLOR_PALETTE } from '../constants';
 
 
 const sortWorkoutsByCategoryThenTitle = (workouts: Workout[]): Workout[] => {
@@ -25,15 +26,17 @@ const sortWorkoutsByCategoryThenTitle = (workouts: Workout[]): Workout[] => {
 };
 
 // 1. Define the shape of the context value
-interface AppContextType extends Omit<OrganizationData, 'workouts' | 'branding'> {
+interface AppContextType extends OrganizationData {
   allOrganizations: Organization[];
   allUsers: User[];
-  workouts: Workout[];
-  branding: BrandingSettings | undefined;
+  workouts: Workout[]; // This overrides the property from OrganizationData to ensure it's always sorted
+  branding: BrandingSettings | undefined; // This overrides the optional property from OrganizationData
   isOrgDataLoading: boolean;
   isGlobalDataLoading: boolean;
   isOrgDataFromFallback: boolean;
   orgDataError: string | null;
+  // New function for dynamic colors
+  getColorForCategory: (categoryName: string | undefined) => string;
   // Updater for a single participant document
   addParticipant: (participant: ParticipantProfile) => Promise<void>;
   updateParticipantProfile: (participantId: string, data: Partial<ParticipantProfile>) => Promise<void>;
@@ -144,10 +147,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [orgDataError, setOrgDataError] = useState<string | null>(null);
     const [isOrgDataFromFallback, setIsOrgDataFromFallback] = useState(false);
 
+    const tempColorMapRef = useRef<Record<string, string>>({});
 
     useEffect(() => {
         if (isAuthLoading) {
-            // Wait for authentication status to be resolved before fetching global data.
             return;
         }
 
@@ -155,7 +158,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setIsGlobalDataLoading(true);
             setIsOrgDataFromFallback(false);
             try {
-                // Always fetch organizations, as they are public for the registration dropdown.
                 const orgs = await firebaseService.get('organizations');
                 if (orgs.length === 0 && !firebaseService.isOffline()) {
                     console.warn("Online fetch for organizations returned empty. Falling back to mock data for registration page.");
@@ -166,24 +168,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     setIsOrgDataFromFallback(false);
                 }
 
-                // Conditionally fetch users based on authentication and role.
                 if (user) {
-                    // System Owners OR Org Admins are allowed to read the entire 'users' collection.
                     if (user.roles.systemOwner || (user.roles.orgAdmin && user.roles.orgAdmin.length > 0)) {
                         const users = await firebaseService.get('users');
                         setAllUsers(users);
                     } else {
-                        // This 'else' block now only applies to regular participants.
-                        // A participant shouldn't need a list of all users anyway.
-                        setAllUsers([]); // Set to empty for participants
+                        setAllUsers([]);
                     }
                 } else {
-                    // User is not logged in, cannot fetch users.
                     setAllUsers([]);
                 }
             } catch (error) {
                 console.error("Failed to fetch global data (organizations, users), falling back to mock data.", error);
-                // On error (e.g. permissions), fall back to mock data to prevent app crash.
                 setAllOrganizations(dataService.get('organizations'));
                 setAllUsers(dataService.get('users'));
                 setIsOrgDataFromFallback(true);
@@ -193,19 +189,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         };
 
         fetchGlobals();
-    }, [user, isAuthLoading]); // Re-fetch when user logs in/out or auth state is resolved.
+    }, [user, isAuthLoading]);
 
-    // Effect to load all data when organizationId changes
     useEffect(() => {
         if (organizationId) {
             setIsOrgDataLoading(true);
             setOrgDataError(null);
+            tempColorMapRef.current = {};
             const loadAllDataFromFirestore = async () => {
                 try {
-                    // PHASE 3: This is the new primary read path
                     const data = await firebaseService.getAllOrgData(organizationId);
-
-                    // Populate all state slices
                     setParticipantDirectory(data.participantDirectory);
                     setWorkouts(data.workouts);
                     setWorkoutLogs(data.workoutLogs);
@@ -238,7 +231,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     setProspectIntroCalls(data.prospectIntroCalls);
                     setBranding(data.branding);
 
-                    // Cache logo for faster reloads
                     if (data.branding?.logoBase64) {
                         localStorage.setItem(`flexibel_logo_${organizationId}`, data.branding.logoBase64);
                     } else {
@@ -259,40 +251,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             
             loadAllDataFromFirestore();
         } else {
-            // If no organizationId (e.g., logged out), reset all data to prevent showing stale info.
             setIsOrgDataLoading(false);
             setOrgDataError(null);
-            setParticipantDirectory([]);
-            setWorkouts([]);
-            setWorkoutLogs([]);
-            setParticipantGoals([]);
-            setGeneralActivityLogs([]);
-            setGoalCompletionLogs([]);
-            setCoachNotes([]);
-            setUserStrengthStats([]);
-            setUserConditioningStatsHistory([]);
-            setParticipantPhysiqueHistory([]);
-            setParticipantMentalWellbeing([]);
-            setParticipantGamificationStats([]);
-            setClubMemberships([]);
+            setParticipantDirectory([]); setWorkouts([]); setWorkoutLogs([]); setParticipantGoals([]);
+            setGeneralActivityLogs([]); setGoalCompletionLogs([]); setCoachNotes([]); setUserStrengthStats([]);
+            setUserConditioningStatsHistory([]); setParticipantPhysiqueHistory([]); setParticipantMentalWellbeing([]);
+            setParticipantGamificationStats([]); setClubMemberships([]);
             setLeaderboardSettings({ leaderboardsEnabled: false, weeklyPBChallengeEnabled: false, weeklySessionChallengeEnabled: false });
-            setCoachEvents([]);
-            setConnections([]);
-            setLastFlowViewTimestamp(null);
-            setLocations([]);
-            setStaffMembers([]);
-            setMemberships([]);
+            setCoachEvents([]); setConnections([]); setLastFlowViewTimestamp(null); setLocations([]);
+            setStaffMembers([]); setMemberships([]);
             setWeeklyHighlightSettings({ isEnabled: false, dayOfWeek: 1, time: '09:00', studioTarget: 'separate' });
-            setOneOnOneSessions([]);
-            setWorkoutCategories([]);
-            setStaffAvailability([]);
+            setOneOnOneSessions([]); setWorkoutCategories([]); setStaffAvailability([]);
             setIntegrationSettings({ enableQRCodeScanning: false, isBookingEnabled: false, isClientJourneyEnabled: true, isScheduleEnabled: true });
-            setGroupClassDefinitions([]);
-            setGroupClassSchedules([]);
-            setParticipantBookings([]);
-            setLeads([]);
-            setProspectIntroCalls([]);
-            setBranding(undefined);
+            setGroupClassDefinitions([]); setGroupClassSchedules([]); setParticipantBookings([]);
+            setLeads([]); setProspectIntroCalls([]); setBranding(undefined);
         }
     }, [organizationId]);
   
@@ -306,7 +278,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           ? (updater as (prev: T[]) => T[])(prevState)
           : updater;
         
-        if (organizationId && !firebaseService.isOffline()) {
+        // Guard against using db if it's not initialized
+        if (organizationId && db && !firebaseService.isOffline()) {
             const prevMap = new Map(prevState.map(item => [item.id, item]));
             const newMap = new Map(newState.map(item => [item.id, item]));
       
@@ -315,7 +288,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
             for (const [id, newItem] of newMap.entries()) {
               const prevItem = prevMap.get(id);
-              const { id: docId, ...itemData } = newItem;
+              const { id: docId, ...itemData } = newItem as { id: string; [key: string]: any };
               const docRef = db.collection('organizations').doc(organizationId).collection(collectionKey as string).doc(docId);
               
               const sanitizedItemData = sanitizeDataForFirebase(itemData);
@@ -445,53 +418,55 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, [smartSetWorkouts]);
 
   const sortedWorkouts = useMemo(() => sortWorkoutsByCategoryThenTitle(workouts), [workouts]);
+  
+  const getColorForCategory = useCallback((categoryName: string | undefined): string => {
+    if (!categoryName) return "#9e9e9e"; // default gray
+
+    const persistedMap = branding?.categoryColorMap || {};
+    if (persistedMap[categoryName]) {
+        return persistedMap[categoryName];
+    }
+    
+    if (tempColorMapRef.current[categoryName]) {
+        return tempColorMapRef.current[categoryName];
+    }
+
+    const isAdmin = user?.roles.systemOwner || (user?.roles.orgAdmin && user?.roles.orgAdmin.length > 0);
+    
+    const combinedMap = { ...persistedMap, ...tempColorMapRef.current };
+    const usedColors = new Set(Object.values(combinedMap));
+    const availableColors = COLOR_PALETTE.filter(c => !usedColors.has(c));
+    const newColor = availableColors.length > 0 
+        ? availableColors[0] 
+        : COLOR_PALETTE[Object.keys(combinedMap).length % COLOR_PALETTE.length];
+
+    tempColorMapRef.current[categoryName] = newColor;
+    
+    if (isAdmin && organizationId && !firebaseService.isOffline()) {
+        smartSetBranding(prevBranding => {
+            const latestMap = prevBranding?.categoryColorMap || {};
+            if (latestMap[categoryName]) {
+                return prevBranding; 
+            }
+            const newMap = { ...latestMap, [categoryName]: newColor };
+            return { ...(prevBranding || {}), categoryColorMap: newMap };
+        });
+    }
+
+    return newColor;
+}, [branding, user, organizationId, smartSetBranding]);
 
   const value: AppContextType = {
-    allOrganizations,
-    allUsers,
-    participantDirectory,
-    workouts: sortedWorkouts,
-    workoutLogs,
-    participantGoals,
-    generalActivityLogs,
-    goalCompletionLogs,
-    coachNotes,
-    userStrengthStats,
-    userConditioningStatsHistory,
-    participantPhysiqueHistory,
-    participantMentalWellbeing,
-    participantGamificationStats,
-    clubMemberships,
-    leaderboardSettings,
-    coachEvents,
-    connections,
-    lastFlowViewTimestamp,
-    locations,
-    staffMembers,
-    memberships,
-    weeklyHighlightSettings,
-    oneOnOneSessions,
-    workoutCategories,
-    staffAvailability,
-    integrationSettings,
-    groupClassDefinitions,
-    groupClassSchedules,
-    participantBookings,
-    leads,
-    prospectIntroCalls,
-    branding,
-    isOrgDataLoading,
-    isGlobalDataLoading,
-    isOrgDataFromFallback,
-    orgDataError,
-
-    addParticipant,
-    updateParticipantProfile,
-    updateUser,
-    addWorkout,
-    updateWorkout,
-    deleteWorkout,
-    
+    allOrganizations, allUsers, participantDirectory, workouts: sortedWorkouts, workoutLogs,
+    participantGoals, generalActivityLogs, goalCompletionLogs, coachNotes, userStrengthStats,
+    userConditioningStatsHistory, participantPhysiqueHistory, participantMentalWellbeing,
+    participantGamificationStats, clubMemberships, leaderboardSettings, coachEvents,
+    connections, lastFlowViewTimestamp, locations, staffMembers, memberships,
+    weeklyHighlightSettings, oneOnOneSessions, workoutCategories, staffAvailability,
+    integrationSettings, groupClassDefinitions, groupClassSchedules, participantBookings,
+    leads, prospectIntroCalls, branding, isOrgDataLoading, isGlobalDataLoading,
+    isOrgDataFromFallback, orgDataError, getColorForCategory, addParticipant, updateParticipantProfile,
+    updateUser, addWorkout, updateWorkout, deleteWorkout,
     setParticipantDirectoryData: smartSetParticipantDirectory,
     setWorkoutLogsData: smartSetWorkoutLogs,
     setParticipantGoalsData: smartSetParticipantGoals,
