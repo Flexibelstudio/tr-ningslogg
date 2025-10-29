@@ -1,7 +1,7 @@
-// firebaseClient.ts
-import 'firebase/compat/functions';
-import { app } from './firebaseConfig';
+// firebaseClient.ts — modular Functions (safe i mock-läge)
+import { app } from "./firebaseConfig";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
-const functions = app.functions('europe-west1');
-
-export const callGeminiApiFn = functions.httpsCallable('callGeminiApi');
+export const callGeminiApiFn = app
+  ? httpsCallable(getFunctions(app, "europe-west1"), "callGeminiApi")
+  : async () => ({ data: { error: "Mock mode: Cloud Function is not available." } });
