@@ -1,20 +1,12 @@
-import path from "path";
-import { defineConfig, loadEnv } from "vite";
-import react from "@vitejs/plugin-react";
-
+// vite.config.ts
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, ".", "");
+  const env = loadEnv(mode, '.', '');
   return {
-    server: { port: 3000, host: "0.0.0.0" },
     plugins: [react()],
-    resolve: { alias: { "@": path.resolve(__dirname, ".") } },
-
-    // 👇 denna rad gör att alla variabler som börjar med VITE_ inkluderas i bundlen
-    envPrefix: ["VITE_"],
-
+    envPrefix: ['VITE_'], // säkrar att VITE_* blir tillgängliga i import.meta.env
     define: {
-      "process.env.API_KEY": JSON.stringify(env.GEMINI_API_KEY),
-      "process.env.GEMINI_API_KEY": JSON.stringify(env.GEMINI_API_KEY),
+      'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
   };
 });
