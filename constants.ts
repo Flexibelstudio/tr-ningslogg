@@ -1,7 +1,21 @@
 import { WeightComparisonItem, GenderOption, StrengthStandard, StrengthLevel, LiftType, AllUserProvidedStrengthMultipliers, StrengthStandardDetail, UserProvidedLiftMultipliers, WorkoutCategory, ClubDefinition, UserStrengthStat, StaffRole, Membership, OneOnOneSessionType, WorkoutCategoryDefinition, GroupClassDefinition, ConditioningMetric, WorkoutFocusTag } from './types'; // Updated import type from AnimalWeight
 
-export const FLEXIBEL_PRIMARY_COLOR = '#3bab5a'; // Updated color
+export const FLEXIBEL_PRIMARY_COLOR = '#0aa5a1'; // Updated color
 export const APP_NAME = 'Träningslogg';
+
+// A palette of distinct, accessible colors that harmonize with the primary Flexibel teal.
+export const COLOR_PALETTE: string[] = [
+  "#0aa5a1", // flexibel teal (primary)
+  "#1e88e5", // blue
+  "#43a047", // green
+  "#8e24aa", // purple
+  "#ffb300", // amber
+  "#f4511e", // deep orange
+  "#d81b60", // pink
+  "#6d4c41", // brown
+  "#3949ab", // indigo
+  "#00897b", // teal darken-1
+];
 
 // FIX: Add missing ZAPIER_WEBHOOK_SECRET export for the client-side webhook handler used in the preview environment.
 export const ZAPIER_WEBHOOK_SECRET = 'your-zapier-webhook-secret-here';
@@ -45,12 +59,12 @@ export const PREDEFINED_MEMBERSHIPS: Membership[] = [
 ];
 
 export const PREDEFINED_GROUP_CLASSES: GroupClassDefinition[] = [
-    { id: 'class-pt-bas-seed', name: 'PT-bas', description: 'Styrketräning med fokus på basövningar.', defaultDurationMinutes: 40 },
-    { id: 'class-pt-grupp-seed', name: 'PT-grupp', description: 'Personlig träning i grupp.', defaultDurationMinutes: 60 },
-    { id: 'class-workout-seed', name: 'Workout', description: 'Funktionell styrka och uthållighet.', defaultDurationMinutes: 50 },
+    { id: 'class-pt-bas-seed', name: 'PT-bas', description: 'Styrketräning med fokus på basövningar.', defaultDurationMinutes: 40, hasWaitlist: true, color: COLOR_PALETTE[1] },
+    { id: 'class-pt-grupp-seed', name: 'PT-grupp', description: 'Personlig träning i grupp.', defaultDurationMinutes: 60, hasWaitlist: true, color: COLOR_PALETTE[2] },
+    { id: 'class-workout-seed', name: 'Workout', description: 'Funktionell styrka och uthållighet.', defaultDurationMinutes: 50, hasWaitlist: true, color: COLOR_PALETTE[3] },
 ];
 
-export const REACTION_EMOJIS = ['👍', '💪', '🔥', '🎉', '❤️'];
+export const REACTION_EMOJIS: string[] = ['👍', '💪', '🔥', '🎉', '❤️'];
 
 export const DEFAULT_COACH_EVENT_ICON = '📣';
 export const STUDIO_TARGET_OPTIONS: { value: 'all' | 'salem' | 'karra', label: string }[] = [
@@ -88,7 +102,7 @@ export const COMMON_FITNESS_GOALS_OPTIONS: { id: string; label: string }[] = [
   { id: 'goal_general_wellbeing', label: 'Allmän hälsa' },
 ];
 
-export const REFERRAL_SOURCE_OPTIONS = [
+export const REFERRAL_SOURCE_OPTIONS: { value: string; label: string }[] = [
   { value: 'Sociala medier', label: 'Sociala medier (Facebook, Instagram)' },
   { value: 'Googlesökning', label: 'Googlesökning' },
   { value: 'Rekommendation', label: 'Rekommendation från vän/familj' },
@@ -132,7 +146,7 @@ export const MOOD_OPTIONS: { rating: number; label: string; emoji: string; }[] =
   { rating: 5, label: 'Mycket bra', emoji: '😄' },
 ];
 
-export const STRESS_LEVEL_OPTIONS = [
+export const STRESS_LEVEL_OPTIONS: { value: number, label: string, emoji: string, color: string }[] = [
   { value: 1, label: 'Mycket låg', emoji: '😌', color: '#4CAF50' },
   { value: 2, label: 'Låg', emoji: '😊', color: '#8BC34A' },
   { value: 3, label: 'Måttlig', emoji: '😐', color: '#FFC107' },
@@ -140,7 +154,7 @@ export const STRESS_LEVEL_OPTIONS = [
   { value: 5, label: 'Mycket hög', emoji: '😩', color: '#F44336' },
 ];
 
-export const ENERGY_LEVEL_OPTIONS = [
+export const ENERGY_LEVEL_OPTIONS: { value: number, label: string, emoji: string, color: string }[] = [
   { value: 1, label: 'Mycket låg', emoji: '😴', color: '#F44336' },
   { value: 2, label: 'Låg', emoji: '😟', color: '#FF9800' },
   { value: 3, label: 'Måttlig', emoji: '😐', color: '#FFC107' },
@@ -148,7 +162,7 @@ export const ENERGY_LEVEL_OPTIONS = [
   { value: 5, label: 'Mycket hög', emoji: '🤩', color: '#4CAF50' },
 ];
 
-export const SLEEP_QUALITY_OPTIONS = [
+export const SLEEP_QUALITY_OPTIONS: { value: number, label: string, emoji: string, color: string }[] = [
   { value: 1, label: 'Mycket dålig', emoji: '😵', color: '#F44336' },
   { value: 2, label: 'Dålig', emoji: '😫', color: '#FF9800' },
   { value: 3, label: 'OK', emoji: '😐', color: '#FFC107' },
@@ -156,7 +170,7 @@ export const SLEEP_QUALITY_OPTIONS = [
   { value: 5, label: 'Mycket bra', emoji: '😌', color: '#4CAF50' },
 ];
 
-export const OVERALL_MOOD_OPTIONS = [
+export const OVERALL_MOOD_OPTIONS: { value: number, label: string, emoji: string, color: string }[] = [
   { value: 1, label: 'Mycket dåligt', emoji: '😩', color: '#F44336' },
   { value: 2, label: 'Dåligt', emoji: '😟', color: '#FF9800' },
   { value: 3, label: 'OK', emoji: '😐', color: '#FFC107' },
@@ -249,7 +263,7 @@ export const FSS_CONFIG = {
     { min: 110, max: 129, label: "Imponerande" as StrengthLevel },
     { min: 130, max: 1000, label: "Toppform" as StrengthLevel }
   ],
-  description: "Flexibel Strength Score (FSS) visar en medlems styrkenivå baserat på 1RM i fyra baslyft. Poäng per lyft justeras efter kroppsvikt, och slutpoängen justeras efter ålder för att skapa rättvisa och motiverande nivåer för alla – oavsett förutsättningar. Resultatet visas med nivånamn som stärker självkänsla och progressionsvilja."
+  description: "Flexibel Strength Score (FSS) visar en medlems styrkenivå baserat på 1RM i fyra baslyft.Poäng per lyft justeras efter kroppsvikt, och slutpoängen justeras efter ålder för att skapa rättvisa och motiverande nivåer för alla – oavsett förutsättningar. Resultatet visas med nivånamn som stärker självkänsla och progressionsvilja."
 };
 
 export const STRENGTH_LEVEL_ORDER: StrengthLevel[] = ['Startklar', 'På gång', 'Stark', 'Stabil', 'Imponerande', 'Toppform'];
@@ -260,7 +274,7 @@ export const LEVEL_COLORS_HEADER: Record<StrengthLevel, string> = {
     'Stark': '#22c55e',      // green-500
     'Stabil': '#3b82f6',       // blue-500
     'Imponerande': '#a855f7',   // purple-500
-    'Toppform': '#14b8a6',     // teal-500
+    'Toppform': '#0aa5a1',     // flexibel
 };
 
 export const MAIN_LIFTS_CONFIG_HEADER: { lift: LiftType, statKey: 'squat1RMaxKg' | 'benchPress1RMaxKg' | 'deadlift1RMaxKg' | 'overheadPress1RMaxKg', label: string }[] = [
@@ -268,6 +282,12 @@ export const MAIN_LIFTS_CONFIG_HEADER: { lift: LiftType, statKey: 'squat1RMaxKg'
     { lift: 'Bänkpress', statKey: 'benchPress1RMaxKg', label: 'Bänkpress 1RM (kg)' },
     { lift: 'Marklyft', statKey: 'deadlift1RMaxKg', label: 'Marklyft 1RM (kg)' },
     { lift: 'Axelpress', statKey: 'overheadPress1RMaxKg', label: 'Axelpress 1RM (kg)' },
+];
+
+export const INTENSITY_LEVELS: { value: number; label: string; twBadgeClass: string; }[] = [
+    { value: 1, label: 'Lätt', twBadgeClass: 'bg-blue-100 text-blue-800' },
+    { value: 2, label: 'Medel', twBadgeClass: 'bg-green-100 text-green-800' },
+    { value: 3, label: 'Tungt', twBadgeClass: 'bg-red-100 text-red-800' },
 ];
 
 export const CLUB_DEFINITIONS: ClubDefinition[] = [
@@ -339,23 +359,15 @@ export const CLUB_DEFINITIONS: ClubDefinition[] = [
   
   // --- CONDITIONING CLUBS ---
   // Airbike
+  // FIX: Corrected typo in conditioningMetric from 'airbike4MinKcal'
   { id: 'airbike-30kcal', name: '30 kcal Airbike 4 min', description: 'Du har nått 30 kcal på 4 minuter på Airbike!', icon: '💨', type: 'CONDITIONING', conditioningMetric: 'airbike4MinKcal', threshold: 30, comparison: 'GREATER_OR_EQUAL' },
   { id: 'airbike-40kcal', name: '40 kcal Airbike 4 min', description: 'Du har nått 40 kcal på 4 minuter på Airbike!', icon: '💨', type: 'CONDITIONING', conditioningMetric: 'airbike4MinKcal', threshold: 40, comparison: 'GREATER_OR_EQUAL' },
-  { id: 'airbike-50kcal', name: '50 kcal Airbike 4 min', description: 'Du har nått 50 kcal på 4 minuter på Airbike!', icon: '💨', type: 'CONDITIONING', conditioningMetric: 'airbike4MinKcal', threshold: 50, comparison: 'GREATER_OR_EQUAL' },
-  { id: 'airbike-60kcal', name: '60 kcal Airbike 4 min', description: 'Du har nått 60 kcal på 4 minuter på Airbike!', icon: '🔥', type: 'CONDITIONING', conditioningMetric: 'airbike4MinKcal', threshold: 60, comparison: 'GREATER_OR_EQUAL' },
-  { id: 'airbike-70kcal', name: '70 kcal Airbike 4 min', description: 'Du har nått 70 kcal på 4 minuter på Airbike!', icon: '🔥', type: 'CONDITIONING', conditioningMetric: 'airbike4MinKcal', threshold: 70, comparison: 'GREATER_OR_EQUAL' },
-  { id: 'airbike-80kcal', name: '80 kcal Airbike 4 min', description: 'Du har nått 80 kcal på 4 minuter på Airbike!', icon: '🔥', type: 'CONDITIONING', conditioningMetric: 'airbike4MinKcal', threshold: 80, comparison: 'GREATER_OR_EQUAL' },
-  { id: 'airbike-90kcal', name: '90 kcal Airbike 4 min', description: 'Du har nått 90 kcal på 4 minuter på Airbike!', icon: '🚀', type: 'CONDITIONING', conditioningMetric: 'airbike4MinKcal', threshold: 90, comparison: 'GREATER_OR_EQUAL' },
-  { id: 'airbike-100kcal', name: '100 kcal Airbike 4 min', description: 'Du har nått den mytomspunna 100 kcal på 4 minuter!', icon: '🤯', type: 'CONDITIONING', conditioningMetric: 'airbike4MinKcal', threshold: 100, comparison: 'GREATER_OR_EQUAL' },
-
+  { id: 'airbike-50kcal', name: '50 kcal Airbike 4 min', description: 'Du har nått 50 kcal på 4 minuter på Airbike!', icon: '🔥', type: 'CONDITIONING', conditioningMetric: 'airbike4MinKcal', threshold: 50, comparison: 'GREATER_OR_EQUAL' },
+  // SkiErg
+  { id: 'skierg-800m', name: '800m SkiErg 4 min', description: 'Du har nått 800m på 4 minuter på SkiErg!', icon: '⛷️', type: 'CONDITIONING', conditioningMetric: 'skierg4MinMeters', threshold: 800, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'skierg-900m', name: '900m SkiErg 4 min', description: 'Du har nått 900m på 4 minuter på SkiErg!', icon: '⛷️', type: 'CONDITIONING', conditioningMetric: 'skierg4MinMeters', threshold: 900, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'skierg-1000m', name: '1000m SkiErg 4 min', description: 'Du har nått 1000m på 4 minuter på SkiErg!', icon: '🔥', type: 'CONDITIONING', conditioningMetric: 'skierg4MinMeters', threshold: 1000, comparison: 'GREATER_OR_EQUAL' },
   // Rower
-  { id: 'rower-2k-sub8', name: 'Sub 8:00 2000m Rodd', description: 'Du har rott 2000m under 8 minuter!', icon: '🚣', type: 'CONDITIONING', conditioningMetric: 'rower2000mTimeSeconds', threshold: 480, comparison: 'LESS_OR_EQUAL' },
-  { id: 'rower-2k-sub730', name: 'Sub 7:30 2000m Rodd', description: 'Du har rott 2000m under 7 minuter och 30 sekunder!', icon: '🚣', type: 'CONDITIONING', conditioningMetric: 'rower2000mTimeSeconds', threshold: 450, comparison: 'LESS_OR_EQUAL' },
-  { id: 'rower-2k-sub7', name: 'Sub 7:00 2000m Rodd', description: 'Du har rott 2000m under 7 minuter!', icon: '🏆', type: 'CONDITIONING', conditioningMetric: 'rower2000mTimeSeconds', threshold: 420, comparison: 'LESS_OR_EQUAL' },
-];
-
-export const INTENSITY_LEVELS: { value: number; label: string; twBadgeClass: string; }[] = [
-    { value: 1, label: 'Lätt', twBadgeClass: 'bg-blue-100 text-blue-800' },
-    { value: 2, label: 'Medel', twBadgeClass: 'bg-green-100 text-green-800' },
-    { value: 3, label: 'Tungt', twBadgeClass: 'bg-red-100 text-red-800' },
+  { id: 'rower-2000m-sub8', name: 'Sub 8:00 Rodd 2000m', description: 'Du har rott 2000m under 8 minuter!', icon: '🚣', type: 'CONDITIONING', conditioningMetric: 'rower2000mTimeSeconds', threshold: 480, comparison: 'LESS_OR_EQUAL' },
+  { id: 'rower-2000m-sub7', name: 'Sub 7:00 Rodd 2000m', description: 'Du har rott 2000m under 7 minuter!', icon: '🔥', type: 'CONDITIONING', conditioningMetric: 'rower2000mTimeSeconds', threshold: 420, comparison: 'LESS_OR_EQUAL' },
 ];

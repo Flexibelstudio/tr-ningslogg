@@ -12,10 +12,10 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ isOpen, onClose }) =
   if (!isOpen) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Välkommen till Träningsloggen!" size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Välkommen till SmartStudio!" size="lg">
       <div className="space-y-4 text-lg text-gray-700">
         <p className="font-semibold text-xl" style={{ color: FLEXIBEL_PRIMARY_COLOR }}>
-          Hej och välkommen till Träningsloggen!
+          Hej och välkommen till SmartStudio!
         </p>
         <p>
           Din digitala följeslagare för att maximera din träning på Flexibel Hälsostudio.

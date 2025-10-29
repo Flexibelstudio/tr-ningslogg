@@ -28,17 +28,15 @@ const SendIcon = () => (
     </svg>
 );
 
-// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+// FIX: Replaced JSX syntax with React.createElement to resolve "Cannot find namespace 'JSX'" error.
 const renderMarkdownContent = (text: string): React.ReactElement[] => {
     const lines = text.split('\n');
-    // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
     const elements: React.ReactElement[] = [];
-    // FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
     let listItems: React.ReactElement[] = [];
 
     const flushList = () => {
         if (listItems.length > 0) {
-            elements.push(<ul key={`ul-${elements.length}`} className="list-disc pl-5 space-y-1">{listItems}</ul>);
+            elements.push(React.createElement('ul', { key: `ul-${elements.length}`, className: "list-disc pl-5 space-y-1" }, ...listItems));
             listItems = [];
         }
     };
@@ -49,11 +47,11 @@ const renderMarkdownContent = (text: string): React.ReactElement[] => {
 
         if (boldedLine.trim().startsWith('* ')) {
             const content = boldedLine.trim().substring(2);
-            listItems.push(<li key={`li-${index}`} dangerouslySetInnerHTML={{ __html: content }} />);
+            listItems.push(React.createElement('li', { key: `li-${index}`, dangerouslySetInnerHTML: { __html: content } }));
         } else {
             flushList();
             if (boldedLine.trim() !== '') {
-                elements.push(<p key={`p-${index}`} className="mb-2 last:mb-0" dangerouslySetInnerHTML={{ __html: boldedLine }} />);
+                elements.push(React.createElement('p', { key: `p-${index}`, className: "mb-2 last:mb-0", dangerouslySetInnerHTML: { __html: boldedLine } }));
             }
         }
     });
@@ -196,6 +194,9 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
             if (error) {
                 throw new Error(`Cloud Function error: ${error}`);
             }
+            if (!responseText) {
+                throw new Error("Received empty response from AI.");
+            }
 
             const aiMessage: Message = { id: crypto.randomUUID(), text: responseText, sender: 'ai' };
             setMessages(prev => [...prev, aiMessage]);
@@ -267,7 +268,7 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
                             className="flex-grow !rounded-full !px-4 !py-2.5 !bg-white border-gray-300"
                             disabled={isLoading}
                         />
-                        <Button type="submit" disabled={isLoading || !inputValue.trim()} className="!rounded-full !w-12 !h-12 !p-0 flex-shrink-0 !bg-green-400 hover:!bg-green-500">
+                        <Button type="submit" disabled={isLoading || !inputValue.trim()} className="!rounded-full !w-12 !h-12 !p-0 flex-shrink-0 !bg-flexibel hover:!bg-flexibel/90">
                             <SendIcon />
                         </Button>
                     </form>

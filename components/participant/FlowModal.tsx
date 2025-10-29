@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { Modal } from '../Modal';
 import {
@@ -159,7 +158,7 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
                             key={emoji}
                             onClick={() => onToggleReaction(item.log!.id, item.logType!, emoji)}
                             className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-base transition-colors duration-150 ${
-                                myReaction?.emoji === emoji ? 'bg-blue-100 ring-1 ring-blue-400' : 'bg-gray-200 hover:bg-gray-300'
+                                myReaction?.emoji === emoji ? 'bg-flexibel/20 ring-1 ring-flexibel' : 'bg-gray-200 hover:bg-gray-300'
                             }`}
                             aria-pressed={myReaction?.emoji === emoji}
                             aria-label={whoReacted}
@@ -194,7 +193,7 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
                             {item.visibility && <span className="text-sm text-gray-400 font-normal ml-1">{item.visibility}</span>}
                         </span>
                     </h4>
-                    <p className="text-sm text-gray-500 flex-shrink-0 ml-2">{formatRelativeTime(item.date)}</p>
+                    <p className="text-sm text-gray-500 flex-shrink-0 ml-2">{formatRelativeTime(item.date).relative}</p>
                 </div>
                 {item.description && <p className="text-base text-gray-600 mt-0.5 whitespace-pre-wrap break-words">{item.description}</p>}
                 
@@ -244,8 +243,9 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
         </div>
     );
 });
+FlowItemCard.displayName = 'FlowItemCard';
 
-export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, onToggleReaction, onAddComment, onDeleteComment, onToggleCommentReaction, locations, userConditioningStatsHistory }) => {
+const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, onToggleReaction, onAddComment, onDeleteComment, onToggleCommentReaction, locations, userConditioningStatsHistory }) => {
     const data = { currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, locations, userConditioningStatsHistory };
     const { lastFlowViewTimestamp } = useAppContext();
     const [visibleCount, setVisibleCount] = useState(15);
@@ -262,7 +262,7 @@ export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUs
 
         const allowedParticipantIds = new Set<string>([data.currentUserId]);
         
-        data.connections.forEach(conn => {
+        (data.connections || []).forEach(conn => {
             if (conn.status === 'accepted') {
                 if (conn.requesterId === data.currentUserId) allowedParticipantIds.add(conn.receiverId);
                 if (conn.receiverId === data.currentUserId) allowedParticipantIds.add(conn.requesterId);
@@ -276,7 +276,7 @@ export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUs
         const currentUserLocation = currentUserProfile ? data.locations.find(l => l.id === currentUserProfile.locationId) : null;
 
         // 1. Coach Events
-        data.coachEvents.forEach(event => {
+        (data.coachEvents || []).forEach(event => {
             if (event.studioTarget && event.studioTarget !== 'all') {
                 if (!currentUserLocation || !currentUserLocation.name.toLowerCase().includes(event.studioTarget)) {
                     return; // Skip this event if location doesn't match
@@ -297,7 +297,7 @@ export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUs
         });
 
         // 2. Workout Logs
-        data.workoutLogs.forEach(log => {
+        (data.workoutLogs || []).forEach(log => {
             if (!allowedParticipantIds.has(log.participantId)) return;
             const author = data.allParticipants.find(p => p.id === log.participantId);
             const authorName = log.participantId === data.currentUserId ? 'Du' : author?.name || 'En vän';
@@ -333,7 +333,7 @@ export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUs
         });
         
         // 3. General Activity Logs
-        data.generalActivityLogs.forEach(log => {
+        (data.generalActivityLogs || []).forEach(log => {
             if (!allowedParticipantIds.has(log.participantId)) return;
             const author = data.allParticipants.find(p => p.id === log.participantId);
             const authorName = log.participantId === data.currentUserId ? 'Du' : author?.name || 'En vän';
@@ -358,7 +358,7 @@ export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUs
         });
 
         // 4. Goal Completion Logs
-        data.goalCompletionLogs.forEach(log => {
+        (data.goalCompletionLogs || []).forEach(log => {
             if (!allowedParticipantIds.has(log.participantId)) return;
             const author = data.allParticipants.find(p => p.id === log.participantId);
             const authorName = log.participantId === data.currentUserId ? 'Du' : author?.name || 'En vän';
@@ -378,14 +378,14 @@ export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUs
         });
         
         // 5. Standalone achievements
-        const statsByParticipant = data.userStrengthStats.reduce((acc, stat) => {
+        const statsByParticipant = (data.userStrengthStats || []).reduce((acc, stat) => {
             if (!acc[stat.participantId]) acc[stat.participantId] = [];
             acc[stat.participantId].push(stat);
             return acc;
         }, {} as Record<string, UserStrengthStat[]>);
 
         Object.entries(statsByParticipant).forEach(([participantId, stats]) => {
-            if (!allowedParticipantIds.has(participantId) || stats.length < 2) return;
+            if (!allowedParticipantIds.has(participantId) || (stats?.length || 0) < 2) return;
             const sortedStats = stats.sort((a, b) => new Date(a.lastUpdated).getTime() - new Date(b.lastUpdated).getTime());
             const author = data.allParticipants.find(p => p.id === participantId);
             if (!author) return;
@@ -415,15 +415,15 @@ export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUs
             }
         });
 
-        const physiqueByParticipant = data.participantPhysiqueHistory.reduce((acc, history) => {
+        const physiqueByParticipant = (data.participantPhysiqueHistory || []).reduce((acc, history) => {
             if (!acc[history.participantId]) acc[history.participantId] = [];
             acc[history.participantId].push(history);
             return acc;
         }, {} as Record<string, ParticipantPhysiqueStat[]>);
 
         Object.entries(physiqueByParticipant).forEach(([participantId, history]) => {
-            if (!allowedParticipantIds.has(participantId) || history.length < 2) return;
-            const sortedHistory = history.sort((a, b) => new Date(a.lastUpdated).getTime() - new Date(b.lastUpdated).getTime());
+            if (!allowedParticipantIds.has(participantId) || (history?.length || 0) < 2) return;
+            const sortedHistory = (history || []).sort((a, b) => new Date(a.lastUpdated).getTime() - new Date(b.lastUpdated).getTime());
             const author = data.allParticipants.find(p => p.id === participantId);
             if (!author) return;
 
@@ -452,7 +452,7 @@ export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUs
             }
         });
         
-        const allVisibleMemberships = data.clubMemberships.filter(m => allowedParticipantIds.has(m.participantId));
+        const allVisibleMemberships = (data.clubMemberships || []).filter(m => allowedParticipantIds.has(m.participantId));
         const membershipsByParticipant = allVisibleMemberships.reduce((acc, membership) => {
             if (!acc[membership.participantId]) {
                 acc[membership.participantId] = [];
@@ -490,7 +490,7 @@ export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUs
             });
         });
         
-        data.userConditioningStatsHistory.forEach(stat => {
+        (data.userConditioningStatsHistory || []).forEach(stat => {
             if (!allowedParticipantIds.has(stat.participantId)) return;
             const author = data.allParticipants.find(p => p.id === stat.participantId);
             if (!author) return;
@@ -539,7 +539,7 @@ export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUs
             });
         }
 
-        const sortedItems = items.sort((a, b) => b.date.getTime() - a.date.getTime());
+        const sortedItems = (items || []).sort((a, b) => b.date.getTime() - a.date.getTime());
         
         const finalItems: FlowItem[] = [];
         const seenItemIds = new Set<string>();
@@ -556,7 +556,7 @@ export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUs
         threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
         threeDaysAgo.setHours(0, 0, 0, 0);
 
-        return finalItems.filter(item => item.date >= threeDaysAgo);
+        return (finalItems || []).filter(item => item.date >= threeDaysAgo);
 
     }, [isOpen, data, lastFlowViewTimestamp]);
 
@@ -575,9 +575,9 @@ export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUs
         }
     }, [allFlowItems.length]);
     
-    const loadMore = () => {
+    const loadMore = useCallback(() => {
         setVisibleCount(prevCount => Math.min(prevCount + 15, allFlowItems.length));
-    };
+    }, [allFlowItems.length]);
     
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Flöde" size="2xl">
@@ -619,3 +619,5 @@ export const FlowModal: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUs
         </Modal>
     );
 };
+
+export const FlowModal = React.memo(FlowModalFC);

@@ -10,8 +10,10 @@ import firebase from 'firebase/compat/app';
 let isOffline = false;
 let initializationError: string | null = null;
 
-if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-    const errorMsg = "Firebase config missing. Running in offline/mock data mode.";
+// The check for initialized apps is now the single source of truth.
+// FIX: Replaced `firebase.getApps().length` with `firebase.apps.length` for v8 compat.
+if (firebase.apps.length === 0) {
+    const errorMsg = "Firebase initialization failed or was skipped. Running in offline/mock data mode.";
     console.warn(errorMsg);
     initializationError = errorMsg;
     isOffline = true;
@@ -42,8 +44,8 @@ const firebaseService = {
         if (isOffline) {
             return Promise.resolve(dataService.get(key));
         } else {
-            // This method is primarily for top-level collections like 'users' and 'organizations'
             return (async () => {
+                if (!db) throw new Error("Firestore is not initialized.");
                 const collectionRef = db.collection(key);
                 const snapshot = await collectionRef.get();
                 return snapshot.docs.map(d => ({ ...d.data(), id: d.id })) as MockDB[K];
@@ -68,8 +70,8 @@ const firebaseService = {
             );
             return Promise.resolve();
         }
+        if (!db) throw new Error("Firestore is not initialized.");
         const userRef = db.collection('users').doc(userId);
-        // We are updating our own user profile in Firestore, not Firebase Auth user record.
         await userRef.update(sanitizeDataForFirebase(data));
     },
 
@@ -82,6 +84,9 @@ const firebaseService = {
             return Promise.resolve();
         }
     
+        if (!auth || !db) {
+            throw new Error("Firebase Auth or Firestore is not initialized.");
+        }
         const userCredential = await auth.createUserWithEmailAndPassword(email, password);
         const firebaseUser = userCredential.user;
 
@@ -94,7 +99,7 @@ const firebaseService = {
             email: email.toLowerCase(),
             isActive: false,
             isProspect: false,
-            approvalStatus: 'pending',
+            approvalStatus: 'pending' as const,
             isSearchable: true,
             locationId: locationId,
             creationDate: new Date().toISOString(),
@@ -117,12 +122,10 @@ const firebaseService = {
         
         try {
             await batch.commit();
-            // Sign out immediately after successful commit to prevent UI flicker and race conditions.
             await auth.signOut();
         } catch (error) {
             console.error("Firestore write failed during registration. Deleting orphaned auth user.", error);
             try {
-                // Ensure the user is still signed in before attempting to delete.
                 if (auth.currentUser && auth.currentUser.uid === firebaseUser.uid) {
                     await firebaseUser.delete();
                 }
@@ -139,19 +142,9 @@ const firebaseService = {
             if (localData) {
                 return Promise.resolve(localData);
             }
-            // If offline and no cache, return an empty shell to prevent app crash
-            return Promise.resolve({
-                participantDirectory: [], workouts: [], workoutLogs: [], participantGoals: [],
-                generalActivityLogs: [], goalCompletionLogs: [], coachNotes: [], userStrengthStats: [],
-                userConditioningStatsHistory: [], participantPhysiqueHistory: [], participantMentalWellbeing: [],
-                participantGamificationStats: [], clubMemberships: [], leaderboardSettings: { leaderboardsEnabled: false, weeklyPBChallengeEnabled: false, weeklySessionChallengeEnabled: false }, 
-                coachEvents: [], connections: [], lastFlowViewTimestamp: null, locations: [], staffMembers: [],
-                memberships: [], weeklyHighlightSettings: { isEnabled: false, dayOfWeek: 1, time: '09:00', studioTarget: 'separate' }, 
-                oneOnOneSessions: [], workoutCategories: [], staffAvailability: [],
-                integrationSettings: { enableQRCodeScanning: false, isBookingEnabled: false, isClientJourneyEnabled: true, isScheduleEnabled: true }, 
-                groupClassDefinitions: [], groupClassSchedules: [], participantBookings: [], leads: [], prospectIntroCalls: [],
-            });
+            return Promise.resolve(createInitialOrgData('offline-fallback'));
         }
+        if (!db) throw new Error("Firestore is not initialized.");
 
         const collectionKeys: (keyof OrganizationData)[] = [
             'participantDirectory', 'workouts', 'workoutLogs', 'participantGoals',
@@ -178,7 +171,7 @@ const firebaseService = {
     async addDocToOrg<K extends keyof OrganizationData>(
         orgId: string,
         collectionKey: K,
-        data: any // An object with an 'id' property
+        data: any
     ): Promise<void> {
         if (isOffline) {
             dataService.setOrgData(orgId, (prev) => {
@@ -187,6 +180,7 @@ const firebaseService = {
             });
             return Promise.resolve();
         }
+        if (!db) throw new Error("Firestore is not initialized.");
         const { id, ...itemData } = data;
         if (!id) {
             throw new Error("Document data must have an 'id' property to be added.");
@@ -208,6 +202,7 @@ const firebaseService = {
             });
             return Promise.resolve();
         }
+        if (!db) throw new Error("Firestore is not initialized.");
         const docRef = db.collection('organizations').doc(orgId).collection(collectionKey as string).doc(docId);
         await docRef.delete();
     },
@@ -216,20 +211,19 @@ const firebaseService = {
         if (isOffline) {
             return Promise.resolve(dataService.getOrgData(orgId)?.[collectionKey] || [] as any);
         }
+        if (!db) throw new Error("Firestore is not initialized.");
 
         const collectionRef = db.collection('organizations').doc(orgId).collection(collectionKey as string);
         const snapshot = await collectionRef.get();
         
-        // Handle single-document collections (which are stored as objects in mock data)
         const singleDocKeys: (keyof OrganizationData)[] = ['leaderboardSettings', 'lastFlowViewTimestamp', 'weeklyHighlightSettings', 'integrationSettings', 'branding'];
         if (singleDocKeys.includes(collectionKey)) {
              if (snapshot.docs.length > 0) {
                 const data = snapshot.docs[0].data();
-                // Handle the case where timestamp was saved as { value: '...' }
                 return (data.hasOwnProperty('value') ? data.value : data) as OrganizationData[K];
              }
-             // Return default if not found
-             return Promise.resolve(dataService.getOrgData(orgId)?.[collectionKey] as any);
+             const fallbackData = dataService.getOrgData(orgId);
+             return Promise.resolve(fallbackData ? fallbackData[collectionKey] : [] as any);
         }
         
         return snapshot.docs.map(d => ({ ...d.data(), id: d.id })) as unknown as OrganizationData[K];
@@ -240,6 +234,7 @@ const firebaseService = {
             dataService.setOrgData(orgId, (prev) => ({ ...prev, [collectionKey]: data }));
             return Promise.resolve();
         }
+        if (!db) throw new Error("Firestore is not initialized.");
 
         const collectionRef = db.collection('organizations').doc(orgId).collection(collectionKey as string);
         const batch = db.batch();
@@ -256,8 +251,7 @@ const firebaseService = {
                 batch.set(docRef, sanitizeDataForFirebase(itemData));
             });
         } else if (typeof data === 'object' && data !== null) {
-            // Handle single-document objects
-            const docRef = collectionRef.doc('settings'); // Use a consistent ID for single-doc collections
+            const docRef = collectionRef.doc('settings');
             batch.set(docRef, sanitizeDataForFirebase(data));
         } else if (data !== null && data !== undefined) {
              const docRef = collectionRef.doc('settings');
@@ -280,7 +274,6 @@ const firebaseService = {
                     const updatedCollection = collection.map((doc: any) => {
                         if (doc.id === docId) {
                             const newDoc = { ...doc, ...dataToUpdate, lastUpdated: new Date().toISOString() };
-                            // Handle deletion for null values (our sentinel)
                             for (const key in newDoc) {
                                 if (newDoc[key] === null) {
                                     delete newDoc[key];
@@ -296,12 +289,12 @@ const firebaseService = {
             });
             return Promise.resolve();
         }
+        if (!db) throw new Error("Firestore is not initialized.");
 
         const docRef = db.collection('organizations').doc(orgId).collection(collectionKey as string).doc(docId);
         const finalData: { [key: string]: any } = { ...dataToUpdate, lastUpdated: new Date().toISOString() };
-        delete finalData.id; // Do not write the ID field into the document data
+        delete finalData.id;
 
-        // Convert null values to Firebase's deleteField sentinel
         for (const key in finalData) {
             if (finalData[key] === null) {
                 finalData[key] = firebase.firestore.FieldValue.delete();
@@ -316,15 +309,14 @@ const firebaseService = {
             dataService.set('organizationData', prev => ({ ...prev, [org.id]: orgData }));
             return Promise.resolve();
         }
+        if (!db) throw new Error("Firestore is not initialized.");
 
         const batch = db.batch();
         
-        // 1. Add to 'organizations' collection
         const orgRef = db.collection('organizations').doc(org.id);
         const { id, ...orgSaveData } = org;
         batch.set(orgRef, sanitizeDataForFirebase(orgSaveData));
         
-        // 2. Add all the subcollections for organizationData
         const singleDocKeys: (keyof OrganizationData)[] = ['leaderboardSettings', 'lastFlowViewTimestamp', 'weeklyHighlightSettings', 'integrationSettings', 'branding'];
 
         for (const collectionKey in orgData) {
@@ -333,12 +325,10 @@ const firebaseService = {
 
             if (singleDocKeys.includes(collectionKey as keyof OrganizationData)) {
                 if(collectionData !== null && collectionData !== undefined) {
-                    const docRef = subCollectionRef.doc('settings'); // a consistent ID
+                    const docRef = subCollectionRef.doc('settings');
                     if (typeof collectionData === 'object') {
                         batch.set(docRef, collectionData);
-
                     } else {
-                        // Handle primitive values like the timestamp string
                         batch.set(docRef, { value: collectionData });
                     }
                 }
@@ -375,7 +365,7 @@ const firebaseService = {
                     }
 
                     if (roles.participant === orgId) {
-                        delete roles.participant;
+                        delete (roles as Partial<typeof roles>).participant;
                         rolesChanged = true;
                     }
                     
@@ -384,11 +374,10 @@ const firebaseService = {
             });
             return Promise.resolve();
         }
+        if (!db) throw new Error("Firestore is not initialized.");
 
-        // --- ONLINE LOGIC ---
         const initialBatch = db.batch();
 
-        // 1. Delete all subcollection documents
         const collectionsToDelete: (keyof OrganizationData)[] = [
             'participantDirectory', 'workouts', 'workoutLogs', 'participantGoals', 'generalActivityLogs',
             'goalCompletionLogs', 'coachNotes', 'userStrengthStats', 'userConditioningStatsHistory',
@@ -408,13 +397,11 @@ const firebaseService = {
             });
         }
 
-        // 2. Delete the main organization document
         const orgRef = db.collection('organizations').doc(orgId);
         initialBatch.delete(orgRef);
 
         await initialBatch.commit();
 
-        // 3. Clean up user roles in a separate transaction
         const userCleanupBatch = db.batch();
         const usersRef = db.collection('users');
         const usersSnapshot = await usersRef.get();
@@ -431,7 +418,6 @@ const firebaseService = {
             }
 
             if (roles.participant === orgId) {
-                // Using deleteField is robust for removing a field completely
                 (roles as any).participant = firebase.firestore.FieldValue.delete();
                 rolesChanged = true;
             }

@@ -276,7 +276,7 @@ export const IntroCallModal: React.FC<IntroCallModalProps> = ({ isOpen, onClose,
                 <p className="block text-base font-medium text-gray-700 mb-2">Vad blev resultatet av samtalet?</p>
                 <div className="space-y-2">
                     {INTRO_CALL_OUTCOME_OPTIONS.map(opt => (
-                        <label key={opt.value} className="flex items-center gap-2 cursor-pointer p-2 rounded-md hover:bg-violet-100">
+                        <label key={opt.value} className="flex items-center gap-2 cursor-pointer p-2 rounded-md active:bg-violet-100">
                             <input
                                 type="radio"
                                 name="outcome"
@@ -293,7 +293,7 @@ export const IntroCallModal: React.FC<IntroCallModalProps> = ({ isOpen, onClose,
             
             {outcome === 'bought_starter' && (
                 <div className="pl-2 pt-2 border-t border-violet-200 animate-fade-in-down">
-                    <label className="flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-violet-100">
+                    <label className="flex items-center gap-3 p-2 rounded-md cursor-pointer active:bg-violet-100">
                         <input
                             type="checkbox"
                             checked={tshirtHandedOut}

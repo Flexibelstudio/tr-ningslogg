@@ -1,9 +1,10 @@
+
 import { onRequest, onCall } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { GoogleGenAI, type GenerationConfig } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 
 // Init Admin SDK
 initializeApp();
@@ -18,6 +19,19 @@ function getISOWeek(date: Date): number {
   return weekNo;
 }
 
+// Robust way to read Bearer token from headers
+function getBearerToken(req: {
+  header?: (n: string) => string | undefined;
+  headers?: Record<string, any>;
+}) {
+  const h =
+    (typeof req.header === "function" ? req.header("authorization") : undefined) ??
+    (typeof req.header === "function" ? req.header("Authorization") : undefined) ??
+    req.headers?.authorization ??
+    req.headers?.Authorization ??
+    "";
+  return typeof h === "string" && h.startsWith("Bearer ") ? h.slice(7) : "";
+}
 
 /**
  * Zapier webhook: creates lead in Firestore
@@ -27,162 +41,99 @@ export const createLeadFromZapier = onRequest(
   {
     region: "europe-west1",
     secrets: ["ZAPIER_SECRET_KEY"],
-    cors: true,
+    cors: true, // Firebase handles CORS headers
   },
-  // explicit any för att slippa Express-typer som kan strula i vissa miljöer
   async (request: any, response: any) => {
+    if (request.method !== "POST") {
+      logger.warn("Method Not Allowed:", request.method);
+      response.status(405).send("Method Not Allowed");
+      return;
+    }
+
+    // Auth
+    const ZAPIER_SECRET_KEY = process.env.ZAPIER_SECRET_KEY;
+    const presented = getBearerToken(request);
+    if (!ZAPIER_SECRET_KEY || presented !== ZAPIER_SECRET_KEY) {
+      logger.warn("Unauthorized attempt to access webhook.");
+      response.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    // Body
+    const {
+      firstName,
+      lastName,
+      email,
+      phone,
+      locationName,
+      orgId,
+    } = (request.body ?? {}) as Record<string, unknown>;
+
+    const missing = [
+      !firstName && "firstName",
+      !lastName && "lastName",
+      !email && "email",
+      !locationName && "locationName",
+      !orgId && "orgId",
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+    if (missing) {
+      logger.error("Bad Request: Missing required fields:", missing);
+      response.status(400).json({ error: `Bad Request: Missing fields: ${missing}` });
+      return;
+    }
+
     try {
-      if (request.method !== "POST") {
-        logger.warn("Method Not Allowed:", request.method);
-        response.status(405).send("Method Not Allowed");
-        return;
-      }
-
-      // Auth (robust)
-const ZAPIER_SECRET_KEY = process.env.ZAPIER_SECRET_KEY ?? "";
-
-// Plocka ut Authorization-headern (kan vara string eller string[])
-const rawAuth =
-  (request.headers?.authorization as string | string[] | undefined) ??
-  (request.headers as any)?.Authorization;
-
-const auth = Array.isArray(rawAuth) ? rawAuth[0] : (rawAuth ?? "");
-
-// Matcha "Bearer <token>" (case-insensitive) och trimma
-const match = /^Bearer\s+(.+)$/i.exec(auth);
-const presented = match?.[1]?.trim() ?? "";
-
-if (!ZAPIER_SECRET_KEY || presented !== ZAPIER_SECRET_KEY) {
-  logger.warn("Unauthorized attempt to access webhook.");
-  response.status(401).json({ error: "Unauthorized" });
-  return;
-}
-
-      // Body
-      const {
-        firstName,
-        lastName,
-        email,
-        phone,
-        locationName,
-        orgId,
-        source,
-      } = (request.body ?? {}) as Record<string, unknown>;
-
-      const missing = [
-        !firstName && "firstName",
-        !lastName && "lastName",
-        !email && "email",
-        !locationName && "locationName",
-        !orgId && "orgId",
-      ]
-        .filter(Boolean)
-        .join(", ");
-
-      if (missing) {
-        logger.error("Bad Request: Missing required fields:", missing);
-        response
-          .status(400)
-          .json({ error: `Bad Request: Missing fields: ${missing}` });
-        return;
-      }
-
-      // Logga inkommande data för felsökning (innehåller INTE hemligheter)
-      logger.info("Incoming lead payload", {
-        firstName,
-        lastName,
-        email,
-        phone,
-        locationName,
-        orgId,
-        source,
-      });
-
-      // Hämta locations för org
-      const orgIdStr = String(orgId);
+      // Get locations
       const locationsSnapshot = await db
         .collection("organizations")
-        .doc(orgIdStr)
+        .doc(String(orgId))
         .collection("locations")
         .get();
 
-      logger.info(`Found ${locationsSnapshot.size} locations for org ${orgIdStr}`);
-
-      if (locationsSnapshot.empty) {
-        response.status(400).json({
-          error:
-            "Bad Request: No locations found for provided orgId. Verify orgId and your Firestore data.",
-        });
-        return;
-      }
-
-      // Funktion som normaliserar text (tar bort diakritik, gör lower-case)
-      const norm = (s: unknown) =>
-        String(s ?? "")
-          .normalize("NFD")
-          .replace(/\p{Diacritic}/gu, "")
-          .toLowerCase()
-          .trim();
-
       type LocationDoc = { name?: string };
-      const wanted = norm(locationName);
-
-      // Matcha location: exakt namn eller substring (utan diakritik)
-      const locations = locationsSnapshot.docs.map((doc) => ({
+      const locations: Array<{ id: string; name?: string }> = locationsSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...(doc.data() as LocationDoc),
       }));
 
-      const targetLocation =
-        locations.find((l) => norm(l.name) === wanted) ||
-        locations.find((l) => norm(l.name).includes(wanted));
+      const targetLocation = locations.find(
+        (l) =>
+          typeof l.name === "string" &&
+          l.name.toLowerCase().includes(String(locationName).toLowerCase())
+      );
 
       if (!targetLocation) {
-        logger.error(
-          `Location '${locationName}' not matched in org ${orgIdStr}. Available: ${locations
-            .map((l) => l.name)
-            .join(", ")}`
-        );
-        response.status(400).json({
-          error: `Bad Request: Location '${locationName}' not found for org '${orgIdStr}'.`,
-        });
+        logger.error(`Location named '${locationName}' could not be found.`);
+        response.status(400).json({ error: `Bad Request: Location '${locationName}' not found.` });
         return;
       }
 
-      // Telefonnormalisering (valfritt): ersätt inledande +46 eller 0046 med 0
-      const phoneStr = String(phone ?? "").trim();
-      const phoneNormalized = phoneStr
-        .replace(/^\s*\+46/, "0")
-        .replace(/^\s*0046/, "0");
-
-      // Skapa lead
+      // Create lead
       const newLead = {
         firstName: String(firstName),
         lastName: String(lastName),
         email: String(email).toLowerCase(),
-        phone: phoneNormalized,
+        phone: phone ? String(phone) : "",
         locationId: targetLocation.id,
-        // sätt källa – låt incoming source vinna om den finns, annars "Meta"
-        source: source ? String(source) : "Meta",
+        source: "Meta",
         createdDate: new Date().toISOString(),
         status: "new",
       };
 
       const leadRef = await db
         .collection("organizations")
-        .doc(orgIdStr)
+        .doc(String(orgId))
         .collection("leads")
         .add(newLead);
 
-      logger.info(
-        `Successfully created lead with ID: ${leadRef.id} for org ${orgIdStr}`
-      );
+      logger.info(`Successfully created lead with ID: ${leadRef.id} for org ${orgId}`);
       response.status(201).json({ success: true, leadId: leadRef.id });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : JSON.stringify(err);
-      logger.error("Error creating lead:", err);
-      // TILLFÄLLIGT: skicka tillbaka 'details' för snabb felsökning
-      response.status(500).json({ error: "Internal Server Error", details: msg });
+    } catch (error) {
+      logger.error("Error creating lead:", error);
+      response.status(500).json({ error: "Internal Server Error" });
     }
   }
 );
@@ -190,7 +141,7 @@ if (!ZAPIER_SECRET_KEY || presented !== ZAPIER_SECRET_KEY) {
 /**
  * Callable: Server-side proxy to Gemini (Generative AI)
  * Called via Firebase SDK (httpsCallable) -> no CORS.
- * Data: { model: string, contents: string | Content[], config?: GenerationConfig }
+ * Data: { model: string, contents: string | Content[], config?: any }
  */
 export const callGeminiApi = onCall(
   {
@@ -201,8 +152,8 @@ export const callGeminiApi = onCall(
     try {
       const { model, contents, config } = (request.data ?? {}) as {
         model?: string;
-        contents?: unknown; // string or structured contents
-        config?: GenerationConfig;
+        contents?: unknown; // string or structured content
+        config?: any;
       };
 
       if (!model || contents == null) {
@@ -216,7 +167,6 @@ export const callGeminiApi = onCall(
         return { error: "API key is not configured on the server." };
       }
 
-      // Use the new SDK
       const ai = new GoogleGenAI({ apiKey });
 
       const response = await ai.models.generateContent({
@@ -226,6 +176,19 @@ export const callGeminiApi = onCall(
       });
 
       const text = response.text;
+      if (!text) {
+        // Check for safety blocking and provide a more informative error
+        if (response.promptFeedback?.blockReason) {
+            const blockReason = response.promptFeedback.blockReason;
+            const safetyRatings = response.promptFeedback.safetyRatings?.map(r => `${r.category}: ${r.probability}`).join(', ');
+            const errorMessage = `Request blocked by Gemini API. Reason: ${blockReason}. Ratings: ${safetyRatings || 'N/A'}`;
+            logger.error(errorMessage, { fullResponse: response });
+            throw new Error(errorMessage);
+        }
+        
+        logger.warn("Gemini API returned empty text. Full response:", JSON.stringify(response, null, 2));
+        throw new Error("Received empty response from AI, but not due to safety blocking.");
+      }
       return { text };
 
     } catch (error) {
@@ -335,29 +298,34 @@ export const generateWeeklyHighlights = onSchedule({
             return (log.postWorkoutSummary?.newPBs || []).map((pb: any) => ({ ...pb, participantName: participant?.name || 'Okänd' }));
           }).slice(0, 10);
 
-        const prompt = `Du är "Flexibot", en AI-assistent för Flexibel Hälsostudio. Din uppgift är att skapa ett "Veckans Höjdpunkter"-inlägg för community-flödet. Svaret MÅSTE vara på svenska och formaterat med Markdown.
+        const prompt = \`Du är "Flexibot", en AI-assistent för Flexibel Hälsostudio. Din uppgift är att skapa ett "Veckans Höjdpunkter"-inlägg för community-flödet. Svaret MÅSTE vara på svenska och formaterat med Markdown.
 
             **Data från den gångna veckan:**
-            - Totalt antal loggade pass: ${logsLastWeek.length}
-            - Antal medlemmar som tränat: ${new Set(logsLastWeek.map((l) => l.participantId)).size}
+            - Totalt antal loggade pass: \${logsLastWeek.length}
+            - Antal medlemmar som tränat: \${new Set(logsLastWeek.map((l) => l.participantId)).size}
             - Några av veckans personliga rekord (PBs):
-            ${pbsLastWeek.length > 0 ? pbsLastWeek.map((pb) => `  * ${pb.participantName} slog PB i ${pb.exerciseName} med ${pb.value}!`).join('\n') : '  * Inga nya PBs loggade denna vecka.'}
+            \${pbsLastWeek.length > 0 ? pbsLastWeek.map((pb) => \`  * \${pb.participantName} slog PB i \${pb.exerciseName} med \${pb.value}!\`).join('\\n') : '  * Inga nya PBs loggade denna vecka.'}
 
             **Ditt uppdrag:**
-            1.  Skapa en titel i formatet: \`Veckans Höjdpunkter - v${getISOWeek(new Date())}\`.
+            1.  Skapa en titel i formatet: \\\`Veckans Höjdpunkter - v\${getISOWeek(new Date())}\\\`.
             2.  Skriv en kort, peppande sammanfattning av veckans aktivitet.
             3.  Lyft fram 2-3 av de mest imponerande PBs från listan.
             4.  Avsluta med en uppmuntrande fras om att fortsätta kämpa.
             5.  Formatera hela texten med Markdown. Kombinera titel och beskrivning till en enda textsträng.
-            `;
+            \`;
         
         const apiKey = process.env.GEMINI_API_KEY!;
         const ai = new GoogleGenAI({ apiKey });
         const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
-        const text = response.text;
         
-const lines = text ? text.split("\n") : [];        const title = lines.find((l) => l.trim().length > 0)?.replace(/#/g, '').trim() || `Veckans Höjdpunkter - v${currentWeek}`;
-        const description = lines.slice(1).join('\n').trim();
+        const text = response.text;
+        if (!text) {
+          throw new Error("Received empty response from AI for weekly highlights.");
+        }
+        
+        const lines = text.split('\\n');
+        const title = lines.find((l) => l.trim().length > 0)?.replace(/#/g, '').trim() || \`Veckans Höjdpunkter - v\${currentWeek}\`;
+        const description = lines.slice(1).join('\\n').trim();
 
         const newEvent = {
           title,
@@ -368,13 +336,13 @@ const lines = text ? text.split("\n") : [];        const title = lines.find((l) 
         };
 
         await db.collection("organizations").doc(orgId).collection("coachEvents").add(newEvent);
-        logger.info(`Posted highlight for org ${orgId}, target ${target.studioTarget}`);
+        logger.info(\`Posted highlight for org \${orgId}, target \${target.studioTarget}\`);
       }
       
       await settingsRef.update({ lastGeneratedTimestamp: now.toISOString() });
-      logger.info(`Updated lastGeneratedTimestamp for org ${orgId}`);
+      logger.info(\`Updated lastGeneratedTimestamp for org \${orgId}\`);
     } catch (error) {
-      logger.error(`Failed to generate highlights for org ${orgId}:`, error);
+      logger.error(\`Failed to generate highlights for org \${orgId}:\`, error);
     }
   }
 });

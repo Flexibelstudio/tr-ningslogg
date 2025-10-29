@@ -104,7 +104,7 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({ isOpen, onClose, particip
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={`Godkänn ${participant.name}`}>
             <div className="space-y-4">
-                <label className="flex items-start space-x-3 p-3 bg-gray-100 rounded-md cursor-pointer hover:bg-gray-200 transition-colors">
+                <label className="flex items-start space-x-3 p-3 bg-gray-100 rounded-md cursor-pointer active:bg-gray-200 transition-colors">
                     <input
                         type="radio"
                         name="approval-type"
@@ -119,7 +119,7 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({ isOpen, onClose, particip
                         </p>
                     </div>
                 </label>
-                 <label className="flex items-start space-x-3 p-3 bg-gray-100 rounded-md cursor-pointer hover:bg-gray-200 transition-colors">
+                 <label className="flex items-start space-x-3 p-3 bg-gray-100 rounded-md cursor-pointer active:bg-gray-200 transition-colors">
                     <input
                         type="radio"
                         name="approval-type"
@@ -529,7 +529,7 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                     {filteredAndSortedParticipants.map(p => (
-                        <tr key={p.id} className="hover:bg-gray-50">
+                        <tr key={p.id}>
                             <td className="p-4"><input type="checkbox" checked={selectedMembers.has(p.id)} onChange={() => handleSelectOne(p.id)} /></td>
                             <td className="px-4 py-4 whitespace-nowrap">
                                 <div className="text-sm font-medium text-gray-900">{p.name}</div>
@@ -561,7 +561,7 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
             loggedInStaff={loggedInStaff}
         />
         
-        {selectedParticipantForNotes && (
+        {selectedParticipantForNotes && loggedInStaff && (
             <MemberNotesModal
                 isOpen={isNotesModalOpen}
                 onClose={() => setIsNotesModalOpen(false)}
@@ -585,7 +585,8 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
                 oneOnOneSessions={oneOnOneSessions}
                 setOneOnOneSessions={setOneOnOneSessionsData}
                 coaches={staffMembers}
-                loggedInCoachId={user!.id}
+                // FIX: Pass loggedInStaff.id instead of user.id to ensure the correct coach context is used. Also add non-null assertion.
+                loggedInCoachId={loggedInStaff!.id}
                 workouts={workouts}
                 addWorkout={addWorkout}
                 updateWorkout={updateWorkout}

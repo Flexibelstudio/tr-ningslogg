@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { OneOnOneSession, ParticipantProfile, StaffMember, GroupClassSchedule, GroupClassDefinition, ParticipantBooking } from '../../types';
-import { Button } from '../Button';
-import { ONE_ON_ONE_SESSION_TYPES } from '../../constants';
+import { CalendarGrid } from '../CalendarGrid';
+import * as dateUtils from '../../utils/dateUtils';
+import { useAppContext } from '../../context/AppContext';
 
 interface EnrichedClassInstance {
     instanceId: string;
@@ -18,6 +19,7 @@ interface EnrichedClassInstance {
     waitlistCount: number;
     isFull: boolean;
     allBookingsForInstance: ParticipantBooking[];
+    color: string;
 }
 
 interface CalendarViewProps {
@@ -32,64 +34,34 @@ interface CalendarViewProps {
   groupClassDefinitions: GroupClassDefinition[];
   bookings: ParticipantBooking[];
   onGroupClassClick: (instance: EnrichedClassInstance) => void;
+  loggedInCoachId?: string;
 }
 
-const SESSION_TYPE_COLORS: Record<string, { bg: string; border: string; text: string; }> = {
-  'PT-pass': { bg: 'bg-green-100', border: 'border-green-400', text: 'text-green-800' },
-  'Avstämningssamtal': { bg: 'bg-blue-100', border: 'border-blue-400', text: 'text-blue-800' },
-  'InBody-mätning': { bg: 'bg-yellow-100', border: 'border-yellow-400', text: 'text-yellow-800' },
-  'Anpassat Möte': { bg: 'bg-purple-100', border: 'border-purple-400', text: 'text-purple-800' },
-  'GROUP_CLASS': { bg: 'bg-sky-100', border: 'border-sky-400', text: 'text-sky-800' },
+const SESSION_TYPE_STYLES: Record<string, { bg: string; border: string; text: string; }> = {
+  'PT-pass': { bg: 'bg-flexibel/10', border: 'border-flexibel', text: 'text-flexibel' },
+  'Avstämningssamtal': { bg: 'bg-blue-50', border: 'border-blue-500', text: 'text-blue-800' },
+  'InBody-mätning': { bg: 'bg-purple-50', border: 'border-purple-500', text: 'text-purple-800' },
+  'Anpassat Möte': { bg: 'bg-purple-50', border: 'border-purple-500', text: 'text-purple-800' },
 };
 
-export const CalendarView: React.FC<CalendarViewProps> = ({ 
-    sessions, participants, coaches, onSessionClick, onDayClick, onSessionEdit, onSessionDelete, 
-    groupClassSchedules, groupClassDefinitions, bookings, onGroupClassClick 
+const CalendarViewFC: React.FC<CalendarViewProps> = ({ 
+    sessions, participants, coaches, onSessionClick, onDayClick,
+    groupClassSchedules, groupClassDefinitions, bookings, onGroupClassClick, loggedInCoachId
 }) => {
+  const { getColorForCategory } = useAppContext();
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  const daysOfWeek = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
-
-  const calendarDays = useMemo(() => {
-    const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-
-    let startDate = new Date(monthStart);
-    const dayOfWeek = startDate.getDay();
-    const diff = (dayOfWeek === 0 ? 6 : dayOfWeek - 1); // Monday is 0
-    startDate.setDate(startDate.getDate() - diff);
-
-    const days = [];
-    for (let i = 0; i < 42; i++) {
-        const day = new Date(startDate);
-        day.setDate(startDate.getDate() + i);
-        days.push(day);
-    }
-    return days;
-  }, [currentDate]);
-  
-  const handleNavigate = (offset: number) => {
-    setCurrentDate(prev => {
-        const newDate = new Date(prev);
-        newDate.setMonth(newDate.getMonth() + offset);
-        return newDate;
-    });
-  };
-
-  const getEnrichedGroupClassesForDay = (day: Date): EnrichedClassInstance[] => {
+  const getEnrichedGroupClassesForDay = useCallback((day: Date): EnrichedClassInstance[] => {
     const dayOfWeek = day.getDay() === 0 ? 7 : day.getDay();
-    const dateStr = day.toISOString().split('T')[0];
+    const dateStr = dateUtils.toYYYYMMDD(day);
 
     return groupClassSchedules
       .filter(schedule => {
-        // FIX: Parse date strings as local time to avoid timezone issues.
-        // new Date('YYYY-MM-DD') parses as UTC midnight, which can cause off-by-one day errors.
         const [startYear, startMonth, startDay] = schedule.startDate.split('-').map(Number);
         const startDate = new Date(startYear, startMonth - 1, startDay);
         
         const [endYear, endMonth, endDay] = schedule.endDate.split('-').map(Number);
         const endDate = new Date(endYear, endMonth - 1, endDay);
-        // Set end date to the very end of the day for inclusive check
         endDate.setHours(23, 59, 59, 999);
 
         return schedule.daysOfWeek.includes(dayOfWeek) && day >= startDate && day <= endDate;
@@ -122,95 +94,152 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           waitlistCount: waitlistedUsers.length,
           isFull: bookedUsers.length >= schedule.maxParticipants,
           allBookingsForInstance,
+          color: classDef.color || getColorForCategory(classDef.name), // Use new property with fallback
         };
       })
       .filter((i): i is EnrichedClassInstance => i !== null)
       .sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
-  };
+  }, [groupClassSchedules, groupClassDefinitions, coaches, bookings, getColorForCategory]);
+
+  const sessionsByDay = useMemo(() => {
+    const map = new Map<string, OneOnOneSession[]>();
+    sessions.forEach(session => {
+        const dayStr = new Date(session.startTime).toDateString();
+        if (!map.has(dayStr)) map.set(dayStr, []);
+        map.get(dayStr)!.push(session);
+    });
+    map.forEach(daySessions => daySessions.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()));
+    return map;
+  }, [sessions]);
+
+  const groupClassesByDay = useMemo(() => {
+    const map = new Map<string, EnrichedClassInstance[]>();
+    const gridStartDate = dateUtils.getStartOfWeek(dateUtils.getStartOfMonth(currentDate));
+
+    for (let i = 0; i < 42; i++) { // 42 days for 6 weeks
+        const day = dateUtils.addDays(gridStartDate, i);
+        const dayStr = day.toDateString();
+        const classes = getEnrichedGroupClassesForDay(day);
+        if (classes.length > 0) {
+            map.set(dayStr, classes);
+        }
+    }
+    return map;
+  }, [getEnrichedGroupClassesForDay, currentDate]);
+
+  const holidaysMap = useMemo(() => {
+    const year = currentDate.getFullYear();
+    const allHolidays = [
+        ...dateUtils.getSwedishHolidays(year - 1),
+        ...dateUtils.getSwedishHolidays(year),
+        ...dateUtils.getSwedishHolidays(year + 1),
+    ];
+    const map = new Map<string, dateUtils.Holiday>();
+    allHolidays.forEach(h => map.set(h.date.toDateString(), h));
+    return map;
+  }, [currentDate]);
+
+  const getHolidayForDay = useCallback((date: Date): dateUtils.Holiday | null => {
+      return holidaysMap.get(date.toDateString()) || null;
+  }, [holidaysMap]);
+
+  const renderDayContent = useCallback((day: Date) => {
+    const dayStr = day.toDateString();
+    const sessionsForDay = sessionsByDay.get(dayStr) || [];
+    const groupClassesForDay = groupClassesByDay.get(dayStr) || [];
+    
+    const allEvents = [
+        ...sessionsForDay.map(s => ({ type: 'session', data: s, time: new Date(s.startTime) })),
+        ...groupClassesForDay.map(gc => ({ type: 'group', data: gc, time: gc.startDateTime }))
+    ].sort((a, b) => a.time.getTime() - b.time.getTime());
+
+    return (
+      <>
+        {allEvents.slice(0, 3).map(event => {
+            if (event.type === 'session') {
+                const session = event.data as OneOnOneSession;
+                const participant = participants.find(p => p.id === session.participantId);
+                const style = SESSION_TYPE_STYLES[session.title] || SESSION_TYPE_STYLES['Anpassat Möte'];
+                const startTime = event.time.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+
+                return (
+                    <button
+                        key={session.id}
+                        onClick={(e) => { e.stopPropagation(); onSessionClick(session); }}
+                        className={`w-full p-1 sm:p-1.5 text-left rounded-md ${style.bg} ${style.border} ${style.text} border-l-4 cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 ease-in-out`}
+                    >
+                        <p className="font-bold text-xs sm:text-sm truncate">{startTime} - {session.title}</p>
+                        <p className="text-xs truncate">{participant?.name || 'Okänd'}</p>
+                    </button>
+                );
+            }
+            if (event.type === 'group') {
+                const instance = event.data as EnrichedClassInstance;
+                const categoryColor = instance.color;
+                const categoryBgColor = categoryColor + '1A'; // ~10% opacity
+                const startTime = event.time.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+                return (
+                     <button
+                        key={instance.instanceId}
+                        onClick={(e) => { e.stopPropagation(); onGroupClassClick(instance); }}
+                        className="w-full p-1 sm:p-1.5 text-left rounded-md border-l-4 cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 ease-in-out text-gray-800"
+                        style={{ borderColor: categoryColor, backgroundColor: categoryBgColor }}
+                        title={instance.className}
+                    >
+                        <p className="font-bold text-xs sm:text-sm truncate" style={{ color: categoryColor }}>
+                            {instance.coachId === loggedInCoachId && '⭐ '}
+                            {startTime} - {instance.className}
+                        </p>
+                        <p className="text-xs truncate">{instance.bookedCount}/{instance.maxParticipants} bokade</p>
+                    </button>
+                );
+            }
+            return null;
+        })}
+        {allEvents.length > 3 && (
+            <p className="text-xs sm:text-sm font-semibold text-gray-500 mt-1 pl-1 sm:pl-1.5">+ {allEvents.length - 3} till</p>
+        )}
+      </>
+    );
+  }, [sessionsByDay, groupClassesByDay, participants, onSessionClick, onGroupClassClick, loggedInCoachId]);
+  
+  const getDayProps = useCallback((day: Date) => {
+    const dayStr = day.toDateString();
+    const hasContent = (sessionsByDay.get(dayStr)?.length || 0) > 0 || (groupClassesByDay.get(dayStr)?.length || 0) > 0;
+    return { hasContent };
+  }, [sessionsByDay, groupClassesByDay]);
 
   return (
-    <div className="bg-white p-4 sm:p-6 rounded-xl shadow-xl border border-gray-200">
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold text-gray-800 capitalize">
-            {currentDate.toLocaleString('sv-SE', { month: 'long', year: 'numeric' })}
-        </h2>
-        <div className="flex items-center gap-2 mt-3 sm:mt-0">
-            <Button onClick={() => handleNavigate(-1)} variant="outline" size="sm">Föregående</Button>
-            <Button onClick={() => setCurrentDate(new Date())} variant="outline" size="sm">Idag</Button>
-            <Button onClick={() => handleNavigate(1)} variant="outline" size="sm">Nästa</Button>
+    <div>
+        <CalendarGrid 
+            currentDate={currentDate}
+            setCurrentDate={setCurrentDate}
+            onDayClick={onDayClick}
+            renderDayContent={renderDayContent}
+            getDayProps={getDayProps}
+            getHolidayForDay={getHolidayForDay}
+        />
+        <div className="mt-4 pt-4 border-t">
+            <h4 className="text-xs font-bold uppercase text-gray-500 mb-2">Teckenförklaring</h4>
+            <div className="text-xs text-gray-600 flex flex-wrap gap-x-4 gap-y-1">
+                {/* Dynamic Group Classes */}
+                {groupClassDefinitions.map(def => {
+                    const color = def.color || getColorForCategory(def.name);
+                    const bgColor = color + '1A'; // ~10% opacity
+                    return (
+                        <span key={def.id} className="flex items-center gap-1.5">
+                            <div className="w-3 h-3 rounded-sm border-l-4" style={{ backgroundColor: bgColor, borderColor: color }}></div> {def.name}
+                        </span>
+                    );
+                })}
+                {/* Static 1-on-1 Sessions */}
+                <span className="flex items-center gap-1.5"><div className={`w-3 h-3 rounded-sm ${SESSION_TYPE_STYLES['PT-pass'].bg} border-l-4 ${SESSION_TYPE_STYLES['PT-pass'].border}`}></div> PT-pass</span>
+                <span className="flex items-center gap-1.5"><div className={`w-3 h-3 rounded-sm ${SESSION_TYPE_STYLES['Avstämningssamtal'].bg} border-l-4 ${SESSION_TYPE_STYLES['Avstämningssamtal'].border}`}></div> Avstämning</span>
+                <span className="flex items-center gap-1.5"><div className={`w-3 h-3 rounded-sm ${SESSION_TYPE_STYLES['InBody-mätning'].bg} border-l-4 ${SESSION_TYPE_STYLES['InBody-mätning'].border}`}></div> InBody</span>
+            </div>
         </div>
-      </div>
-
-      <div className="grid grid-cols-7 gap-px text-center text-sm font-semibold text-gray-500 border-b mb-1 pb-1">
-        {daysOfWeek.map(day => <div key={day}>{day}</div>)}
-      </div>
-
-      <div className="grid grid-cols-7 gap-px">
-        {calendarDays.map((day, index) => {
-            const sessionsForDay = sessions.filter(s => new Date(s.startTime).toDateString() === day.toDateString())
-                .sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-            
-            const groupClassesForDay = getEnrichedGroupClassesForDay(day);
-            
-            const isToday = day.toDateString() === new Date().toDateString();
-            const isCurrentMonth = day.getMonth() === currentDate.getMonth();
-
-            return (
-                <div 
-                    key={index}
-                    onClick={() => onDayClick(day)}
-                    className={`p-1 sm:p-2 min-h-[120px] border transition-colors duration-150 ease-in-out relative cursor-pointer
-                        ${isCurrentMonth ? 'bg-white hover:bg-gray-50' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
-                >
-                    <time dateTime={day.toISOString()} className={`font-semibold ${isToday ? 'bg-flexibel text-white rounded-full h-6 w-6 flex items-center justify-center' : ''}`}>
-                        {day.getDate()}
-                    </time>
-                    <div className="mt-1 space-y-1">
-                        {sessionsForDay.map(session => {
-                            const participant = participants.find(p => p.id === session.participantId);
-                            const coach = coaches.find(c => c.id === session.coachId);
-                            const colorConfig = SESSION_TYPE_COLORS[session.title] || SESSION_TYPE_COLORS['Anpassat Möte'];
-                            const startTime = new Date(session.startTime).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
-
-                            return (
-                                <div
-                                    key={session.id}
-                                    onClick={(e) => { e.stopPropagation(); onSessionClick(session); }}
-                                    className={`p-1.5 rounded text-xs ${colorConfig.bg} ${colorConfig.border} ${colorConfig.text} border-l-4 cursor-pointer hover:shadow-md transition-shadow`}
-                                >
-                                    <p className="font-bold truncate">{startTime} - {session.title}</p>
-                                    <p className="truncate">{participant?.name || 'Okänd'}</p>
-                                    <p className="truncate text-gray-500 text-[10px] hidden sm:block">Coach: {coach?.name || 'Okänd'}</p>
-                                </div>
-                            );
-                        })}
-                         {groupClassesForDay.map(instance => {
-                            const colorConfig = SESSION_TYPE_COLORS['GROUP_CLASS'];
-                            const startTime = instance.startDateTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
-
-                            return (
-                                <div
-                                    key={instance.instanceId}
-                                    onClick={(e) => { e.stopPropagation(); onGroupClassClick(instance); }}
-                                    className={`p-1.5 rounded text-xs ${colorConfig.bg} ${colorConfig.border} ${colorConfig.text} border-l-4 cursor-pointer hover:shadow-md transition-shadow`}
-                                >
-                                    <p className="font-bold truncate">{startTime} - {instance.className}</p>
-                                    <p className="truncate">{instance.bookedCount}/{instance.maxParticipants} bokade</p>
-                                    <p className="truncate text-gray-500 text-[10px] hidden sm:block">Coach: {instance.coachName}</p>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )
-        })}
-      </div>
-       <div className="mt-4 pt-4 border-t text-sm text-gray-600 flex flex-wrap gap-x-4 gap-y-1">
-        <span className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-sky-100 border border-sky-400"></div> Gruppass</span>
-        <span className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-green-100 border border-green-400"></div> PT-pass</span>
-        <span className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-blue-100 border border-blue-400"></div> Avstämning</span>
-        <span className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-yellow-100 border border-yellow-400"></div> InBody</span>
-      </div>
     </div>
   );
 };
+
+export const CalendarView = React.memo(CalendarViewFC);

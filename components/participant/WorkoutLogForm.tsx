@@ -240,7 +240,9 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
 
   const isBlockInProgress = useMemo(() => {
     if (!activeBlock) return false;
-    for (const exercise of activeBlock.exercises) {
+    // FIX: Ensure activeBlock.exercises is treated as an array to prevent errors when iterating.
+    for (const exercise of (activeBlock?.exercises || [])) {
+      // FIX: Ensure `logEntries.get(exercise.id)` is treated as an array to prevent errors when accessing its properties.
       const sets = logEntries.get(exercise.id) || [];
       if (sets.length > 0 && sets.some(s => !s.isCompleted)) {
         return true; // Found at least one uncompleted set in a non-empty exercise log
@@ -251,7 +253,8 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
 
   useEffect(() => {
     if (isNewSession && currentGroup) {
-      const hasAnySets = currentGroup.exercises.some(ex => (logEntries.get(ex.id) || []).length > 0);
+      // FIX: Ensure `logEntries.get(ex.id)` is treated as an array before checking length to prevent runtime errors.
+      const hasAnySets = (currentGroup?.exercises || []).some(ex => (logEntries.get(ex.id) || []).length > 0);
       if (!hasAnySets) {
         handleAddSetToGroup(currentGroup);
       }
@@ -279,7 +282,8 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   useEffect(() => {
     const newLogEntries = new Map<string, SetDetail[]>();
     if (!isNewSession && logForReferenceOrEdit) {
-        logForReferenceOrEdit.entries.forEach(entry => {
+        // FIX: Added optional chaining to prevent crash if logForReferenceOrEdit.entries is undefined.
+        (logForReferenceOrEdit?.entries || []).forEach(entry => {
             if (entry.loggedSets) {
                 newLogEntries.set(entry.exerciseId, entry.loggedSets.map(s => ({
                     ...s, 
@@ -330,8 +334,10 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
         setIsSaving(true);
         setHasSaved(false);
 
-        const finalEntries: WorkoutExerciseLog[] = Array.from(logEntries.entries()).map(([exerciseId, sets]) => {
-            const cleanedSets = sets.map(s => {
+        // FIX: Ensure logEntries is treated as a Map before calling map.
+        const finalEntries: WorkoutExerciseLog[] = Array.from((logEntries || new Map()).entries()).map(([exerciseId, sets]) => {
+            // FIX: Ensure sets is treated as an array before calling map.
+            const cleanedSets = (sets || []).map(s => {
                 const repsStr = (s.reps || '').toString();
                 const weightStr = (s.weight || '').toString();
                 const distStr = (s.distanceMeters || '').toString();
@@ -345,9 +351,10 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                     durationSeconds: durStr.trim() ? Number(durStr.replace(',', '.')) : undefined,
                     caloriesKcal: calStr.trim() ? Number(calStr.replace(',', '.')) : undefined,
                 };
+            // FIX: Ensure the array is filtered after mapping.
             }).filter(s => s.reps !== undefined || s.weight !== undefined || s.distanceMeters !== undefined || s.durationSeconds !== undefined || s.caloriesKcal !== undefined);
             return { exerciseId, loggedSets: cleanedSets };
-        }).filter(entry => entry.loggedSets.length > 0);
+        }).filter(entry => (entry.loggedSets || []).length > 0);
 
         const originalTime = (!isNewSession && logForReferenceOrEdit)
             ? new Date(logForReferenceOrEdit.completedDate).toTimeString().split(' ')[0]
@@ -383,11 +390,13 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
     setActiveBlockId(blockId);
 
     if (block?.isQuickLogEnabled) {
-      const hasTemplateEntries = block.exercises.some(ex => (logEntries.get(ex.id) || []).length > 0);
+      // FIX: Add optional chaining and fallback empty array
+      const hasTemplateEntries = (block?.exercises || []).some(ex => (logEntries.get(ex.id) || []).length > 0);
       if (!hasTemplateEntries) {
         setLogEntries(prev => {
           const newLogs = new Map(prev);
-          block.exercises.forEach(exercise => {
+          // FIX: Add optional chaining and fallback empty array
+          (block?.exercises || []).forEach(exercise => {
             const newSet: SetDetail = {
               id: crypto.randomUUID(),
               reps: '', weight: '', distanceMeters: '', durationSeconds: '', caloriesKcal: '', isCompleted: false,
@@ -690,7 +699,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                     const blockExercises = block.exercises || [];
                     const isQuickLogBlock = block.isQuickLogEnabled;
                     const quickLogEntry = logEntries.get(`QUICK_LOG_BLOCK_ID::${block.id}`);
-                    const hasLoggedQuickLog = isQuickLogBlock && quickLogEntry && quickLogEntry.length > 0 && Number(quickLogEntry[0].reps) > 0;
+                    const hasLoggedQuickLog = isQuickLogBlock && quickLogEntry && (quickLogEntry || []).length > 0 && Number(quickLogEntry[0].reps) > 0;
                     const hasLoggedEntries = blockExercises.some(ex => (logEntries.get(ex.id) || []).length > 0);
                     
                     let blockStatus: 'Ej påbörjat' | 'Pågående' | 'Slutfört' = 'Ej påbörjat';
@@ -776,7 +785,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                         </div>
                         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-sm border-t">
                             <div className="container mx-auto max-w-2xl flex items-center gap-2">
-                                <Button variant="outline" size="md" onClick={handleBackToBlockSelection} className="flex-1">Tillbaka</Button>
+                                <Button variant="secondary" size="md" onClick={handleBackToBlockSelection} className="flex-1">Tillbaka</Button>
                                 <Button variant="primary" size="md" onClick={() => handleLogAndAction('review')} className="flex-1">Logga & Granska</Button>
                             </div>
                         </div>
@@ -842,7 +851,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                 />
               ))}
             </div>
-             <Button fullWidth variant="secondary" size="lg" onClick={() => handleAddSetToGroup(currentGroup)}>
+             <Button fullWidth variant="accent" size="lg" onClick={() => handleAddSetToGroup(currentGroup)}>
                 {currentGroup.type === 'superset' ? 'Lägg till Superset' : 'Lägg till Set'}
             </Button>
             <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">

@@ -5,6 +5,7 @@ import { Avatar } from '../Avatar';
 import { GroupClassSchedule, GroupClassDefinition, ParticipantBooking, StaffMember, ParticipantProfile, IntegrationSettings, BookingStatus, Membership } from '../../types';
 import * as dateUtils from '../../utils/dateUtils';
 import { ConfirmationModal } from '../ConfirmationModal';
+import { useAppContext } from '../../context/AppContext';
 
 interface EnrichedClassInstance {
     instanceId: string;
@@ -25,6 +26,8 @@ interface EnrichedClassInstance {
     cancellationCutoffHours: number;
     myBookingStatus?: BookingStatus;
     isRestricted: boolean;
+    hasWaitlist: boolean;
+    color: string;
 }
 
 interface BookingViewProps {
@@ -43,23 +46,6 @@ interface BookingViewProps {
     onOpenUpgradeModal: () => void;
 }
 
-const getCategoryColor = (className: string): string => {
-    const lowerClassName = className.toLowerCase();
-    if (lowerClassName.includes('pt-bas') || lowerClassName.includes('pt-grupp')) {
-        return 'border-sky-500';
-    }
-    if (lowerClassName.includes('hiit')) {
-        return 'border-amber-500';
-    }
-    if (lowerClassName.includes('yoga')) {
-        return 'border-violet-500';
-    }
-    if (lowerClassName.includes('workout')) {
-        return 'border-emerald-500';
-    }
-    return 'border-slate-300';
-};
-
 const LockIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
         <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H3a2 2 0 01-2-2v-5a2 2 0 012-2zm5-2a3 3 0 00-3 3v2h6V7a3 3 0 00-3-3z" clipRule="evenodd" />
@@ -68,6 +54,7 @@ const LockIcon = () => (
 
 
 export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, schedules, definitions, bookings, staff, onBookClass, onCancelBooking, currentParticipantId, participantProfile, integrationSettings, membership, onOpenUpgradeModal }) => {
+    const { getColorForCategory } = useAppContext();
     const today = useMemo(() => {
         const d = new Date();
         d.setHours(0, 0, 0, 0);
@@ -100,7 +87,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
         for (let i = 0; i < daysToScan; i++) {
             const currentDate = dateUtils.addDays(today, i);
             const dayOfWeek = currentDate.getDay() === 0 ? 7 : currentDate.getDay(); // Mon=1, Sun=7
-            const currentDateStr = currentDate.toISOString().split('T')[0];
+            const currentDateStr = dateUtils.toYYYYMMDD(currentDate);
     
             relevantSchedules.forEach(schedule => {
                 const [startYear, startMonth, startDay] = schedule.startDate.split('-').map(Number);
@@ -164,13 +151,15 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                             isFull: bookedUsers.length >= schedule.maxParticipants,
                             cancellationCutoffHours: integrationSettings.cancellationCutoffHours ?? 2,
                             isRestricted: isRestricted,
+                            hasWaitlist: schedule.hasWaitlist ?? classDef.hasWaitlist ?? false,
+                            color: classDef.color || getColorForCategory(classDef.name),
                         });
                     }
                 }
             });
         }
         return instances.sort((a,b) => a.startDateTime.getTime() - b.startDateTime.getTime());
-    }, [schedules, definitions, staff, bookings, currentParticipantId, today, participantProfile, integrationSettings, membership]);
+    }, [schedules, definitions, staff, bookings, currentParticipantId, today, participantProfile, integrationSettings, membership, getColorForCategory]);
 
     const groupedInstances = useMemo(() => {
         const groups: Map<string, EnrichedClassInstance[]> = new Map();
@@ -228,7 +217,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
 
     const renderActionButton = (instance: EnrichedClassInstance) => {
         if (instance.isRestricted) {
-            return <Button variant="secondary" onClick={onOpenUpgradeModal}><LockIcon />Lås upp</Button>;
+            return <Button variant="accent" onClick={onOpenUpgradeModal}><LockIcon />Lås upp</Button>;
         }
         const now = new Date().getTime();
         const cutoffTime = instance.startDateTime.getTime() - (instance.cancellationCutoffHours * 3600 * 1000);
@@ -246,17 +235,28 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
         }
         if (instance.isWaitlistedByMe) {
             return (
-                <Button variant="secondary" onClick={() => setBookingToCancel(instance)}>
+                <Button variant="accent" onClick={() => setBookingToCancel(instance)}>
                     Lämna kö
                 </Button>
             );
         }
         if (instance.isFull) {
-            return (
-                <Button variant="outline" onClick={() => onBookClass(currentParticipantId, instance.scheduleId, instance.date)}>
-                    Gå med i kö
-                </Button>
-            );
+            if (instance.hasWaitlist) {
+                return (
+                    <Button variant="outline" onClick={() => onBookClass(currentParticipantId, instance.scheduleId, instance.date)}>
+                        Gå med i kö
+                    </Button>
+                );
+            } else {
+                return (
+                    <button
+                        disabled
+                        className="w-full rounded-lg bg-gray-300 text-gray-600 font-semibold py-2 cursor-not-allowed"
+                    >
+                        FULLBOKAT
+                    </button>
+                );
+            }
         }
         return (
             <Button onClick={() => onBookClass(currentParticipantId, instance.scheduleId, instance.date)}>
@@ -266,7 +266,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Veckoschema" size="3xl">
+        <Modal isOpen={isOpen} onClose={onClose} title="Boka Pass" size="3xl">
             <div className="flex flex-col h-[80vh] text-gray-800">
                 <div className="px-1 pb-4 border-b border-gray-200">
                     <div className="flex justify-around items-center text-center mb-4">
@@ -307,13 +307,24 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                                 {instances.length > 0 ? instances.map(instance => {
                                     const isRestricted = instance.isRestricted;
                                     return (
-                                        <div key={instance.instanceId} className={`relative flex items-center gap-3 p-3 rounded-lg shadow-sm border-l-4 transition-colors ${
-                                            isRestricted 
-                                                ? 'bg-gray-100 border-gray-300' 
-                                                : `bg-white ${getCategoryColor(instance.className)}`
-                                        }`}>
+                                        <div 
+                                            key={instance.instanceId} 
+                                            className={`relative flex items-center gap-3 p-3 rounded-lg shadow-sm border-l-4 transition-colors ${
+                                                isRestricted 
+                                                    ? 'bg-gray-100' 
+                                                    : 'bg-white'
+                                            }`}
+                                            style={{ borderColor: isRestricted ? '#d1d5db' : instance.color }}
+                                            title={instance.className}
+                                        >
                                             {isRestricted && <div className="absolute inset-0 bg-gray-200/50 rounded-lg z-10 cursor-not-allowed"></div>}
-                                            <div className={`flex-shrink-0 w-20 h-20 flex flex-col items-center justify-center rounded-md text-white z-20 ${instance.isBookedByMe ? 'bg-rose-400' : 'bg-flexibel'} ${isRestricted ? 'opacity-60' : ''}`}>
+                                            {instance.isFull && (
+                                                <span className="absolute top-1 right-1 bg-gray-200 text-gray-700 text-xs font-semibold px-2 py-0.5 rounded z-20">FULLT</span>
+                                            )}
+                                            <div 
+                                                className={`flex-shrink-0 w-20 h-20 flex flex-col items-center justify-center rounded-md text-white z-20 ${isRestricted ? 'opacity-60' : ''}`}
+                                                style={{ backgroundColor: instance.isBookedByMe ? '#f43f5e' : instance.color }}
+                                            >
                                                 <p className="text-2xl font-bold">{instance.startDateTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}</p>
                                                 <p className="text-sm">{instance.duration} min</p>
                                             </div>

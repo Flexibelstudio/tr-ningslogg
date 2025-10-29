@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Modal } from './Modal';
 import { Button } from './Button';
-import { renderMarkdown } from '../utils/textUtils';
+import { renderMarkdown } from '../../utils/textUtils';
 
 interface TermsModalProps {
   isOpen: boolean;
@@ -199,6 +199,7 @@ Adress: Kärra Centrum 7, Hisings Kärra
       onClose={isBlocking ? () => {} : onClose} 
       title="Villkor och Integritetspolicy" 
       size="2xl"
+      isClosable={!isBlocking}
     >
       <div className="flex flex-col h-[70vh]">
         <div

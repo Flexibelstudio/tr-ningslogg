@@ -1,8 +1,6 @@
-
-
 import React from 'react';
-import { Modal } from '../Modal';
 import { Button } from '../Button';
+import { Modal } from '../Modal';
 import { renderMarkdown } from '../../utils/textUtils';
 
 interface AICoachActivitySummaryModalProps {
@@ -13,13 +11,7 @@ interface AICoachActivitySummaryModalProps {
   error: string | null;
 }
 
-export const AICoachActivitySummaryModal: React.FC<AICoachActivitySummaryModalProps> = ({
-  isOpen,
-  onClose,
-  isLoading,
-  aiSummary,
-  error,
-}) => {
+export const AICoachActivitySummaryModal: React.FC<AICoachActivitySummaryModalProps> = ({ isOpen, onClose, isLoading, aiSummary, error }) => {
   if (!isOpen) return null;
 
   return (
@@ -41,9 +33,7 @@ export const AICoachActivitySummaryModal: React.FC<AICoachActivitySummaryModalPr
         {aiSummary && !isLoading && !error && (
           <div className="overflow-y-auto flex-grow p-1">
             <h4 className="text-xl font-semibold text-flexibel mb-3 sticky top-0 bg-white pb-2">AI Insikter:</h4>
-            <div className="text-base text-gray-800 leading-relaxed prose prose-base max-w-none">
-              {renderMarkdown(aiSummary)}
-            </div>
+            <div className="text-base text-gray-800 leading-relaxed prose prose-base max-w-none">{renderMarkdown(aiSummary)}</div>
           </div>
         )}
         <div className="flex justify-end pt-4 border-t mt-auto">

@@ -86,7 +86,7 @@ export const WorkoutStructurePanel: React.FC<WorkoutStructurePanelProps> = ({
                                         <p className="text-sm text-gray-500 cursor-pointer">{exerciseCount} övning(ar)</p>
                                     </div>
                                 </div>
-                                <button onClick={(e) => { e.stopPropagation(); toggleBlockCollapse(block.id); }} className="p-1 rounded-full hover:bg-gray-200 flex-shrink-0">
+                                <button onClick={(e) => { e.stopPropagation(); toggleBlockCollapse(block.id); }} className="p-1 rounded-full active:bg-gray-200 flex-shrink-0">
                                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-gray-600 transition-transform duration-200 ${isCollapsed ? 'rotate-180' : 'rotate-0'}`} viewBox="0 0 20 20" fill="currentColor">
                                         <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                                     </svg>
@@ -98,7 +98,7 @@ export const WorkoutStructurePanel: React.FC<WorkoutStructurePanelProps> = ({
                                 <ul className="pb-2 pl-4 pr-2 space-y-1 animate-fade-in-down">
                                     {(block.exercises || []).map((exercise, exerciseIndex) => (
                                         <li key={exercise.id}
-                                            className="p-2 text-gray-700 flex items-center gap-2 rounded-md hover:bg-gray-100"
+                                            className="p-2 text-gray-700 flex items-center gap-2 rounded-md active:bg-gray-100"
                                             draggable
                                             onClick={(e) => { e.stopPropagation(); onExerciseClick(exercise.id, block.id); }}
                                             onDragStart={(e) => { e.stopPropagation(); handleDragStart(e, { type: 'exercise', index: exerciseIndex, blockId: block.id }); }}

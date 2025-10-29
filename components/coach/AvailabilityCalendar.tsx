@@ -192,7 +192,7 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({ staf
                         return (
                             <div
                                 key={hour}
-                                className={`h-12 border-t border-gray-100 cursor-pointer ${isAvailable ? 'hover:bg-flexibel/10' : 'bg-gray-100'}`}
+                                className={`h-12 border-t border-gray-100 cursor-pointer ${isAvailable ? 'active:bg-flexibel/10' : 'bg-gray-100'}`}
                                 onClick={() => handleCellClick(day, hour)}
                             ></div>
                         );
@@ -215,7 +215,7 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({ staf
                             <div
                                 key={eventInstance.instanceId}
                                 style={{ top: `${top}px`, height: `${height}px` }}
-                                className={`absolute left-1 right-1 p-2 rounded-lg text-white text-xs z-10 cursor-pointer overflow-hidden ${isAvailable ? 'bg-flexibel hover:bg-flexibel/90' : 'bg-gray-400 hover:bg-gray-500'}`}
+                                className={`absolute left-1 right-1 p-2 rounded-lg text-white text-xs z-10 cursor-pointer overflow-hidden ${isAvailable ? 'bg-flexibel active:bg-flexibel/90' : 'bg-gray-400 active:bg-gray-500'}`}
                                 onClick={(e) => handleBlockClick(e, eventInstance.originalData)}
                             >
                                 <p className="font-bold">{startTimeStr} - {endTimeStr}</p>

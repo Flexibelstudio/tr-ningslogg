@@ -1,16 +1,16 @@
 import React, { useMemo } from 'react';
-import { ParticipantProfile, ParticipantGoalData, ActivityLog, UserStrengthStat, ParticipantClubMembership } from '../../types';
+import { ParticipantProfile, ParticipantGoalData, ActivityLog } from '../../types';
 import * as dateUtils from '../../utils/dateUtils';
 
-// --- ICONS (Copied from ParticipantArea for encapsulation) ---
+// --- ICONS (Modernized SVG versions) ---
 const TotalPassIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M4 12h12M4 17h8" />
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h7" />
     </svg>
 );
 const StreakIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7.014A8.003 8.003 0 0122 12c0 3.771-2.5 7-6.5 7a8.003 8.003 0 01-2.843-.543z" />
     </svg>
 );
 const StrengthIcon = () => (
@@ -30,7 +30,7 @@ const BodyIcon = () => (
 );
 // --- END ICONS ---
 
-// --- CARD COMPONENTS (Copied from ParticipantArea for encapsulation) ---
+// --- REUSABLE CARD COMPONENTS ---
 const ToolCard: React.FC<{ title: string; description: string; icon: React.ReactNode; onClick: () => void; }> = ({ title, description, icon, onClick }) => (
     <button onClick={onClick} className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 text-left w-full hover:shadow-xl hover:border-flexibel transition-all duration-200 group">
         <div className="flex items-center justify-between">
@@ -91,6 +91,14 @@ const ProgressCircle: React.FC<{
 };
 
 const GoalProgressCard: React.FC<{ goal: ParticipantGoalData | null, logs: ActivityLog[] }> = ({ goal, logs }) => {
+    // FIX: Moved useMemo to the top level of the component to fix conditional hook call (React error #310).
+    const progress = useMemo(() => {
+        if (!goal || !goal.workoutsPerWeekTarget || goal.workoutsPerWeekTarget <= 0) return null;
+        const startOfWeek = dateUtils.getStartOfWeek(new Date());
+        const logsThisWeek = logs.filter(log => new Date(log.completedDate) >= startOfWeek).length;
+        return { completed: logsThisWeek, target: goal.workoutsPerWeekTarget };
+    }, [goal, logs]);
+
     if (goal && goal.targetDate) {
         const startDate = new Date(goal.setDate);
         const targetDate = new Date(goal.targetDate);
@@ -112,14 +120,27 @@ const GoalProgressCard: React.FC<{ goal: ParticipantGoalData | null, logs: Activ
         const completedWorkouts = logs.filter(log => new Date(log.completedDate) >= startDate && new Date(log.completedDate) <= targetDate).length;
         const workoutPercentage = targetWorkouts > 0 ? Math.min(100, (completedWorkouts / targetWorkouts) * 100) : 0;
 
+
         return (
             <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 space-y-4">
                 <div className="flex justify-center sm:justify-around items-start gap-4">
                     {weeklyTarget > 0 && (
-                        <ProgressCircle label="Veckans Pass" displayText={`${logsThisWeek} / ${weeklyTarget}`} displayUnit="pass" percentage={weeklyPercentage} colorClass="text-flexibel-orange" />
+                        <ProgressCircle
+                            label="Veckans Pass"
+                            displayText={`${logsThisWeek} / ${weeklyTarget}`}
+                            displayUnit="pass"
+                            percentage={weeklyPercentage}
+                            colorClass="text-flexibel-orange"
+                        />
                     )}
                     {targetWorkouts > 0 && (
-                        <ProgressCircle label="Totalt för Målperioden" displayText={`${completedWorkouts} / ${targetWorkouts}`} displayUnit="pass" percentage={workoutPercentage} colorClass="text-flexibel" />
+                        <ProgressCircle
+                            label="Totalt för Målperioden"
+                            displayText={`${completedWorkouts} / ${targetWorkouts}`}
+                            displayUnit="pass"
+                            percentage={workoutPercentage}
+                            colorClass="text-flexibel"
+                        />
                     )}
                 </div>
                 
@@ -140,18 +161,18 @@ const GoalProgressCard: React.FC<{ goal: ParticipantGoalData | null, logs: Activ
         );
     }
     
-    const progress = useMemo(() => {
-        if (!goal || !goal.workoutsPerWeekTarget || goal.workoutsPerWeekTarget <= 0) return null;
-        const startOfWeek = dateUtils.getStartOfWeek(new Date());
-        const logsThisWeek = logs.filter(log => new Date(log.completedDate) >= startOfWeek).length;
-        return { completed: logsThisWeek, target: goal.workoutsPerWeekTarget };
-    }, [goal, logs]);
-
+    // Fallback if no target date is set
     return (
         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
              <div className="flex justify-center sm:justify-around items-start mt-4 gap-4">
                 {progress && (
-                    <ProgressCircle label="Veckans Pass" displayText={`${progress.completed} / ${progress.target}`} displayUnit="pass" percentage={Math.min(100, (progress.completed / progress.target) * 100)} colorClass="text-flexibel-orange" />
+                    <ProgressCircle
+                        label="Veckans Pass"
+                        displayText={`${progress.completed} / ${progress.target}`}
+                        displayUnit="pass"
+                        percentage={Math.min(100, (progress.completed / progress.target) * 100)}
+                        colorClass="text-flexibel-orange"
+                    />
                 )}
                 {!progress && <p className="text-gray-500 p-8">Sätt ett veckomål för att se din progress här!</p>}
             </div>
@@ -179,6 +200,7 @@ export const ParticipantDashboardView: React.FC<ParticipantDashboardViewProps> =
 
             <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-200">
                 <div className="grid grid-cols-2 divide-x divide-gray-200">
+                    {/* Total Sessions Stat */}
                     <div className="flex items-center justify-center sm:justify-start px-2 sm:px-4">
                         <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-lg bg-green-100 text-green-700 mr-3 sm:mr-4">
                             <TotalPassIcon />
@@ -188,6 +210,7 @@ export const ParticipantDashboardView: React.FC<ParticipantDashboardViewProps> =
                             <p className="text-2xl sm:text-3xl font-bold text-gray-800">{allActivityLogs.length}</p>
                         </div>
                     </div>
+                    {/* Current Streak Stat */}
                     <div className="flex items-center justify-center sm:justify-start px-2 sm:px-4">
                         <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-lg bg-green-100 text-green-700 mr-3 sm:mr-4">
                             <StreakIcon />
@@ -203,20 +226,20 @@ export const ParticipantDashboardView: React.FC<ParticipantDashboardViewProps> =
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <ToolCard 
                     title="Min Styrka"
                     description="Se dina 1RM, styrkenivåer och historik."
                     icon={<StrengthIcon />}
                     onClick={() => onToolCardClick('strength')}
                 />
-                <ToolCard 
+                 <ToolCard 
                     title="Min Kondition"
                     description="Se och uppdatera dina konditionstester."
                     icon={<ConditioningIcon />}
                     onClick={() => onToolCardClick('conditioning')}
                 />
-                <ToolCard 
+                 <ToolCard 
                     title="Min Kropp"
                     description="Se och uppdatera dina InBody-resultat."
                     icon={<BodyIcon />}
