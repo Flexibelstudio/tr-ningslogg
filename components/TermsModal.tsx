@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Modal } from './Modal';
 import { Button } from './Button';
-import { renderMarkdown } from '../../utils/textUtils';
+import { renderMarkdown } from '../utils/textUtils';
 
 interface TermsModalProps {
   isOpen: boolean;
