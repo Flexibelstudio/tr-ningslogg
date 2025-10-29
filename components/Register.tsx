@@ -6,7 +6,7 @@ import { Input, Select } from './Input';
 import { useAppContext } from '../context/AppContext';
 import { Location } from '../types';
 import dataService from '../services/dataService';
-import { TermsModal } from './participant/TermsModal';
+import { TermsModal } from './TermsModal';
 // FIX: Import 'useNetworkStatus' from the context file to resolve the "Cannot find name 'useNetworkStatus'" error.
 import { useNetworkStatus } from '../context/NetworkStatusContext';
 
