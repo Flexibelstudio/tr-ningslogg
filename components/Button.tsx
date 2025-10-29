@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'accent' | 'danger' | 'outline' | 'ghost' | 'fab-menu-item'; // Added 'accent'
+  variant?: 'primary' | 'secondary' | 'danger' | 'outline' | 'ghost' | 'fab-menu-item'; // Added 'fab-menu-item'
   size?: 'sm' | 'md' | 'lg';
   fullWidth?: boolean;
 }
@@ -12,25 +12,22 @@ export const Button: React.FC<ButtonProps> = ({ children, className, variant = '
   let variantStyle = '';
   switch (variant) {
     case 'primary':
-      variantStyle = 'bg-flexibel text-white active:bg-flexibel/90 focus:ring-flexibel';
+      variantStyle = 'bg-flexibel text-white hover:bg-flexibel/90 focus:ring-flexibel';
       break;
     case 'secondary':
-      variantStyle = 'bg-gray-200 text-gray-800 active:bg-gray-300 hover:bg-gray-300 focus:ring-gray-400';
-      break;
-    case 'accent':
-      variantStyle = 'bg-flexibel-orange text-white active:bg-flexibel-orange/90 focus:ring-flexibel-orange';
+      variantStyle = 'bg-flexibel-orange text-white hover:bg-flexibel-orange/90 focus:ring-flexibel-orange';
       break;
     case 'danger':
-      variantStyle = 'bg-red-600 text-white active:bg-red-700 focus:ring-red-500';
+      variantStyle = 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500';
       break;
     case 'outline':
-      variantStyle = 'bg-white text-flexibel border border-flexibel active:bg-flexibel/10 focus:ring-flexibel';
+      variantStyle = 'bg-white text-flexibel border border-flexibel hover:bg-flexibel/10 focus:ring-flexibel';
       break;
     case 'ghost':
-      variantStyle = 'text-flexibel active:bg-flexibel/10 focus:ring-flexibel shadow-none active:shadow-sm'; // Minimal style
+      variantStyle = 'text-flexibel hover:bg-flexibel/10 focus:ring-flexibel shadow-none hover:shadow-sm'; // Minimal style
       break;
     case 'fab-menu-item': // New variant for FAB menu
-      variantStyle = 'bg-white text-gray-800 active:bg-gray-100 border border-gray-200';
+      variantStyle = 'bg-white text-gray-800 hover:bg-gray-100 border border-gray-200';
       break;
   }
 
