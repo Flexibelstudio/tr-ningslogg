@@ -25,7 +25,7 @@ export const calculatePostWorkoutSummary = (
         ? log.selectedExercisesForModifiable
         : (workoutTemplate?.blocks || []).reduce((acc, block) => acc.concat(block.exercises), [] as Exercise[]) || [];
 
-    // FIX: Use the full history, not just the latest stat, to find the true all-time PB for comparison.
+    // Use the full history, not just the latest stat, to find the true all-time PB for comparison.
     const allTimePBs: Partial<UserStrengthStat> = {};
     if (strengthStatsHistory && strengthStatsHistory.length > 0) {
         strengthStatsHistory.forEach(stat => {
@@ -410,19 +410,25 @@ export const recalculateTruePBsFromLogs = (
     let maxOverheadPress = 0;
 
     const exerciseMap = new Map<string, Exercise>();
-    allWorkouts.forEach(w => w.blocks.forEach(b => b.exercises.forEach(e => exerciseMap.set(e.id, e))));
-    participantLogs.forEach(log => {
+    (allWorkouts || []).forEach(w => {
+        (w.blocks || []).forEach(b => {
+            (b.exercises || []).forEach(e => {
+                if (e && e.id) exerciseMap.set(e.id, e);
+            });
+        });
+    });
+    (participantLogs || []).forEach(log => {
         if (log.selectedExercisesForModifiable) {
             log.selectedExercisesForModifiable.forEach(ex => {
-                if (!exerciseMap.has(ex.id)) {
+                if (ex && ex.id && !exerciseMap.has(ex.id)) {
                     exerciseMap.set(ex.id, ex);
                 }
             });
         }
     });
 
-    for (const log of participantLogs) {
-        for (const entry of log.entries) {
+    for (const log of (participantLogs || [])) {
+        for (const entry of (log.entries || [])) {
             const exerciseDetail = exerciseMap.get(entry.exerciseId);
             if (!exerciseDetail) continue;
 
@@ -431,7 +437,10 @@ export const recalculateTruePBsFromLogs = (
 
             if (!isMainLift) continue;
             
-            for (const set of entry.loggedSets) {
+            for (const set of (entry.loggedSets || [])) {
+                // Only count completed sets for calculating PBs
+                if (!set.isCompleted) continue; 
+
                 const e1RM = calculateEstimated1RM(set.weight, set.reps);
                 if (e1RM) {
                     switch (liftType) {
