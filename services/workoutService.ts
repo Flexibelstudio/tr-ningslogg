@@ -7,7 +7,7 @@ export const calculatePostWorkoutSummary = (
     log: WorkoutLog,
     allWorkouts: Workout[],
     myWorkoutLogs: WorkoutLog[],
-    strengthStatsHistory: UserStrengthStat[]
+    myStrengthStats: UserStrengthStat[]
 ): PostWorkoutSummaryData => {
     let totalWeightLifted = 0;
     let totalDistanceMeters = 0;
@@ -27,8 +27,8 @@ export const calculatePostWorkoutSummary = (
 
     // Use the full history, not just the latest stat, to find the true all-time PB for comparison.
     const allTimePBs: Partial<UserStrengthStat> = {};
-    if (strengthStatsHistory && strengthStatsHistory.length > 0) {
-        strengthStatsHistory.forEach(stat => {
+    if (myStrengthStats && myStrengthStats.length > 0) {
+        myStrengthStats.forEach(stat => {
             if (stat.squat1RMaxKg && stat.squat1RMaxKg > (allTimePBs.squat1RMaxKg || 0)) allTimePBs.squat1RMaxKg = stat.squat1RMaxKg;
             if (stat.benchPress1RMaxKg && stat.benchPress1RMaxKg > (allTimePBs.benchPress1RMaxKg || 0)) allTimePBs.benchPress1RMaxKg = stat.benchPress1RMaxKg;
             if (stat.deadlift1RMaxKg && stat.deadlift1RMaxKg > (allTimePBs.deadlift1RMaxKg || 0)) allTimePBs.deadlift1RMaxKg = stat.deadlift1RMaxKg;
@@ -426,7 +426,7 @@ export const recalculateTruePBsFromLogs = (
         }
     };
 
-    // Build a comprehensive map of all possible exercises
+    // Build a comprehensive map of all possible exercises from templates and logs
     const exerciseMap = new Map<string, Exercise>();
     (allWorkouts || []).forEach(w => {
         if (w && Array.isArray(w.blocks)) {
@@ -456,7 +456,7 @@ export const recalculateTruePBsFromLogs = (
             if (!entry || !entry.exerciseId) continue;
 
             const exerciseDetail = exerciseMap.get(entry.exerciseId);
-            if (!exerciseDetail) continue;
+            if (!exerciseDetail) continue; // This handles deleted/archived exercises gracefully
 
             const liftType = exerciseDetail.baseLiftType || (exerciseDetail.name as LiftType);
             const isMainLift = ['Knäböj', 'Bänkpress', 'Marklyft', 'Axelpress'].includes(liftType);
@@ -467,7 +467,7 @@ export const recalculateTruePBsFromLogs = (
             if (Array.isArray(entry.loggedSets)) {
                 for (const set of entry.loggedSets) {
                     if (!set) continue;
-                    // Treat undefined as completed. Only skip if explicitly false.
+                    // Treat undefined 'isCompleted' as completed. Only skip if explicitly false.
                     if (set.isCompleted === false) continue;
 
                     const e1RM = calculateEstimated1RM(set.weight, set.reps);

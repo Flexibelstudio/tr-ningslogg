@@ -470,28 +470,57 @@ const resyncAllStrengthStats = useCallback(async (): Promise<number> => {
 
     for (const participant of participantDirectory) {
         const participantLogs = workoutLogs.filter(l => l.participantId === participant.id);
-        if (participantLogs.length === 0) continue;
+        const participantStats = userStrengthStats.filter(s => s.participantId === participant.id);
 
-        const truePBs = recalculateTruePBsFromLogs(participant.id, participantLogs, workouts);
+        // Find max PBs from logs
+        const pbsFromLogs = recalculateTruePBsFromLogs(participant.id, participantLogs, workouts);
 
-        const latestStat = userStrengthStats
-            .filter(s => s.participantId === participant.id)
-            .sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
+        // Find max PBs from existing historical stats (includes manual entries)
+        const pbsFromHistory = {
+            squat1RMaxKg: 0,
+            benchPress1RMaxKg: 0,
+            deadlift1RMaxKg: 0,
+            overheadPress1RMaxKg: 0,
+        };
+        participantStats.forEach(stat => {
+            pbsFromHistory.squat1RMaxKg = Math.max(pbsFromHistory.squat1RMaxKg, stat.squat1RMaxKg || 0);
+            pbsFromHistory.benchPress1RMaxKg = Math.max(pbsFromHistory.benchPress1RMaxKg, stat.benchPress1RMaxKg || 0);
+            pbsFromHistory.deadlift1RMaxKg = Math.max(pbsFromHistory.deadlift1RMaxKg, stat.deadlift1RMaxKg || 0);
+            pbsFromHistory.overheadPress1RMaxKg = Math.max(pbsFromHistory.overheadPress1RMaxKg, stat.overheadPress1RMaxKg || 0);
+        });
+
+        // Determine the true, reconciled PBs by taking the max of both sources
+        const reconciledPBs = {
+            squat1RMaxKg: Math.max(pbsFromLogs.squat1RMaxKg || 0, pbsFromHistory.squat1RMaxKg),
+            benchPress1RMaxKg: Math.max(pbsFromLogs.benchPress1RMaxKg || 0, pbsFromHistory.benchPress1RMaxKg),
+            deadlift1RMaxKg: Math.max(pbsFromLogs.deadlift1RMaxKg || 0, pbsFromHistory.deadlift1RMaxKg),
+            overheadPress1RMaxKg: Math.max(pbsFromLogs.overheadPress1RMaxKg || 0, pbsFromHistory.overheadPress1RMaxKg),
+        };
+
+        // Check if an update is needed by comparing to the latest stat record
+        const latestStat = participantStats.length > 0
+            ? [...participantStats].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0]
+            : null;
+
+        const hasChanges =
+            (reconciledPBs.squat1RMaxKg || 0) !== (latestStat?.squat1RMaxKg || 0) ||
+            (reconciledPBs.benchPress1RMaxKg || 0) !== (latestStat?.benchPress1RMaxKg || 0) ||
+            (reconciledPBs.deadlift1RMaxKg || 0) !== (latestStat?.deadlift1RMaxKg || 0) ||
+            (reconciledPBs.overheadPress1RMaxKg || 0) !== (latestStat?.overheadPress1RMaxKg || 0);
         
-        const hasChanges = 
-            (truePBs.squat1RMaxKg || 0) !== (latestStat?.squat1RMaxKg || 0) ||
-            (truePBs.benchPress1RMaxKg || 0) !== (latestStat?.benchPress1RMaxKg || 0) ||
-            (truePBs.deadlift1RMaxKg || 0) !== (latestStat?.deadlift1RMaxKg || 0) ||
-            (truePBs.overheadPress1RMaxKg || 0) !== (latestStat?.overheadPress1RMaxKg || 0);
+        const needsFirstRecord = !latestStat && Object.values(reconciledPBs).some(v => v > 0);
 
-        if (hasChanges) {
+        if (hasChanges || needsFirstRecord) {
             updatedCount++;
-            const newStatRecord: UserStrengthStat = { 
-                id: crypto.randomUUID(), 
-                participantId: participant.id, 
-                lastUpdated: new Date().toISOString(), 
-                bodyweightKg: latestStat?.bodyweightKg || participant.bodyweightKg, 
-                ...truePBs 
+            const newStatRecord: UserStrengthStat = {
+                id: crypto.randomUUID(),
+                participantId: participant.id,
+                lastUpdated: new Date().toISOString(),
+                bodyweightKg: latestStat?.bodyweightKg || participant.bodyweightKg,
+                squat1RMaxKg: reconciledPBs.squat1RMaxKg > 0 ? reconciledPBs.squat1RMaxKg : undefined,
+                benchPress1RMaxKg: reconciledPBs.benchPress1RMaxKg > 0 ? reconciledPBs.benchPress1RMaxKg : undefined,
+                deadlift1RMaxKg: reconciledPBs.deadlift1RMaxKg > 0 ? reconciledPBs.deadlift1RMaxKg : undefined,
+                overheadPress1RMaxKg: reconciledPBs.overheadPress1RMaxKg > 0 ? reconciledPBs.overheadPress1RMaxKg : undefined,
             };
             newStats.push(newStatRecord);
         }
@@ -503,7 +532,7 @@ const resyncAllStrengthStats = useCallback(async (): Promise<number> => {
         newStats.forEach(stat => {
             const { id, ...statData } = stat;
             const statRef = db.collection('organizations').doc(organizationId).collection('userStrengthStats').doc(id);
-            batch.set(sanitizeDataForFirebase(statData));
+            batch.set(statRef, sanitizeDataForFirebase(statData));
         });
 
         await batch.commit();
@@ -514,6 +543,7 @@ const resyncAllStrengthStats = useCallback(async (): Promise<number> => {
 
     return updatedCount;
 }, [organizationId, participantDirectory, workoutLogs, workouts, userStrengthStats, setUserStrengthStats]);
+
 
   const value: AppContextType = {
     allOrganizations, allUsers, participantDirectory, workouts: sortedWorkouts, workoutLogs,
