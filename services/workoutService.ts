@@ -409,16 +409,38 @@ export const recalculateTruePBsFromLogs = (
     let maxDeadlift = 0;
     let maxOverheadPress = 0;
 
+    const updateMaxes = (liftType: LiftType, e1RM: number) => {
+        switch (liftType) {
+            case 'Knäböj':
+                if (e1RM > maxSquat) maxSquat = e1RM;
+                break;
+            case 'Bänkpress':
+                if (e1RM > maxBench) maxBench = e1RM;
+                break;
+            case 'Marklyft':
+                if (e1RM > maxDeadlift) maxDeadlift = e1RM;
+                break;
+            case 'Axelpress':
+                if (e1RM > maxOverheadPress) maxOverheadPress = e1RM;
+                break;
+        }
+    };
+
+    // Build a comprehensive map of all possible exercises
     const exerciseMap = new Map<string, Exercise>();
     (allWorkouts || []).forEach(w => {
-        (w.blocks || []).forEach(b => {
-            (b.exercises || []).forEach(e => {
-                if (e && e.id) exerciseMap.set(e.id, e);
+        if (w && Array.isArray(w.blocks)) {
+            w.blocks.forEach(b => {
+                if (b && Array.isArray(b.exercises)) {
+                    b.exercises.forEach(e => {
+                        if (e && e.id) exerciseMap.set(e.id, e);
+                    });
+                }
             });
-        });
+        }
     });
     (participantLogs || []).forEach(log => {
-        if (log.selectedExercisesForModifiable) {
+        if (log && Array.isArray(log.selectedExercisesForModifiable)) {
             log.selectedExercisesForModifiable.forEach(ex => {
                 if (ex && ex.id && !exerciseMap.has(ex.id)) {
                     exerciseMap.set(ex.id, ex);
@@ -428,35 +450,37 @@ export const recalculateTruePBsFromLogs = (
     });
 
     for (const log of (participantLogs || [])) {
-        for (const entry of (log.entries || [])) {
+        if (!log || !Array.isArray(log.entries)) continue;
+
+        for (const entry of log.entries) {
+            if (!entry || !entry.exerciseId) continue;
+
             const exerciseDetail = exerciseMap.get(entry.exerciseId);
             if (!exerciseDetail) continue;
 
-            const liftType = exerciseDetail.baseLiftType || exerciseDetail.name as LiftType;
+            const liftType = exerciseDetail.baseLiftType || (exerciseDetail.name as LiftType);
             const isMainLift = ['Knäböj', 'Bänkpress', 'Marklyft', 'Axelpress'].includes(liftType);
 
             if (!isMainLift) continue;
-            
-            for (const set of (entry.loggedSets || [])) {
-                // Only count completed sets for calculating PBs
-                if (!set.isCompleted) continue; 
 
-                const e1RM = calculateEstimated1RM(set.weight, set.reps);
-                if (e1RM) {
-                    switch (liftType) {
-                        case 'Knäböj':
-                            if (e1RM > maxSquat) maxSquat = e1RM;
-                            break;
-                        case 'Bänkpress':
-                            if (e1RM > maxBench) maxBench = e1RM;
-                            break;
-                        case 'Marklyft':
-                            if (e1RM > maxDeadlift) maxDeadlift = e1RM;
-                            break;
-                        case 'Axelpress':
-                            if (e1RM > maxOverheadPress) maxOverheadPress = e1RM;
-                            break;
+            // Handle new format with loggedSets array
+            if (Array.isArray(entry.loggedSets)) {
+                for (const set of entry.loggedSets) {
+                    if (!set) continue;
+                    // Treat undefined as completed. Only skip if explicitly false.
+                    if (set.isCompleted === false) continue;
+
+                    const e1RM = calculateEstimated1RM(set.weight, set.reps);
+                    if (e1RM) {
+                        updateMaxes(liftType, e1RM);
                     }
+                }
+            } 
+            // Handle legacy format with single set/rep/weight properties
+            else if (entry.reps && entry.weight) {
+                const e1RM = calculateEstimated1RM(entry.weight, entry.reps);
+                if (e1RM) {
+                    updateMaxes(liftType, e1RM);
                 }
             }
         }
