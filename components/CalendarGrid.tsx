@@ -46,7 +46,7 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
   return (
     <div className="bg-white p-2 sm:p-4 rounded-2xl shadow-lg">
       <header className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-800 capitalize">
+        <h2 className="text-lg font-bold text-gray-800 capitalize">
           {currentDate.toLocaleString('sv-SE', { month: 'long', year: 'numeric' })}
         </h2>
         <div className="flex items-center gap-1 sm:gap-2 mt-2 sm:mt-0">
