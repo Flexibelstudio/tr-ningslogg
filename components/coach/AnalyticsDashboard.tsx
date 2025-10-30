@@ -1,10 +1,11 @@
-
 // src/components/coach/AnalyticsDashboard.tsx
 import React, { useState, useEffect, useMemo } from 'react';
+import { collection, query, where, onSnapshot, Timestamp, orderBy } from 'firebase/firestore';
+import { db } from '../../firebaseConfig';
 import { useAuth } from '../../context/AuthContext';
-import { useAppContext } from '../../context/AppContext';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { getAnalyticsDataFn } from '../../firebaseClient';
+import * as dateUtils from '../../utils/dateUtils';
+import { AnalyticsEvent } from '../../types';
 
 interface ChartData {
     date: string; // "YYYY-MM-DD" formatted for display
@@ -19,49 +20,67 @@ const LoadingSpinner = () => (
     </div>
 );
 
-const AnalyticsDashboard: React.FC = () => {
+export const AnalyticsDashboard: React.FC = () => {
     const { organizationId } = useAuth();
-    const { allOrganizations } = useAppContext();
     const [data, setData] = useState<ChartData[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const organizationName = useMemo(() => {
-        return allOrganizations.find(org => org.id === organizationId)?.name;
-    }, [allOrganizations, organizationId]);
-
     useEffect(() => {
-        if (!organizationId) {
+        if (!organizationId || !db) {
             setError("Kunde inte ladda data: Organisation saknas.");
             setLoading(false);
             return;
         }
 
-        const fetchAnalytics = async () => {
-            setLoading(true);
+        const thirtyDaysAgo = dateUtils.addDays(new Date(), -30);
+        const thirtyDaysAgoTimestamp = Timestamp.fromDate(thirtyDaysAgo);
+
+        const q = query(
+            collection(db, 'analyticsEvents'),
+            where('orgId', '==', organizationId),
+            where('timestamp', '>=', thirtyDaysAgoTimestamp),
+            where('type', 'in', ['BOOKING_CREATED', 'BOOKING_CANCELLED', 'CHECKIN']),
+            orderBy('timestamp', 'asc')
+        );
+
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+            const dailyData: { [key: string]: Omit<ChartData, 'date'> } = {};
+
+            querySnapshot.forEach(doc => {
+                const event = doc.data() as AnalyticsEvent;
+                if (event.timestamp) {
+                    const date = event.timestamp.toDate();
+                    const dateString = dateUtils.toYYYYMMDD(date);
+                    
+                    if (!dailyData[dateString]) {
+                        dailyData[dateString] = { bookings: 0, cancellations: 0, checkins: 0 };
+                    }
+
+                    if (event.type === 'BOOKING_CREATED') {
+                        dailyData[dateString].bookings++;
+                    } else if (event.type === 'BOOKING_CANCELLED') {
+                        dailyData[dateString].cancellations++;
+                    } else if (event.type === 'CHECKIN') {
+                        dailyData[dateString].checkins++;
+                    }
+                }
+            });
+
+            const chartData: ChartData[] = Object.entries(dailyData)
+                .map(([date, counts]) => ({ date, ...counts }))
+                .sort((a, b) => a.date.localeCompare(b.date));
+            
+            setData(chartData);
+            setLoading(false);
             setError(null);
-            try {
-                const result = await getAnalyticsDataFn({ orgId: organizationId });
-                const resultData = result.data as { data?: ChartData[]; error?: string };
+        }, (err) => {
+            console.error("Error fetching analytics data:", err);
+            setError("Kunde inte hämta analysdata. Försök igen senare.");
+            setLoading(false);
+        });
 
-                if (resultData.error) {
-                    throw new Error(resultData.error);
-                }
-                
-                if (resultData.data) {
-                    setData(resultData.data);
-                } else {
-                    setData([]);
-                }
-            } catch (err) {
-                console.error("Error fetching analytics data:", err);
-                setError("Kunde inte hämta analysdata. Försök igen senare.");
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchAnalytics();
+        return () => unsubscribe();
     }, [organizationId]);
 
     if (loading) {
@@ -72,13 +91,13 @@ const AnalyticsDashboard: React.FC = () => {
         return <div className="text-center p-8 text-red-600 bg-red-100 rounded-lg">{error}</div>;
     }
 
-    if (data.every(d => d.bookings === 0 && d.cancellations === 0 && d.checkins === 0)) {
+    if (data.length === 0) {
         return <div className="text-center p-8 text-gray-500 bg-gray-50 rounded-lg">Ingen analysdata har registrerats de senaste 30 dagarna.</div>;
     }
 
     return (
         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">30 dagar av aktivitet – {organizationName}</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">30 dagar av aktivitet</h2>
             <div style={{ width: '100%', height: 400 }}>
                 <ResponsiveContainer>
                     <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
