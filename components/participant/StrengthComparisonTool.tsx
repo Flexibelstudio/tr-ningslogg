@@ -35,11 +35,18 @@ const FSS_STAT_KEY_MAPPING = {
 
 export const calculateFlexibelStrengthScoreInternal = (userStats: UserStrengthStat, userProfile: ParticipantProfile): FssScoreOutput | null => {
   const getLevelFromScore = (score: number): StrengthLevel => {
-    const levelConfig = FSS_CONFIG.fssLevels.find((l) => score >= l.min && score <= l.max);
-    if (!levelConfig && score >= FSS_CONFIG.fssLevels[FSS_CONFIG.fssLevels.length - 1].min) {
-      return FSS_CONFIG.fssLevels[FSS_CONFIG.fssLevels.length - 1].label;
+    // Find the last level where the score is greater than or equal to the minimum.
+    // This correctly handles fractional scores between integer levels (e.g., 89.9).
+    let foundLevel: StrengthLevel = FSS_CONFIG.fssLevels[0].label; // Default to the first level
+    for (const level of FSS_CONFIG.fssLevels) {
+      if (score >= level.min) {
+        foundLevel = level.label;
+      } else {
+        // Since the levels are sorted by 'min', we can stop searching.
+        break;
+      }
     }
-    return levelConfig ? levelConfig.label : FSS_CONFIG.fssLevels[0].label;
+    return foundLevel;
   };
 
   const gender = userProfile.gender;
@@ -132,16 +139,20 @@ export const calculateFlexibelStrengthScoreInternal = (userStats: UserStrengthSt
 
 export const getFssScoreInterpretation = (score: number | undefined | null): { label: StrengthLevel; color: string } | null => {
   if (score === undefined || score === null || isNaN(score)) return null;
-  const levelConfig = FSS_CONFIG.fssLevels.find((l) => score >= l.min && score <= l.max);
-  if (!levelConfig) {
-    if (score >= FSS_CONFIG.fssLevels[FSS_CONFIG.fssLevels.length - 1].min) {
-      const topLevel = FSS_CONFIG.fssLevels[FSS_CONFIG.fssLevels.length - 1];
-      return { label: topLevel.label, color: LEVEL_COLORS_HEADER[topLevel.label] };
+  
+  // Find the last level where the score is greater than or equal to the minimum.
+  // This correctly handles any score, including those on boundaries.
+  let foundLevel: StrengthLevel = FSS_CONFIG.fssLevels[0].label; // Default to the first level
+  for (const level of FSS_CONFIG.fssLevels) {
+    if (score >= level.min) {
+      foundLevel = level.label;
+    } else {
+      // Since the levels are sorted by 'min', we can stop searching.
+      break;
     }
-    const bottomLevel = FSS_CONFIG.fssLevels[0];
-    return { label: bottomLevel.label, color: LEVEL_COLORS_HEADER[bottomLevel.label] };
   }
-  return { label: levelConfig.label, color: LEVEL_COLORS_HEADER[levelConfig.label] };
+
+  return { label: foundLevel, color: LEVEL_COLORS_HEADER[foundLevel] };
 };
 
 interface StrengthComparisonToolProps {
