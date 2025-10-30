@@ -460,24 +460,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     [currentParticipantId]
   );
 
-  const handleSelfCheckIn = useCallback((classInstanceId: string): boolean => {
-    if (!currentParticipantId) return false;
-    const success = onSelfCheckIn(currentParticipantId, classInstanceId, 'self_qr');
-    if (success) {
-      setCheckinSuccess(true);
-    }
-    return success;
-  }, [currentParticipantId, onSelfCheckIn]);
-
-  const handleLocationCheckIn = useCallback((locationId: string): boolean => {
-      if (!currentParticipantId) return false;
-      const success = onLocationCheckIn(currentParticipantId, locationId);
-      if (success) {
-          setCheckinSuccess(true);
-      }
-      return success;
-  }, [currentParticipantId, onLocationCheckIn]);
-
   const handleSaveLog = async (logData: WorkoutLog) => {
     if (!participantProfile?.id || !organizationId || !db) {
         throw new Error("Profil- eller organisationsinformation saknas. Kan inte spara logg.");
@@ -486,10 +468,10 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     // --- 1. Prepare all data objects ---
     const logWithParticipantId: WorkoutLog = { ...logData, participantId: participantProfile.id };
 
-    const summary = calculatePostWorkoutSummary(logWithParticipantId, workouts, myWorkoutLogs, latestStrengthStats);
+    const summary = calculatePostWorkoutSummary(logWithParticipantId, workouts, myWorkoutLogs, myStrengthStats);
     const logWithSummary = logWithParticipantId.entries.length > 0 ? { ...logWithParticipantId, postWorkoutSummary: summary } : logWithParticipantId;
 
-    const { needsUpdate, updatedStats } = findAndUpdateStrengthStats(logWithParticipantId, workouts, latestStrengthStats);
+    const { needsUpdate, updatedStats } = findAndUpdateStrengthStats(logWithParticipantId, workouts, myStrengthStats);
 
     let newStatRecord: UserStrengthStat | undefined;
     if (needsUpdate) {
@@ -1601,8 +1583,8 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 };
                 handleStartWorkout(tempWorkout);
             }}
-            onSelfCheckIn={handleSelfCheckIn}
-            onLocationCheckIn={handleLocationCheckIn}
+            onSelfCheckIn={onSelfCheckIn}
+            onLocationCheckIn={onLocationCheckIn}
         />
         {participantProfile &&
             <CheckinConfirmationModal
