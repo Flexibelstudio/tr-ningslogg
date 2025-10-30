@@ -45,11 +45,11 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
 
   return (
     <div className="bg-white p-2 sm:p-4 rounded-2xl shadow-lg">
-      <header className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
+      <header className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-bold text-gray-800 capitalize">
           {currentDate.toLocaleString('sv-SE', { month: 'long', year: 'numeric' })}
         </h2>
-        <div className="flex items-center gap-1 sm:gap-2 mt-2 sm:mt-0">
+        <div className="flex items-center gap-1 sm:gap-2">
           <Button onClick={() => handleNavigate(-1)} variant="outline" size="sm" aria-label="Föregående månad" className="!px-3">&lt;</Button>
           <Button onClick={goToToday} variant="primary" size="sm">Idag</Button>
           <Button onClick={() => handleNavigate(1)} variant="outline" size="sm" aria-label="Nästa månad" className="!px-3">&gt;</Button>
