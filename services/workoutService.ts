@@ -7,7 +7,7 @@ export const calculatePostWorkoutSummary = (
     log: WorkoutLog,
     allWorkouts: Workout[],
     myWorkoutLogs: WorkoutLog[],
-    strengthStatsHistory: UserStrengthStat[] | null
+    strengthStatsHistory: UserStrengthStat[]
 ): PostWorkoutSummaryData => {
     let totalWeightLifted = 0;
     let totalDistanceMeters = 0;
@@ -25,6 +25,7 @@ export const calculatePostWorkoutSummary = (
         ? log.selectedExercisesForModifiable
         : (workoutTemplate?.blocks || []).reduce((acc, block) => acc.concat(block.exercises), [] as Exercise[]) || [];
 
+    // FIX: Use the full history, not just the latest stat, to find the true all-time PB for comparison.
     const allTimePBs: Partial<UserStrengthStat> = {};
     if (strengthStatsHistory && strengthStatsHistory.length > 0) {
         strengthStatsHistory.forEach(stat => {
@@ -364,7 +365,7 @@ export const findAndUpdateStrengthStats = (
     log.entries.forEach(entry => {
         const exerciseDetail = allExercisesInTemplate.find(ex => ex.id === entry.exerciseId);
         if (!exerciseDetail) return;
-        const liftType = exerciseDetail.name as LiftType;
+        const liftType = exerciseDetail.baseLiftType || exerciseDetail.name as LiftType;
 
         if (['Knäböj', 'Bänkpress', 'Marklyft', 'Axelpress'].includes(liftType)) {
             let bestE1RMInLog = 0;
@@ -396,4 +397,66 @@ export const findAndUpdateStrengthStats = (
     });
     
     return { needsUpdate, updatedStats: statsToUpdate };
+};
+
+export const recalculateTruePBsFromLogs = (
+    participantId: string, 
+    participantLogs: WorkoutLog[], 
+    allWorkouts: Workout[]
+): Pick<UserStrengthStat, 'squat1RMaxKg' | 'benchPress1RMaxKg' | 'deadlift1RMaxKg' | 'overheadPress1RMaxKg'> => {
+    let maxSquat = 0;
+    let maxBench = 0;
+    let maxDeadlift = 0;
+    let maxOverheadPress = 0;
+
+    const exerciseMap = new Map<string, Exercise>();
+    allWorkouts.forEach(w => w.blocks.forEach(b => b.exercises.forEach(e => exerciseMap.set(e.id, e))));
+    participantLogs.forEach(log => {
+        if (log.selectedExercisesForModifiable) {
+            log.selectedExercisesForModifiable.forEach(ex => {
+                if (!exerciseMap.has(ex.id)) {
+                    exerciseMap.set(ex.id, ex);
+                }
+            });
+        }
+    });
+
+    for (const log of participantLogs) {
+        for (const entry of log.entries) {
+            const exerciseDetail = exerciseMap.get(entry.exerciseId);
+            if (!exerciseDetail) continue;
+
+            const liftType = exerciseDetail.baseLiftType || exerciseDetail.name as LiftType;
+            const isMainLift = ['Knäböj', 'Bänkpress', 'Marklyft', 'Axelpress'].includes(liftType);
+
+            if (!isMainLift) continue;
+            
+            for (const set of entry.loggedSets) {
+                const e1RM = calculateEstimated1RM(set.weight, set.reps);
+                if (e1RM) {
+                    switch (liftType) {
+                        case 'Knäböj':
+                            if (e1RM > maxSquat) maxSquat = e1RM;
+                            break;
+                        case 'Bänkpress':
+                            if (e1RM > maxBench) maxBench = e1RM;
+                            break;
+                        case 'Marklyft':
+                            if (e1RM > maxDeadlift) maxDeadlift = e1RM;
+                            break;
+                        case 'Axelpress':
+                            if (e1RM > maxOverheadPress) maxOverheadPress = e1RM;
+                            break;
+                    }
+                }
+            }
+        }
+    }
+
+    return {
+        squat1RMaxKg: maxSquat > 0 ? maxSquat : undefined,
+        benchPress1RMaxKg: maxBench > 0 ? maxBench : undefined,
+        deadlift1RMaxKg: maxDeadlift > 0 ? maxDeadlift : undefined,
+        overheadPress1RMaxKg: maxOverheadPress > 0 ? maxOverheadPress : undefined,
+    };
 };

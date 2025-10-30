@@ -15,6 +15,7 @@ import { useAuth } from './AuthContext';
 import { db } from '../firebaseConfig';
 import dataService from '../services/dataService';
 import { COLOR_PALETTE } from '../constants';
+import { recalculateTruePBsFromLogs } from '../services/workoutService';
 
 
 const sortWorkoutsByCategoryThenTitle = (workouts: Workout[]): Workout[] => {
@@ -47,6 +48,8 @@ interface AppContextType extends OrganizationData {
   updateWorkout: (workout: Workout) => Promise<void>;
   deleteWorkout: (workoutId: string) => Promise<void>;
   
+  resyncAllStrengthStats: () => Promise<number>;
+
   // All other updater functions
   setParticipantDirectoryData: (updater: React.SetStateAction<AppData['participantDirectory']>) => void;
   setWorkoutLogsData: (updater: React.SetStateAction<AppData['workoutLogs']>) => void;
@@ -456,6 +459,62 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return newColor;
 }, [branding, user, organizationId, smartSetBranding]);
 
+const resyncAllStrengthStats = useCallback(async (): Promise<number> => {
+    if (firebaseService.isOffline()) {
+        console.warn("resyncAllStrengthStats is disabled in offline mode.");
+        return 0;
+    }
+
+    const newStats: UserStrengthStat[] = [];
+    let updatedCount = 0;
+
+    for (const participant of participantDirectory) {
+        const participantLogs = workoutLogs.filter(l => l.participantId === participant.id);
+        if (participantLogs.length === 0) continue;
+
+        const truePBs = recalculateTruePBsFromLogs(participant.id, participantLogs, workouts);
+
+        const latestStat = userStrengthStats
+            .filter(s => s.participantId === participant.id)
+            .sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
+        
+        const hasChanges = 
+            (truePBs.squat1RMaxKg || 0) !== (latestStat?.squat1RMaxKg || 0) ||
+            (truePBs.benchPress1RMaxKg || 0) !== (latestStat?.benchPress1RMaxKg || 0) ||
+            (truePBs.deadlift1RMaxKg || 0) !== (latestStat?.deadlift1RMaxKg || 0) ||
+            (truePBs.overheadPress1RMaxKg || 0) !== (latestStat?.overheadPress1RMaxKg || 0);
+
+        if (hasChanges) {
+            updatedCount++;
+            const newStatRecord: UserStrengthStat = { 
+                id: crypto.randomUUID(), 
+                participantId: participant.id, 
+                lastUpdated: new Date().toISOString(), 
+                bodyweightKg: latestStat?.bodyweightKg || participant.bodyweightKg, 
+                ...truePBs 
+            };
+            newStats.push(newStatRecord);
+        }
+    }
+
+    if (newStats.length > 0 && organizationId && db) {
+        const batch = db.batch();
+        
+        newStats.forEach(stat => {
+            const { id, ...statData } = stat;
+            const statRef = db.collection('organizations').doc(organizationId).collection('userStrengthStats').doc(id);
+            batch.set(sanitizeDataForFirebase(statData));
+        });
+
+        await batch.commit();
+
+        // Update local state after successful commit
+        setUserStrengthStats(prev => [...prev, ...newStats]);
+    }
+
+    return updatedCount;
+}, [organizationId, participantDirectory, workoutLogs, workouts, userStrengthStats, setUserStrengthStats]);
+
   const value: AppContextType = {
     allOrganizations, allUsers, participantDirectory, workouts: sortedWorkouts, workoutLogs,
     participantGoals, generalActivityLogs, goalCompletionLogs, coachNotes, userStrengthStats,
@@ -466,7 +525,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     integrationSettings, groupClassDefinitions, groupClassSchedules, participantBookings,
     leads, prospectIntroCalls, branding, isOrgDataLoading, isGlobalDataLoading,
     isOrgDataFromFallback, orgDataError, getColorForCategory, addParticipant, updateParticipantProfile,
-    updateUser, addWorkout, updateWorkout, deleteWorkout,
+    updateUser, addWorkout, updateWorkout, deleteWorkout, resyncAllStrengthStats,
     setParticipantDirectoryData: smartSetParticipantDirectory,
     setWorkoutLogsData: smartSetWorkoutLogs,
     setParticipantGoalsData: smartSetParticipantGoals,

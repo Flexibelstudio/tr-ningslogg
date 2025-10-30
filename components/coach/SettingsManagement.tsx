@@ -574,19 +574,59 @@ const MembershipManager: React.FC = () => {
 }
 
 export const SettingsManagement: React.FC<{ loggedInStaff: StaffMember | null }> = ({ loggedInStaff }) => {
+    const { resyncAllStrengthStats } = useAppContext();
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [isSyncConfirmOpen, setIsSyncConfirmOpen] = useState(false);
+
+    const handleSync = async () => {
+        setIsSyncConfirmOpen(false);
+        setIsSyncing(true);
+        try {
+            const changes = await resyncAllStrengthStats();
+            alert(`${changes} medlemmars maxlyft har uppdaterats.`);
+        } catch (e) {
+            alert("Ett fel uppstod under synkroniseringen.");
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
     if (loggedInStaff?.role !== 'Admin') {
         return <div className="p-4 bg-yellow-100 text-yellow-800 rounded-md">Du måste vara administratör för att se inställningarna.</div>;
     }
     
     return (
-        <div className="space-y-6">
-            <BrandingManager />
-            <ModuleSettingsManager />
-            <LocationManager />
-            <MembershipManager />
-            <WorkoutCategoryManager />
-            <GroupClassDefinitionManager />
-            <QRCodeManager />
-        </div>
+        <>
+            <div className="space-y-6">
+                <BrandingManager />
+                <ModuleSettingsManager />
+                <LocationManager />
+                <MembershipManager />
+                <WorkoutCategoryManager />
+                <GroupClassDefinitionManager />
+                <QRCodeManager />
+                <Card title="Datakorrigering">
+                    <p className="text-base text-gray-600 mb-4">
+                        Använd detta verktyg om medlemmars maxlyft (1RM) visar felaktiga, för låga värden. Detta kommer att gå igenom all träningshistorik och återställa varje medlems personbästa till det högsta värdet som någonsin loggats.
+                    </p>
+                    <Button 
+                        variant="danger" 
+                        onClick={() => setIsSyncConfirmOpen(true)}
+                        disabled={isSyncing}
+                    >
+                        {isSyncing ? 'Synkroniserar...' : 'Synkronisera om alla maxlyft'}
+                    </Button>
+                </Card>
+            </div>
+            <ConfirmationModal
+                isOpen={isSyncConfirmOpen}
+                onClose={() => setIsSyncConfirmOpen(false)}
+                onConfirm={handleSync}
+                title="Bekräfta omsynkronisering"
+                message="Är du säker? Detta kommer att skanna ALLA loggade pass för ALLA medlemmar för att korrigera deras 1RM-värden. Detta kan inte ångras."
+                confirmButtonText="Ja, synkronisera"
+                confirmButtonVariant="danger"
+            />
+        </>
     );
 };
