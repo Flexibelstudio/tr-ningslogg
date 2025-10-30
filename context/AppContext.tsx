@@ -15,7 +15,6 @@ import { useAuth } from './AuthContext';
 import { db } from '../firebaseConfig';
 import dataService from '../services/dataService';
 import { COLOR_PALETTE } from '../constants';
-import { recalculateTruePBsFromLogs } from '../services/workoutService';
 
 
 const sortWorkoutsByCategoryThenTitle = (workouts: Workout[]): Workout[] => {
@@ -48,8 +47,6 @@ interface AppContextType extends OrganizationData {
   updateWorkout: (workout: Workout) => Promise<void>;
   deleteWorkout: (workoutId: string) => Promise<void>;
   
-  resyncAllStrengthStats: () => Promise<number>;
-
   // All other updater functions
   setParticipantDirectoryData: (updater: React.SetStateAction<AppData['participantDirectory']>) => void;
   setWorkoutLogsData: (updater: React.SetStateAction<AppData['workoutLogs']>) => void;
@@ -281,6 +278,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           ? (updater as (prev: T[]) => T[])(prevState)
           : updater;
         
+        // Guard against using db if it's not initialized
         if (organizationId && db && !firebaseService.isOffline()) {
             const prevMap = new Map(prevState.map(item => [item.id, item]));
             const newMap = new Map(newState.map(item => [item.id, item]));
@@ -458,131 +456,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return newColor;
 }, [branding, user, organizationId, smartSetBranding]);
 
-const resyncAllStrengthStats = useCallback(async (): Promise<number> => {
-    if (firebaseService.isOffline()) {
-        console.warn("resyncAllStrengthStats is disabled in offline mode.");
-        return 0;
-    }
-
-    const newStats: UserStrengthStat[] = [];
-    let updatedCount = 0;
-
-    for (const participant of participantDirectory) {
-        const participantStats = userStrengthStats.filter(s => s.participantId === participant.id);
-
-        // Find max PBs from the entire UserStrengthStat history
-        const pbsFromHistory = {
-            squat1RMaxKg: 0,
-            benchPress1RMaxKg: 0,
-            deadlift1RMaxKg: 0,
-            overheadPress1RMaxKg: 0,
-        };
-        participantStats.forEach(stat => {
-            pbsFromHistory.squat1RMaxKg = Math.max(pbsFromHistory.squat1RMaxKg, stat.squat1RMaxKg || 0);
-            pbsFromHistory.benchPress1RMaxKg = Math.max(pbsFromHistory.benchPress1RMaxKg, stat.benchPress1RMaxKg || 0);
-            pbsFromHistory.deadlift1RMaxKg = Math.max(pbsFromHistory.deadlift1RMaxKg, stat.deadlift1RMaxKg || 0);
-            pbsFromHistory.overheadPress1RMaxKg = Math.max(pbsFromHistory.overheadPress1RMaxKg, stat.overheadPress1RMaxKg || 0);
-        });
-
-        // Get the latest stat to compare against.
-        const latestStat = participantStats.length > 0
-            ? [...participantStats].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0]
-            : null;
-
-        // Check if an update is needed by comparing to the latest stat record.
-        // This will correct any stats that were incorrectly lowered.
-        const hasChanges =
-            (pbsFromHistory.squat1RMaxKg || 0) !== (latestStat?.squat1RMaxKg || 0) ||
-            (pbsFromHistory.benchPress1RMaxKg || 0) !== (latestStat?.benchPress1RMaxKg || 0) ||
-            (pbsFromHistory.deadlift1RMaxKg || 0) !== (latestStat?.deadlift1RMaxKg || 0) ||
-            (pbsFromHistory.overheadPress1RMaxKg || 0) !== (latestStat?.overheadPress1RMaxKg || 0);
-        
-        // This handles the case where a user has historical stats but no "latest" one for some reason.
-        const needsFirstRecord = !latestStat && Object.values(pbsFromHistory).some(v => v > 0);
-
-        if (hasChanges || needsFirstRecord) {
-            updatedCount++;
-            const newStatRecord: UserStrengthStat = {
-                id: crypto.randomUUID(),
-                participantId: participant.id,
-                lastUpdated: new Date().toISOString(),
-                bodyweightKg: latestStat?.bodyweightKg || participant.bodyweightKg,
-                squat1RMaxKg: pbsFromHistory.squat1RMaxKg > 0 ? pbsFromHistory.squat1RMaxKg : undefined,
-                benchPress1RMaxKg: pbsFromHistory.benchPress1RMaxKg > 0 ? pbsFromHistory.benchPress1RMaxKg : undefined,
-                deadlift1RMaxKg: pbsFromHistory.deadlift1RMaxKg > 0 ? pbsFromHistory.deadlift1RMaxKg : undefined,
-                overheadPress1RMaxKg: pbsFromHistory.overheadPress1RMaxKg > 0 ? pbsFromHistory.overheadPress1RMaxKg : undefined,
-            };
-            newStats.push(newStatRecord);
-        }
-    }
-
-    if (newStats.length > 0 && organizationId && db) {
-        const batch = db.batch();
-        
-        newStats.forEach(stat => {
-            const { id, ...statData } = stat;
-            const docRef = db.collection('organizations').doc(organizationId).collection('userStrengthStats').doc(id);
-            batch.set(docRef, sanitizeDataForFirebase(statData));
-        });
-
-        await batch.commit();
-
-        // Update local state after successful commit
-        setUserStrengthStats(prev => [...prev, ...newStats]);
-    }
-
-    return updatedCount;
-}, [organizationId, participantDirectory, userStrengthStats, setUserStrengthStats]);
-
-
   const value: AppContextType = {
-    allOrganizations,
-    allUsers,
-    participantDirectory,
-    workouts: sortedWorkouts,
-    workoutLogs,
-    participantGoals,
-    generalActivityLogs,
-    goalCompletionLogs,
-    coachNotes,
-    userStrengthStats,
-    userConditioningStatsHistory,
-    participantPhysiqueHistory,
-    participantMentalWellbeing,
-    participantGamificationStats,
-    clubMemberships,
-    leaderboardSettings,
-    coachEvents,
-    connections,
-    lastFlowViewTimestamp,
-    locations,
-    staffMembers,
-    memberships,
-    weeklyHighlightSettings,
-    oneOnOneSessions,
-    workoutCategories,
-    staffAvailability,
-    integrationSettings,
-    groupClassDefinitions,
-    groupClassSchedules,
-    participantBookings,
-    leads,
-    prospectIntroCalls,
-    branding,
-    isOrgDataLoading,
-    isGlobalDataLoading,
-    isOrgDataFromFallback,
-    orgDataError,
-    getColorForCategory,
-
-    addParticipant,
-    updateParticipantProfile,
-    updateUser,
-    addWorkout,
-    updateWorkout,
-    deleteWorkout,
-    resyncAllStrengthStats,
-    
+    allOrganizations, allUsers, participantDirectory, workouts: sortedWorkouts, workoutLogs,
+    participantGoals, generalActivityLogs, goalCompletionLogs, coachNotes, userStrengthStats,
+    userConditioningStatsHistory, participantPhysiqueHistory, participantMentalWellbeing,
+    participantGamificationStats, clubMemberships, leaderboardSettings, coachEvents,
+    connections, lastFlowViewTimestamp, locations, staffMembers, memberships,
+    weeklyHighlightSettings, oneOnOneSessions, workoutCategories, staffAvailability,
+    integrationSettings, groupClassDefinitions, groupClassSchedules, participantBookings,
+    leads, prospectIntroCalls, branding, isOrgDataLoading, isGlobalDataLoading,
+    isOrgDataFromFallback, orgDataError, getColorForCategory, addParticipant, updateParticipantProfile,
+    updateUser, addWorkout, updateWorkout, deleteWorkout,
     setParticipantDirectoryData: smartSetParticipantDirectory,
     setWorkoutLogsData: smartSetWorkoutLogs,
     setParticipantGoalsData: smartSetParticipantGoals,

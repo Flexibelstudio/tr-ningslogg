@@ -7,7 +7,7 @@ export const calculatePostWorkoutSummary = (
     log: WorkoutLog,
     allWorkouts: Workout[],
     myWorkoutLogs: WorkoutLog[],
-    myStrengthStats: UserStrengthStat[]
+    strengthStatsHistory: UserStrengthStat[] | null
 ): PostWorkoutSummaryData => {
     let totalWeightLifted = 0;
     let totalDistanceMeters = 0;
@@ -25,10 +25,9 @@ export const calculatePostWorkoutSummary = (
         ? log.selectedExercisesForModifiable
         : (workoutTemplate?.blocks || []).reduce((acc, block) => acc.concat(block.exercises), [] as Exercise[]) || [];
 
-    // Use the full history, not just the latest stat, to find the true all-time PB for comparison.
     const allTimePBs: Partial<UserStrengthStat> = {};
-    if (myStrengthStats && myStrengthStats.length > 0) {
-        myStrengthStats.forEach(stat => {
+    if (strengthStatsHistory && strengthStatsHistory.length > 0) {
+        strengthStatsHistory.forEach(stat => {
             if (stat.squat1RMaxKg && stat.squat1RMaxKg > (allTimePBs.squat1RMaxKg || 0)) allTimePBs.squat1RMaxKg = stat.squat1RMaxKg;
             if (stat.benchPress1RMaxKg && stat.benchPress1RMaxKg > (allTimePBs.benchPress1RMaxKg || 0)) allTimePBs.benchPress1RMaxKg = stat.benchPress1RMaxKg;
             if (stat.deadlift1RMaxKg && stat.deadlift1RMaxKg > (allTimePBs.deadlift1RMaxKg || 0)) allTimePBs.deadlift1RMaxKg = stat.deadlift1RMaxKg;
@@ -365,7 +364,7 @@ export const findAndUpdateStrengthStats = (
     log.entries.forEach(entry => {
         const exerciseDetail = allExercisesInTemplate.find(ex => ex.id === entry.exerciseId);
         if (!exerciseDetail) return;
-        const liftType = exerciseDetail.baseLiftType || exerciseDetail.name as LiftType;
+        const liftType = exerciseDetail.name as LiftType;
 
         if (['Knäböj', 'Bänkpress', 'Marklyft', 'Axelpress'].includes(liftType)) {
             let bestE1RMInLog = 0;
@@ -397,99 +396,4 @@ export const findAndUpdateStrengthStats = (
     });
     
     return { needsUpdate, updatedStats: statsToUpdate };
-};
-
-export const recalculateTruePBsFromLogs = (
-    participantId: string, 
-    participantLogs: WorkoutLog[], 
-    allWorkouts: Workout[]
-): Pick<UserStrengthStat, 'squat1RMaxKg' | 'benchPress1RMaxKg' | 'deadlift1RMaxKg' | 'overheadPress1RMaxKg'> => {
-    let maxSquat = 0;
-    let maxBench = 0;
-    let maxDeadlift = 0;
-    let maxOverheadPress = 0;
-
-    const updateMaxes = (liftType: LiftType, e1RM: number) => {
-        switch (liftType) {
-            case 'Knäböj':
-                if (e1RM > maxSquat) maxSquat = e1RM;
-                break;
-            case 'Bänkpress':
-                if (e1RM > maxBench) maxBench = e1RM;
-                break;
-            case 'Marklyft':
-                if (e1RM > maxDeadlift) maxDeadlift = e1RM;
-                break;
-            case 'Axelpress':
-                if (e1RM > maxOverheadPress) maxOverheadPress = e1RM;
-                break;
-        }
-    };
-
-    // Build a comprehensive map of all possible exercises from templates and logs
-    const exerciseMap = new Map<string, Exercise>();
-    (allWorkouts || []).forEach(w => {
-        if (w && Array.isArray(w.blocks)) {
-            w.blocks.forEach(b => {
-                if (b && Array.isArray(b.exercises)) {
-                    b.exercises.forEach(e => {
-                        if (e && e.id) exerciseMap.set(e.id, e);
-                    });
-                }
-            });
-        }
-    });
-    (participantLogs || []).forEach(log => {
-        if (log && Array.isArray(log.selectedExercisesForModifiable)) {
-            log.selectedExercisesForModifiable.forEach(ex => {
-                if (ex && ex.id && !exerciseMap.has(ex.id)) {
-                    exerciseMap.set(ex.id, ex);
-                }
-            });
-        }
-    });
-
-    for (const log of (participantLogs || [])) {
-        if (!log || !Array.isArray(log.entries)) continue;
-
-        for (const entry of log.entries) {
-            if (!entry || !entry.exerciseId) continue;
-
-            const exerciseDetail = exerciseMap.get(entry.exerciseId);
-            if (!exerciseDetail) continue; // This handles deleted/archived exercises gracefully
-
-            const liftType = exerciseDetail.baseLiftType || (exerciseDetail.name as LiftType);
-            const isMainLift = ['Knäböj', 'Bänkpress', 'Marklyft', 'Axelpress'].includes(liftType);
-
-            if (!isMainLift) continue;
-
-            // Handle new format with loggedSets array
-            if (Array.isArray(entry.loggedSets)) {
-                for (const set of entry.loggedSets) {
-                    if (!set) continue;
-                    // Treat undefined 'isCompleted' as completed. Only skip if explicitly false.
-                    if (set.isCompleted === false) continue;
-
-                    const e1RM = calculateEstimated1RM(set.weight, set.reps);
-                    if (e1RM) {
-                        updateMaxes(liftType, e1RM);
-                    }
-                }
-            } 
-            // Handle legacy format with single set/rep/weight properties
-            else if (entry.reps && entry.weight) {
-                const e1RM = calculateEstimated1RM(entry.weight, entry.reps);
-                if (e1RM) {
-                    updateMaxes(liftType, e1RM);
-                }
-            }
-        }
-    }
-
-    return {
-        squat1RMaxKg: maxSquat > 0 ? maxSquat : undefined,
-        benchPress1RMaxKg: maxBench > 0 ? maxBench : undefined,
-        deadlift1RMaxKg: maxDeadlift > 0 ? maxDeadlift : undefined,
-        overheadPress1RMaxKg: maxOverheadPress > 0 ? maxOverheadPress : undefined,
-    };
 };
