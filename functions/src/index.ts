@@ -1,8 +1,9 @@
-import { onRequest, onCall } from "firebase-functions/v2/https";
+
+import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { GoogleGenAI } from "@google/genai";
 
 // Init Admin SDK
@@ -312,25 +313,25 @@ export const generateWeeklyHighlights = onSchedule(
             .slice(0, 10);
 
           // === Template string (correctly escaped) ===
-          const prompt = `Du är "Flexibot", en AI-assistent för Flexibel Hälsostudio. Din uppgift är att skapa ett "Veckans Höjdpunkter"-inlägg för community-flödet. Svaret MÅSTE vara på svenska och formaterat med Markdown.
+          const prompt = \`Du är "Flexibot", en AI-assistent för Flexibel Hälsostudio. Din uppgift är att skapa ett "Veckans Höjdpunkter"-inlägg för community-flödet. Svaret MÅSTE vara på svenska och formaterat med Markdown.
 
 **Data från den gångna veckan:**
-- Totalt antal loggade pass: ${logsLastWeek.length}
-- Antal medlemmar som tränat: ${new Set(logsLastWeek.map((l: any) => l.participantId)).size}
+- Totalt antal loggade pass: \${logsLastWeek.length}
+- Antal medlemmar som tränat: \${new Set(logsLastWeek.map((l: any) => l.participantId)).size}
 - Några av veckans personliga rekord (PBs):
-${
+\${
   pbsLastWeek.length > 0
-    ? pbsLastWeek.map((pb) => `  * ${pb.participantName} slog PB i ${pb.exerciseName} med ${pb.value}!`).join("\n")
+    ? pbsLastWeek.map((pb) => \`  * \${pb.participantName} slog PB i \${pb.exerciseName} med \${pb.value}!\`).join("\\n")
     : "  * Inga nya PBs loggade denna vecka."
 }
 
 **Ditt uppdrag:**
-1.  Skapa en titel i formatet: \`Veckans Höjdpunkter - v${getISOWeek(new Date())}\`.
+1.  Skapa en titel i formatet: \\\`Veckans Höjdpunkter - v\${getISOWeek(new Date())}\\\`.
 2.  Skriv en kort, peppande sammanfattning av veckans aktivitet.
 3.  Lyft fram 2–3 av de mest imponerande PBs från listan.
 4.  Avsluta med en uppmuntrande fras om att fortsätta kämpa.
 5.  Formatera hela texten med Markdown. Kombinera titel och beskrivning till en enda textsträng.
-`;
+\`;
 
           const apiKey = process.env.GEMINI_API_KEY!;
           const ai = new GoogleGenAI({ apiKey });
@@ -344,11 +345,11 @@ ${
             throw new Error("Received empty response from AI for weekly highlights.");
           }
 
-          const lines = text.split("\n");
+          const lines = text.split("\\n");
           const title =
             lines.find((l) => l.trim().length > 0)?.replace(/#/g, "").trim() ||
-            `Veckans Höjdpunkter - v${currentWeek}`;
-          const description = lines.slice(1).join("\n").trim();
+            \`Veckans Höjdpunkter - v\${currentWeek}\`;
+          const description = lines.slice(1).join("\\n").trim();
 
           const newEvent = {
             title,
@@ -359,14 +360,105 @@ ${
           };
 
           await db.collection("organizations").doc(orgId).collection("coachEvents").add(newEvent);
-          logger.info(`Posted highlight for org ${orgId}, target ${target.studioTarget}`);
+          logger.info(\`Posted highlight for org \${orgId}, target \${target.studioTarget}\`);
         }
 
         await settingsRef.update({ lastGeneratedTimestamp: now.toISOString() });
-        logger.info(`Updated lastGeneratedTimestamp for org ${orgId}`);
+        logger.info(\`Updated lastGeneratedTimestamp for org \${orgId}\`);
       } catch (error) {
-        logger.error(`Failed to generate highlights for org ${orgId}:`, error);
+        logger.error(\`Failed to generate highlights for org \${orgId}:\`, error);
       }
     }
   }
 );
+
+export const getAnalyticsData = onCall(
+    {
+      region: "europe-west1",
+      secrets: [], // No secrets needed for this function
+    },
+    async (request) => {
+      if (!request.auth) {
+        logger.error("getAnalyticsData called by unauthenticated user.");
+        throw new HttpsError("unauthenticated", "User must be authenticated.");
+      }
+  
+      const { orgId } = request.data;
+      if (!orgId || typeof orgId !== 'string') {
+        logger.error("Bad Request: Missing 'orgId'");
+        throw new HttpsError("invalid-argument", "The function must be called with an 'orgId' argument.");
+      }
+      
+      const userDoc = await db.collection('users').doc(request.auth.uid).get();
+      if (!userDoc.exists) {
+          logger.error(`User document not found for UID: ${request.auth.uid}`);
+          throw new HttpsError("not-found", "User profile not found.");
+      }
+      const userData = userDoc.data();
+      const userRoles = userData?.roles || {};
+      const isAdmin = userRoles.systemOwner || (userRoles.orgAdmin && userRoles.orgAdmin.includes(orgId));
+  
+      if (!isAdmin) {
+          logger.error(`Unauthorized access attempt to org '${orgId}' by user '${request.auth.uid}'.`);
+          throw new HttpsError("permission-denied", "User does not have access to this organization.");
+      }
+  
+      try {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        thirtyDaysAgo.setHours(0, 0, 0, 0);
+        const thirtyDaysAgoTimestamp = Timestamp.fromDate(thirtyDaysAgo);
+  
+        const q = db.collection('analyticsEvents')
+            .where('orgId', '==', orgId)
+            .where('timestamp', '>=', thirtyDaysAgoTimestamp)
+            .where('type', 'in', ['BOOKING_CREATED', 'BOOKING_CANCELLED', 'CHECKIN']);
+        
+        const querySnapshot = await q.get();
+  
+        const toYYYYMMDDinStockholm = (date: Date): string => {
+          return new Intl.DateTimeFormat('fr-CA', {
+              timeZone: 'Europe/Stockholm',
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+          }).format(date);
+        };
+  
+        const dailyData = new Map<string, { bookings: number; cancellations: number; checkins: number; }>();
+        for (let i = 0; i <= 30; i++) {
+            const date = new Date();
+            date.setDate(date.getDate() - i);
+            const dateString = toYYYYMMDDinStockholm(date);
+            if (!dailyData.has(dateString)) {
+                dailyData.set(dateString, { bookings: 0, cancellations: 0, checkins: 0 });
+            }
+        }
+  
+        querySnapshot.forEach(doc => {
+            const event = doc.data() as { type: string, timestamp: Timestamp };
+            if (event.timestamp) {
+                const date = event.timestamp.toDate();
+                const dateString = toYYYYMMDDinStockholm(date);
+                
+                if (dailyData.has(dateString)) {
+                    const dayData = dailyData.get(dateString)!;
+                    if (event.type === 'BOOKING_CREATED') dayData.bookings++;
+                    else if (event.type === 'BOOKING_CANCELLED') dayData.cancellations++;
+                    else if (event.type === 'CHECKIN') dayData.checkins++;
+                }
+            }
+        });
+  
+        const chartData = Array.from(dailyData.entries())
+            .map(([date, counts]) => ({ date, ...counts }))
+            .sort((a, b) => a.date.localeCompare(b.date));
+  
+        return { data: chartData };
+  
+      } catch (error) {
+        logger.error("Error fetching analytics data in function:", error);
+        throw new HttpsError("internal", "An error occurred while fetching analytics data.");
+      }
+    }
+  );
