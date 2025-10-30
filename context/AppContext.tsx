@@ -468,13 +468,9 @@ const resyncAllStrengthStats = useCallback(async (): Promise<number> => {
     let updatedCount = 0;
 
     for (const participant of participantDirectory) {
-        const participantLogs = workoutLogs.filter(l => l.participantId === participant.id);
         const participantStats = userStrengthStats.filter(s => s.participantId === participant.id);
 
-        // Step 1: Find max PBs from all workout logs
-        const pbsFromLogs = recalculateTruePBsFromLogs(participant.id, participantLogs, workouts);
-
-        // Step 2: Find max PBs from the entire UserStrengthStat history (which includes manual entries)
+        // Find max PBs from the entire UserStrengthStat history
         const pbsFromHistory = {
             squat1RMaxKg: 0,
             benchPress1RMaxKg: 0,
@@ -488,26 +484,21 @@ const resyncAllStrengthStats = useCallback(async (): Promise<number> => {
             pbsFromHistory.overheadPress1RMaxKg = Math.max(pbsFromHistory.overheadPress1RMaxKg, stat.overheadPress1RMaxKg || 0);
         });
 
-        // Step 3: Determine the true, reconciled PBs by taking the max of both sources
-        const reconciledPBs = {
-            squat1RMaxKg: Math.max(pbsFromLogs.squat1RMaxKg || 0, pbsFromHistory.squat1RMaxKg),
-            benchPress1RMaxKg: Math.max(pbsFromLogs.benchPress1RMaxKg || 0, pbsFromHistory.benchPress1RMaxKg),
-            deadlift1RMaxKg: Math.max(pbsFromLogs.deadlift1RMaxKg || 0, pbsFromHistory.deadlift1RMaxKg),
-            overheadPress1RMaxKg: Math.max(pbsFromLogs.overheadPress1RMaxKg || 0, pbsFromHistory.overheadPress1RMaxKg),
-        };
-
-        // Step 4: Check if an update is needed by comparing to the latest stat record
+        // Get the latest stat to compare against.
         const latestStat = participantStats.length > 0
             ? [...participantStats].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0]
             : null;
 
+        // Check if an update is needed by comparing to the latest stat record.
+        // This will correct any stats that were incorrectly lowered.
         const hasChanges =
-            (reconciledPBs.squat1RMaxKg || 0) !== (latestStat?.squat1RMaxKg || 0) ||
-            (reconciledPBs.benchPress1RMaxKg || 0) !== (latestStat?.benchPress1RMaxKg || 0) ||
-            (reconciledPBs.deadlift1RMaxKg || 0) !== (latestStat?.deadlift1RMaxKg || 0) ||
-            (reconciledPBs.overheadPress1RMaxKg || 0) !== (latestStat?.overheadPress1RMaxKg || 0);
+            (pbsFromHistory.squat1RMaxKg || 0) !== (latestStat?.squat1RMaxKg || 0) ||
+            (pbsFromHistory.benchPress1RMaxKg || 0) !== (latestStat?.benchPress1RMaxKg || 0) ||
+            (pbsFromHistory.deadlift1RMaxKg || 0) !== (latestStat?.deadlift1RMaxKg || 0) ||
+            (pbsFromHistory.overheadPress1RMaxKg || 0) !== (latestStat?.overheadPress1RMaxKg || 0);
         
-        const needsFirstRecord = !latestStat && Object.values(reconciledPBs).some(v => v > 0);
+        // This handles the case where a user has historical stats but no "latest" one for some reason.
+        const needsFirstRecord = !latestStat && Object.values(pbsFromHistory).some(v => v > 0);
 
         if (hasChanges || needsFirstRecord) {
             updatedCount++;
@@ -516,10 +507,10 @@ const resyncAllStrengthStats = useCallback(async (): Promise<number> => {
                 participantId: participant.id,
                 lastUpdated: new Date().toISOString(),
                 bodyweightKg: latestStat?.bodyweightKg || participant.bodyweightKg,
-                squat1RMaxKg: reconciledPBs.squat1RMaxKg > 0 ? reconciledPBs.squat1RMaxKg : undefined,
-                benchPress1RMaxKg: reconciledPBs.benchPress1RMaxKg > 0 ? reconciledPBs.benchPress1RMaxKg : undefined,
-                deadlift1RMaxKg: reconciledPBs.deadlift1RMaxKg > 0 ? reconciledPBs.deadlift1RMaxKg : undefined,
-                overheadPress1RMaxKg: reconciledPBs.overheadPress1RMaxKg > 0 ? reconciledPBs.overheadPress1RMaxKg : undefined,
+                squat1RMaxKg: pbsFromHistory.squat1RMaxKg > 0 ? pbsFromHistory.squat1RMaxKg : undefined,
+                benchPress1RMaxKg: pbsFromHistory.benchPress1RMaxKg > 0 ? pbsFromHistory.benchPress1RMaxKg : undefined,
+                deadlift1RMaxKg: pbsFromHistory.deadlift1RMaxKg > 0 ? pbsFromHistory.deadlift1RMaxKg : undefined,
+                overheadPress1RMaxKg: pbsFromHistory.overheadPress1RMaxKg > 0 ? pbsFromHistory.overheadPress1RMaxKg : undefined,
             };
             newStats.push(newStatRecord);
         }
@@ -541,20 +532,57 @@ const resyncAllStrengthStats = useCallback(async (): Promise<number> => {
     }
 
     return updatedCount;
-}, [organizationId, participantDirectory, workoutLogs, workouts, userStrengthStats, setUserStrengthStats]);
+}, [organizationId, participantDirectory, userStrengthStats, setUserStrengthStats]);
 
 
   const value: AppContextType = {
-    allOrganizations, allUsers, participantDirectory, workouts: sortedWorkouts, workoutLogs,
-    participantGoals, generalActivityLogs, goalCompletionLogs, coachNotes, userStrengthStats,
-    userConditioningStatsHistory, participantPhysiqueHistory, participantMentalWellbeing,
-    participantGamificationStats, clubMemberships, leaderboardSettings, coachEvents,
-    connections, lastFlowViewTimestamp, locations, staffMembers, memberships,
-    weeklyHighlightSettings, oneOnOneSessions, workoutCategories, staffAvailability,
-    integrationSettings, groupClassDefinitions, groupClassSchedules, participantBookings,
-    leads, prospectIntroCalls, branding, isOrgDataLoading, isGlobalDataLoading,
-    isOrgDataFromFallback, orgDataError, getColorForCategory, addParticipant, updateParticipantProfile,
-    updateUser, addWorkout, updateWorkout, deleteWorkout, resyncAllStrengthStats,
+    allOrganizations,
+    allUsers,
+    participantDirectory,
+    workouts: sortedWorkouts,
+    workoutLogs,
+    participantGoals,
+    generalActivityLogs,
+    goalCompletionLogs,
+    coachNotes,
+    userStrengthStats,
+    userConditioningStatsHistory,
+    participantPhysiqueHistory,
+    participantMentalWellbeing,
+    participantGamificationStats,
+    clubMemberships,
+    leaderboardSettings,
+    coachEvents,
+    connections,
+    lastFlowViewTimestamp,
+    locations,
+    staffMembers,
+    memberships,
+    weeklyHighlightSettings,
+    oneOnOneSessions,
+    workoutCategories,
+    staffAvailability,
+    integrationSettings,
+    groupClassDefinitions,
+    groupClassSchedules,
+    participantBookings,
+    leads,
+    prospectIntroCalls,
+    branding,
+    isOrgDataLoading,
+    isGlobalDataLoading,
+    isOrgDataFromFallback,
+    orgDataError,
+    getColorForCategory,
+
+    addParticipant,
+    updateParticipantProfile,
+    updateUser,
+    addWorkout,
+    updateWorkout,
+    deleteWorkout,
+    resyncAllStrengthStats,
+    
     setParticipantDirectoryData: smartSetParticipantDirectory,
     setWorkoutLogsData: smartSetWorkoutLogs,
     setParticipantGoalsData: smartSetParticipantGoals,
