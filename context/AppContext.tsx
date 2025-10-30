@@ -281,7 +281,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           ? (updater as (prev: T[]) => T[])(prevState)
           : updater;
         
-        // Guard against using db if it's not initialized
         if (organizationId && db && !firebaseService.isOffline()) {
             const prevMap = new Map(prevState.map(item => [item.id, item]));
             const newMap = new Map(newState.map(item => [item.id, item]));
@@ -472,10 +471,10 @@ const resyncAllStrengthStats = useCallback(async (): Promise<number> => {
         const participantLogs = workoutLogs.filter(l => l.participantId === participant.id);
         const participantStats = userStrengthStats.filter(s => s.participantId === participant.id);
 
-        // Find max PBs from logs
+        // Step 1: Find max PBs from all workout logs
         const pbsFromLogs = recalculateTruePBsFromLogs(participant.id, participantLogs, workouts);
 
-        // Find max PBs from existing historical stats (includes manual entries)
+        // Step 2: Find max PBs from the entire UserStrengthStat history (which includes manual entries)
         const pbsFromHistory = {
             squat1RMaxKg: 0,
             benchPress1RMaxKg: 0,
@@ -489,7 +488,7 @@ const resyncAllStrengthStats = useCallback(async (): Promise<number> => {
             pbsFromHistory.overheadPress1RMaxKg = Math.max(pbsFromHistory.overheadPress1RMaxKg, stat.overheadPress1RMaxKg || 0);
         });
 
-        // Determine the true, reconciled PBs by taking the max of both sources
+        // Step 3: Determine the true, reconciled PBs by taking the max of both sources
         const reconciledPBs = {
             squat1RMaxKg: Math.max(pbsFromLogs.squat1RMaxKg || 0, pbsFromHistory.squat1RMaxKg),
             benchPress1RMaxKg: Math.max(pbsFromLogs.benchPress1RMaxKg || 0, pbsFromHistory.benchPress1RMaxKg),
@@ -497,7 +496,7 @@ const resyncAllStrengthStats = useCallback(async (): Promise<number> => {
             overheadPress1RMaxKg: Math.max(pbsFromLogs.overheadPress1RMaxKg || 0, pbsFromHistory.overheadPress1RMaxKg),
         };
 
-        // Check if an update is needed by comparing to the latest stat record
+        // Step 4: Check if an update is needed by comparing to the latest stat record
         const latestStat = participantStats.length > 0
             ? [...participantStats].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0]
             : null;
@@ -531,8 +530,8 @@ const resyncAllStrengthStats = useCallback(async (): Promise<number> => {
         
         newStats.forEach(stat => {
             const { id, ...statData } = stat;
-            const statRef = db.collection('organizations').doc(organizationId).collection('userStrengthStats').doc(id);
-            batch.set(statRef, sanitizeDataForFirebase(statData));
+            const docRef = db.collection('organizations').doc(organizationId).collection('userStrengthStats').doc(id);
+            batch.set(docRef, sanitizeDataForFirebase(statData));
         });
 
         await batch.commit();
