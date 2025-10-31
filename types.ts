@@ -398,6 +398,10 @@ export interface ParticipantProfile {
     expiryDate?: string; // ISO date string YYYY-MM-DD. If not present, it doesn't expire.
   };
   approvalStatus?: 'pending' | 'approved' | 'declined';
+  fcmTokens?: string[];
+  notificationSettings?: {
+    pushNotificationsEnabled?: boolean;
+  };
 }
 
 export interface ParticipantPhysiqueStat {

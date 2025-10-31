@@ -2,7 +2,7 @@ import { HttpsError, onRequest, onCall } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
-import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { getFirestore, Timestamp, FieldValue } from "firebase-admin/firestore";
 import { GoogleGenAI } from "@google/genai";
 
 // Init Admin SDK
@@ -184,6 +184,52 @@ export const callGeminiApi = onCall(
     }
   }
 );
+
+export const saveFcmToken = onCall({
+    region: "europe-west1",
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+    }
+
+    const { token, orgId } = request.data;
+    if (typeof token !== 'string' || !token || typeof orgId !== 'string' || !orgId) {
+        throw new HttpsError("invalid-argument", "The function must be called with a 'token' and 'orgId'.");
+    }
+
+    const userId = request.auth.uid;
+    
+    try {
+        const userDoc = await db.collection("users").doc(userId).get();
+        if (!userDoc.exists) {
+            throw new HttpsError("not-found", "User not found.");
+        }
+        const userData = userDoc.data();
+        const participantId = userData?.linkedParticipantProfileId;
+
+        if (!participantId) {
+            throw new HttpsError("failed-precondition", "User is not linked to a participant profile.");
+        }
+        
+        const participantRef = db.collection("organizations").doc(orgId).collection("participantDirectory").doc(participantId);
+
+        // Atomically add the new token to the array of tokens.
+        await participantRef.update({
+            fcmTokens: FieldValue.arrayUnion(token)
+        });
+
+        logger.info(`Saved FCM token for user ${userId} / participant ${participantId} in org ${orgId}`);
+        return { success: true };
+
+    } catch (error) {
+        logger.error(`Error saving FCM token for user ${userId}:`, error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError("internal", "Failed to save FCM token.");
+    }
+});
+
 
 /**
  * Callable: Fetches and aggregates analytics data for the last 30 days.
@@ -407,26 +453,25 @@ export const generateWeeklyHighlights = onSchedule(
             })
             .slice(0, 10);
 
-          // === Template string (no backslashes before backticks) ===
           const prompt = `Du är "Flexibot", en AI-assistent för Flexibel Hälsostudio. Din uppgift är att skapa ett "Veckans Höjdpunkter"-inlägg för community-flödet. Svaret MÅSTE vara på svenska och formaterat med Markdown.
 
-**Data från den gångna veckan:**
-- Totalt antal loggade pass: ${logsLastWeek.length}
-- Antal medlemmar som tränat: ${new Set(logsLastWeek.map((l: any) => l.participantId)).size}
-- Några av veckans personliga rekord (PBs):
-${
-  pbsLastWeek.length > 0
-    ? pbsLastWeek.map((pb) => `  * ${pb.participantName} slog PB i ${pb.exerciseName} med ${pb.value}!`).join("\n")
-    : "  * Inga nya PBs loggade denna vecka."
-}
+    **Data från den gångna veckan:**
+    - Totalt antal loggade pass: ${logsLastWeek.length}
+    - Antal medlemmar som tränat: ${new Set(logsLastWeek.map((l: any) => l.participantId)).size}
+    - Några av veckans personliga rekord (PBs):
+    ${
+      pbsLastWeek.length > 0
+        ? pbsLastWeek.map((pb) => `  * ${pb.participantName} slog PB i ${pb.exerciseName} med ${pb.value}!`).join("\n")
+        : "  * Inga nya PBs loggade denna vecka."
+    }
 
-**Ditt uppdrag:**
-1.  Skapa en titel i formatet: \`Veckans Höjdpunkter - v${getISOWeek(new Date())}\`.
-2.  Skriv en kort, peppande sammanfattning av veckans aktivitet.
-3.  Lyft fram 2–3 av de mest imponerande PBs från listan.
-4.  Avsluta med en uppmuntrande fras om att fortsätta kämpa.
-5.  Formatera hela texten med Markdown. Kombinera titel och beskrivning till en enda textsträng.
-`;
+    **Ditt uppdrag:**
+    1.  Skapa en titel i formatet: \`Veckans Höjdpunkter - v${getISOWeek(new Date())}\`.
+    2.  Skriv en kort, peppande sammanfattning av veckans aktivitet.
+    3.  Lyft fram 2–3 av de mest imponerande PBs från listan.
+    4.  Avsluta med en uppmuntrande fras om att fortsätta kämpa.
+    5.  Formatera hela texten med Markdown. Kombinera titel och beskrivning till en enda textsträng.
+    `;
 
           const apiKey = process.env.GEMINI_API_KEY!;
           const ai = new GoogleGenAI({ apiKey });

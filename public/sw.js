@@ -1,4 +1,37 @@
 // public/sw.js
+
+// Import Firebase scripts for messaging
+self.importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
+self.importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
+
+// Initialize Firebase with the provided config
+const firebaseConfig = {
+  apiKey: "AIzaSyAYIyG3Vufbc6MLpb48xLgJpF8zsZa2iHk",
+  authDomain: "smartstudio-da995.firebaseapp.com",
+  projectId: "smartstudio-da995",
+  storageBucket: "smartstudio-da995.appspot.com",
+  messagingSenderId: "704268843753",
+  appId: "1:704268843753:web:743a263e46774a178c0e78",
+};
+
+try {
+  firebase.initializeApp(firebaseConfig);
+  const messaging = firebase.messaging();
+
+  messaging.onBackgroundMessage(function(payload) {
+    console.log('[sw.js] Received background message ', payload);
+    const notificationTitle = payload.notification.title;
+    const notificationOptions = {
+      body: payload.notification.body,
+      icon: '/icon-192x192.png'
+    };
+    self.registration.showNotification(notificationTitle, notificationOptions);
+  });
+} catch(e) {
+  console.error('[SW] Firebase messaging init failed', e);
+}
+
+
 // PWA-cache: index.html alltid färsk via no-store, assets cacheas länge.
 // SW uppdaterar sig själv (skipWaiting + clients.claim), rensar gamla caches,
 // stör inte API/Firebase och tål saknade precache-filer.
