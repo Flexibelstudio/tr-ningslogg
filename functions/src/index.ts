@@ -385,7 +385,7 @@ export const generateWeeklyHighlights = onSchedule(
             })
             .slice(0, 10);
 
-          // === Template string (correctly formed) ===
+          // === Template string (no backslashes before backticks) ===
           const prompt = `Du är "Flexibot", en AI-assistent för Flexibel Hälsostudio. Din uppgift är att skapa ett "Veckans Höjdpunkter"-inlägg för community-flödet. Svaret MÅSTE vara på svenska och formaterat med Markdown.
 
 **Data från den gångna veckan:**
