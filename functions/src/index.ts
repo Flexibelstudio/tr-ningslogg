@@ -208,30 +208,7 @@ export const getAnalyticsData = onCall(
       since.setHours(0, 0, 0, 0);
       const sinceTs = Timestamp.fromDate(since);
 
-      // Hämta var för sig (undviker kompositindex-krav)
-      const types = ["BOOKING_CREATED", "BOOKING_CANCELLED", "CHECKIN"] as const;
-      const [createdSnap, cancelledSnap, checkinSnap] = await Promise.all([
-        db.collection("analyticsEvents")
-          .where("orgId", "==", orgId)
-          .where("timestamp", ">=", sinceTs)
-          .where("type", "==", types[0])
-          .orderBy("timestamp", "asc")
-          .get(),
-        db.collection("analyticsEvents")
-          .where("orgId", "==", orgId)
-          .where("timestamp", ">=", sinceTs)
-          .where("type", "==", types[1])
-          .orderBy("timestamp", "asc")
-          .get(),
-        db.collection("analyticsEvents")
-          .where("orgId", "==", orgId)
-          .where("timestamp", ">=", sinceTs)
-          .where("type", "==", types[2])
-          .orderBy("timestamp", "asc")
-          .get(),
-      ]);
-
-      // Förbered daglig bucket (YYYY-MM-DD i UTC)
+      // Förbered dagliga buckets (YYYY-MM-DD i UTC)
       const daily = new Map<string, { bookings: number; cancellations: number; checkins: number }>();
       for (let i = 0; i <= 30; i++) {
         const d = new Date();
@@ -242,36 +219,61 @@ export const getAnalyticsData = onCall(
         daily.set(key, { bookings: 0, cancellations: 0, checkins: 0 });
       }
 
-      // Hjälpare för att bucketa
-      const bump = (ts: Timestamp, field: "bookings" | "cancellations" | "checkins") => {
+      // Tre indexerade queries (täckta av samma composite-index: orgId, type, timestamp)
+      const makeQuery = (type: "BOOKING_CREATED" | "BOOKING_CANCELLED" | "CHECKIN") =>
+        db
+          .collection("analyticsEvents")
+          .where("orgId", "==", orgId)
+          .where("type", "==", type)
+          .where("timestamp", ">=", sinceTs)
+          .orderBy("timestamp", "asc")
+          .get();
+
+      const [q1, q2, q3] = await Promise.all([
+        makeQuery("BOOKING_CREATED"),
+        makeQuery("BOOKING_CANCELLED"),
+        makeQuery("CHECKIN"),
+      ]);
+
+      const toKey = (ts: Timestamp) => {
         const dt = ts.toDate();
-        const key = new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate()))
+        return new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate()))
           .toISOString()
           .split("T")[0];
-        const row = daily.get(key);
-        if (row) row[field] += 1;
       };
 
-      createdSnap.forEach((doc) => {
-        const data = doc.data();
-        if (data.timestamp instanceof Timestamp) bump(data.timestamp, "bookings");
+      q1.forEach((doc) => {
+        const ts = doc.get("timestamp") as Timestamp | undefined;
+        if (ts) {
+          const key = toKey(ts);
+          const r = daily.get(key);
+          if (r) r.bookings += 1;
+        }
       });
 
-      cancelledSnap.forEach((doc) => {
-        const data = doc.data();
-        if (data.timestamp instanceof Timestamp) bump(data.timestamp, "cancellations");
+      q2.forEach((doc) => {
+        const ts = doc.get("timestamp") as Timestamp | undefined;
+        if (ts) {
+          const key = toKey(ts);
+          const r = daily.get(key);
+          if (r) r.cancellations += 1;
+        }
       });
 
-      checkinSnap.forEach((doc) => {
-        const data = doc.data();
-        if (data.timestamp instanceof Timestamp) bump(data.timestamp, "checkins");
+      q3.forEach((doc) => {
+        const ts = doc.get("timestamp") as Timestamp | undefined;
+        if (ts) {
+          const key = toKey(ts);
+          const r = daily.get(key);
+          if (r) r.checkins += 1;
+        }
       });
 
-      const chartData = Array.from(daily.entries())
+      const data = Array.from(daily.entries())
         .map(([date, counts]) => ({ date, ...counts }))
         .sort((a, b) => a.date.localeCompare(b.date));
 
-      return { data: chartData };
+      return { data };
     } catch (err) {
       logger.error("getAnalyticsData failed:", err);
       throw new HttpsError("internal", "Failed to retrieve analytics data.");
