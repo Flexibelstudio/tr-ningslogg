@@ -190,9 +190,7 @@ export const callGeminiApi = onCall(
  * Data: { orgId: string }
  */
 export const getAnalyticsData = onCall(
-  {
-    region: "europe-west1",
-  },
+  { region: "europe-west1" },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
@@ -204,56 +202,78 @@ export const getAnalyticsData = onCall(
     }
 
     try {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      thirtyDaysAgo.setHours(0, 0, 0, 0);
-      const thirtyDaysAgoTimestamp = Timestamp.fromDate(thirtyDaysAgo);
+      // 30 dagar bakåt, normaliserad till midnatt
+      const since = new Date();
+      since.setDate(since.getDate() - 30);
+      since.setHours(0, 0, 0, 0);
+      const sinceTs = Timestamp.fromDate(since);
 
-      const eventsSnapshot = await db
-        .collection("analyticsEvents")
-        .where("orgId", "==", orgId)
-        .where("timestamp", ">=", thirtyDaysAgoTimestamp)
-        .where("type", "in", ["BOOKING_CREATED", "BOOKING_CANCELLED", "CHECKIN"])
-        .orderBy("timestamp", "asc")
-        .get();
+      // Hämta var för sig (undviker kompositindex-krav)
+      const types = ["BOOKING_CREATED", "BOOKING_CANCELLED", "CHECKIN"] as const;
+      const [createdSnap, cancelledSnap, checkinSnap] = await Promise.all([
+        db.collection("analyticsEvents")
+          .where("orgId", "==", orgId)
+          .where("timestamp", ">=", sinceTs)
+          .where("type", "==", types[0])
+          .orderBy("timestamp", "asc")
+          .get(),
+        db.collection("analyticsEvents")
+          .where("orgId", "==", orgId)
+          .where("timestamp", ">=", sinceTs)
+          .where("type", "==", types[1])
+          .orderBy("timestamp", "asc")
+          .get(),
+        db.collection("analyticsEvents")
+          .where("orgId", "==", orgId)
+          .where("timestamp", ">=", sinceTs)
+          .where("type", "==", types[2])
+          .orderBy("timestamp", "asc")
+          .get(),
+      ]);
 
-      const dailyData = new Map<string, { bookings: number; cancellations: number; checkins: number }>();
-
+      // Förbered daglig bucket (YYYY-MM-DD i UTC)
+      const daily = new Map<string, { bookings: number; cancellations: number; checkins: number }>();
       for (let i = 0; i <= 30; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        const dateString = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const key = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
           .toISOString()
           .split("T")[0];
-        if (!dailyData.has(dateString)) {
-          dailyData.set(dateString, { bookings: 0, cancellations: 0, checkins: 0 });
-        }
+        daily.set(key, { bookings: 0, cancellations: 0, checkins: 0 });
       }
 
-      eventsSnapshot.forEach((doc) => {
-        const event = doc.data();
-        if (event.timestamp) {
-          const date = (event.timestamp as Timestamp).toDate();
-          const dateString = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
-            .toISOString()
-            .split("T")[0];
+      // Hjälpare för att bucketa
+      const bump = (ts: Timestamp, field: "bookings" | "cancellations" | "checkins") => {
+        const dt = ts.toDate();
+        const key = new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate()))
+          .toISOString()
+          .split("T")[0];
+        const row = daily.get(key);
+        if (row) row[field] += 1;
+      };
 
-          if (dailyData.has(dateString)) {
-            const dayData = dailyData.get(dateString)!;
-            if (event.type === "BOOKING_CREATED") dayData.bookings++;
-            else if (event.type === "BOOKING_CANCELLED") dayData.cancellations++;
-            else if (event.type === "CHECKIN") dayData.checkins++;
-          }
-        }
+      createdSnap.forEach((doc) => {
+        const data = doc.data();
+        if (data.timestamp instanceof Timestamp) bump(data.timestamp, "bookings");
       });
 
-      const chartData = Array.from(dailyData.entries())
+      cancelledSnap.forEach((doc) => {
+        const data = doc.data();
+        if (data.timestamp instanceof Timestamp) bump(data.timestamp, "cancellations");
+      });
+
+      checkinSnap.forEach((doc) => {
+        const data = doc.data();
+        if (data.timestamp instanceof Timestamp) bump(data.timestamp, "checkins");
+      });
+
+      const chartData = Array.from(daily.entries())
         .map(([date, counts]) => ({ date, ...counts }))
         .sort((a, b) => a.date.localeCompare(b.date));
 
       return { data: chartData };
-    } catch (error) {
-      logger.error("Error in getAnalyticsData function:", error);
+    } catch (err) {
+      logger.error("getAnalyticsData failed:", err);
       throw new HttpsError("internal", "Failed to retrieve analytics data.");
     }
   }
