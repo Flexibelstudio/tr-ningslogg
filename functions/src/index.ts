@@ -1,8 +1,8 @@
-import { onRequest, onCall } from "firebase-functions/v2/https";
+import { HttpsError, onRequest, onCall } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { GoogleGenAI } from "@google/genai";
 
 // Init Admin SDK
@@ -19,12 +19,12 @@ function getISOWeek(date: Date): number {
 }
 
 // Robust bearer token reader
-function getBearerToken(req: { header?: (n: string) => string | undefined; headers?: Record<string, any>; }) {
+function getBearerToken(req: { header?: (n: string) => string | undefined; headers?: Record<string, any> }) {
   const h =
     (typeof req.header === "function" ? req.header("authorization") : undefined) ??
     (typeof req.header === "function" ? req.header("Authorization") : undefined) ??
-    req.headers?.authorization ??
-    req.headers?.Authorization ??
+    (req.headers?.authorization as string | undefined) ??
+    (req.headers?.Authorization as string | undefined) ??
     "";
   return typeof h === "string" && h.startsWith("Bearer ") ? h.slice(7) : "";
 }
@@ -56,7 +56,10 @@ export const createLeadFromZapier = onRequest(
     }
 
     // Body
-    const { firstName, lastName, email, phone, locationName, orgId } = (request.body ?? {}) as Record<string, unknown>;
+    const { firstName, lastName, email, phone, locationName, orgId, source } = (request.body ?? {}) as Record<
+      string,
+      unknown
+    >;
 
     const missing = [
       !firstName && "firstName",
@@ -64,7 +67,9 @@ export const createLeadFromZapier = onRequest(
       !email && "email",
       !locationName && "locationName",
       !orgId && "orgId",
-    ].filter(Boolean).join(", ");
+    ]
+      .filter(Boolean)
+      .join(", ");
 
     if (missing) {
       logger.error("Bad Request: Missing required fields:", missing);
@@ -103,7 +108,7 @@ export const createLeadFromZapier = onRequest(
         email: String(email).toLowerCase(),
         phone: phone ? String(phone) : "",
         locationId: targetLocation.id,
-        source: "Meta",
+        source: source ? String(source) : "Meta",
         createdDate: new Date().toISOString(),
         status: "new",
       };
@@ -153,16 +158,15 @@ export const callGeminiApi = onCall(
 
       const ai = new GoogleGenAI({ apiKey });
 
-      const response = await ai.models.generateContent({
+      const response = (await ai.models.generateContent({
         model,
         contents: contents as any,
         config,
-      });
+      })) as any;
 
-      const text = (response as any).text; // library returns .text
+      const text = response.text as string | undefined;
       if (!text) {
-        // Safety block info
-        const pf = (response as any).promptFeedback;
+        const pf = response.promptFeedback;
         if (pf?.blockReason) {
           const safetyRatings = pf.safetyRatings?.map((r: any) => `${r.category}: ${r.probability}`).join(", ");
           const errorMessage = `Request blocked by Gemini API. Reason: ${pf.blockReason}. Ratings: ${safetyRatings || "N/A"}`;
@@ -177,6 +181,80 @@ export const callGeminiApi = onCall(
       logger.error("Error calling Gemini API:", error);
       const msg = error instanceof Error ? error.message : "Unknown error";
       return { error: `Internal Server Error: ${msg}` };
+    }
+  }
+);
+
+/**
+ * Callable: Fetches and aggregates analytics data for the last 30 days.
+ * Data: { orgId: string }
+ */
+export const getAnalyticsData = onCall(
+  {
+    region: "europe-west1",
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+    }
+
+    const { orgId } = request.data || {};
+    if (!orgId) {
+      throw new HttpsError("invalid-argument", "The function must be called with an 'orgId'.");
+    }
+
+    try {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      thirtyDaysAgo.setHours(0, 0, 0, 0);
+      const thirtyDaysAgoTimestamp = Timestamp.fromDate(thirtyDaysAgo);
+
+      const eventsSnapshot = await db
+        .collection("analyticsEvents")
+        .where("orgId", "==", orgId)
+        .where("timestamp", ">=", thirtyDaysAgoTimestamp)
+        .where("type", "in", ["BOOKING_CREATED", "BOOKING_CANCELLED", "CHECKIN"])
+        .orderBy("timestamp", "asc")
+        .get();
+
+      const dailyData = new Map<string, { bookings: number; cancellations: number; checkins: number }>();
+
+      for (let i = 0; i <= 30; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateString = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+          .toISOString()
+          .split("T")[0];
+        if (!dailyData.has(dateString)) {
+          dailyData.set(dateString, { bookings: 0, cancellations: 0, checkins: 0 });
+        }
+      }
+
+      eventsSnapshot.forEach((doc) => {
+        const event = doc.data();
+        if (event.timestamp) {
+          const date = (event.timestamp as Timestamp).toDate();
+          const dateString = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+            .toISOString()
+            .split("T")[0];
+
+          if (dailyData.has(dateString)) {
+            const dayData = dailyData.get(dateString)!;
+            if (event.type === "BOOKING_CREATED") dayData.bookings++;
+            else if (event.type === "BOOKING_CANCELLED") dayData.cancellations++;
+            else if (event.type === "CHECKIN") dayData.checkins++;
+          }
+        }
+      });
+
+      const chartData = Array.from(dailyData.entries())
+        .map(([date, counts]) => ({ date, ...counts }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      return { data: chartData };
+    } catch (error) {
+      logger.error("Error in getAnalyticsData function:", error);
+      throw new HttpsError("internal", "Failed to retrieve analytics data.");
     }
   }
 );
@@ -245,11 +323,7 @@ export const generateWeeklyHighlights = onSchedule(
       try {
         const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-        const locationsSnapshot = await db
-          .collection("organizations")
-          .doc(orgId)
-          .collection("locations")
-          .get();
+        const locationsSnapshot = await db.collection("organizations").doc(orgId).collection("locations").get();
         const locations = locationsSnapshot.docs.map((doc) => ({
           id: doc.id,
           ...(doc.data() as { name: string }),
@@ -311,7 +385,7 @@ export const generateWeeklyHighlights = onSchedule(
             })
             .slice(0, 10);
 
-          // === Template string (correctly escaped) ===
+          // === Template string (correctly formed) ===
           const prompt = `Du är "Flexibot", en AI-assistent för Flexibel Hälsostudio. Din uppgift är att skapa ett "Veckans Höjdpunkter"-inlägg för community-flödet. Svaret MÅSTE vara på svenska och formaterat med Markdown.
 
 **Data från den gångna veckan:**
@@ -334,20 +408,19 @@ ${
 
           const apiKey = process.env.GEMINI_API_KEY!;
           const ai = new GoogleGenAI({ apiKey });
-          const response = await ai.models.generateContent({
+          const response = (await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
-          });
+          })) as any;
 
-          const text = (response as any).text as string | undefined;
+          const text = response.text as string | undefined;
           if (!text) {
             throw new Error("Received empty response from AI for weekly highlights.");
           }
 
           const lines = text.split("\n");
           const title =
-            lines.find((l) => l.trim().length > 0)?.replace(/#/g, "").trim() ||
-            `Veckans Höjdpunkter - v${currentWeek}`;
+            lines.find((l) => l.trim().length > 0)?.replace(/#/g, "").trim() || `Veckans Höjdpunkter - v${currentWeek}`;
           const description = lines.slice(1).join("\n").trim();
 
           const newEvent = {
