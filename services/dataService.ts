@@ -58,7 +58,7 @@ export const createInitialOrgData = (orgId: string): OrganizationData => {
     // Add specific seeded data
     const p1: ParticipantProfile = {
         id: 'user-id-participant1-profile', name: 'Erik Svensson', email: 'erik@test.com', isActive: true,
-        creationDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), age: '35',
+        creationDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), birthDate: '1989-05-15',
         gender: 'Man', bodyweightKg: 85, lastUpdated: new Date().toISOString(),
         enableLeaderboardParticipation: true, isSearchable: true, locationId: loc1Id, // Salem
         membershipId: 'membership-standard-seed',
@@ -67,7 +67,7 @@ export const createInitialOrgData = (orgId: string): OrganizationData => {
     
     const p2: ParticipantProfile = {
         id: 'user-id-participant2-profile', name: 'Anna Andersson', email: 'anna@test.com', isActive: true,
-        creationDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), age: '32',
+        creationDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), birthDate: '1992-08-20',
         gender: 'Kvinna', bodyweightKg: 65, lastUpdated: new Date().toISOString(),
         enableLeaderboardParticipation: true, isSearchable: true, locationId: loc2Id, // Kärra
         membershipId: 'membership-mini-seed',
@@ -76,7 +76,7 @@ export const createInitialOrgData = (orgId: string): OrganizationData => {
 
     const p_sanna: ParticipantProfile = {
         id: 'user-id-admin1-profile', name: 'Sanna Admin (Medlem)', email: 'sanna.admin@flexibel.se', isActive: true,
-        creationDate: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(), age: '29',
+        creationDate: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(), birthDate: '1995-03-10',
         gender: 'Kvinna', bodyweightKg: 62, lastUpdated: new Date().toISOString(),
         enableLeaderboardParticipation: true, isSearchable: true, locationId: loc1Id, // Salem
         membershipId: 'membership-standard-seed',

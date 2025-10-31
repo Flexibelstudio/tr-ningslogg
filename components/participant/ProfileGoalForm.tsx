@@ -13,7 +13,7 @@ interface ProfileFormProps {
   currentProfile: ParticipantProfile | null;
   onSave: (profileData: {
     name?: string;
-    age?: string;
+    birthDate?: string;
     gender?: GenderOption;
     enableLeaderboardParticipation?: boolean;
     isSearchable?: boolean;
@@ -28,15 +28,13 @@ interface ProfileFormProps {
 export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({ currentProfile, onSave, locations }, ref) => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [age, setAge] = useState('');
+  const [birthDate, setBirthDate] = useState('');
   const [gender, setGender] = useState<GenderOption>('-');
   const [locationId, setLocationId] = useState('');
   const [enableLeaderboard, setEnableLeaderboard] = useState(false);
   const [isSearchable, setIsSearchable] = useState(false);
   const [enableInBodySharing, setEnableInBodySharing] = useState(false);
   const [enableFssSharing, setEnableFssSharing] = useState(false);
-
-  const [ageError, setAgeError] = useState<string>('');
 
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -45,30 +43,15 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({ curre
     const nameParts = currentProfile?.name?.split(' ') || [''];
     setFirstName(nameParts[0] || '');
     setLastName(nameParts.slice(1).join(' ') || '');
-    setAge(currentProfile?.age?.toString() || '');
+    setBirthDate(currentProfile?.birthDate || '');
     setGender(currentProfile?.gender || '-');
     setLocationId(currentProfile?.locationId || '');
     setEnableLeaderboard(currentProfile?.enableLeaderboardParticipation || false);
     setIsSearchable(currentProfile?.isSearchable ?? true);
     setEnableInBodySharing(currentProfile?.enableInBodySharing || false);
     setEnableFssSharing(currentProfile?.enableFssSharing || false);
-    setAgeError('');
     setImagePreview(null); // Reset image preview on open
   }, [currentProfile]);
-
-  const handleAgeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setAge(value);
-    if (value === '') {
-      setAgeError('');
-      return;
-    }
-    if (isNaN(Number(value)) || Number(value) < 0 || Number(value) > 120 || !Number.isInteger(Number(value))) {
-      setAgeError('Ange en giltig ålder (heltal mellan 0-120).');
-    } else {
-      setAgeError('');
-    }
-  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -110,25 +93,17 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({ curre
   };
 
   const handleSubmit = () => {
-    if (ageError) {
-      alert('Korrigera felen i formuläret innan du sparar.');
-      return false;
-    }
-
-    const profileData: Partial<Pick<ParticipantProfile, 'name' | 'age' | 'gender' | 'enableLeaderboardParticipation' | 'isSearchable' | 'locationId' | 'enableInBodySharing' | 'enableFssSharing' | 'photoURL'>> = {
+    const profileData = {
       name: `${firstName.trim()} ${lastName.trim()}`.trim(),
-      age: age.trim(),
+      birthDate: birthDate.trim() ? birthDate.trim() : undefined,
       gender,
       locationId: locationId,
       enableLeaderboardParticipation: enableLeaderboard,
       isSearchable: isSearchable,
       enableInBodySharing: enableInBodySharing,
       enableFssSharing: enableFssSharing,
+      photoURL: imagePreview || undefined,
     };
-
-    if (imagePreview) {
-      profileData.photoURL = imagePreview;
-    }
 
     onSave(profileData);
     return true;
@@ -162,7 +137,7 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({ curre
           <Input label="Förnamn" id="profileFirstName" name="profileFirstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Ditt förnamn" />
           <Input label="Efternamn" id="profileLastName" name="profileLastName" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Ditt efternamn" />
         </div>
-        <Input label="Ålder" id="profileAge" name="profileAge" type="number" value={age} onChange={handleAgeChange} placeholder="Din ålder i år" error={ageError} />
+        <Input label="Födelsedatum" id="profileBirthDate" name="profileBirthDate" type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
         <Select label="Kön" id="profileGender" name="profileGender" value={gender} onChange={(e) => setGender(e.target.value as GenderOption)} options={GENDER_OPTIONS} />
         <Select
           label="Primär Ort/Studio"

@@ -754,7 +754,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     const isStartProgram = membershipName === 'startprogram';
 
     if (isStartProgram) {
-        const isProfileComplete = !!(participantProfile?.age && participantProfile?.gender && participantProfile?.gender !== '-');
+        const isProfileComplete = !!(participantProfile?.birthDate && participantProfile?.gender && participantProfile?.gender !== '-');
         if (!isProfileComplete) {
             const prospectModalShownKey = `flexibel_prospectProfileModalShown_${currentParticipantId}`;
             const hasBeenShown = localStorage.getItem(prospectModalShownKey) === 'true';
@@ -1015,7 +1015,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     };
 
     const handleSaveProfile = async (
-        profileData: Partial<Pick<ParticipantProfile, 'name' | 'age' | 'gender' | 'enableLeaderboardParticipation' | 'isSearchable' | 'locationId' | 'enableInBodySharing' | 'enableFssSharing' | 'photoURL'>>
+        profileData: Partial<Pick<ParticipantProfile, 'name' | 'birthDate' | 'gender' | 'enableLeaderboardParticipation' | 'isSearchable' | 'locationId' | 'enableInBodySharing' | 'enableFssSharing' | 'photoURL'>>
     ) => {
         try {
             await updateParticipantProfile(currentParticipantId, profileData);

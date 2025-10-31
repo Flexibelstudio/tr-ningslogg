@@ -10,6 +10,7 @@ import { LiftType, WorkoutBlock, ParticipantProfile, ParticipantGoalData, Exerci
 import { ALL_LIFT_TYPES } from '../../constants';
 import { renderMarkdown } from '../../utils/textUtils';
 import { callGeminiApiFn } from '../../firebaseClient';
+import { calculateAge } from '../../utils/dateUtils';
 
 interface AICoachAssistantModalProps {
   isOpen: boolean;
@@ -58,7 +59,7 @@ export const AICoachAssistantModal: React.FC<AICoachAssistantModalProps> = ({ is
       ? `
       **Medlemmens Information:**
       - Namn: ${participantToAssign.name}
-      - Ålder: ${participantToAssign.age || 'Ej angett'}
+      - Ålder: ${calculateAge(participantToAssign.birthDate) || participantToAssign.age || 'Ej angett'}
       - Kön: ${participantToAssign.gender || 'Ej angett'}
       - Huvudmål: "${participantGoal?.fitnessGoals || 'Inget specifikt mål satt'}"
       - Mål (pass/vecka): ${participantGoal?.workoutsPerWeekTarget || 'Ej angett'}

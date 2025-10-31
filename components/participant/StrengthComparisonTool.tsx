@@ -4,6 +4,7 @@ import { STRENGTH_LEVEL_ORDER, FSS_CONFIG, FLEXIBEL_PRIMARY_COLOR, MAIN_LIFTS_CO
 import { Input } from '../Input';
 import { Button } from '../Button';
 import { calculateEstimated1RM } from '../../utils/workoutUtils';
+import { calculateAge } from '../../utils/dateUtils';
 import html2canvas from 'html2canvas';
 import { useAppContext } from '../../context/AppContext';
 
@@ -50,7 +51,7 @@ export const calculateFlexibelStrengthScoreInternal = (userStats: UserStrengthSt
   };
 
   const gender = userProfile.gender;
-  const age = userProfile.age ? parseInt(userProfile.age, 10) : null;
+  const age = calculateAge(userProfile.birthDate) ?? (userProfile.age ? parseInt(userProfile.age, 10) : null);
   const bodyweight = userStats.bodyweightKg;
 
   if (!gender || (gender !== 'Man' && gender !== 'Kvinna') || !age || !bodyweight) {
@@ -435,8 +436,8 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
 
     const fssInterpretation = getFssScoreInterpretation(fssData?.totalScore);
 
-    if (!profile || !profile.gender || !profile.age) {
-      return <p className="text-center p-4 bg-yellow-100 text-yellow-800 rounded-md">Vänligen fyll i kön och ålder i din profil för att kunna se och jämföra din styrka.</p>;
+    if (!profile || !profile.gender || (!profile.birthDate && !profile.age)) {
+      return <p className="text-center p-4 bg-yellow-100 text-yellow-800 rounded-md">Vänligen fyll i kön och födelsedatum i din profil för att kunna se och jämföra din styrka.</p>;
     }
 
     const missingStats: { key: keyof typeof inputRefs; label: string }[] = [];

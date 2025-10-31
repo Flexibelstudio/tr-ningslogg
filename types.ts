@@ -377,7 +377,8 @@ export interface ParticipantProfile {
   // FIX: Add missing 'isProspect' property to track new/potential members.
   isProspect?: boolean;
   creationDate?: string;
-  age?: string; 
+  birthDate?: string; // New: YYYY-MM-DD
+  age?: string; // Legacy: For fallback only
   gender?: GenderOption;
   bodyweightKg?: number;
   muscleMassKg?: number; 

@@ -120,88 +120,6 @@ export const isSameDay = (date1: Date, date2: Date): boolean => {
            date1.getDate() === date2.getDate();
 };
 
-export const isFuturePeriod = (endDate: Date): boolean => {
-    return endDate.getTime() > new Date().getTime();
-};
-
-/**
- * Returns a string identifier for the ISO week and year.
- * Format: "YYYY-Www", e.g., "2024-W01", "2024-W28".
- */
-export const getEpochWeekId = (date: Date): string => {
-  const year = date.getUTCFullYear(); // Use UTC year for consistency with ISO week
-  const week = getISOWeek(date);
-  // If the week is 52 or 53, it might belong to the previous year for Jan 1-3.
-  // If the week is 1, it might belong to the next year for Dec 29-31.
-  // getISOWeek should handle this, but we need to ensure the year is correct.
-  // Example: Dec 31, 2023 could be Week 52 of 2023. Jan 1, 2024 could be Week 52 of 2023.
-  // Jan 3, 2026 is Sat, Week 1 of 2026. Dec 29, 2025 is Mon, Week 1 of 2026.
-  // The year of the week is the year of the Thursday of that week.
-  const thursday = new Date(date);
-  thursday.setDate(date.getDate() - (date.getDay() || 7) + 4); // Get to Thursday of current week
-  const weekYear = thursday.getUTCFullYear();
-
-  return `${weekYear}-W${String(week).padStart(2, '0')}`;
-};
-
-/**
- * Parses an epochWeekId string ("YYYY-Www") into its year and week components.
- */
-export const getWeekIdParts = (weekId: string): { year: number; week: number } | null => {
-  const match = weekId.match(/(\d{4})-W(\d{1,2})/);
-  if (match) {
-    return { year: parseInt(match[1], 10), week: parseInt(match[2], 10) };
-  }
-  return null;
-};
-
-/**
- * Given an epochWeekId, returns a Date object representing the Monday of that week.
- */
-export const getDateFromEpochWeekId = (epochWeekId: string): Date => {
-  const parts = getWeekIdParts(epochWeekId);
-  if (!parts) throw new Error(`Invalid epochWeekId format: ${epochWeekId}`);
-
-  // Create a date for Jan 1st of the target year.
-  const janFirst = new Date(Date.UTC(parts.year, 0, 1));
-  const firstDayOfYear = janFirst.getUTCDay() || 7; // 1 (Mon) to 7 (Sun)
-
-  // Calculate days to the Thursday of the first week.
-  // If Jan 1st is Fri, Sat, Sun (5,6,7), then week 1 starts in the previous year (or rather, those days are part of week 52/53 of prev year).
-  // ISO 8601: Week 1 is the week with the first Thursday of the year.
-  // Or, the week with Jan 4th.
-  
-  // Days to add to Jan 1st to get to Monday of week 'parts.week'
-  // (parts.week - 1) * 7 brings us to the start of the week if Jan 1st was Monday.
-  // Then adjust based on what day Jan 1st actually was.
-  let daysToAdd = (parts.week - 1) * 7;
-  // If Jan 1st is Mon, dayOffset = 0. If Tue, dayOffset = -1. If Sun, dayOffset = 1.
-  // Target: Monday. dayOfWeekISO (1=Mon, 7=Sun). Target is 1.
-  // (1 - dayOfWeekISO)
-  const dayOffset = 1 - firstDayOfYear; 
-  daysToAdd += dayOffset;
-
-  // Correction for first week: if Jan 1st is Fri, Sat, Sun (day > 4), it means week 1's Thursday is in Jan.
-  // The first Monday could be in Dec.
-  const resultDate = new Date(Date.UTC(parts.year, 0, 1 + daysToAdd));
-  
-  // Verify by re-calculating getEpochWeekId. If it doesn't match, adjust.
-  // This is because ISO week definition is complex. A simpler way for getDateFromEpochWeekId:
-  const tempDate = new Date(Date.UTC(parts.year, 0, 4 + (parts.week - 1) * 7)); // Jan 4th is always in week 1. Go to approx Thursday of target week.
-  tempDate.setUTCDate(tempDate.getUTCDate() - (tempDate.getUTCDay() || 7) + 1); // Set to Monday of that week.
-  return tempDate;
-};
-
-
-/**
- * Returns the epochWeekId for the week immediately preceding the given epochWeekId.
- */
-export const getPreviousEpochWeekId = (epochWeekId: string): string => {
-  const dateInCurrentWeek = getDateFromEpochWeekId(epochWeekId);
-  const dateInPreviousWeek = addDays(dateInCurrentWeek, -7);
-  return getEpochWeekId(dateInPreviousWeek);
-};
-
 export const isPast = (date: Date): boolean => {
   return date.getTime() < new Date().getTime();
 };
@@ -316,4 +234,99 @@ export const toYYYYMMDD = (date: Date): string => {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+/**
+ * Returns a string identifier for the ISO week and year.
+ * Format: "YYYY-Www", e.g., "2024-W01", "2024-W28".
+ */
+export const getEpochWeekId = (date: Date): string => {
+  const year = date.getUTCFullYear(); // Use UTC year for consistency with ISO week
+  const week = getISOWeek(date);
+  // If the week is 52 or 53, it might belong to the previous year for Jan 1-3.
+  // If the week is 1, it might belong to the next year for Dec 29-31.
+  // getISOWeek should handle this, but we need to ensure the year is correct.
+  // Example: Dec 31, 2023 could be Week 52 of 2023. Jan 1, 2024 could be Week 52 of 2023.
+  // Jan 3, 2026 is Sat, Week 1 of 2026. Dec 29, 2025 is Mon, Week 1 of 2026.
+  // The year of the week is the year of the Thursday of that week.
+  const thursday = new Date(date);
+  thursday.setDate(date.getDate() - (date.getDay() || 7) + 4); // Get to Thursday of current week
+  const weekYear = thursday.getUTCFullYear();
+
+  return `${weekYear}-W${String(week).padStart(2, '0')}`;
+};
+
+/**
+ * Parses an epochWeekId string ("YYYY-Www") into its year and week components.
+ */
+export const getWeekIdParts = (weekId: string): { year: number; week: number } | null => {
+  const match = weekId.match(/(\d{4})-W(\d{1,2})/);
+  if (match) {
+    return { year: parseInt(match[1], 10), week: parseInt(match[2], 10) };
+  }
+  return null;
+};
+
+/**
+ * Given an epochWeekId, returns a Date object representing the Monday of that week.
+ */
+export const getDateFromEpochWeekId = (epochWeekId: string): Date => {
+  const parts = getWeekIdParts(epochWeekId);
+  if (!parts) throw new Error(`Invalid epochWeekId format: ${epochWeekId}`);
+
+  // Create a date for Jan 1st of the target year.
+  const janFirst = new Date(Date.UTC(parts.year, 0, 1));
+  const firstDayOfYear = janFirst.getUTCDay() || 7; // 1 (Mon) to 7 (Sun)
+
+  // Calculate days to the Thursday of the first week.
+  // If Jan 1st is Fri, Sat, Sun (5,6,7), then week 1 starts in the previous year (or rather, those days are part of week 52/53 of prev year).
+  // ISO 8601: Week 1 is the week with the first Thursday of the year.
+  // Or, the week with Jan 4th.
+  
+  // Days to add to Jan 1st to get to Monday of week 'parts.week'
+  // (parts.week - 1) * 7 brings us to the start of the week if Jan 1st was Monday.
+  // Then adjust based on what day Jan 1st actually was.
+  let daysToAdd = (parts.week - 1) * 7;
+  // If Jan 1st is Mon, dayOffset = 0. If Tue, dayOffset = -1. If Sun, dayOffset = 1.
+  // Target: Monday. dayOfWeekISO (1=Mon, 7=Sun). Target is 1.
+  // (1 - dayOfWeekISO)
+  const dayOffset = 1 - firstDayOfYear; 
+  daysToAdd += dayOffset;
+
+  // Correction for first week: if Jan 1st is Fri, Sat, Sun (day > 4), it means week 1's Thursday is in Jan.
+  // The first Monday could be in Dec.
+  const resultDate = new Date(Date.UTC(parts.year, 0, 1 + daysToAdd));
+  
+  // Verify by re-calculating getEpochWeekId. If it doesn't match, adjust.
+  // This is because ISO week definition is complex. A simpler way for getDateFromEpochWeekId:
+  const tempDate = new Date(Date.UTC(parts.year, 0, 4 + (parts.week - 1) * 7)); // Jan 4th is always in week 1. Go to approx Thursday of target week.
+  tempDate.setUTCDate(tempDate.getUTCDate() - (tempDate.getUTCDay() || 7) + 1); // Set to Monday of that week.
+  return tempDate;
+};
+
+
+/**
+ * Returns the epochWeekId for the week immediately preceding the given epochWeekId.
+ */
+export const getPreviousEpochWeekId = (epochWeekId: string): string => {
+  const dateInCurrentWeek = getDateFromEpochWeekId(epochWeekId);
+  const dateInPreviousWeek = addDays(dateInCurrentWeek, -7);
+  return getEpochWeekId(dateInPreviousWeek);
+};
+
+export const calculateAge = (birthDateString?: string): number | null => {
+  if (!birthDateString) return null;
+  // Check for valid date format YYYY-MM-DD
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDateString)) return null;
+
+  const birthDate = new Date(birthDateString);
+  if (isNaN(birthDate.getTime())) return null; // Invalid date
+
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
 };

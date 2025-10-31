@@ -10,7 +10,7 @@ import { MemberNotesModal } from './MemberNotesModal';
 import { useAppContext } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../Modal';
-import { addDays } from '../../utils/dateUtils';
+import { addDays, calculateAge } from '../../utils/dateUtils';
 
 
 interface ApprovalModalProps {
@@ -318,10 +318,10 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
                 const bValue = b[sortConfig.key];
     
                 if (sortConfig.key === 'age') {
-                    const numA = a.age ? parseInt(a.age, 10) : -1;
-                    const numB = b.age ? parseInt(b.age, 10) : -1;
-                    if (numA < numB) return sortConfig.direction === 'asc' ? -1 : 1;
-                    if (numA > numB) return sortConfig.direction === 'asc' ? 1 : -1;
+                    const ageA = calculateAge(a.birthDate) ?? (a.age ? parseInt(a.age) : -1);
+                    const ageB = calculateAge(b.birthDate) ?? (b.age ? parseInt(b.age) : -1);
+                    if (ageA < ageB) return sortConfig.direction === 'asc' ? -1 : 1;
+                    if (ageA > ageB) return sortConfig.direction === 'asc' ? 1 : -1;
                     return 0;
                 }
     
@@ -537,7 +537,7 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
                             </td>
                             <td className="px-4 py-4 whitespace-nowrap text-sm">{getTypeDisplay(p)}</td>
                             <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{p.locationName}</td>
-                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{p.age || '-'}</td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{calculateAge(p.birthDate) ?? p.age ?? '-'}</td>
                             <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{p.gender || '-'}</td>
                             <td className="px-4 py-4 whitespace-nowrap text-sm font-medium flex gap-2">
                                 <Button size="sm" variant="outline" onClick={() => handleOpenNotesModal(p)}>Klientkort</Button>
@@ -585,7 +585,6 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
                 oneOnOneSessions={oneOnOneSessions}
                 setOneOnOneSessions={setOneOnOneSessionsData}
                 coaches={staffMembers}
-                // FIX: Pass loggedInStaff.id instead of user.id to ensure the correct coach context is used. Also add non-null assertion.
                 loggedInCoachId={loggedInStaff!.id}
                 workouts={workouts}
                 addWorkout={addWorkout}
