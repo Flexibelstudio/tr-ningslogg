@@ -455,10 +455,21 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   const mainContentRef = useRef<HTMLDivElement>(null);
   const activityViewRef = useRef<HTMLDivElement>(null);
 
+  const [isBirthDatePromptOpen, setIsBirthDatePromptOpen] = useState(false);
+  const [hasDismissedPromptThisSession, setHasDismissedPromptThisSession] = useState(false);
+
   const storageKey = useMemo(() => 
     `${LOCAL_STORAGE_KEYS.IN_PROGRESS_WORKOUT}_${currentParticipantId}`, 
     [currentParticipantId]
   );
+  
+  useEffect(() => {
+    // Show the prompt if the profile is loaded, birthDate is missing,
+    // and it hasn't been dismissed in this session.
+    if (participantProfile && !participantProfile.birthDate && !hasDismissedPromptThisSession) {
+        setIsBirthDatePromptOpen(true);
+    }
+  }, [participantProfile, hasDismissedPromptThisSession]);
 
   const handleSaveLog = async (logData: WorkoutLog) => {
     if (!participantProfile?.id || !organizationId || !db) {
@@ -1216,6 +1227,17 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
 
     }, [allActivityLogs, myStrengthStats, myConditioningStats, participantProfile, myClubMemberships, workouts, setClubMembershipsData, isNewUser]);
 
+    const handleDismissBirthDatePrompt = () => {
+        setIsBirthDatePromptOpen(false);
+        setHasDismissedPromptThisSession(true);
+    };
+
+    const handleOpenProfileFromPrompt = () => {
+        setIsBirthDatePromptOpen(false);
+        setHasDismissedPromptThisSession(true);
+        setIsProfileModalOpen(true);
+    };
+
     return (
         <div className="bg-gray-100 bg-dotted-pattern bg-dotted-size bg-fixed min-h-screen">
         {isLogFormOpen && currentWorkoutForForm ? (
@@ -1583,8 +1605,8 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 };
                 handleStartWorkout(tempWorkout);
             }}
-            onSelfCheckIn={onSelfCheckIn}
-            onLocationCheckIn={onLocationCheckIn}
+            onSelfCheckIn={(classInstanceId) => onSelfCheckIn(currentParticipantId, classInstanceId, 'self_qr')}
+            onLocationCheckIn={(locationId) => onLocationCheckIn(currentParticipantId, locationId)}
         />
         {participantProfile &&
             <CheckinConfirmationModal
@@ -1654,6 +1676,29 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             allWorkouts={workouts}
             membership={myMembership}
         />
+        <Modal
+            isOpen={isBirthDatePromptOpen}
+            onClose={handleDismissBirthDatePrompt}
+            title="📅 Uppdatera din profil!"
+            size="lg"
+        >
+            <div className="p-4 text-center space-y-4">
+                <h3 className="text-xl font-semibold text-gray-800">
+                    För en bättre upplevelse!
+                </h3>
+                <p className="text-base text-gray-600">
+                    Hej! För att kunna ge dig mer exakta styrkeberäkningar (FSS) och personliga insikter, skulle vi uppskatta om du lade till ditt födelsedatum i din profil.
+                </p>
+                <div className="flex justify-center gap-4 pt-4">
+                    <Button variant="secondary" onClick={handleDismissBirthDatePrompt}>
+                        Påminn mig senare
+                    </Button>
+                    <Button variant="primary" onClick={handleOpenProfileFromPrompt}>
+                        Gå till profil
+                    </Button>
+                </div>
+            </div>
+        </Modal>
     </div>
     );
 };
