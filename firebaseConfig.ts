@@ -48,12 +48,12 @@ if (isMockMode) {
   console.warn("[FB] Mock mode enabled – skipping Firebase init");
 } else {
   try {
-    // FIX: Replaced `firebase.getApps().length` with `firebase.apps.length` for v8 compat.
+    // v8 compat init (återanvänd om redan initierad)
     app = !firebase.apps.length ? firebase.initializeApp(firebaseConfig) : firebase.app();
     auth = firebase.auth(app);
 
-    // Modern offline-persistence med tab-synk (modular API)
-    initializeFirestore(app, {
+    // Offline-cache med tab-synk (modular API ihop med compat app funkar här)
+    initializeFirestore(app as any, {
       localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
     });
     
@@ -67,7 +67,6 @@ if (isMockMode) {
 
   } catch (e) {
     console.error("Firebase initialization failed:", e);
-    // Ensure services are undefined on failure
     app = undefined;
     auth = undefined;
     db = undefined;
@@ -75,4 +74,5 @@ if (isMockMode) {
   }
 }
 
-export { app, auth, db, firebaseConfig, messaging };
+// ❗ Viktigt: exportera INTE firebaseConfig här igen
+export { app, auth, db, messaging };
