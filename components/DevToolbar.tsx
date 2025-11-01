@@ -1,15 +1,14 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
+import firebaseService from '../services/firebaseService';
 import dataService from '../services/dataService';
 import { User } from '../types';
 
 export const DevToolbar: React.FC = () => {
     const { login, user: currentUser } = useAuth();
+    const isOffline = firebaseService.isOffline();
 
-    // Only show toolbar in AI Studio environments.
-    const isAIStudio = typeof window !== "undefined" && /(^|\.)ai\.studio$/i.test(window.location.hostname);
-
-    if (!isAIStudio) {
+    if (!isOffline) {
         return null;
     }
 

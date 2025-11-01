@@ -1,8 +1,17 @@
-// firebaseConfig.ts — modular SDK (funka i AI Studio + Netlify)
-import { initializeApp, type FirebaseApp } from "firebase/app";
+// firebaseConfig.ts — modular SDK (fungerar i Netlify och lokalt utan mock)
+
+import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore, enableIndexedDbPersistence } from "firebase/firestore";
-import { getMessaging, type Messaging } from "firebase/messaging";
+import {
+  getFirestore,
+  type Firestore,
+  enableIndexedDbPersistence,
+} from "firebase/firestore";
+import {
+  getMessaging,
+  isSupported as isMessagingSupported,
+  type Messaging,
+} from "firebase/messaging";
 
 type Env = {
   MODE?: string;
@@ -19,11 +28,12 @@ type Env = {
 const env = (typeof import.meta !== "undefined" ? (import.meta as any).env : {}) as Env;
 
 // AI Studio preview → kör mockläge automatiskt (ingen backend behövs där)
-const isAIStudio = typeof window !== "undefined" && /(^|\.)ai\.studio$/i.test(window.location.hostname);
-export const isMockMode =
-  env?.VITE_USE_MOCK === "true" || isAIStudio || false;
+const isAIStudio =
+  typeof window !== "undefined" && /(^|\.)ai\.studio$/i.test(window.location.hostname);
 
-// Prod-fallbacks (helt OK på webben)
+export const isMockMode = env?.VITE_USE_MOCK === "true" || isAIStudio || false;
+
+// Prod-fallbacks (OK att ligga i klienten)
 export const firebaseConfig = {
   apiKey:            env?.VITE_FB_API_KEY             ?? "AIzaSyAYIyG3Vufbc6MLpb48xLgJpF8zsZa2iHk",
   authDomain:        env?.VITE_FB_AUTH_DOMAIN         ?? "smartstudio-da995.firebaseapp.com",
@@ -35,7 +45,9 @@ export const firebaseConfig = {
 } as const;
 
 if (env?.MODE) {
-  console.log(`[FB] mode=${env.MODE}, aiStudio=${isAIStudio}, mock=${isMockMode}, project=${firebaseConfig.projectId}`);
+  console.log(
+    `[FB] mode=${env.MODE}, aiStudio=${isAIStudio}, mock=${isMockMode}, project=${firebaseConfig.projectId}`
+  );
 }
 
 let app: FirebaseApp | undefined;
@@ -47,15 +59,32 @@ if (isMockMode) {
   console.warn("[FB] Mock mode enabled – skipping Firebase init");
 } else {
   try {
-    app = initializeApp(firebaseConfig);
+    // Init endast en gång (skydd mot HMR/dubbelinit)
+    app = getApps().length ? getApps()[0]! : initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
-    messaging = getMessaging(app);
 
-    // Persistence (ignorera fel om flera tabs m.m.)
-    enableIndexedDbPersistence(db).catch(() => {});
+    // Aktivera offline-cache (ignorera fel vid t.ex. flera flikar/privat läge)
+    enableIndexedDbPersistence(db).catch((e) => {
+      console.warn("Firestore persistence not available, continuing online only:", e);
+    });
+
+    // Web Push / FCM finns inte i alla miljöer → feature-detect
+    // (t.ex. i iOS Safari/icke-secure origin eller i vissa CI/preview-lägen)
+    void isMessagingSupported()
+      .then((ok) => {
+        if (ok) {
+          messaging = getMessaging(app!);
+        } else {
+          console.warn("Firebase Messaging is not supported in this environment.");
+        }
+      })
+      .catch(() => {
+        console.warn("Firebase Messaging support check failed; skipping messaging init.");
+      });
   } catch (e) {
     console.error("Firebase initialization failed:", e);
+    // Låt resten av appen fortsätta utan Firebase (ingen “mock/offline”-flagga)
     app = undefined;
     auth = undefined;
     db = undefined;
