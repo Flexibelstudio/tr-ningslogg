@@ -3,7 +3,7 @@ import { Modal } from '../Modal';
 import { Button } from '../Button';
 import { ProfileForm, ProfileFormRef } from './ProfileGoalForm';
 import { ParticipantProfile, GenderOption, ParticipantGamificationStats, Location, NotificationSettings } from '../../types';
-import { TermsModal } from './TermsModal';
+import { TermsModal } from '../TermsModal';
 
 interface ProfileModalProps {
   isOpen: boolean;
