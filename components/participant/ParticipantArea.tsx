@@ -4,7 +4,7 @@ import {
     ParticipantGoalData, ParticipantProfile,
     UserStrengthStat, ParticipantConditioningStat,
     UserRole, ParticipantMentalWellbeing, Exercise, GoalCompletionLog, ParticipantGamificationStats, WorkoutCategory, PostWorkoutSummaryData, NewPB, ParticipantClubMembership, LeaderboardSettings, CoachEvent, GenderOption, Connection, Reaction, Comment, NewBaseline, ParticipantPhysiqueStat, LiftType, Location, Membership, StaffMember, OneOnOneSession, IntegrationSettings,
-    GroupClassDefinition, GroupClassSchedule, ParticipantBooking, WorkoutCategoryDefinition, InProgressWorkout, AchievementDefinition, FlowItemLogType
+    GroupClassDefinition, GroupClassSchedule, ParticipantBooking, WorkoutCategoryDefinition, InProgressWorkout, AchievementDefinition, FlowItemLogType, NotificationSettings
 } from '../../types';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { Button } from '../Button';
@@ -55,6 +55,7 @@ import { AchievementToast } from './AchievementToast';
 import { AICoachModal } from './AICoachModal';
 import { callGeminiApiFn } from '../../firebaseClient';
 import { db } from '../../firebaseConfig';
+import { NotificationPermissionManager } from './NotificationPermissionManager';
 
 
 const getInBodyScoreInterpretation = (score: number | undefined | null): { label: string; color: string; } | null => {
@@ -1012,7 +1013,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     };
 
     const handleSaveProfile = async (
-        profileData: Partial<Pick<ParticipantProfile, 'name' | 'birthDate' | 'gender' | 'enableLeaderboardParticipation' | 'isSearchable' | 'locationId' | 'enableInBodySharing' | 'enableFssSharing' | 'photoURL'>>
+        profileData: Partial<Pick<ParticipantProfile, 'name' | 'birthDate' | 'gender' | 'enableLeaderboardParticipation' | 'isSearchable' | 'locationId' | 'enableInBodySharing' | 'enableFssSharing' | 'photoURL'>> & { notificationSettings?: NotificationSettings }
     ) => {
         try {
             await updateParticipantProfile(currentParticipantId, profileData);
@@ -1261,6 +1262,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                             </div>
                         </div>
                     )}
+                    <NotificationPermissionManager />
                     {showIncompleteProfileBanner && (
                         <WarningBanner 
                             message="Slutför din profil för att få tillgång till alla funktioner och mer precisa jämförelser!" 

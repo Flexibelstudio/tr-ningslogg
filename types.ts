@@ -15,6 +15,7 @@ declare global {
       readonly VITE_FB_MESSAGING_SENDER_ID: string | undefined;
       readonly VITE_FB_APP_ID: string | undefined;
       readonly VITE_FB_MEASUREMENT_ID?: string;
+      readonly VITE_VAPID_KEY?: string; // For Firebase Cloud Messaging
       readonly DEV: boolean;
       readonly PROD: boolean;
     }
@@ -47,6 +48,15 @@ export interface Notification {
   message: string;
   createdAt: Date;
   autoDismiss?: boolean;
+}
+
+// New interface for notification settings
+export interface NotificationSettings {
+    reminders: boolean; // Pass reminders
+    friendBooking: boolean; // Friend books a class
+    news: boolean; // Org posts news/event
+    waitlist: boolean; // Got a spot from waitlist
+    pushEnabled: boolean; // Master toggle for push notifications
 }
 
 export interface AnalyticsEvent {
@@ -398,10 +408,9 @@ export interface ParticipantProfile {
     expiryDate?: string; // ISO date string YYYY-MM-DD. If not present, it doesn't expire.
   };
   approvalStatus?: 'pending' | 'approved' | 'declined';
-  fcmTokens?: string[];
-  notificationSettings?: {
-    pushNotificationsEnabled?: boolean;
-  };
+  // New properties for notifications
+  notificationTokens?: string[];
+  notificationSettings?: NotificationSettings;
 }
 
 export interface ParticipantPhysiqueStat {

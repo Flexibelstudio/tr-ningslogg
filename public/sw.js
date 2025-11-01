@@ -1,10 +1,11 @@
 // public/sw.js
 
-// Import Firebase scripts for messaging
-self.importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
-self.importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
+// --- START: Firebase Push Notification handling ---
+// Firebase v9 compat scripts for service worker
+importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
 
-// Initialize Firebase with the provided config
+// This config is copied from firebaseConfig.ts for the SW context.
 const firebaseConfig = {
   apiKey: "AIzaSyAYIyG3Vufbc6MLpb48xLgJpF8zsZa2iHk",
   authDomain: "smartstudio-da995.firebaseapp.com",
@@ -14,22 +15,34 @@ const firebaseConfig = {
   appId: "1:704268843753:web:743a263e46774a178c0e78",
 };
 
-try {
-  firebase.initializeApp(firebaseConfig);
-  const messaging = firebase.messaging();
+firebase.initializeApp(firebaseConfig);
 
-  messaging.onBackgroundMessage(function(payload) {
-    console.log('[sw.js] Received background message ', payload);
-    const notificationTitle = payload.notification.title;
-    const notificationOptions = {
-      body: payload.notification.body,
-      icon: '/icon-192x192.png'
-    };
-    self.registration.showNotification(notificationTitle, notificationOptions);
-  });
-} catch(e) {
-  console.error('[SW] Firebase messaging init failed', e);
-}
+const messaging = firebase.messaging();
+
+messaging.onBackgroundMessage((payload) => {
+  console.log('[sw.js] Received background message ', payload);
+  
+  const notificationTitle = payload.notification.title;
+  const notificationOptions = {
+    body: payload.notification.body,
+    icon: '/icon-192x192.png'
+  };
+
+  self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: "window" }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url === '/' && 'focus' in client) return client.focus();
+      }
+      if (clients.openWindow) return clients.openWindow('/');
+    })
+  );
+});
+// --- END: Firebase Push Notification handling ---
 
 
 // PWA-cache: index.html alltid färsk via no-store, assets cacheas länge.

@@ -1,9 +1,8 @@
 // firebaseConfig.ts — modular SDK (funka i AI Studio + Netlify)
-import firebase from 'firebase/compat/app';
-import 'firebase/compat/auth';
-import 'firebase/compat/firestore';
-import 'firebase/compat/messaging';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { initializeApp, type FirebaseApp } from "firebase/app";
+import { getAuth, type Auth } from "firebase/auth";
+import { getFirestore, type Firestore, enableIndexedDbPersistence } from "firebase/firestore";
+import { getMessaging, type Messaging } from "firebase/messaging";
 
 type Env = {
   MODE?: string;
@@ -39,32 +38,22 @@ if (env?.MODE) {
   console.log(`[FB] mode=${env.MODE}, aiStudio=${isAIStudio}, mock=${isMockMode}, project=${firebaseConfig.projectId}`);
 }
 
-let app: firebase.app.App | undefined;
-let auth: firebase.auth.Auth | undefined;
-let db: firebase.firestore.Firestore | undefined;
-let messaging: firebase.messaging.Messaging | undefined;
+let app: FirebaseApp | undefined;
+let auth: Auth | undefined;
+let db: Firestore | undefined;
+let messaging: Messaging | undefined;
 
 if (isMockMode) {
   console.warn("[FB] Mock mode enabled – skipping Firebase init");
 } else {
   try {
-    // v8 compat init (återanvänd om redan initierad)
-    app = !firebase.apps.length ? firebase.initializeApp(firebaseConfig) : firebase.app();
-    auth = firebase.auth(app);
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    messaging = getMessaging(app);
 
-    // Offline-cache med tab-synk (modular API ihop med compat app funkar här)
-    initializeFirestore(app as any, {
-      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
-    });
-    
-    db = firebase.firestore(app);
-
-    if (firebase.messaging.isSupported()) {
-      messaging = firebase.messaging(app);
-    } else {
-      console.warn("Firebase Messaging is not supported in this browser.");
-    }
-
+    // Persistence (ignorera fel om flera tabs m.m.)
+    enableIndexedDbPersistence(db).catch(() => {});
   } catch (e) {
     console.error("Firebase initialization failed:", e);
     app = undefined;
@@ -74,5 +63,4 @@ if (isMockMode) {
   }
 }
 
-// ❗ Viktigt: exportera INTE firebaseConfig här igen
 export { app, auth, db, messaging };

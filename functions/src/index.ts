@@ -2,8 +2,10 @@ import { HttpsError, onRequest, onCall } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
-import { getFirestore, Timestamp, FieldValue } from "firebase-admin/firestore";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { GoogleGenAI } from "@google/genai";
+import { onDocumentCreated, onDocumentUpdated } from "firebase-functions/v2/firestore";
+import { getMessaging } from "firebase-admin/messaging";
 
 // Init Admin SDK
 initializeApp();
@@ -185,52 +187,6 @@ export const callGeminiApi = onCall(
   }
 );
 
-export const saveFcmToken = onCall({
-    region: "europe-west1",
-}, async (request) => {
-    if (!request.auth) {
-        throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
-    }
-
-    const { token, orgId } = request.data;
-    if (typeof token !== 'string' || !token || typeof orgId !== 'string' || !orgId) {
-        throw new HttpsError("invalid-argument", "The function must be called with a 'token' and 'orgId'.");
-    }
-
-    const userId = request.auth.uid;
-    
-    try {
-        const userDoc = await db.collection("users").doc(userId).get();
-        if (!userDoc.exists) {
-            throw new HttpsError("not-found", "User not found.");
-        }
-        const userData = userDoc.data();
-        const participantId = userData?.linkedParticipantProfileId;
-
-        if (!participantId) {
-            throw new HttpsError("failed-precondition", "User is not linked to a participant profile.");
-        }
-        
-        const participantRef = db.collection("organizations").doc(orgId).collection("participantDirectory").doc(participantId);
-
-        // Atomically add the new token to the array of tokens.
-        await participantRef.update({
-            fcmTokens: FieldValue.arrayUnion(token)
-        });
-
-        logger.info(`Saved FCM token for user ${userId} / participant ${participantId} in org ${orgId}`);
-        return { success: true };
-
-    } catch (error) {
-        logger.error(`Error saving FCM token for user ${userId}:`, error);
-        if (error instanceof HttpsError) {
-            throw error;
-        }
-        throw new HttpsError("internal", "Failed to save FCM token.");
-    }
-});
-
-
 /**
  * Callable: Fetches and aggregates analytics data for the last 30 days.
  * Data: { orgId: string }
@@ -265,7 +221,7 @@ export const getAnalyticsData = onCall(
         daily.set(key, { bookings: 0, cancellations: 0, checkins: 0 });
       }
 
-      // Tre indexerade queries (täckta av samma composite-index: orgId, type, timestamp)
+      // Tre indexerade queries
       const makeQuery = (type: "BOOKING_CREATED" | "BOOKING_CANCELLED" | "CHECKIN") =>
         db
           .collection("analyticsEvents")
@@ -453,25 +409,25 @@ export const generateWeeklyHighlights = onSchedule(
             })
             .slice(0, 10);
 
+          // Prompt (no stray backslashes; no backticks needed inside the content)
           const prompt = `Du är "Flexibot", en AI-assistent för Flexibel Hälsostudio. Din uppgift är att skapa ett "Veckans Höjdpunkter"-inlägg för community-flödet. Svaret MÅSTE vara på svenska och formaterat med Markdown.
 
-    **Data från den gångna veckan:**
-    - Totalt antal loggade pass: ${logsLastWeek.length}
-    - Antal medlemmar som tränat: ${new Set(logsLastWeek.map((l: any) => l.participantId)).size}
-    - Några av veckans personliga rekord (PBs):
-    ${
-      pbsLastWeek.length > 0
-        ? pbsLastWeek.map((pb) => `  * ${pb.participantName} slog PB i ${pb.exerciseName} med ${pb.value}!`).join("\n")
-        : "  * Inga nya PBs loggade denna vecka."
-    }
+**Data från den gångna veckan:**
+- Totalt antal loggade pass: ${logsLastWeek.length}
+- Antal medlemmar som tränat: ${new Set(logsLastWeek.map((l: any) => l.participantId)).size}
+- Några av veckans personliga rekord (PBs):
+${
+  pbsLastWeek.length > 0
+    ? pbsLastWeek.map((pb) => `  * ${pb.participantName} slog PB i ${pb.exerciseName} med ${pb.value}!`).join("\n")
+    : "  * Inga nya PBs loggade denna vecka."
+}
 
-    **Ditt uppdrag:**
-    1.  Skapa en titel i formatet: \`Veckans Höjdpunkter - v${getISOWeek(new Date())}\`.
-    2.  Skriv en kort, peppande sammanfattning av veckans aktivitet.
-    3.  Lyft fram 2–3 av de mest imponerande PBs från listan.
-    4.  Avsluta med en uppmuntrande fras om att fortsätta kämpa.
-    5.  Formatera hela texten med Markdown. Kombinera titel och beskrivning till en enda textsträng.
-    `;
+**Ditt uppdrag:**
+1. Skapa en titel i formatet: Veckans Höjdpunkter - v${getISOWeek(new Date())}.
+2. Skriv en kort, peppande sammanfattning av veckans aktivitet.
+3. Lyft fram 2–3 av de mest imponerande PBs från listan (om sådana finns).
+4. Avsluta med en uppmuntrande fras om att fortsätta kämpa.
+5. Formatera hela texten med Markdown. Kombinera titel och beskrivning till en enda textsträng.`;
 
           const apiKey = process.env.GEMINI_API_KEY!;
           const ai = new GoogleGenAI({ apiKey });
@@ -507,6 +463,375 @@ export const generateWeeklyHighlights = onSchedule(
       } catch (error) {
         logger.error(`Failed to generate highlights for org ${orgId}:`, error);
       }
+    }
+  }
+);
+
+/**
+ * Firestore Trigger: Sends a push notification when a member is promoted from the waitlist.
+ * (Set to europe-west1)
+ */
+export const onBookingPromotion = onDocumentUpdated(
+  {
+    document: "organizations/{orgId}/participantBookings/{bookingId}",
+    region: "europe-west1",
+  },
+  async (event) => {
+    logger.info(`Checking booking update for promotion: ${event.params.bookingId}`);
+
+    const beforeData = event.data?.before.data();
+    const afterData = event.data?.after.data();
+
+    // Check if status changed from WAITLISTED to BOOKED
+    if (beforeData?.status === "WAITLISTED" && afterData?.status === "BOOKED") {
+      logger.info(`Promotion detected for participant ${afterData.participantId}`);
+
+      const participantId = afterData.participantId;
+      const orgId = event.params.orgId;
+
+      try {
+        // 1. Get participant's profile and notification settings
+        const participantDoc = await db.doc(`organizations/${orgId}/participantDirectory/${participantId}`).get();
+        if (!participantDoc.exists) {
+          logger.warn(`Participant document ${participantId} not found in org ${orgId}.`);
+          return;
+        }
+        const participantData = participantDoc.data();
+
+        // 2. Check notification settings
+        const settings = participantData?.notificationSettings;
+        const allowPush = settings?.pushEnabled ?? true;
+        const allowWaitlist = settings?.waitlist ?? true;
+
+        if (!allowPush || !allowWaitlist) {
+          logger.info(`Participant ${participantId} has disabled waitlist notifications. Aborting.`);
+          return;
+        }
+
+        const tokens = participantData?.notificationTokens;
+        if (!tokens || !Array.isArray(tokens) || tokens.length === 0) {
+          logger.info(`Participant ${participantId} has no notification tokens. No push sent.`);
+          return;
+        }
+
+        // 3. Get class details for the notification message
+        const scheduleId = afterData.scheduleId;
+        const scheduleDoc = await db.doc(`organizations/${orgId}/groupClassSchedules/${scheduleId}`).get();
+        if (!scheduleDoc.exists) {
+          logger.warn(`Schedule document ${scheduleId} not found.`);
+          return;
+        }
+        const scheduleData = scheduleDoc.data();
+
+        const classId = scheduleData!.groupClassId;
+        const classDefDoc = await db.doc(`organizations/${orgId}/groupClassDefinitions/${classId}`).get();
+        if (!classDefDoc.exists) {
+          logger.warn(`Class definition document ${classId} not found.`);
+          return;
+        }
+        const classDefData = classDefDoc.data();
+
+        const className = classDefData!.name || "ett pass";
+        const classDate = afterData.classDate as string; // YYYY-MM-DD
+        const classTime = scheduleData!.startTime as string; // HH:MM
+
+        const dateObj = new Date(`${classDate}T${classTime}`);
+        const formattedDate = dateObj.toLocaleDateString("sv-SE", {
+          weekday: "long",
+          day: "numeric",
+          month: "short",
+        });
+
+        // 4. Construct and send the notification
+        const payload = {
+          notification: {
+            title: "Du har fått en plats! 🎉",
+            body: `En plats blev ledig! Du är nu bokad på ${className} på ${formattedDate} kl ${classTime}.`,
+            icon: "/icon-192x192.png",
+          },
+          webpush: {
+            fcm_options: { link: "/" },
+          },
+        };
+
+        const resp = await getMessaging().sendToDevice(tokens, payload as any);
+        logger.info("Successfully sent promotion notification:", (resp as any).successCount ?? resp);
+      } catch (error) {
+        logger.error(`Error sending promotion notification for participant ${participantId}:`, error);
+      }
+    }
+  }
+);
+
+/**
+ * Scheduled: Sends reminders for classes starting in ~2 hours.
+ * Runs every 30 minutes.
+ */
+export const onClassReminder = onSchedule(
+  {
+    schedule: "every 30 minutes",
+    region: "europe-west1",
+    timeZone: "Europe/Stockholm",
+  },
+  async () => {
+    logger.info("Running scheduled job: onClassReminder");
+
+    const now = new Date();
+    const reminderStart = new Date(now.getTime() + 105 * 60 * 1000);
+    const reminderEnd = new Date(now.getTime() + 135 * 60 * 1000);
+
+    const today = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Stockholm" }));
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    const todayStr = today.toISOString().split("T")[0];
+    const tomorrowStr = tomorrow.toISOString().split("T")[0];
+
+    const orgsSnapshot = await db.collection("organizations").get();
+
+    for (const orgDoc of orgsSnapshot.docs) {
+      const orgId = orgDoc.id;
+      logger.info(`Checking reminders for org: ${orgId}`);
+      try {
+        const bookingsSnapshot = await db
+          .collection(`organizations/${orgId}/participantBookings`)
+          .where("status", "==", "BOOKED")
+          .where("classDate", "in", [todayStr, tomorrowStr])
+          .get();
+
+        if (bookingsSnapshot.empty) {
+          logger.info(`No relevant bookings for org ${orgId} on ${todayStr} or ${tomorrowStr}.`);
+          continue;
+        }
+
+        for (const bookingDoc of bookingsSnapshot.docs) {
+          const booking = bookingDoc.data();
+          const scheduleDoc = await db.doc(`organizations/${orgId}/groupClassSchedules/${booking.scheduleId}`).get();
+          if (!scheduleDoc.exists) continue;
+
+          const schedule = scheduleDoc.data();
+          if (!schedule) continue;
+
+          const classDateTime = new Date(`${booking.classDate}T${schedule.startTime}`);
+
+          if (classDateTime >= reminderStart && classDateTime <= reminderEnd) {
+            const participantId = booking.participantId;
+            const participantDoc = await db.doc(`organizations/${orgId}/participantDirectory/${participantId}`).get();
+            if (!participantDoc.exists) continue;
+
+            const participant = participantDoc.data();
+            if (!participant) continue;
+
+            const settings = participant.notificationSettings;
+            const allowPush = settings?.pushEnabled ?? true;
+            const allowReminders = settings?.reminders ?? true;
+
+            if (!allowPush || !allowReminders) {
+              logger.info(`Participant ${participantId} has disabled reminders.`);
+              continue;
+            }
+
+            const tokens = participant.notificationTokens;
+            if (!tokens || !Array.isArray(tokens) || tokens.length === 0) continue;
+
+            const classDefDoc = await db.doc(`organizations/${orgId}/groupClassDefinitions/${schedule.groupClassId}`).get();
+            const coachDoc = await db.doc(`organizations/${orgId}/staffMembers/${schedule.coachId}`).get();
+
+            const className = classDefDoc.data()?.name || "ditt pass";
+            const coachName = coachDoc.data()?.name || "din coach";
+
+            const payload = {
+              notification: {
+                title: "Dags att ladda! 💪",
+                body: `Ditt pass ${className} med ${coachName} startar om ca 2 timmar. Vi ses!`,
+                icon: "/icon-192x192.png",
+              },
+              webpush: { fcm_options: { link: "/" } },
+            };
+
+            await getMessaging().sendToDevice(tokens, payload as any);
+            logger.info(`Sent reminder to participant ${participantId} for class on ${booking.classDate}`);
+          }
+        }
+      } catch (error) {
+        logger.error(`Error processing reminders for org ${orgId}:`, error);
+      }
+    }
+  }
+);
+
+/**
+ * Firestore Trigger: Sends a push notification when a new coach event/news is created.
+ * (Set to europe-west1)
+ */
+export const onNewCoachEvent = onDocumentCreated(
+  {
+    document: "organizations/{orgId}/coachEvents/{eventId}",
+    region: "europe-west1",
+  },
+  async (event) => {
+    const eventData = event.data?.data();
+    if (!eventData) {
+      logger.warn("No data in created event document.");
+      return;
+    }
+
+    const orgId = event.params.orgId;
+    logger.info(`New coach event created in org ${orgId}: ${eventData.title}`);
+
+    try {
+      const { studioTarget, title } = eventData;
+
+      let participantsQuery = db
+        .collection(`organizations/${orgId}/participantDirectory`)
+        .where("isActive", "==", true);
+
+      if (studioTarget && studioTarget !== "all") {
+        const locationsSnapshot = await db.collection(`organizations/${orgId}/locations`).get();
+        const location = locationsSnapshot.docs
+          .map((doc) => ({ id: doc.id, ...(doc.data() as { name: string }) }))
+          .find((l) => l.name.toLowerCase().includes(studioTarget));
+
+        if (location) {
+          participantsQuery = participantsQuery.where("locationId", "==", location.id);
+        } else {
+          logger.warn(`Could not find location matching target: ${studioTarget}`);
+        }
+      }
+
+      const participantsSnapshot = await participantsQuery.get();
+      if (participantsSnapshot.empty) {
+        logger.info("No active participants to notify.");
+        return;
+      }
+
+      const notificationPromises: Promise<any>[] = [];
+
+      for (const doc of participantsSnapshot.docs) {
+        const participant = doc.data();
+        const settings = participant.notificationSettings;
+        const allowPush = settings?.pushEnabled ?? true;
+        const allowNews = settings?.news ?? true;
+        const tokens = participant.notificationTokens;
+
+        if (allowPush && allowNews && tokens && Array.isArray(tokens) && tokens.length > 0) {
+          const payload = {
+            notification: {
+              title: "Nyhet från studion! ✨",
+              body: title as string,
+              icon: "/icon-192x192.png",
+            },
+            webpush: { fcm_options: { link: "/" } },
+          };
+          notificationPromises.push(getMessaging().sendToDevice(tokens, payload as any));
+        }
+      }
+
+      await Promise.all(notificationPromises);
+      logger.info(`Sent ${notificationPromises.length} notifications for new event.`);
+    } catch (error) {
+      logger.error(`Error sending news notifications for org ${orgId}:`, error);
+    }
+  }
+);
+
+/**
+ * Firestore Trigger: Sends a push notification to friends when a user books a class.
+ * (Set to europe-west1)
+ */
+export const onFriendBooking = onDocumentCreated(
+  {
+    document: "organizations/{orgId}/participantBookings/{bookingId}",
+    region: "europe-west1",
+  },
+  async (event) => {
+    const booking = event.data?.data();
+    if (!booking || booking.status === "WAITLISTED") {
+      // Only notify for confirmed bookings, not waitlist entries.
+      return;
+    }
+
+    const { participantId: bookerId, scheduleId, classDate } = booking;
+    const orgId = event.params.orgId;
+    logger.info(`New booking by ${bookerId} in org ${orgId}. Checking for friends to notify.`);
+
+    try {
+      // 1. Find all friends of the booker
+      const friendIds = new Set<string>();
+      const connectionsRef = db.collection(`organizations/${orgId}/connections`);
+
+      const friendsAsRequester = await connectionsRef
+        .where("requesterId", "==", bookerId)
+        .where("status", "==", "accepted")
+        .get();
+      friendsAsRequester.forEach((doc) => friendIds.add(doc.data().receiverId));
+
+      const friendsAsReceiver = await connectionsRef
+        .where("receiverId", "==", bookerId)
+        .where("status", "==", "accepted")
+        .get();
+      friendsAsReceiver.forEach((doc) => friendIds.add(doc.data().requesterId));
+
+      if (friendIds.size === 0) {
+        logger.info("Booker has no friends to notify.");
+        return;
+      }
+
+      // 2. Get details for the notification message in parallel
+      const bookerProfilePromise = db.doc(`organizations/${orgId}/participantDirectory/${bookerId}`).get();
+      const schedulePromise = db.doc(`organizations/${orgId}/groupClassSchedules/${scheduleId}`).get();
+
+      const [bookerProfileDoc, scheduleDoc] = await Promise.all([bookerProfilePromise, schedulePromise]);
+
+      if (!bookerProfileDoc.exists || !scheduleDoc.exists) {
+        logger.warn("Could not retrieve booker profile or schedule details.");
+        return;
+      }
+
+      const bookerName = bookerProfileDoc.data()?.name || "Din vän";
+      const schedule = scheduleDoc.data();
+      if (!schedule) return;
+
+      const classDefDoc = await db.doc(`organizations/${orgId}/groupClassDefinitions/${schedule.groupClassId}`).get();
+      const className = classDefDoc.data()?.name || "ett pass";
+      const classTime = schedule.startTime as string;
+
+      const dateObj = new Date(classDate as string);
+      const formattedDate = dateObj.toLocaleDateString("sv-SE", { weekday: "long" });
+
+      // 3. Iterate through friends and send notifications
+      const notificationPromises: Promise<any>[] = [];
+      for (const friendId of friendIds) {
+        const friendDoc = await db.doc(`organizations/${orgId}/participantDirectory/${friendId}`).get();
+        if (!friendDoc.exists) continue;
+
+        const friend = friendDoc.data();
+        if (!friend) continue;
+
+        // Check notification settings
+        const settings = friend.notificationSettings;
+        const allowPush = settings?.pushEnabled ?? true;
+        const allowFriendBooking = settings?.friendBooking ?? true;
+        const tokens = friend.notificationTokens;
+
+        if (allowPush && allowFriendBooking && tokens && Array.isArray(tokens) && tokens.length > 0) {
+          const payload = {
+            notification: {
+              title: "Din vän ska träna! 💪",
+              body: `${bookerName} har precis bokat ${className} på ${formattedDate} kl ${classTime}. Häng på?`,
+              icon: "/icon-192x192.png",
+            },
+            webpush: { fcm_options: { link: "/" } },
+          };
+          notificationPromises.push(getMessaging().sendToDevice(tokens, payload as any));
+          logger.info(`Queued friend booking notification for ${friendId}`);
+        }
+      }
+
+      await Promise.all(notificationPromises);
+      logger.info(`Sent ${notificationPromises.length} friend booking notifications.`);
+    } catch (error) {
+      logger.error(`Error sending friend booking notifications for booker ${bookerId}:`, error);
     }
   }
 );
