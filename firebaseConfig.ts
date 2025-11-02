@@ -1,7 +1,9 @@
-// firebaseConfig.ts — modular SDK (funka i AI Studio + Netlify)
-import { initializeApp, type FirebaseApp } from "firebase/app";
-import { getAuth, type Auth } from "firebase/auth";
-import { initializeFirestore, type Firestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
+// firebaseConfig.ts — compat SDK for Netlify build
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/auth';
+import 'firebase/compat/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
+
 
 type Env = {
   MODE?: string;
@@ -40,27 +42,31 @@ const missingConfigKeys = requiredConfigKeys.filter(key => !firebaseConfig[key])
 
 
 if (env?.MODE) {
-  console.log(`[FB Modular] mode=${env.MODE}, aiStudio=${isAIStudio}, dev=${env.DEV}, mock=${isMockMode}, project=${firebaseConfig.projectId}`);
+  console.log(`[FB Compat] mode=${env.MODE}, aiStudio=${isAIStudio}, dev=${env.DEV}, mock=${isMockMode}, project=${firebaseConfig.projectId}`);
 }
 
-let app: FirebaseApp | undefined;
-let auth: Auth | undefined;
-let db: Firestore | undefined;
+let app: firebase.app.App | undefined;
+let auth: firebase.auth.Auth | undefined;
+let db: firebase.firestore.Firestore | undefined;
 
 if (isMockMode) {
-  console.warn("[FB Modular] Mock mode enabled – skipping Firebase init");
+  console.warn("[FB Compat] Mock mode enabled – skipping Firebase init");
 } else if (missingConfigKeys.length > 0) {
-    console.error(`[FB Modular] Firebase initialization failed! Missing VITE_FB_* env vars: ${missingConfigKeys.join(', ')}. Set these in your build environment (e.g., Netlify).`);
+    console.error(`[FB Compat] Firebase initialization failed! Missing VITE_FB_* env vars: ${missingConfigKeys.join(', ')}. Set these in your build environment (e.g., Netlify).`);
 } else {
   try {
-    app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    // Modern offline-persistence med tab-synk (modular API)
-    db = initializeFirestore(app, {
+    app = !firebase.apps.length ? firebase.initializeApp(firebaseConfig) : firebase.app();
+    auth = firebase.auth(app);
+    
+    // Modern offline-persistence med tab-synk (modular API anropad på compat app)
+    initializeFirestore(app, {
       localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
     });
+    
+    db = firebase.firestore(app);
+
   } catch (e) {
-    console.error("[FB Modular] Firebase initialization failed with error:", e);
+    console.error("[FB Compat] Firebase initialization failed with error:", e);
     // A failed init will leave `db` undefined, triggering offline mode.
   }
 }
