@@ -1,27 +1,16 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
-import { ProfileForm, ProfileFormRef } from './ProfileGoalForm';
-import { ParticipantProfile, GenderOption, ParticipantGamificationStats, Location, NotificationSettings } from '../../types';
-import { TermsModal } from '../TermsModal';
+import { ProfileForm, ProfileFormRef } from './ProfileGoalForm'; // Re-using the file, but it contains ProfileForm
+import { ParticipantProfile, GenderOption, ParticipantGamificationStats, Location } from '../../types';
+import { TermsModal } from './TermsModal';
 
 interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentProfile: ParticipantProfile | null;
   onSave: (
-    profileData: { 
-      name?: string; 
-      birthDate?: string; 
-      gender?: GenderOption; 
-      enableLeaderboardParticipation?: boolean; 
-      isSearchable?: boolean; 
-      locationId?: string; 
-      enableInBodySharing?: boolean; 
-      enableFssSharing?: boolean; 
-      photoURL?: string; 
-      notificationSettings?: NotificationSettings;
-    }
+    profileData: { name?: string; birthDate?: string; gender?: GenderOption; enableLeaderboardParticipation?: boolean; isSearchable?: boolean; locationId?: string; enableInBodySharing?: boolean; enableFssSharing?: boolean; photoURL?: string; }
   ) => void;
   locations: Location[];
 }
@@ -63,7 +52,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   if (!isOpen) return null;
 
-  const isProfileIncomplete = !currentProfile || !currentProfile.birthDate;
+  const isProfileIncomplete = !currentProfile || !currentProfile.birthDate || !currentProfile.gender || currentProfile.gender === '-';
   const modalTitle = isProfileIncomplete ? "Slutför Din Profil" : "Min Profil";
 
   let saveButtonText = "Spara Profil";
@@ -77,7 +66,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           {isProfileIncomplete && (
             <div className="p-3 mb-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800" role="alert">
                 <p className="font-bold">Viktigt!</p>
-                <p>För att appen ska fungera optimalt och ge dig korrekta jämförelser, vänligen fyll i ditt <strong className="font-semibold">Födelsedatum</strong>.</p>
+                <p>För att appen ska fungera optimalt och ge dig korrekta jämförelser, vänligen fyll i ditt <strong className="font-semibold">Födelsedatum</strong> och ditt <strong className="font-semibold">Kön</strong>.</p>
             </div>
           )}
           <ProfileForm

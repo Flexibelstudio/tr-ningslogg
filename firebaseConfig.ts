@@ -1,125 +1,67 @@
-// firebaseConfig.ts — robust init för Netlify/staging (ingen onödig “offline/mock”)
 
-import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
-import { getAuth, type Auth } from "firebase/auth";
-import {
-  getFirestore,
-  type Firestore,
-  enableIndexedDbPersistence,
-} from "firebase/firestore";
-import {
-  getMessaging,
-  isSupported as isMessagingSupported,
-  type Messaging,
-} from "firebase/messaging";
+// src/firebaseConfig.ts
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/auth';
+import 'firebase/compat/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 
-type Env = {
-  MODE?: string;
-  VITE_USE_MOCK?: string;
-  VITE_FB_API_KEY?: string;
-  VITE_FB_AUTH_DOMAIN?: string;
-  VITE_FB_PROJECT_ID?: string;
-  VITE_FB_STORAGE_BUCKET?: string;
-  VITE_FB_MESSAGING_SENDER_ID?: string;
-  VITE_FB_APP_ID?: string;
-  VITE_FB_MEASUREMENT_ID?: string;
-};
+// Safely access env vars
+const env = import.meta?.env;
 
-const env = (typeof import.meta !== "undefined" ? (import.meta as any).env : {}) as Env;
-
-// AI Studio → mock
-const isAIStudio =
-  typeof window !== "undefined" && /(^|\.)ai\.studio$/i.test(window.location.hostname);
-export const isMockMode = env?.VITE_USE_MOCK === "true" || isAIStudio || false;
-
-// Prod-fallbacks (public klientkonfig är OK)
-export const firebaseConfig = {
-  apiKey:            env?.VITE_FB_API_KEY             ?? "AIzaSyAYIyG3Vufbc6MLpb48xLgJpF8zsZa2iHk",
-  authDomain:        env?.VITE_FB_AUTH_DOMAIN         ?? "smartstudio-da995.firebaseapp.com",
-  projectId:         env?.VITE_FB_PROJECT_ID          ?? "smartstudio-da995",
-  storageBucket:     env?.VITE_FB_STORAGE_BUCKET      ?? "smartstudio-da995.appspot.com",
-  messagingSenderId: env?.VITE_FB_MESSAGING_SENDER_ID ?? "704268843753",
-  appId:             env?.VITE_FB_APP_ID              ?? "1:704268843753:web:743a263e46774a178c0e78",
+const firebaseConfig = {
+  apiKey: env?.VITE_FB_API_KEY,
+  authDomain: env?.VITE_FB_AUTH_DOMAIN,
+  projectId: env?.VITE_FB_PROJECT_ID,
+  storageBucket: env?.VITE_FB_STORAGE_BUCKET,
+  messagingSenderId: env?.VITE_FB_MESSAGING_SENDER_ID,
+  appId: env?.VITE_FB_APP_ID,
   ...(env?.VITE_FB_MEASUREMENT_ID ? { measurementId: env.VITE_FB_MEASUREMENT_ID } : {}),
 } as const;
 
-if (env?.MODE) {
-  console.log(
-    `[FB] mode=${env.MODE}, aiStudio=${isAIStudio}, mock=${isMockMode}, project=${firebaseConfig.projectId}`
-  );
-}
+// Safely determine environment
+const isDev = env?.DEV ?? false;
+if (isDev) console.log('FB project (DEV):', firebaseConfig.projectId ?? '(saknas)');
+const isProd = env?.PROD ?? false;
+if (isProd) console.log('FB project (PROD):', firebaseConfig.projectId ?? '(saknas)');
 
-let app: FirebaseApp | undefined;
-let auth: Auth | undefined;
-let db: Firestore | undefined;
-let messaging: Messaging | undefined;
+let app: firebase.app.App | undefined;
+let auth: firebase.auth.Auth | undefined;
+let db: firebase.firestore.Firestore | undefined;
 
-// Hjälpflagga som resten av appen kan nyttja
-let firebaseReady = false;
+// Check for all required environment variables before attempting initialization.
+const requiredConfigValues: (keyof typeof firebaseConfig)[] = [
+  'apiKey',
+  'authDomain',
+  'projectId',
+  'storageBucket',
+  'messagingSenderId',
+  'appId',
+];
 
-if (isMockMode) {
-  console.warn("[FB] Mock mode enabled – skipping Firebase init");
+const missingConfig = requiredConfigValues.filter(key => !firebaseConfig[key]);
+
+if (missingConfig.length > 0) {
+  console.warn(`Firebase initialization skipped. Missing config values: ${missingConfig.join(', ')}. App will run in offline/mock data mode.`);
 } else {
-  // 1) App
   try {
-    app = getApps().length ? getApps()[0]! : initializeApp(firebaseConfig);
-    console.log("[FB] App initialized");
+    // FIX: Replaced `firebase.getApps().length` with `firebase.apps.length` for v8 compat.
+    app = !firebase.apps.length ? firebase.initializeApp(firebaseConfig) : firebase.app();
+    auth = firebase.auth(app);
+
+    // Modern offline-persistence med tab-synk (modular API)
+    initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    });
+    
+    db = firebase.firestore(app);
+
   } catch (e) {
-    console.error("[FB] initializeApp failed → kan inte gå vidare:", e);
-  }
-
-  // 2) Auth (kritiskt men brukar inte fela)
-  if (app) {
-    try {
-      auth = getAuth(app);
-      console.log("[FB] Auth ready");
-    } catch (e) {
-      console.error("[FB] getAuth failed (fortsätter utan auth):", e);
-    }
-  }
-
-  // 3) Firestore (kritiskt)
-  if (app) {
-    try {
-      db = getFirestore(app);
-      console.log("[FB] Firestore ready");
-    } catch (e) {
-      console.error("[FB] getFirestore failed → ingen DB:", e);
-    }
-  }
-
-  // 4) Persistence (aldrig kritiskt)
-  if (db) {
-    enableIndexedDbPersistence(db).then(
-      () => console.log("[FB] Persistence enabled"),
-      (e) => console.warn("[FB] Persistence unavailable (fortsätter online):", e)
-    );
-  }
-
-  // 5) Messaging (feature-detect, aldrig kritiskt)
-  if (app) {
-    isMessagingSupported()
-      .then((ok) => {
-        if (ok) {
-          try {
-            messaging = getMessaging(app!);
-            console.log("[FB] Messaging ready");
-          } catch (e) {
-            console.warn("[FB] getMessaging failed (skippas):", e);
-          }
-        } else {
-          console.warn("[FB] Messaging not supported in this environment");
-        }
-      })
-      .catch((e) => {
-        console.warn("[FB] Messaging support check failed (skippas):", e);
-      });
-  }
-
-  // Sätt ready om kärnan funkar
-  if (app && db) {
-    firebaseReady = true;
+    console.error('Firebase initialization failed:', e);
+    // Ensure services are undefined on failure
+    app = undefined;
+    auth = undefined;
+    db = undefined;
   }
 }
 
-export { app, auth, db, messaging, firebaseReady };
+export { app, auth, db, firebaseConfig };
