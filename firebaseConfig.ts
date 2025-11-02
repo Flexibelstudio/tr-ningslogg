@@ -1,7 +1,7 @@
 // firebaseConfig.ts — modular SDK (funka i AI Studio + Netlify)
 import { initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore, enableIndexedDbPersistence } from "firebase/firestore";
+import { initializeFirestore, type Firestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 
 type Env = {
   MODE?: string;
@@ -55,10 +55,10 @@ if (isMockMode) {
   try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    db = getFirestore(app);
-
-    // Persistence (ignorera fel om flera tabs m.m.)
-    enableIndexedDbPersistence(db).catch(() => {});
+    // Modern offline-persistence med tab-synk (modular API)
+    db = initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    });
   } catch (e) {
     console.error("[FB Modular] Firebase initialization failed with error:", e);
     // A failed init will leave `db` undefined, triggering offline mode.
