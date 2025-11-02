@@ -14,7 +14,7 @@ import { TermsModal } from './components/TermsModal';
 import { WelcomeModal } from './components/participant/WelcomeModal';
 import { UpdateNoticeModal } from './components/participant/UpdateNoticeModal';
 import { LOCAL_STORAGE_KEYS } from './constants';
-import { FlowItemLogType, User, UserRole, GeneralActivityLog } from './types';
+import { FlowItemLogType, User, UserRole, GeneralActivityLog, ParticipantProfile } from './types';
 import { useNotifications } from './context/NotificationsContext';
 import { logAnalyticsEvent } from './utils/analyticsLogger';
 
@@ -481,12 +481,12 @@ const AppContent: React.FC = () => {
           });
         }
         
-        // Notify coach if promotion happened
-        if (auth.currentRole === 'coach' && promotedParticipant && cancelledClassDef) {
+        // Notify promoted participant IF they are the one logged in
+        if (promotedParticipant && cancelledClassDef && promotedParticipant.id === auth.currentParticipantId) {
             addNotification({
-                type: 'INFO',
-                title: 'Deltagare uppflyttad',
-                message: `${promotedParticipant.name} har flyttats från kön och fått en plats på ${cancelledClassDef.name}.`
+                type: 'SUCCESS',
+                title: 'Du har fått en plats! 🎉',
+                message: `En plats blev ledig på ${cancelledClassDef.name} den ${new Date(bookingToCancel.classDate).toLocaleDateString('sv-SE')}. Din köplats har blivit en bokning.`
             });
         }
 
@@ -507,7 +507,7 @@ const AppContent: React.FC = () => {
           message: `Du har avbokat dig från ${classDef?.name || 'passet'}.`
       });
     },
-    [participantDirectory, memberships, setParticipantBookingsData, definitions, participantBookings, groupClassSchedules, addNotification, auth.currentRole, auth.organizationId, setParticipantDirectoryData]
+    [participantDirectory, memberships, setParticipantBookingsData, definitions, participantBookings, groupClassSchedules, addNotification, auth.currentRole, auth.currentParticipantId, auth.organizationId, setParticipantDirectoryData]
   );
   
   const handlePromoteFromWaitlist = useCallback(
@@ -532,13 +532,17 @@ const AppContent: React.FC = () => {
         
         const participant = participantDirectory.find((p) => p.id === bookingToPromote.participantId);
         const classDef = definitions.find(d => d.id === schedule.groupClassId);
+        
         if (participant && classDef) {
-            addNotification({
-                type: 'SUCCESS',
-                title: 'Deltagare Uppflyttad',
-                message: `${participant.name} har nu en bokad plats på ${classDef.name}.`
-            });
-
+            // ONLY notify the promoted participant, IF they are the one logged in
+            if (participant.id === auth.currentParticipantId) {
+                 addNotification({
+                    type: 'SUCCESS',
+                    title: 'Du har fått en plats! 🎉',
+                    message: `En coach flyttade upp dig! Du har nu en plats på ${classDef.name} den ${new Date(bookingToPromote.classDate).toLocaleDateString('sv-SE')}.`
+                });
+            }
+            
             // Analytics logging
             logAnalyticsEvent("WAITLIST_PROMOTION", {
                 participantId: participant.id,
@@ -565,7 +569,7 @@ const AppContent: React.FC = () => {
         return prevBookings.map((b) => (b.id === bookingId ? { ...b, status: 'BOOKED' as 'BOOKED' } : b));
       });
     },
-    [groupClassSchedules, participantDirectory, memberships, setParticipantBookingsData, definitions, addNotification, auth.organizationId, setParticipantDirectoryData]
+    [groupClassSchedules, participantDirectory, memberships, setParticipantBookingsData, definitions, addNotification, auth.currentParticipantId, auth.organizationId, setParticipantDirectoryData]
   );
   
   const handleCheckInParticipant = useCallback(
