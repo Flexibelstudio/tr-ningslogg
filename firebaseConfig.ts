@@ -1,4 +1,4 @@
-// firebaseConfig.ts — modular SDK (funka i AI Studio + Netlify)
+// firebaseConfig.ts — modular SDK (AI Studio = mock, Netlify = live via fallbacks)
 import { initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore, enableIndexedDbPersistence } from "firebase/firestore";
@@ -17,12 +17,17 @@ type Env = {
 
 const env = (typeof import.meta !== "undefined" ? (import.meta as any).env : {}) as Env;
 
-// AI Studio preview → kör mockläge automatiskt (ingen backend behövs där)
-const isAIStudio = typeof window !== "undefined" && /(^|\.)ai\.studio$/i.test(window.location.hostname);
-export const isMockMode =
-  env?.VITE_USE_MOCK === "true" || isAIStudio || false;
+// AI Studio → alltid mock. (snäv detektering: endast ai.studio-domäner)
+const isAIStudio =
+  typeof window !== "undefined" && /(^|\.)ai\.studio$/i.test(window.location.hostname);
 
-// Prod-fallbacks (helt OK på webben)
+// Manuell override vid behov (lokalt t.ex.)
+const forceMock = env?.VITE_USE_MOCK === "true";
+
+// ENDA sätten att hamna i mock:
+export const isMockMode = !!(isAIStudio || forceMock);
+
+// Hårdkodade fallbacks för live (så Netlify funkar utan env-variabler)
 export const firebaseConfig = {
   apiKey:            env?.VITE_FB_API_KEY             ?? "AIzaSyAYIyG3Vufbc6MLpb48xLgJpF8zsZa2iHk",
   authDomain:        env?.VITE_FB_AUTH_DOMAIN         ?? "smartstudio-da995.firebaseapp.com",
@@ -34,7 +39,9 @@ export const firebaseConfig = {
 } as const;
 
 if (env?.MODE) {
-  console.log(`[FB] mode=${env.MODE}, aiStudio=${isAIStudio}, mock=${isMockMode}, project=${firebaseConfig.projectId}`);
+  console.log(
+    `[FB] mode=${env.MODE}, aiStudio=${isAIStudio}, forceMock=${forceMock}, mock=${isMockMode}, project=${firebaseConfig.projectId}`
+  );
 }
 
 let app: FirebaseApp | undefined;
@@ -46,11 +53,16 @@ if (isMockMode) {
 } else {
   try {
     app = initializeApp(firebaseConfig);
+    console.log("[FB] App initialized (live)");
     auth = getAuth(app);
+    console.log("[FB] Auth ready");
     db = getFirestore(app);
+    console.log("[FB] Firestore ready");
 
-    // Persistence (ignorera fel om flera tabs m.m.)
-    enableIndexedDbPersistence(db).catch(() => {});
+    // Persistence (ignorera kända fel som multi-tab)
+    enableIndexedDbPersistence(db).then(() => {
+      console.log("[FB] Persistence enabled");
+    }).catch(() => {});
   } catch (e) {
     console.error("Firebase initialization failed:", e);
     throw e;
