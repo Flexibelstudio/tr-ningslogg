@@ -52,6 +52,7 @@ export const createInitialOrgData = (orgId: string): OrganizationData => {
         participantBookings: [],
         leads: [],
         prospectIntroCalls: [],
+        userPushSubscriptions: [],
         branding: { categoryColorMap: {} },
     };
 

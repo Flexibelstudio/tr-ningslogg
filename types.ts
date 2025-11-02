@@ -1,4 +1,4 @@
-// src/types.ts
+// types.ts
 /// <reference lib="dom" />
 /// <reference lib="es2015" />
 
@@ -714,6 +714,13 @@ export interface BrandingSettings {
   categoryColorMap?: Record<string, string>;
 }
 
+// New: For Push Notifications
+export interface UserPushSubscription {
+    id: string; // doc id
+    participantId: string;
+    subscription: PushSubscriptionJSON; // Store the JSON representation
+}
+
 export interface OrganizationData {
   participantDirectory: ParticipantProfile[];
   workouts: Workout[];
@@ -745,6 +752,7 @@ export interface OrganizationData {
   participantBookings: ParticipantBooking[];
   leads: Lead[];
   prospectIntroCalls: ProspectIntroCall[];
+  userPushSubscriptions: UserPushSubscription[];
   branding?: BrandingSettings;
 }
 

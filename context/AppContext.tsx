@@ -8,7 +8,7 @@ import {
     CoachEvent, Connection, Location, StaffMember, Membership, 
     WeeklyHighlightSettings, OneOnOneSession, WorkoutCategoryDefinition, 
     StaffAvailability, IntegrationSettings, GroupClassDefinition, 
-    GroupClassSchedule, ParticipantBooking, AppData, BrandingSettings, ProspectIntroCall, Lead
+    GroupClassSchedule, ParticipantBooking, AppData, BrandingSettings, ProspectIntroCall, Lead, UserPushSubscription
 } from '../types';
 import firebaseService from '../services/firebaseService'; // Use the new service
 import { useAuth } from './AuthContext';
@@ -77,6 +77,7 @@ interface AppContextType extends OrganizationData {
   setParticipantBookingsData: (updater: React.SetStateAction<AppData['participantBookings']>) => void;
   setLeadsData: (updater: React.SetStateAction<AppData['leads']>) => void;
   setProspectIntroCallsData: (updater: React.SetStateAction<AppData['prospectIntroCalls']>) => void;
+  setUserPushSubscriptionsData: (updater: React.SetStateAction<AppData['userPushSubscriptions']>) => void;
   setBrandingData: (updater: React.SetStateAction<AppData['branding']>) => void;
 }
 
@@ -141,6 +142,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [participantBookings, setParticipantBookings] = useState<ParticipantBooking[]>([]);
     const [leads, setLeads] = useState<Lead[]>([]);
     const [prospectIntroCalls, setProspectIntroCalls] = useState<ProspectIntroCall[]>([]);
+    const [userPushSubscriptions, setUserPushSubscriptions] = useState<UserPushSubscription[]>([]);
     const [branding, setBranding] = useState<BrandingSettings | undefined>(undefined);
     const [isGlobalDataLoading, setIsGlobalDataLoading] = useState(true);
     const [isOrgDataLoading, setIsOrgDataLoading] = useState(true);
@@ -229,6 +231,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     setParticipantBookings(data.participantBookings);
                     setLeads(data.leads);
                     setProspectIntroCalls(data.prospectIntroCalls);
+                    setUserPushSubscriptions(data.userPushSubscriptions);
                     setBranding(data.branding);
 
                     if (data.branding?.logoBase64) {
@@ -264,7 +267,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setOneOnOneSessions([]); setWorkoutCategories([]); setStaffAvailability([]);
             setIntegrationSettings({ enableQRCodeScanning: false, isBookingEnabled: false, isClientJourneyEnabled: true, isScheduleEnabled: true });
             setGroupClassDefinitions([]); setGroupClassSchedules([]); setParticipantBookings([]);
-            setLeads([]); setProspectIntroCalls([]); setBranding(undefined);
+            setLeads([]); setProspectIntroCalls([]); setUserPushSubscriptions([]); setBranding(undefined);
         }
     }, [organizationId]);
   
@@ -387,6 +390,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const smartSetParticipantBookings = createSmartCollectionUpdater('participantBookings', setParticipantBookings);
     const smartSetLeads = createSmartCollectionUpdater('leads', setLeads);
     const smartSetProspectIntroCalls = createSmartCollectionUpdater('prospectIntroCalls', setProspectIntroCalls);
+    const smartSetUserPushSubscriptions = createSmartCollectionUpdater('userPushSubscriptions', setUserPushSubscriptions);
     const smartSetBranding = createSingleDocUpdater('branding', setBranding);
 
     const addParticipant = useCallback(async (participant: ParticipantProfile) => {
@@ -464,7 +468,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     connections, lastFlowViewTimestamp, locations, staffMembers, memberships,
     weeklyHighlightSettings, oneOnOneSessions, workoutCategories, staffAvailability,
     integrationSettings, groupClassDefinitions, groupClassSchedules, participantBookings,
-    leads, prospectIntroCalls, branding, isOrgDataLoading, isGlobalDataLoading,
+    leads, prospectIntroCalls, userPushSubscriptions, branding, isOrgDataLoading, isGlobalDataLoading,
     isOrgDataFromFallback, orgDataError, getColorForCategory, addParticipant, updateParticipantProfile,
     updateUser, addWorkout, updateWorkout, deleteWorkout,
     setParticipantDirectoryData: smartSetParticipantDirectory,
@@ -496,6 +500,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setParticipantBookingsData: smartSetParticipantBookings,
     setLeadsData: smartSetLeads,
     setProspectIntroCallsData: smartSetProspectIntroCalls,
+    setUserPushSubscriptionsData: smartSetUserPushSubscriptions,
     setBrandingData: smartSetBranding,
   };
 

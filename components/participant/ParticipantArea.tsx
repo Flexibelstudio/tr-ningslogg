@@ -4,7 +4,7 @@ import {
     ParticipantGoalData, ParticipantProfile,
     UserStrengthStat, ParticipantConditioningStat,
     UserRole, ParticipantMentalWellbeing, Exercise, GoalCompletionLog, ParticipantGamificationStats, WorkoutCategory, PostWorkoutSummaryData, NewPB, ParticipantClubMembership, LeaderboardSettings, CoachEvent, GenderOption, Connection, Reaction, Comment, NewBaseline, ParticipantPhysiqueStat, LiftType, Location, Membership, StaffMember, OneOnOneSession, IntegrationSettings,
-    GroupClassDefinition, GroupClassSchedule, ParticipantBooking, WorkoutCategoryDefinition, InProgressWorkout, AchievementDefinition, FlowItemLogType
+    GroupClassDefinition, GroupClassSchedule, ParticipantBooking, WorkoutCategoryDefinition, InProgressWorkout, AchievementDefinition, FlowItemLogType, UserPushSubscription
 } from '../../types';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { Button } from '../Button';
@@ -18,7 +18,7 @@ import { GeneralActivitySummaryModal } from './GeneralActivitySummaryModal';
 import {
     LOCAL_STORAGE_KEYS, WEIGHT_COMPARISONS, FLEXIBEL_PRIMARY_COLOR,
     STRESS_LEVEL_OPTIONS, ENERGY_LEVEL_OPTIONS, SLEEP_QUALITY_OPTIONS, OVERALL_MOOD_OPTIONS,
-    LEVEL_COLORS_HEADER, MAIN_LIFTS_CONFIG_HEADER, MOOD_OPTIONS, CLUB_DEFINITIONS
+    LEVEL_COLORS_HEADER, MAIN_LIFTS_CONFIG_HEADER, MOOD_OPTIONS, CLUB_DEFINITIONS, VAPID_PUBLIC_KEY
 } from '../../constants';
 import * as dateUtils from '../../utils/dateUtils';
 import { calculateFlexibelStrengthScoreInternal, getFssScoreInterpretation as getFssScoreInterpretationFromTool } from './StrengthComparisonTool';
@@ -337,6 +337,22 @@ const sanitizeDataForFirebase = (data: any): any => {
     return data;
 };
 
+function urlBase64ToUint8Array(base64String: string) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
+
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
+
 // Main ParticipantArea Component
 export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   currentParticipantId,
@@ -384,6 +400,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         groupClassSchedules,
         groupClassDefinitions,
         participantBookings: allParticipantBookings,
+        setUserPushSubscriptionsData,
     } = useAppContext();
     const { organizationId, currentRole } = useAuth();
     const { isOnline } = useNetworkStatus();
@@ -461,6 +478,8 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     const [isBirthDatePromptOpen, setIsBirthDatePromptOpen] = useState(false);
     const [hasDismissedPromptThisSession, setHasDismissedPromptThisSession] = useState(false);
 
+    const [showNotificationBanner, setShowNotificationBanner] = useState(false);
+
     const storageKey = useMemo(() => 
         `${LOCAL_STORAGE_KEYS.IN_PROGRESS_WORKOUT}_${currentParticipantId}`, 
         [currentParticipantId]
@@ -510,6 +529,86 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         prevBookingsRef.current = myBookings;
     }, [myBookings, addNotification, groupClassSchedules, groupClassDefinitions]);
     // --- END: Waitlist Promotion Notification ---
+
+    // --- NEW: Push Notification Logic ---
+    useEffect(() => {
+        if ('Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window) {
+            if (Notification.permission === 'default') {
+                setShowNotificationBanner(true);
+            }
+        }
+    }, []);
+
+    const handleEnableNotifications = async () => {
+        setShowNotificationBanner(false);
+        
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            console.log('Notification permission granted.');
+            await subscribeUserToPush();
+        } else {
+            console.warn('Notification permission denied.');
+            addNotification({
+                type: 'WARNING',
+                title: 'Notiser blockerade',
+                message: 'Du kan ändra detta i din webbläsares inställningar.'
+            });
+        }
+    };
+
+    const subscribeUserToPush = async () => {
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            const existingSubscription = await registration.pushManager.getSubscription();
+    
+            if (existingSubscription) {
+                console.log('User is already subscribed.');
+                saveSubscription(existingSubscription);
+                return;
+            }
+            
+            const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+            const subscription = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: applicationServerKey,
+            });
+    
+            console.log('New push subscription:', subscription);
+            saveSubscription(subscription);
+        } catch (error) {
+            console.error('Failed to subscribe the user: ', error);
+            addNotification({
+                type: 'ERROR',
+                title: 'Fel vid prenumeration',
+                message: 'Kunde inte aktivera push-notiser. Försök igen senare.'
+            });
+        }
+    };
+
+    const saveSubscription = (subscription: PushSubscription) => {
+        const subscriptionJSON = subscription.toJSON();
+        const newSubscriptionRecord: UserPushSubscription = {
+            id: crypto.randomUUID(),
+            participantId: currentParticipantId,
+            subscription: subscriptionJSON,
+        };
+    
+        setUserPushSubscriptionsData(prev => {
+            // Avoid duplicates based on endpoint
+            const existing = prev.find(sub => sub.subscription.endpoint === subscriptionJSON.endpoint);
+            if (existing) {
+                return prev;
+            }
+            return [...prev, newSubscriptionRecord];
+        });
+        
+        addNotification({
+            type: 'SUCCESS',
+            title: 'Notiser Aktiverade',
+            message: 'Du kommer nu att få push-notiser.'
+        });
+    };
+    // --- END: Push Notification Logic ---
 
     const handleSaveLog = async (logData: WorkoutLog) => {
         if (!participantProfile?.id || !organizationId || !db) {
@@ -1277,6 +1376,18 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         ) : (
             <div className="pb-40">
                 <div ref={mainContentRef} className="container mx-auto px-2 sm:px-4 py-4 space-y-3">
+                    {showNotificationBanner && (
+                        <div className="p-3 bg-blue-100 border-l-4 border-blue-500 rounded-r-lg flex flex-col sm:flex-row justify-between items-center gap-4 mb-4 animate-fade-in-down">
+                            <div>
+                                <h3 className="font-bold text-blue-800">Missa inga uppdateringar!</h3>
+                                <p className="text-sm text-blue-700">Aktivera notiser för att direkt få veta när du får en plats från kölistan.</p>
+                            </div>
+                            <div className="flex gap-2 self-end sm:self-center flex-shrink-0">
+                                <Button size="sm" variant="ghost" onClick={() => setShowNotificationBanner(false)}>Senare</Button>
+                                <Button size="sm" onClick={handleEnableNotifications}>Aktivera</Button>
+                            </div>
+                        </div>
+                    )}
                     {inProgressWorkout && (
                         <div className="p-4 bg-yellow-100 border-l-4 border-yellow-500 rounded-r-lg flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade-in-down">
                             <div>

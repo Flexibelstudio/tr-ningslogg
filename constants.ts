@@ -20,6 +20,12 @@ export const COLOR_PALETTE: string[] = [
 // FIX: Add missing ZAPIER_WEBHOOK_SECRET export for the client-side webhook handler used in the preview environment.
 export const ZAPIER_WEBHOOK_SECRET = 'your-zapier-webhook-secret-here';
 
+// This key is required to subscribe to web push notifications.
+// In a real application, this would be generated on the server (VAPID keys)
+// and securely provided to the client.
+export const VAPID_PUBLIC_KEY = 'BO21Yp3_p0o_5ce295-SC_pY9nZ8aGRi_SC2B5UF0jbl4M13nS2j52hce5C65a0gI55NUEM02eKYpOMYJ0pM5cE';
+
+
 export const LOCAL_STORAGE_KEYS = {
   // USER_ROLE is now managed by AuthContext with a different key
   MOCK_DB: 'flexibel_mockDB_v3', // Single key for the entire multi-tenant DB
