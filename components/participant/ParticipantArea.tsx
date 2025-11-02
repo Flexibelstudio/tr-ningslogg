@@ -55,6 +55,7 @@ import { AchievementToast } from './AchievementToast';
 import { AICoachModal } from './AICoachModal';
 import { callGeminiApiFn } from '../../firebaseClient';
 import { db } from '../../firebaseConfig';
+import { useNotifications } from '../../context/NotificationsContext';
 
 
 const getInBodyScoreInterpretation = (score: number | undefined | null): { label: string; color: string; } | null => {
@@ -386,6 +387,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     } = useAppContext();
     const { organizationId, currentRole } = useAuth();
     const { isOnline } = useNetworkStatus();
+    const { addNotification } = useNotifications();
 
     // ** FIX: Moved participantProfile declaration before any hooks that use it. **
     const participantProfile = useMemo(() => participantDirectory.find(p => p.id === currentParticipantId), [participantDirectory, currentParticipantId]);
@@ -463,14 +465,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         `${LOCAL_STORAGE_KEYS.IN_PROGRESS_WORKOUT}_${currentParticipantId}`, 
         [currentParticipantId]
     );
-  
-    useEffect(() => {
-        // Show the prompt if the profile is loaded, birthDate is missing,
-        // and it hasn't been dismissed in this session.
-        if (participantProfile && !participantProfile.birthDate && !hasDismissedPromptThisSession) {
-            setIsBirthDatePromptOpen(true);
-        }
-    }, [participantProfile, hasDismissedPromptThisSession]);
 
     const myWorkoutLogs = useMemo(() => workoutLogs.filter(l => l.participantId === currentParticipantId).sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime()), [workoutLogs, currentParticipantId]);
     const latestStrengthStats = useMemo(() => {
@@ -478,6 +472,44 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
       if (myStats.length === 0) return null;
       return [...myStats].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
     }, [userStrengthStats, currentParticipantId]);
+    
+    // --- NEW: Waitlist Promotion Notification ---
+    const myBookings = useMemo(() => 
+        allParticipantBookings.filter(b => b.participantId === currentParticipantId),
+        [allParticipantBookings, currentParticipantId]
+    );
+    const prevBookingsRef = useRef<ParticipantBooking[]>();
+
+    useEffect(() => {
+        const prevBookings = prevBookingsRef.current;
+        if (!prevBookings) {
+            prevBookingsRef.current = myBookings;
+            return;
+        }
+
+        myBookings.forEach(currentBooking => {
+            const prevBooking = prevBookings.find(b => b.id === currentBooking.id);
+            if (prevBooking && prevBooking.status === 'WAITLISTED' && currentBooking.status === 'BOOKED') {
+                const schedule = groupClassSchedules.find(s => s.id === currentBooking.scheduleId);
+                const classDef = groupClassDefinitions.find(d => d.id === schedule?.groupClassId);
+                
+                if (schedule && classDef) {
+                    const classDate = new Date(currentBooking.classDate);
+                    const dateString = classDate.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'short' });
+                    const timeString = schedule.startTime;
+
+                    addNotification({
+                        type: 'SUCCESS',
+                        title: 'Du har fått en plats!',
+                        message: `Du har flyttats från kön och har nu en bokad plats på ${classDef.name} ${dateString} kl ${timeString}.`
+                    });
+                }
+            }
+        });
+        
+        prevBookingsRef.current = myBookings;
+    }, [myBookings, addNotification, groupClassSchedules, groupClassDefinitions]);
+    // --- END: Waitlist Promotion Notification ---
 
     const handleSaveLog = async (logData: WorkoutLog) => {
         if (!participantProfile?.id || !organizationId || !db) {
