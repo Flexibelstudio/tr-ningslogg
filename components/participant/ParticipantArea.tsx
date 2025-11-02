@@ -4,7 +4,7 @@ import {
     ParticipantGoalData, ParticipantProfile,
     UserStrengthStat, ParticipantConditioningStat,
     UserRole, ParticipantMentalWellbeing, Exercise, GoalCompletionLog, ParticipantGamificationStats, WorkoutCategory, PostWorkoutSummaryData, NewPB, ParticipantClubMembership, LeaderboardSettings, CoachEvent, GenderOption, Connection, Reaction, Comment, NewBaseline, ParticipantPhysiqueStat, LiftType, Location, Membership, StaffMember, OneOnOneSession, IntegrationSettings,
-    GroupClassDefinition, GroupClassSchedule, ParticipantBooking, WorkoutCategoryDefinition, InProgressWorkout, AchievementDefinition, FlowItemLogType
+    GroupClassDefinition, GroupClassSchedule, ParticipantBooking, WorkoutCategoryDefinition, InProgressWorkout, AchievementDefinition, FlowItemLogType, UserPushSubscription
 } from '../../types';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { Button } from '../Button';
@@ -15,11 +15,10 @@ import { ParticipantActivityView } from './ParticipantActivityView';
 import { PostWorkoutSummaryModal } from './PostWorkoutSummaryModal';
 import { LogGeneralActivityModal } from './LogGeneralActivityModal';
 import { GeneralActivitySummaryModal } from './GeneralActivitySummaryModal';
-import { GoogleGenAI } from "@google/genai";
 import {
     LOCAL_STORAGE_KEYS, WEIGHT_COMPARISONS, FLEXIBEL_PRIMARY_COLOR,
     STRESS_LEVEL_OPTIONS, ENERGY_LEVEL_OPTIONS, SLEEP_QUALITY_OPTIONS, OVERALL_MOOD_OPTIONS,
-    LEVEL_COLORS_HEADER, MAIN_LIFTS_CONFIG_HEADER, MOOD_OPTIONS, CLUB_DEFINITIONS
+    LEVEL_COLORS_HEADER, MAIN_LIFTS_CONFIG_HEADER, MOOD_OPTIONS, CLUB_DEFINITIONS, VAPID_PUBLIC_KEY
 } from '../../constants';
 import * as dateUtils from '../../utils/dateUtils';
 import { calculateFlexibelStrengthScoreInternal, getFssScoreInterpretation as getFssScoreInterpretationFromTool } from './StrengthComparisonTool';
@@ -56,9 +55,8 @@ import { AchievementToast } from './AchievementToast';
 import { AICoachModal } from './AICoachModal';
 import { callGeminiApiFn } from '../../firebaseClient';
 import { db } from '../../firebaseConfig';
+import { useNotifications } from '../../context/NotificationsContext';
 
-
-const API_KEY = process.env.API_KEY;
 
 const getInBodyScoreInterpretation = (score: number | undefined | null): { label: string; color: string; } | null => {
     if (score === undefined || score === null || isNaN(score)) return null;
@@ -204,6 +202,13 @@ const ProgressCircle: React.FC<{
 };
 
 const GoalProgressCard: React.FC<{ goal: ParticipantGoalData | null, logs: ActivityLog[] }> = ({ goal, logs }) => {
+    const progress = useMemo(() => {
+        if (!goal || !goal.workoutsPerWeekTarget || goal.workoutsPerWeekTarget <= 0) return null;
+        const startOfWeek = dateUtils.getStartOfWeek(new Date());
+        const logsThisWeek = logs.filter(log => new Date(log.completedDate) >= startOfWeek).length;
+        return { completed: logsThisWeek, target: goal.workoutsPerWeekTarget };
+    }, [goal, logs]);
+
     if (goal && goal.targetDate) {
         const startDate = new Date(goal.setDate);
         const targetDate = new Date(goal.targetDate);
@@ -267,13 +272,6 @@ const GoalProgressCard: React.FC<{ goal: ParticipantGoalData | null, logs: Activ
     }
     
     // Fallback if no target date is set
-    const progress = useMemo(() => {
-        if (!goal || !goal.workoutsPerWeekTarget || goal.workoutsPerWeekTarget <= 0) return null;
-        const startOfWeek = dateUtils.getStartOfWeek(new Date());
-        const logsThisWeek = logs.filter(log => new Date(log.completedDate) >= startOfWeek).length;
-        return { completed: logsThisWeek, target: goal.workoutsPerWeekTarget };
-    }, [goal, logs]);
-
     return (
         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
              <div className="flex justify-center sm:justify-around items-start mt-4 gap-4">
@@ -296,7 +294,6 @@ const GoalProgressCard: React.FC<{ goal: ParticipantGoalData | null, logs: Activ
 
 interface ParticipantAreaProps {
   currentParticipantId: string;
-  onSetRole: (role: UserRole | null) => void;
   onToggleReaction: (logId: string, logType: FlowItemLogType, emoji: string) => void;
   onAddComment: (logId: string, logType: FlowItemLogType, text: string) => void;
   onDeleteComment: (logId: string, logType: FlowItemLogType, commentId: string) => void;
@@ -307,7 +304,8 @@ interface ParticipantAreaProps {
   onSwitchToStaffView?: () => void;
   onBookClass: (participantId: string, scheduleId: string, classDate: string) => void;
   onCancelBooking: (bookingId: string) => void;
-  onCheckInParticipant: (bookingId: string) => void;
+  onSelfCheckIn: (participantId: string, classInstanceId: string, checkinType: 'self_qr' | 'location_qr') => boolean;
+  onLocationCheckIn: (participantId: string, locationId: string) => boolean;
   setProfileOpener: (opener: { open: () => void } | null) => void;
   setParticipantModalOpeners: (openers: {
     openGoalModal: () => void;
@@ -339,10 +337,25 @@ const sanitizeDataForFirebase = (data: any): any => {
     return data;
 };
 
+function urlBase64ToUint8Array(base64String: string) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
+
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
+
 // Main ParticipantArea Component
 export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   currentParticipantId,
-  onSetRole,
   onToggleReaction,
   onAddComment,
   onDeleteComment,
@@ -353,7 +366,8 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   onSwitchToStaffView,
   onBookClass,
   onCancelBooking,
-  onCheckInParticipant,
+  onSelfCheckIn,
+  onLocationCheckIn,
   setProfileOpener,
   setParticipantModalOpeners,
   newFlowItemsCount = 0,
@@ -386,450 +400,229 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         groupClassSchedules,
         groupClassDefinitions,
         participantBookings: allParticipantBookings,
+        setUserPushSubscriptionsData,
     } = useAppContext();
     const { organizationId, currentRole } = useAuth();
     const { isOnline } = useNetworkStatus();
+    const { addNotification } = useNotifications();
 
-  const [currentWorkoutLog, setCurrentWorkoutLog] = useState<WorkoutLog | undefined>(undefined);
-  const [logForReference, setLogForReference] = useState<WorkoutLog | undefined>(undefined);
-  const [isNewSessionForLog, setIsNewSessionForLog] = useState(true);
-  const [isLogFormOpen, setIsLogFormOpen] = useState(false);
-  const [currentWorkoutForForm, setCurrentWorkoutForForm] = useState<Workout | null>(null);
+    // ** FIX: Moved participantProfile declaration before any hooks that use it. **
+    const participantProfile = useMemo(() => participantDirectory.find(p => p.id === currentParticipantId), [participantDirectory, currentParticipantId]);
 
-  const [lastFeedbackPromptTime, setLastFeedbackPromptTime] = useLocalStorage<number>(LOCAL_STORAGE_KEYS.LAST_FEEDBACK_PROMPT_TIME, 0);
+    const [currentWorkoutLog, setCurrentWorkoutLog] = useState<WorkoutLog | undefined>(undefined);
+    const [logForReference, setLogForReference] = useState<WorkoutLog | undefined>(undefined);
+    const [isNewSessionForLog, setIsNewSessionForLog] = useState(true);
+    const [isLogFormOpen, setIsLogFormOpen] = useState(false);
+    const [currentWorkoutForForm, setCurrentWorkoutForForm] = useState<Workout | null>(null);
 
-  const [isAiFeedbackModalOpen, setIsAiFeedbackModalOpen] = useState(false);
-  const [aiFeedback, setAiFeedback] = useState<string | null>(null);
-  const [isLoadingAiFeedback, setIsLoadingAiFeedback] = useState(false);
-  const [aiFeedbackError, setAiFeedbackError] = useState<string | null>(null);
-  const [currentAiModalTitle, setCurrentAiModalTitle] = useState("Feedback"); 
-  const [isAiReceptModalOpen, setIsAiReceptModalOpen] = useState(false);
-  const [isAICoachModalOpen, setIsAICoachModalOpen] = useState(false);
+    const [lastFeedbackPromptTime, setLastFeedbackPromptTime] = useLocalStorage<number>(LOCAL_STORAGE_KEYS.LAST_FEEDBACK_PROMPT_TIME, 0);
 
-  const [isAIAssistantModalOpen, setIsAIAssistantModalOpen] = useState(false);
-  const [preWorkoutData, setPreWorkoutData] = useState<{ workout: Workout, previousLog: WorkoutLog } | null>(null);
-  const [aiWorkoutTips, setAiWorkoutTips] = useState<AiWorkoutTips | null>(null);
+    const [isAiFeedbackModalOpen, setIsAiFeedbackModalOpen] = useState(false);
+    const [aiFeedback, setAiFeedback] = useState<string | null>(null);
+    const [isLoadingAiFeedback, setIsLoadingAiFeedback] = useState(false);
+    const [aiFeedbackError, setAiFeedbackError] = useState<string | null>(null);
+    const [currentAiModalTitle, setCurrentAiModalTitle] = useState("Feedback");
+    const [isAiReceptModalOpen, setIsAiReceptModalOpen] = useState(false);
+    const [isAICoachModalOpen, setIsAICoachModalOpen] = useState(false);
 
+    const [isAIAssistantModalOpen, setIsAIAssistantModalOpen] = useState(false);
+    const [preWorkoutData, setPreWorkoutData] = useState<{ workout: Workout, previousLog: WorkoutLog } | null>(null);
+    const [aiWorkoutTips, setAiWorkoutTips] = useState<AiWorkoutTips | null>(null);
 
-  const [isPostWorkoutSummaryModalOpen, setIsPostWorkoutSummaryModalOpen] = useState(false);
-  const [logForSummaryModal, setLogForSummaryModal] = useState<WorkoutLog | null>(null);
-  const [workoutForSummaryModal, setWorkoutForSummaryModal] = useState<Workout | null>(null);
-  const [isNewCompletion, setIsNewCompletion] = useState(false);
+    const [isPostWorkoutSummaryModalOpen, setIsPostWorkoutSummaryModalOpen] = useState(false);
+    const [logForSummaryModal, setLogForSummaryModal] = useState<WorkoutLog | null>(null);
+    const [workoutForSummaryModal, setWorkoutForSummaryModal] = useState<Workout | null>(null);
+    const [isNewCompletion, setIsNewCompletion] = useState(false);
 
-  const [isLogGeneralActivityModalOpen, setIsLogGeneralActivityModalOpen] = useState(false);
-  const [isGeneralActivitySummaryOpen, setIsGeneralActivitySummaryOpen] = useState(false);
-  const [lastGeneralActivity, setLastGeneralActivity] = useState<GeneralActivityLog | null>(null);
-  
-  const [showFeedbackPrompt, setShowFeedbackPrompt] = useState(false);
-  
-  const [isFabMenuOpen, setIsFabMenuOpen] = useState(false);
-  const [isSelectWorkoutModalOpen, setIsSelectWorkoutModalOpen] = useState(false);
-  const [workoutCategoryFilter, setWorkoutCategoryFilter] = useState<WorkoutCategory | undefined>(undefined);
-  const [isExerciseSelectionModalOpen, setIsExerciseSelectionModalOpen] = useState(false);
-  const [workoutForExerciseSelection, setWorkoutForExerciseSelection] = useState<Workout | null>(null);
-
-  const [isMentalCheckinOpen, setIsMentalCheckinOpen] = useState(false);
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
-  const [isStrengthModalOpen, setIsStrengthModalOpen] = useState(false);
-  const [isConditioningModalOpen, setIsConditioningModalOpen] = useState(false);
-  const [isPhysiqueModalOpen, setIsPhysiqueModalOpen] = useState(false);
-  const [isCommunityModalOpen, setIsCommunityModalOpen] = useState(false);
-  const [isFlowModalOpen, setIsFlowModalOpen] = useState(false);
-  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
-  const [isAiUpsellModalOpen, setIsAiUpsellModalOpen] = useState(false);
-  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
-  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
-  const [checkinSuccess, setCheckinSuccess] = useState<boolean>(false);
-
-
-  const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
-  const [selectedSessionForModal, setSelectedSessionForModal] = useState<OneOnOneSession | null>(null);
-  const [showMeetingToast, setShowMeetingToast] = useState(false);
-  const [showIncompleteProfileBanner, setShowIncompleteProfileBanner] = useState(false);
-
-  const [inProgressWorkout, setInProgressWorkout] = useState<InProgressWorkout | null>(null);
-  const [showResumeModal, setShowResumeModal] = useState(false);
-  const [workoutIntent, setWorkoutIntent] = useState<WorkoutCategory | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  const [newlyAchievedClub, setNewlyAchievedClub] = useState<AchievementDefinition | null>(null);
-
-  const mainContentRef = useRef<HTMLDivElement>(null);
-  const activityViewRef = useRef<HTMLDivElement>(null);
-
-  const storageKey = useMemo(() => 
-    `${LOCAL_STORAGE_KEYS.IN_PROGRESS_WORKOUT}_${currentParticipantId}`, 
-    [currentParticipantId]
-  );
-
-  useEffect(() => {
-    setParticipantModalOpeners({
-        openGoalModal: () => setIsGoalModalOpen(true),
-        openCommunityModal: () => setIsCommunityModalOpen(true),
-        openFlowModal: () => setIsFlowModalOpen(true),
-        openAiReceptModal: () => setIsAiReceptModalOpen(true),
-    });
-  }, [setParticipantModalOpeners, setIsGoalModalOpen, setIsCommunityModalOpen, setIsFlowModalOpen, setIsAiReceptModalOpen]);
-
-  useEffect(() => {
-    const rawData = localStorage.getItem(storageKey);
-    if (rawData) {
-        try {
-            const parsedData: InProgressWorkout = JSON.parse(rawData);
-            setInProgressWorkout(parsedData);
-        } catch (e) {
-            console.error("Failed to parse in-progress workout data", e);
-            localStorage.removeItem(storageKey);
-        }
-    }
-  }, [storageKey]);
-
-  const handleDeleteInProgressWorkout = () => {
-    localStorage.removeItem(storageKey);
-    setInProgressWorkout(null);
-  };
-  
-  const handleResumeWorkout = () => {
-    if (!inProgressWorkout) return;
-
-    let workoutTemplate = workouts.find(w => w.id === inProgressWorkout.workoutId);
+    const [isLogGeneralActivityModalOpen, setIsLogGeneralActivityModalOpen] = useState(false);
+    const [isGeneralActivitySummaryOpen, setIsGeneralActivitySummaryOpen] = useState(false);
+    const [lastGeneralActivity, setLastGeneralActivity] = useState<GeneralActivityLog | null>(null);
     
-    if (!workoutTemplate && inProgressWorkout.selectedExercisesForModifiable) {
-        workoutTemplate = {
-            id: inProgressWorkout.workoutId,
-            title: inProgressWorkout.workoutTitle,
-            category: 'Annat',
-            isPublished: false,
-            isModifiable: true,
-            blocks: [{ id: crypto.randomUUID(), name: "Valda Övningar", exercises: inProgressWorkout.selectedExercisesForModifiable }]
-        };
-    }
-
-    if (!workoutTemplate) {
-        alert("Kunde inte hitta passmallen för det pågående passet. Utkastet tas bort.");
-        handleDeleteInProgressWorkout();
-        return;
-    }
-
-    const logToEdit: WorkoutLog = {
-        type: 'workout',
-        id: 'in-progress-session',
-        workoutId: inProgressWorkout.workoutId,
-        participantId: currentParticipantId,
-        completedDate: new Date().toISOString(),
-        entries: inProgressWorkout.logEntries.map(([exerciseId, loggedSets]) => ({
-            exerciseId,
-            loggedSets
-        })),
-        postWorkoutComment: inProgressWorkout.postWorkoutComment,
-        moodRating: inProgressWorkout.moodRating ?? undefined,
-        selectedExercisesForModifiable: inProgressWorkout.selectedExercisesForModifiable,
-    };
+    const [showFeedbackPrompt, setShowFeedbackPrompt] = useState(false);
     
-    handleStartWorkout(workoutTemplate, true, logToEdit);
-    setInProgressWorkout(null);
-    setShowResumeModal(false);
-    setWorkoutIntent(null);
-  };
+    const [isFabMenuOpen, setIsFabMenuOpen] = useState(false);
+    const [isSelectWorkoutModalOpen, setIsSelectWorkoutModalOpen] = useState(false);
+    const [workoutCategoryFilter, setWorkoutCategoryFilter] = useState<WorkoutCategory | undefined>(undefined);
+    const [isExerciseSelectionModalOpen, setIsExerciseSelectionModalOpen] = useState(false);
+    const [workoutForExerciseSelection, setWorkoutForExerciseSelection] = useState<Workout | null>(null);
 
-  const handleAttemptLogWorkout = (category: WorkoutCategory) => {
-    if (inProgressWorkout) {
-        setWorkoutIntent(category);
-        setShowResumeModal(true);
-    } else {
-        setWorkoutCategoryFilter(category);
-        setIsSelectWorkoutModalOpen(true);
-    }
-  };
+    const [isMentalCheckinOpen, setIsMentalCheckinOpen] = useState(false);
+    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+    const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
+    const [isStrengthModalOpen, setIsStrengthModalOpen] = useState(false);
+    const [isConditioningModalOpen, setIsConditioningModalOpen] = useState(false);
+    const [isPhysiqueModalOpen, setIsPhysiqueModalOpen] = useState(false);
+    const [isCommunityModalOpen, setIsCommunityModalOpen] = useState(false);
+    const [isFlowModalOpen, setIsFlowModalOpen] = useState(false);
+    const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+    const [isAiUpsellModalOpen, setIsAiUpsellModalOpen] = useState(false);
+    const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+    const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
+    const [checkinSuccess, setCheckinSuccess] = useState<boolean>(false);
 
+    const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
+    const [selectedSessionForModal, setSelectedSessionForModal] = useState<OneOnOneSession | null>(null);
+    const [showMeetingToast, setShowMeetingToast] = useState(false);
+    const [showIncompleteProfileBanner, setShowIncompleteProfileBanner] = useState(false);
 
-  const handleDeleteActivity = (activityId: string, activityType: 'workout' | 'general' | 'goal_completion') => {
-    if (activityType === 'workout') {
-        setWorkoutLogsData(prev => prev.filter(log => log.id !== activityId));
-    } else if (activityType === 'general') {
-        setGeneralActivityLogsData(prev => prev.filter(log => log.id !== activityId));
-    } else if (activityType === 'goal_completion') {
-        setGoalCompletionLogsData(prev => prev.filter(log => log.id !== activityId));
-    }
-  };
+    const [inProgressWorkout, setInProgressWorkout] = useState<InProgressWorkout | null>(null);
+    const [showResumeModal, setShowResumeModal] = useState(false);
+    const [workoutIntent, setWorkoutIntent] = useState<WorkoutCategory | null>(null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const openWorkoutForEditing = (logToEdit: WorkoutLog) => {
-    const workoutTemplate = workouts.find(w => w.id === logToEdit.workoutId);
+    const [newlyAchievedClub, setNewlyAchievedClub] = useState<AchievementDefinition | null>(null);
 
-    // FIX: Calculate and set the correct reference log for editing.
-    // The reference log is the most recent log of the same workout template that was completed *before* the log being edited.
-    const referenceLog = myWorkoutLogs
-        .filter(l => l.workoutId === logToEdit.workoutId && new Date(l.completedDate) < new Date(logToEdit.completedDate))
-        .sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime())[0];
-    setLogForReference(referenceLog);
+    const mainContentRef = useRef<HTMLDivElement>(null);
+    const activityViewRef = useRef<HTMLDivElement>(null);
 
+    const [isBirthDatePromptOpen, setIsBirthDatePromptOpen] = useState(false);
+    const [hasDismissedPromptThisSession, setHasDismissedPromptThisSession] = useState(false);
 
-    if (!workoutTemplate && !logToEdit.selectedExercisesForModifiable) {
-        alert("Kunde inte hitta passmallen för denna logg och ingen anpassad struktur är sparad. Redigering är inte möjlig.");
-        return;
-    }
+    const [showNotificationBanner, setShowNotificationBanner] = useState(false);
+
+    const storageKey = useMemo(() => 
+        `${LOCAL_STORAGE_KEYS.IN_PROGRESS_WORKOUT}_${currentParticipantId}`, 
+        [currentParticipantId]
+    );
+
+    const myWorkoutLogs = useMemo(() => workoutLogs.filter(l => l.participantId === currentParticipantId).sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime()), [workoutLogs, currentParticipantId]);
+    const latestStrengthStats = useMemo(() => {
+      const myStats = userStrengthStats.filter(s => s.participantId === currentParticipantId);
+      if (myStats.length === 0) return null;
+      return [...myStats].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
+    }, [userStrengthStats, currentParticipantId]);
     
-    if (logToEdit.selectedExercisesForModifiable && logToEdit.selectedExercisesForModifiable.length > 0) {
-        const workoutForForm: Workout = {
-            id: logToEdit.workoutId,
-            title: workoutTemplate?.title || 'Anpassat Pass',
-            category: workoutTemplate?.category || 'Annat',
-            isPublished: false,
-            isModifiable: true,
-            blocks: [{ id: crypto.randomUUID(), name: "Valda Övningar", exercises: logToEdit.selectedExercisesForModifiable }]
-        };
-        handleStartWorkout(workoutForForm, true, logToEdit);
-    } else if (workoutTemplate) {
-        handleStartWorkout(workoutTemplate, true, logToEdit);
-    } else {
-        console.error("Logikfel i openWorkoutForEditing: Varken mall eller sparade övningar hittades.");
-    }
-  };
+    // --- NEW: Waitlist Promotion Notification ---
+    const myBookings = useMemo(() => 
+        allParticipantBookings.filter(b => b.participantId === currentParticipantId),
+        [allParticipantBookings, currentParticipantId]
+    );
+    const prevBookingsRef = useRef<ParticipantBooking[]>();
 
-  const handleEditLog = (logToEdit: ActivityLog) => {
-    if (isLogFormOpen) return;
-
-    if (logToEdit.type === 'workout') {
-        const workoutLog = logToEdit as WorkoutLog;
-
-        // If the log has no entries and no summary, it's likely just a mood/comment entry.
-        // Opening the summary modal for this wouldn't show much. Fall back to edit form.
-        if (!workoutLog.postWorkoutSummary && workoutLog.entries.length === 0) {
-            openWorkoutForEditing(workoutLog);
+    useEffect(() => {
+        const prevBookings = prevBookingsRef.current;
+        if (!prevBookings) {
+            prevBookingsRef.current = myBookings;
             return;
         }
 
-        // Default action: show the summary modal (the "diploma").
-        const workoutTemplateForSummary = workouts.find(w => w.id === workoutLog.workoutId);
+        myBookings.forEach(currentBooking => {
+            const prevBooking = prevBookings.find(b => b.id === currentBooking.id);
+            if (prevBooking && prevBooking.status === 'WAITLISTED' && currentBooking.status === 'BOOKED') {
+                const schedule = groupClassSchedules.find(s => s.id === currentBooking.scheduleId);
+                const classDef = groupClassDefinitions.find(d => d.id === schedule?.groupClassId);
+                
+                if (schedule && classDef) {
+                    const classDate = new Date(currentBooking.classDate);
+                    const dateString = classDate.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'short' });
+                    const timeString = schedule.startTime;
+
+                    addNotification({
+                        type: 'SUCCESS',
+                        title: 'Du har fått en plats!',
+                        message: `Du har flyttats från kön och har nu en bokad plats på ${classDef.name} ${dateString} kl ${timeString}.`
+                    });
+                }
+            }
+        });
         
-        setLogForSummaryModal(workoutLog);
-        setWorkoutForSummaryModal(workoutTemplateForSummary || null);
-        setIsNewCompletion(false);
-        setIsPostWorkoutSummaryModalOpen(true);
+        prevBookingsRef.current = myBookings;
+    }, [myBookings, addNotification, groupClassSchedules, groupClassDefinitions]);
+    // --- END: Waitlist Promotion Notification ---
 
-    } else if (logToEdit.type === 'general') {
-        setLastGeneralActivity(logToEdit as GeneralActivityLog);
-        setIsGeneralActivitySummaryOpen(true);
-    }
-  };
-  
-  // Memoized data for the current participant
-  const participantProfile = useMemo(() => participantDirectory.find(p => p.id === currentParticipantId), [participantDirectory, currentParticipantId]);
-  const myWorkoutLogs = useMemo(() => workoutLogs.filter(l => l.participantId === currentParticipantId).sort((a,b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime()), [workoutLogs, currentParticipantId]);
-  const myGeneralActivityLogs = useMemo(() => generalActivityLogs.filter(l => l.participantId === currentParticipantId), [generalActivityLogs, currentParticipantId]);
-  const myGoalCompletionLogs = useMemo(() => goalCompletionLogs.filter(g => g.participantId === currentParticipantId), [goalCompletionLogs, currentParticipantId]);
-  const myParticipantGoals = useMemo(() => participantGoals.filter(g => g.participantId === currentParticipantId), [participantGoals, currentParticipantId]);
-  const myStrengthStats = useMemo(() => userStrengthStats.filter(s => s.participantId === currentParticipantId), [userStrengthStats, currentParticipantId]);
-  const myConditioningStats = useMemo(() => userConditioningStatsHistory.filter(s => s.participantId === currentParticipantId), [userConditioningStatsHistory, currentParticipantId]);
-  const myPhysiqueHistory = useMemo(() => participantPhysiqueHistory.filter(s => s.participantId === currentParticipantId), [participantPhysiqueHistory, currentParticipantId]);
-  const myMentalWellbeing = useMemo(() => participantMentalWellbeing.find(w => w.id === currentParticipantId), [participantMentalWellbeing, currentParticipantId]);
-  const myGamificationStats = useMemo(() => participantGamificationStats.find(s => s.id === currentParticipantId), [participantGamificationStats, currentParticipantId]);
-  const myClubMemberships = useMemo(() => clubMemberships.filter(c => c.participantId === currentParticipantId), [clubMemberships, currentParticipantId]);
-  const myMembership = useMemo(() => memberships.find(m => m.id === participantProfile?.membershipId), [memberships, participantProfile]);
-  const myOneOnOneSessions = useMemo(() => oneOnOneSessions.filter(s => s.participantId === currentParticipantId), [oneOnOneSessions, currentParticipantId]);
-  
-  useEffect(() => {
-    if (openProfileModalOnInit) {
-        setIsProfileModalOpen(true);
-        onProfileModalOpened();
-    }
-  }, [openProfileModalOnInit, onProfileModalOpened]);
-
-  useEffect(() => {
-    setProfileOpener({ open: () => setIsProfileModalOpen(true) });
-    return () => setProfileOpener(null);
-  }, [setProfileOpener]);
-
-  useEffect(() => {
-    const membershipName = myMembership?.name?.toLowerCase();
-    const isStartProgram = membershipName === 'startprogram';
-
-    if (isStartProgram) {
-        const isProfileComplete = !!(participantProfile?.age && participantProfile?.gender && participantProfile?.gender !== '-');
-        if (!isProfileComplete) {
-            const prospectModalShownKey = `flexibel_prospectProfileModalShown_${currentParticipantId}`;
-            const hasBeenShown = localStorage.getItem(prospectModalShownKey) === 'true';
-            setShowIncompleteProfileBanner(hasBeenShown);
-        } else {
-            setShowIncompleteProfileBanner(false);
-        }
-    } else {
-        setShowIncompleteProfileBanner(false);
-    }
-}, [participantProfile, myMembership, currentParticipantId]);
-
-
-  const myUpcomingSessions = useMemo(() => {
-    return myOneOnOneSessions
-      .filter(s => s.status === 'scheduled' && new Date(s.startTime) > new Date())
-      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-  }, [myOneOnOneSessions]);
-
-  useEffect(() => {
-    const todaysMeetings = myUpcomingSessions.filter(s => dateUtils.isSameDay(new Date(s.startTime), new Date()));
-    if (todaysMeetings.length > 0 && !sessionStorage.getItem('flexibel_meetingToastShown')) {
-        setShowMeetingToast(true);
-        sessionStorage.setItem('flexibel_meetingToastShown', 'true');
-    }
-  }, [myUpcomingSessions]);
-
-  const nextMeetingForCard = useMemo(() => {
-    if (myUpcomingSessions.length === 0) {
-      return null;
-    }
-    const nextSession = myUpcomingSessions[0];
-    const sevenDaysFromNow = new Date();
-    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-    sevenDaysFromNow.setHours(23, 59, 59, 999); // Include the entire 7th day
-
-    if (new Date(nextSession.startTime) <= sevenDaysFromNow) {
-      return nextSession;
-    }
-    return null;
-  }, [myUpcomingSessions]);
-
-  // APP BADGING LOGIC
-  useEffect(() => {
-    if ('setAppBadge' in navigator) {
-      const pendingRequestCount = connections.filter(
-        c => c.receiverId === currentParticipantId && c.status === 'pending'
-      ).length;
-
-      const totalUnreadCount = pendingRequestCount + (newFlowItemsCount || 0);
-
-      try {
-        if (totalUnreadCount > 0) {
-          (navigator as any).setAppBadge(totalUnreadCount);
-        } else {
-          (navigator as any).clearAppBadge();
-        }
-      } catch (error) {
-        console.error('App Badging API error:', error);
-      }
-    }
-  }, [connections, currentParticipantId, newFlowItemsCount]);
-
-  const allActivityLogs = useMemo<ActivityLog[]>(() => {
-    return [...myWorkoutLogs, ...myGeneralActivityLogs, ...myGoalCompletionLogs].sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime());
-  }, [myWorkoutLogs, myGeneralActivityLogs, myGoalCompletionLogs]);
-
-  const allActivityLogsForLeaderboard = useMemo<ActivityLog[]>(() => {
-    return [...workoutLogs, ...generalActivityLogs, ...goalCompletionLogs];
-  }, [workoutLogs, generalActivityLogs, goalCompletionLogs]);
-
-  const isNewUser = useMemo(() => {
-    return allActivityLogs.length === 0 && myParticipantGoals.length === 0;
-  }, [allActivityLogs, myParticipantGoals]);
-
-  const nextBooking = useMemo(() => {
-    const now = new Date();
-    const myBookings = allParticipantBookings
-        .filter(b => b.participantId === currentParticipantId && (b.status === 'BOOKED' || b.status === 'WAITLISTED'))
-        .map(booking => {
-            const schedule = groupClassSchedules.find(s => s.id === booking.scheduleId);
-            if (!schedule) return null;
-
-            const [hour, minute] = schedule.startTime.split(':').map(Number);
-            const [year, month, day] = booking.classDate.split('-').map(Number);
-            const startDateTime = new Date(year, month - 1, day, hour, minute);
-
-            if (startDateTime < now) return null;
-
-            const classDef = groupClassDefinitions.find(d => d.id === schedule.groupClassId);
-            const coach = staffMembers.find(s => s.id === schedule.coachId);
-
-            if (!classDef || !coach) return null;
-
-            return { booking, schedule, classDef, coach, startDateTime };
-        })
-        .filter((b): b is NonNullable<typeof b> => b !== null)
-        .sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
-    
-    return myBookings[0] || null;
-  }, [allParticipantBookings, currentParticipantId, groupClassSchedules, groupClassDefinitions, staffMembers]);
-
-
-  const latestGoal = useMemo(() => {
-    if (myParticipantGoals.length === 0) return null;
-    return [...myParticipantGoals].sort((a,b) => new Date(b.setDate).getTime() - new Date(a.setDate).getTime())[0];
-  }, [myParticipantGoals]);
-  
-  const latestActiveGoal = useMemo(() => {
-     const sortedGoals = [...myParticipantGoals].sort((a,b) => new Date(b.setDate).getTime() - new Date(a.setDate).getTime());
-     return sortedGoals.find(g => !g.isCompleted) || null;
-  }, [myParticipantGoals]);
-
-  const latestStrengthStats = useMemo(() => {
-    if (myStrengthStats.length === 0) return null;
-    // Sort to be sure we get the latest entry by date
-    return [...myStrengthStats].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
-  }, [myStrengthStats]);
-
-  const latestConditioningValues = useMemo(() => {
-    if (!myConditioningStats || myConditioningStats.length === 0) return { airbike4MinKcal: null, skierg4MinMeters: null, rower4MinMeters: null, rower2000mTimeSeconds: null, treadmill4MinMeters: null };
-
-    const findLastValue = (key: keyof Omit<ParticipantConditioningStat, 'id'|'lastUpdated'|'participantId'|'reactions'|'comments'>): {value: string, date: string} | null => {
-        const sorted = [...myConditioningStats].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime());
-        for(const stat of sorted) {
-            const statValue = stat[key];
-            if (statValue !== undefined && statValue !== null) {
-                return { value: String(statValue), date: stat.lastUpdated };
+    // --- NEW: Push Notification Logic ---
+    useEffect(() => {
+        if ('Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window) {
+            if (Notification.permission === 'default') {
+                setShowNotificationBanner(true);
             }
         }
-        return null;
+    }, []);
+
+    const handleEnableNotifications = async () => {
+        setShowNotificationBanner(false);
+        
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            console.log('Notification permission granted.');
+            await subscribeUserToPush();
+        } else {
+            console.warn('Notification permission denied.');
+            addNotification({
+                type: 'WARNING',
+                title: 'Notiser blockerade',
+                message: 'Du kan ändra detta i din webbläsares inställningar.'
+            });
+        }
     };
 
-    return {
-        airbike4MinKcal: findLastValue('airbike4MinKcal'),
-        skierg4MinMeters: findLastValue('skierg4MinMeters'),
-        rower4MinMeters: findLastValue('rower4MinMeters'),
-        rower2000mTimeSeconds: findLastValue('rower2000mTimeSeconds'),
-        treadmill4MinMeters: findLastValue('treadmill4MinMeters'),
-    };
-  }, [myConditioningStats]);
-  
-  const latestPhysique = useMemo(() => {
-      if (myPhysiqueHistory.length === 0) return null;
-      // FIX: The sort function was comparing 'b.lastUpdated' with 'a.setDate', which does not exist on ParticipantPhysiqueStat. Corrected to use 'a.lastUpdated'.
-      return [...myPhysiqueHistory].sort((a,b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
-  }, [myPhysiqueHistory]);
-
-
-  const flexibelStrengthScore = useMemo(() => {
-    if (latestStrengthStats && participantProfile) {
-        return calculateFlexibelStrengthScoreInternal(latestStrengthStats, participantProfile)?.totalScore;
-    }
-    return null;
-  }, [latestStrengthStats, participantProfile]);
-
-  const fssScoreInterpretation = getFssScoreInterpretationFromTool(flexibelStrengthScore);
-
-  const openMentalCheckinIfNeeded = useCallback(() => {
-    const wasLoggedThisWeek = () => {
-        if (!myMentalWellbeing?.lastUpdated) return false;
-        // Check if the last update was in the same week as today. Monday is the start of the week.
-        return dateUtils.isSameWeek(new Date(myMentalWellbeing.lastUpdated), new Date());
+    const subscribeUserToPush = async () => {
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            const existingSubscription = await registration.pushManager.getSubscription();
+    
+            if (existingSubscription) {
+                console.log('User is already subscribed.');
+                saveSubscription(existingSubscription);
+                return;
+            }
+            
+            const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+            const subscription = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: applicationServerKey,
+            });
+    
+            console.log('New push subscription:', subscription);
+            saveSubscription(subscription);
+        } catch (error) {
+            console.error('Failed to subscribe the user: ', error);
+            addNotification({
+                type: 'ERROR',
+                title: 'Fel vid prenumeration',
+                message: 'Kunde inte aktivera push-notiser. Försök igen senare.'
+            });
+        }
     };
 
-    if (!wasLoggedThisWeek()) {
-        setIsMentalCheckinOpen(true);
-    }
-  }, [myMentalWellbeing]);
+    const saveSubscription = (subscription: PushSubscription) => {
+        const subscriptionJSON = subscription.toJSON();
+        const newSubscriptionRecord: UserPushSubscription = {
+            id: crypto.randomUUID(),
+            participantId: currentParticipantId,
+            subscription: subscriptionJSON,
+        };
+    
+        setUserPushSubscriptionsData(prev => {
+            // Avoid duplicates based on endpoint
+            const existing = prev.find(sub => sub.subscription.endpoint === subscriptionJSON.endpoint);
+            if (existing) {
+                return prev;
+            }
+            return [...prev, newSubscriptionRecord];
+        });
+        
+        addNotification({
+            type: 'SUCCESS',
+            title: 'Notiser Aktiverade',
+            message: 'Du kommer nu att få push-notiser.'
+        });
+    };
+    // --- END: Push Notification Logic ---
 
     const handleSaveLog = async (logData: WorkoutLog) => {
-        if (!participantProfile?.id || !organizationId) {
+        if (!participantProfile?.id || !organizationId || !db) {
             throw new Error("Profil- eller organisationsinformation saknas. Kan inte spara logg.");
         }
-    
+
         // --- 1. Prepare all data objects ---
         const logWithParticipantId: WorkoutLog = { ...logData, participantId: participantProfile.id };
-    
-        const summary = calculatePostWorkoutSummary(logWithParticipantId, workouts, myWorkoutLogs, latestStrengthStats);
+
+        const summary = calculatePostWorkoutSummary(logWithParticipantId, workouts, myWorkoutLogs, myStrengthStats);
         const logWithSummary = logWithParticipantId.entries.length > 0 ? { ...logWithParticipantId, postWorkoutSummary: summary } : logWithParticipantId;
-    
-        const { needsUpdate, updatedStats } = findAndUpdateStrengthStats(logWithParticipantId, workouts, latestStrengthStats);
-    
+
+        const { needsUpdate, updatedStats } = findAndUpdateStrengthStats(logWithParticipantId, workouts, myStrengthStats);
+
         let newStatRecord: UserStrengthStat | undefined;
         if (needsUpdate) {
             newStatRecord = {
@@ -843,29 +636,29 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 overheadPress1RMaxKg: updatedStats.overheadPress1RMaxKg,
             };
         }
-    
+
         const tempUpdatedWorkoutLogs = workoutLogs.some(l => l.id === logWithSummary.id)
             ? workoutLogs.map(l => (l.id === logWithSummary.id ? logWithSummary : l))
             : [...workoutLogs, logWithSummary];
-    
+
         const { updatedGoals, updatedGamificationStats } = calculateUpdatedStreakAndGamification(
             myParticipantGoals, myGamificationStats, participantProfile.id,
             [...tempUpdatedWorkoutLogs, ...myGeneralActivityLogs, ...myGoalCompletionLogs]
         );
-    
+
         // --- 2. Create and populate the batch ---
         const batch = db.batch();
-    
+
         const { id: logId, ...logSaveData } = logWithSummary;
         const logRef = db.collection('organizations').doc(organizationId).collection('workoutLogs').doc(logId);
         batch.set(logRef, sanitizeDataForFirebase(logSaveData));
-    
+
         if (newStatRecord) {
             const { id: statId, ...statSaveData } = newStatRecord;
             const statRef = db.collection('organizations').doc(organizationId).collection('userStrengthStats').doc(statId);
             batch.set(statRef, sanitizeDataForFirebase(statSaveData));
         }
-    
+
         const oldGoalsMap = new Map(myParticipantGoals.map(g => [g.id, g]));
         updatedGoals.forEach(goal => {
             const oldGoal = oldGoalsMap.get(goal.id);
@@ -875,33 +668,33 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 batch.set(goalRef, sanitizeDataForFirebase(goalSaveData));
             }
         });
-    
+
         if (updatedGamificationStats) {
             const { id: gamificationId, ...gamificationSaveData } = updatedGamificationStats;
             const gamificationRef = db.collection('organizations').doc(organizationId).collection('participantGamificationStats').doc(gamificationId);
             batch.set(gamificationRef, sanitizeDataForFirebase(gamificationSaveData));
         }
-    
+
         // --- 3. Commit the batch and update state on success ---
         try {
             await batch.commit();
-    
+
             // On success, update local state
             if (newStatRecord) {
-                setUserStrengthStatsData(prev => [...prev, newStatRecord]);
+                setUserStrengthStatsData(prev => [...prev, newStatRecord!]);
             }
             setWorkoutLogsData(tempUpdatedWorkoutLogs);
             setParticipantGoalsData(prev => [...prev.filter(g => g.participantId !== currentParticipantId), ...updatedGoals]);
             if (updatedGamificationStats) {
                 setParticipantGamificationStatsData(prev => [...prev.filter(s => s.id !== currentParticipantId), updatedGamificationStats]);
             }
-    
+
             // --- 4. Final UI steps ---
             setIsLogFormOpen(false);
             setCurrentWorkoutLog(undefined);
             setLogForReference(undefined);
             setCurrentWorkoutForForm(null);
-    
+
             if (logWithSummary.entries.length > 0) {
                 setLogForSummaryModal(logWithSummary);
                 const workoutTemplateForSummary = workouts.find(w => w.id === logWithSummary.workoutId);
@@ -928,102 +721,429 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         }
     };
 
-  const handleFinalizePostWorkoutSummary = () => {
-    setIsPostWorkoutSummaryModalOpen(false);
-    setLogForSummaryModal(null);
-    setWorkoutForSummaryModal(null);
-    setIsNewCompletion(false);
-    openMentalCheckinIfNeeded();
-  };
+    const myGeneralActivityLogs = useMemo(() => generalActivityLogs.filter(l => l.participantId === currentParticipantId), [generalActivityLogs, currentParticipantId]);
+    const myGoalCompletionLogs = useMemo(() => goalCompletionLogs.filter(g => g.participantId === currentParticipantId), [goalCompletionLogs, currentParticipantId]);
+    const myParticipantGoals = useMemo(() => participantGoals.filter(g => g.participantId === currentParticipantId), [participantGoals, currentParticipantId]);
+    const myStrengthStats = useMemo(() => userStrengthStats.filter(s => s.participantId === currentParticipantId), [userStrengthStats, currentParticipantId]);
+    const myConditioningStats = useMemo(() => userConditioningStatsHistory.filter(s => s.participantId === currentParticipantId), [userConditioningStatsHistory, currentParticipantId]);
+    const myPhysiqueHistory = useMemo(() => participantPhysiqueHistory.filter(s => s.participantId === currentParticipantId), [participantPhysiqueHistory, currentParticipantId]);
+    const myMentalWellbeing = useMemo(() => participantMentalWellbeing.find(w => w.id === currentParticipantId), [participantMentalWellbeing, currentParticipantId]);
+    const myGamificationStats = useMemo(() => participantGamificationStats.find(s => s.id === currentParticipantId), [participantGamificationStats, currentParticipantId]);
+    const myClubMemberships = useMemo(() => clubMemberships.filter(c => c.participantId === currentParticipantId), [clubMemberships, currentParticipantId]);
+    const myMembership = useMemo(() => memberships.find(m => m.id === participantProfile?.membershipId), [memberships, participantProfile]);
+    const myOneOnOneSessions = useMemo(() => oneOnOneSessions.filter(s => s.participantId === currentParticipantId), [oneOnOneSessions, currentParticipantId]);
+
+    const isAiEnabled = useMemo(() => {
+        return myMembership?.type === 'subscription';
+    }, [myMembership]);
+
+    useEffect(() => {
+        setParticipantModalOpeners({
+            openGoalModal: () => setIsGoalModalOpen(true),
+            openCommunityModal: () => setIsCommunityModalOpen(true),
+            openFlowModal: () => setIsFlowModalOpen(true),
+            openAiReceptModal: () => setIsAiReceptModalOpen(true),
+        });
+    }, [setParticipantModalOpeners]);
+
+    useEffect(() => {
+        const rawData = localStorage.getItem(storageKey);
+        if (rawData) {
+            try {
+                const parsedData: InProgressWorkout = JSON.parse(rawData);
+                setInProgressWorkout(parsedData);
+            } catch (e) {
+                console.error("Failed to parse in-progress workout data", e);
+                localStorage.removeItem(storageKey);
+            }
+        }
+    }, [storageKey]);
+
+    const handleDeleteInProgressWorkout = () => {
+        localStorage.removeItem(storageKey);
+        setInProgressWorkout(null);
+    };
   
-  const handleEditLogFromSummary = () => {
-    if (!logForSummaryModal) return;
-    setIsPostWorkoutSummaryModalOpen(false);
-    openWorkoutForEditing(logForSummaryModal);
-  };
+    const handleResumeWorkout = () => {
+        if (!inProgressWorkout) return;
 
-  const isAiEnabled = useMemo(() => {
-    return myMembership?.type === 'subscription';
-  }, [myMembership]);
-  
-  const handleStartWorkout = (workout: Workout, isEditing: boolean = false, logToEdit?: WorkoutLog) => {
-    // Handle modifiable workouts where user needs to select exercises first.
-    // This only applies when starting a *new* session, not editing an existing one.
-    if (workout.isModifiable && workout.exerciseSelectionOptions && !isEditing) {
-        setWorkoutForExerciseSelection(workout);
-        setIsExerciseSelectionModalOpen(true);
-        setIsSelectWorkoutModalOpen(false); 
-        return;
-    }
+        let workoutTemplate = workouts.find(w => w.id === inProgressWorkout.workoutId);
+    
+        if (!workoutTemplate && inProgressWorkout.selectedExercisesForModifiable) {
+            workoutTemplate = {
+                id: inProgressWorkout.workoutId,
+                title: inProgressWorkout.workoutTitle,
+                category: 'Annat',
+                isPublished: false,
+                isModifiable: true,
+                blocks: [{ id: crypto.randomUUID(), name: "Valda Övningar", exercises: inProgressWorkout.selectedExercisesForModifiable }]
+            };
+        }
 
-    // --- Editing Flow ---
-    if (isEditing && logToEdit) {
-        // Note: logForReference is already set by `openWorkoutForEditing`
-        setIsNewSessionForLog(false);
-        setAiWorkoutTips(null); // No pre-workout tips when editing.
-        setCurrentWorkoutLog(logToEdit);
-        setCurrentWorkoutForForm(workout);
-        setIsLogFormOpen(true);
-        setIsSelectWorkoutModalOpen(false);
-    } 
-    // --- New Session Flow ---
-    else {
-        // Find the most recent previous log of this workout template to use for reference.
-        const previousLogForThisTemplate = myWorkoutLogs
-            .filter(l => l.workoutId === workout.id)
-            .sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime())[0];
-        
-        setIsNewSessionForLog(true);
-        setLogForReference(undefined); // Clear reference log for new sessions
+        if (!workoutTemplate) {
+            alert("Kunde inte hitta passmallen för det pågående passet. Utkastet tas bort.");
+            handleDeleteInProgressWorkout();
+            return;
+        }
 
-        // If a previous log exists and AI is enabled, show the AI assistant.
-        if (previousLogForThisTemplate && isAiEnabled && isOnline) {
-            setPreWorkoutData({ workout, previousLog: previousLogForThisTemplate });
-            setIsAIAssistantModalOpen(true);
-            setIsSelectWorkoutModalOpen(false);
+        const logToEdit: WorkoutLog = {
+            type: 'workout',
+            id: 'in-progress-session',
+            workoutId: inProgressWorkout.workoutId,
+            participantId: currentParticipantId,
+            completedDate: new Date().toISOString(),
+            entries: inProgressWorkout.logEntries.map(([exerciseId, loggedSets]) => ({
+                exerciseId,
+                loggedSets
+            })),
+            postWorkoutComment: inProgressWorkout.postWorkoutComment,
+            moodRating: inProgressWorkout.moodRating ?? undefined,
+            selectedExercisesForModifiable: inProgressWorkout.selectedExercisesForModifiable,
+        };
+    
+        handleStartWorkout(workoutTemplate, true, logToEdit);
+        setInProgressWorkout(null);
+        setShowResumeModal(false);
+        setWorkoutIntent(null);
+    };
+
+    const handleAttemptLogWorkout = (category: WorkoutCategory) => {
+        if (inProgressWorkout) {
+            setWorkoutIntent(category);
+            setShowResumeModal(true);
         } else {
-            // Otherwise, just open the log form for a new session.
+            setWorkoutCategoryFilter(category);
+            setIsSelectWorkoutModalOpen(true);
+        }
+    };
+
+    const handleDeleteActivity = (activityId: string, activityType: 'workout' | 'general' | 'goal_completion') => {
+        if (activityType === 'workout') {
+            setWorkoutLogsData(prev => prev.filter(log => log.id !== activityId));
+        } else if (activityType === 'general') {
+            setGeneralActivityLogsData(prev => prev.filter(log => log.id !== activityId));
+        } else if (activityType === 'goal_completion') {
+            setGoalCompletionLogsData(prev => prev.filter(log => log.id !== activityId));
+        }
+    };
+  
+    const openWorkoutForEditing = useCallback((logToEdit: WorkoutLog) => {
+        const workoutTemplate = workouts.find(w => w.id === logToEdit.workoutId);
+
+        const referenceLog = myWorkoutLogs
+            .filter(l => l.workoutId === logToEdit.workoutId && new Date(l.completedDate) < new Date(logToEdit.completedDate))
+            .sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime())[0];
+        setLogForReference(referenceLog);
+
+        if (!workoutTemplate && !logToEdit.selectedExercisesForModifiable) {
+            alert("Kunde inte hitta passmallen för denna logg och ingen anpassad struktur är sparad. Redigering är inte möjlig.");
+            return;
+        }
+    
+        if (logToEdit.selectedExercisesForModifiable && logToEdit.selectedExercisesForModifiable.length > 0) {
+            const workoutForForm: Workout = {
+                id: logToEdit.workoutId,
+                title: workoutTemplate?.title || 'Anpassat Pass',
+                category: workoutTemplate?.category || 'Annat',
+                isPublished: false,
+                isModifiable: true,
+                blocks: [{ id: crypto.randomUUID(), name: "Valda Övningar", exercises: logToEdit.selectedExercisesForModifiable }]
+            };
+            handleStartWorkout(workoutForForm, true, logToEdit);
+        } else if (workoutTemplate) {
+            handleStartWorkout(workoutTemplate, true, logToEdit);
+        } else {
+            console.error("Logikfel i openWorkoutForEditing: Varken mall eller sparade övningar hittades.");
+        }
+    }, [myWorkoutLogs, workouts]);
+
+    const handleEditLog = useCallback((logToEdit: ActivityLog) => {
+        if (isLogFormOpen) return;
+
+        if (logToEdit.type === 'workout') {
+            const workoutLog = logToEdit as WorkoutLog;
+
+            if (!workoutLog.postWorkoutSummary && workoutLog.entries.length === 0) {
+                openWorkoutForEditing(workoutLog);
+                return;
+            }
+
+            const workoutTemplateForSummary = workouts.find(w => w.id === workoutLog.workoutId);
+        
+            setLogForSummaryModal(workoutLog);
+            setWorkoutForSummaryModal(workoutTemplateForSummary || null);
+            setIsNewCompletion(false);
+            setIsPostWorkoutSummaryModalOpen(true);
+
+        } else if (logToEdit.type === 'general') {
+            setLastGeneralActivity(logToEdit as GeneralActivityLog);
+            setIsGeneralActivitySummaryOpen(true);
+        }
+    }, [isLogFormOpen, openWorkoutForEditing, workouts]);
+  
+    useEffect(() => {
+        if (openProfileModalOnInit) {
+            setIsProfileModalOpen(true);
+            onProfileModalOpened();
+        }
+    }, [openProfileModalOnInit, onProfileModalOpened]);
+
+    useEffect(() => {
+        setProfileOpener({ open: () => setIsProfileModalOpen(true) });
+        return () => setProfileOpener(null);
+    }, [setProfileOpener]);
+
+    useEffect(() => {
+        const membershipName = myMembership?.name?.toLowerCase();
+        const isStartProgram = membershipName === 'startprogram';
+
+        if (isStartProgram) {
+            const isProfileComplete = !!(participantProfile?.birthDate && participantProfile?.gender && participantProfile?.gender !== '-');
+            if (!isProfileComplete) {
+                const prospectModalShownKey = `flexibel_prospectProfileModalShown_${currentParticipantId}`;
+                const hasBeenShown = localStorage.getItem(prospectModalShownKey) === 'true';
+                setShowIncompleteProfileBanner(hasBeenShown);
+            } else {
+                setShowIncompleteProfileBanner(false);
+            }
+        } else {
+            setShowIncompleteProfileBanner(false);
+        }
+    }, [participantProfile, myMembership, currentParticipantId]);
+
+
+    const myUpcomingSessions = useMemo(() => {
+        return myOneOnOneSessions
+          .filter(s => s.status === 'scheduled' && new Date(s.startTime) > new Date())
+          .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+    }, [myOneOnOneSessions]);
+
+    useEffect(() => {
+        const todaysMeetings = myUpcomingSessions.filter(s => dateUtils.isSameDay(new Date(s.startTime), new Date()));
+        if (todaysMeetings.length > 0 && !sessionStorage.getItem('flexibel_meetingToastShown')) {
+            setShowMeetingToast(true);
+            sessionStorage.setItem('flexibel_meetingToastShown', 'true');
+        }
+    }, [myUpcomingSessions]);
+
+    const nextMeetingForCard = useMemo(() => {
+        if (myUpcomingSessions.length === 0) {
+          return null;
+        }
+        const nextSession = myUpcomingSessions[0];
+        const sevenDaysFromNow = new Date();
+        sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+        sevenDaysFromNow.setHours(23, 59, 59, 999); // Include the entire 7th day
+
+        if (new Date(nextSession.startTime) <= sevenDaysFromNow) {
+          return nextSession;
+        }
+        return null;
+    }, [myUpcomingSessions]);
+
+    // APP BADGING LOGIC
+    useEffect(() => {
+        if ('setAppBadge' in navigator) {
+          const pendingRequestCount = connections.filter(
+            c => c.receiverId === currentParticipantId && c.status === 'pending'
+          ).length;
+
+          const totalUnreadCount = pendingRequestCount + (newFlowItemsCount || 0);
+
+          try {
+            if (totalUnreadCount > 0) {
+              (navigator as any).setAppBadge(totalUnreadCount);
+            } else {
+              (navigator as any).clearAppBadge();
+            }
+          } catch (error) {
+            console.error('App Badging API error:', error);
+          }
+        }
+    }, [connections, currentParticipantId, newFlowItemsCount]);
+
+    const allActivityLogs = useMemo<ActivityLog[]>(() => {
+        return [...myWorkoutLogs, ...myGeneralActivityLogs, ...myGoalCompletionLogs].sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime());
+    }, [myWorkoutLogs, myGeneralActivityLogs, myGoalCompletionLogs]);
+
+    const allActivityLogsForLeaderboard = useMemo<ActivityLog[]>(() => {
+        return [...workoutLogs, ...generalActivityLogs, ...goalCompletionLogs];
+    }, [workoutLogs, generalActivityLogs, goalCompletionLogs]);
+
+    const isNewUser = useMemo(() => {
+        return allActivityLogs.length === 0 && myParticipantGoals.length === 0;
+    }, [allActivityLogs, myParticipantGoals]);
+
+    const nextBooking = useMemo(() => {
+        const now = new Date();
+        const myBookings = allParticipantBookings
+            .filter(b => b.participantId === currentParticipantId && (b.status === 'BOOKED' || b.status === 'WAITLISTED'))
+            .map(booking => {
+                const schedule = groupClassSchedules.find(s => s.id === booking.scheduleId);
+                if (!schedule) return null;
+
+                const [hour, minute] = schedule.startTime.split(':').map(Number);
+                const [year, month, day] = booking.classDate.split('-').map(Number);
+                const startDateTime = new Date(year, month - 1, day, hour, minute);
+
+                if (startDateTime < now) return null;
+
+                const classDef = groupClassDefinitions.find(d => d.id === schedule.groupClassId);
+                const coach = staffMembers.find(s => s.id === schedule.coachId);
+
+                if (!classDef || !coach) return null;
+
+                return { booking, schedule, classDef, coach, startDateTime };
+            })
+            .filter((b): b is NonNullable<typeof b> => b !== null)
+            .sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
+    
+        return myBookings[0] || null;
+    }, [allParticipantBookings, currentParticipantId, groupClassSchedules, groupClassDefinitions, staffMembers]);
+
+
+    const latestGoal = useMemo(() => {
+        if (myParticipantGoals.length === 0) return null;
+        return [...myParticipantGoals].sort((a,b) => new Date(b.setDate).getTime() - new Date(a.setDate).getTime())[0];
+    }, [myParticipantGoals]);
+  
+    const latestActiveGoal = useMemo(() => {
+         const sortedGoals = [...myParticipantGoals].sort((a,b) => new Date(b.setDate).getTime() - new Date(a.setDate).getTime());
+         return sortedGoals.find(g => !g.isCompleted) || null;
+    }, [myParticipantGoals]);
+    
+    const latestConditioningValues = useMemo(() => {
+        if (!myConditioningStats || myConditioningStats.length === 0) return { airbike4MinKcal: null, skierg4MinMeters: null, rower4MinMeters: null, rower2000mTimeSeconds: null, treadmill4MinMeters: null };
+
+        const findLastValue = (key: keyof Omit<ParticipantConditioningStat, 'id'|'lastUpdated'|'participantId'|'reactions'|'comments'>): {value: string, date: string} | null => {
+            const sorted = [...myConditioningStats].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime());
+            for(const stat of sorted) {
+                const statValue = stat[key];
+                if (statValue !== undefined && statValue !== null) {
+                    return { value: String(statValue), date: stat.lastUpdated };
+                }
+            }
+            return null;
+        };
+
+        return {
+            airbike4MinKcal: findLastValue('airbike4MinKcal'),
+            skierg4MinMeters: findLastValue('skierg4MinMeters'),
+            rower4MinMeters: findLastValue('rower4MinMeters'),
+            rower2000mTimeSeconds: findLastValue('rower2000mTimeSeconds'),
+            treadmill4MinMeters: findLastValue('treadmill4MinMeters'),
+        };
+    }, [myConditioningStats]);
+  
+    const latestPhysique = useMemo(() => {
+        if (myPhysiqueHistory.length === 0) return null;
+        return [...myPhysiqueHistory].sort((a,b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
+    }, [myPhysiqueHistory]);
+
+    const flexibelStrengthScore = useMemo(() => {
+        if (latestStrengthStats && participantProfile) {
+            return calculateFlexibelStrengthScoreInternal(latestStrengthStats, participantProfile)?.totalScore;
+        }
+        return null;
+    }, [latestStrengthStats, participantProfile]);
+
+    const fssScoreInterpretation = getFssScoreInterpretationFromTool(flexibelStrengthScore);
+
+    const openMentalCheckinIfNeeded = useCallback(() => {
+        const wasLoggedThisWeek = () => {
+            if (!myMentalWellbeing?.lastUpdated) return false;
+            // Check if the last update was in the same week as today. Monday is the start of the week.
+            return dateUtils.isSameWeek(new Date(myMentalWellbeing.lastUpdated), new Date());
+        };
+
+        if (!wasLoggedThisWeek()) {
+            setIsMentalCheckinOpen(true);
+        }
+    }, [myMentalWellbeing]);
+
+    const handleFinalizePostWorkoutSummary = () => {
+        setIsPostWorkoutSummaryModalOpen(false);
+        setLogForSummaryModal(null);
+        setWorkoutForSummaryModal(null);
+        setIsNewCompletion(false);
+        openMentalCheckinIfNeeded();
+    };
+    
+    const handleEditLogFromSummary = () => {
+        if (!logForSummaryModal) return;
+        setIsPostWorkoutSummaryModalOpen(false);
+        openWorkoutForEditing(logForSummaryModal);
+    };
+
+    const handleStartWorkout = useCallback((workout: Workout, isEditing: boolean = false, logToEdit?: WorkoutLog) => {
+        if (workout.isModifiable && workout.exerciseSelectionOptions && !isEditing) {
+            setWorkoutForExerciseSelection(workout);
+            setIsExerciseSelectionModalOpen(true);
+            setIsSelectWorkoutModalOpen(false); 
+            return;
+        }
+
+        if (isEditing && logToEdit) {
+            setIsNewSessionForLog(false);
             setAiWorkoutTips(null);
-            setCurrentWorkoutLog(previousLogForThisTemplate); // Pass for placeholder values ("last time you did...")
+            setCurrentWorkoutLog(logToEdit);
             setCurrentWorkoutForForm(workout);
             setIsLogFormOpen(true);
             setIsSelectWorkoutModalOpen(false);
+        } 
+        else {
+            const previousLogForThisTemplate = myWorkoutLogs
+                .filter(l => l.workoutId === workout.id)
+                .sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime())[0];
+            
+            setIsNewSessionForLog(true);
+            setLogForReference(undefined);
+
+            if (previousLogForThisTemplate && isAiEnabled && isOnline) {
+                setPreWorkoutData({ workout, previousLog: previousLogForThisTemplate });
+                setIsAIAssistantModalOpen(true);
+                setIsSelectWorkoutModalOpen(false);
+            } else {
+                setAiWorkoutTips(null);
+                setCurrentWorkoutLog(previousLogForThisTemplate);
+                setCurrentWorkoutForForm(workout);
+                setIsLogFormOpen(true);
+                setIsSelectWorkoutModalOpen(false);
+            }
         }
-    }
-    
-    if (mainContentRef.current) mainContentRef.current.scrollTop = 0;
-};
+        
+        if (mainContentRef.current) mainContentRef.current.scrollTop = 0;
+    }, [isAiEnabled, isOnline, myWorkoutLogs]);
 
-  const handleFabPrimaryAction = () => {
-    setIsFabMenuOpen(prev => !prev);
-  };
+    const handleFabPrimaryAction = () => {
+        setIsFabMenuOpen(prev => !prev);
+    };
 
+    const handleContinueFromAIAssistant = (tips: AiWorkoutTips) => {
+        if (preWorkoutData) {
+            setAiWorkoutTips(tips);
+            setCurrentWorkoutLog(preWorkoutData.previousLog);
+            setCurrentWorkoutForForm(preWorkoutData.workout);
+            setIsLogFormOpen(true);
+        }
+        setIsAIAssistantModalOpen(false);
+        setPreWorkoutData(null);
+    };
 
-  const handleContinueFromAIAssistant = (tips: AiWorkoutTips) => {
-    if (preWorkoutData) {
-      setAiWorkoutTips(tips);
-      setCurrentWorkoutLog(preWorkoutData.previousLog);
-      setCurrentWorkoutForForm(preWorkoutData.workout);
-      setIsLogFormOpen(true);
-    }
-    setIsAIAssistantModalOpen(false);
-    setPreWorkoutData(null);
-  };
-
-  const handleExerciseSelectionConfirm = (selectedExercises: Exercise[]) => {
-    if (workoutForExerciseSelection) {
-        const temporaryWorkoutWithSelectedExercises: Workout = {
-            ...workoutForExerciseSelection,
-            isModifiable: true,
-            exerciseSelectionOptions: undefined,
-            blocks: [{ id: crypto.randomUUID(), name: "Valda Övningar", exercises: selectedExercises }],
-        };
-        handleStartWorkout(temporaryWorkoutWithSelectedExercises);
-    }
-  };
+    const handleExerciseSelectionConfirm = (selectedExercises: Exercise[]) => {
+        if (workoutForExerciseSelection) {
+            const temporaryWorkoutWithSelectedExercises: Workout = {
+                ...workoutForExerciseSelection,
+                isModifiable: true,
+                exerciseSelectionOptions: undefined,
+                blocks: [{ id: crypto.randomUUID(), name: "Valda Övningar", exercises: selectedExercises }],
+            };
+            handleStartWorkout(temporaryWorkoutWithSelectedExercises);
+        }
+    };
 
     const handleSaveProfile = async (
-        profileData: Partial<Pick<ParticipantProfile, 'name' | 'age' | 'gender' | 'enableLeaderboardParticipation' | 'isSearchable' | 'locationId' | 'enableInBodySharing' | 'enableFssSharing' | 'photoURL'>>
+        profileData: Partial<Pick<ParticipantProfile, 'name' | 'birthDate' | 'gender' | 'enableLeaderboardParticipation' | 'isSearchable' | 'locationId' | 'enableInBodySharing' | 'enableFssSharing' | 'photoURL'>>
     ) => {
         try {
             await updateParticipantProfile(currentParticipantId, profileData);
@@ -1164,7 +1284,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             }
             return newGoalsArray;
         });
-    }, [isAiEnabled, isOnline, latestActiveGoal, currentParticipantId, setParticipantGoalsData, setGoalCompletionLogsData, setAiFeedback, setAiFeedbackError, setIsAiFeedbackModalOpen, setIsLoadingAiFeedback, setCurrentAiModalTitle, setIsAiUpsellModalOpen]);
+    }, [isAiEnabled, isOnline, latestActiveGoal, currentParticipantId, setParticipantGoalsData, setGoalCompletionLogsData]);
     
     const handleSaveGeneralActivity = (activityData: Omit<GeneralActivityLog, 'id' | 'type' | 'participantId'>) => {
         const newActivity: GeneralActivityLog = {
@@ -1186,31 +1306,26 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     
     const handleOpenPhysiqueFromStrength = () => {
         setIsStrengthModalOpen(false);
-        // Use a small delay to ensure a smooth transition between modals
         setTimeout(() => {
           setIsPhysiqueModalOpen(true);
         }, 150);
-      };
+    };
 
-    // New useEffect for gamification
     useEffect(() => {
         if (!participantProfile || isNewUser) return;
 
-        // Check for new club memberships
         const newAchievements = checkAndAwardClubMemberships(
             participantProfile,
             allActivityLogs,
             myStrengthStats,
             myConditioningStats,
             myClubMemberships,
-            // FIX: The variable 'allWorkouts' does not exist in this scope. It should be 'workouts'.
             workouts
         );
 
         if (newAchievements.length > 0) {
             setClubMembershipsData(prev => [...prev, ...newAchievements]);
             
-            // Show toast for the first new achievement
             const firstNewClubId = newAchievements[0].clubId;
             const clubDef = CLUB_DEFINITIONS.find(c => c.id === firstNewClubId);
             if (clubDef) {
@@ -1225,28 +1340,54 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
 
     }, [allActivityLogs, myStrengthStats, myConditioningStats, participantProfile, myClubMemberships, workouts, setClubMembershipsData, isNewUser]);
 
+    const handleDismissBirthDatePrompt = () => {
+        setIsBirthDatePromptOpen(false);
+        setHasDismissedPromptThisSession(true);
+    };
+
+    const handleOpenProfileFromPrompt = () => {
+        setIsBirthDatePromptOpen(false);
+        setHasDismissedPromptThisSession(true);
+        setIsProfileModalOpen(true);
+    };
+
+    // ... rest of ParticipantArea component, including the return statement with all the modals.
+    // The modal for the birth date prompt is already there.
+    // ...
     return (
         <div className="bg-gray-100 bg-dotted-pattern bg-dotted-size bg-fixed min-h-screen">
         {isLogFormOpen && currentWorkoutForForm ? (
             <WorkoutLogForm
-            workout={currentWorkoutForForm}
-            allWorkouts={workouts}
-            logForReferenceOrEdit={currentWorkoutLog}
-            logForReference={logForReference}
-            isNewSession={isNewSessionForLog}
-            onSaveLog={handleSaveLog}
-            onClose={() => setIsLogFormOpen(false)}
-            latestGoal={latestGoal}
-            participantProfile={participantProfile}
-            latestStrengthStats={latestStrengthStats}
-            myClubMemberships={myClubMemberships}
-            aiTips={aiWorkoutTips}
-            myWorkoutLogs={myWorkoutLogs}
-            integrationSettings={integrationSettings}
+                workout={currentWorkoutForForm}
+                allWorkouts={workouts}
+                logForReferenceOrEdit={currentWorkoutLog}
+                logForReference={logForReference}
+                isNewSession={isNewSessionForLog}
+                onSaveLog={handleSaveLog}
+                onClose={() => setIsLogFormOpen(false)}
+                latestGoal={latestGoal}
+                participantProfile={participantProfile}
+                latestStrengthStats={latestStrengthStats}
+                myClubMemberships={myClubMemberships}
+                aiTips={aiWorkoutTips}
+                myWorkoutLogs={myWorkoutLogs}
+                integrationSettings={integrationSettings}
             />
         ) : (
             <div className="pb-40">
                 <div ref={mainContentRef} className="container mx-auto px-2 sm:px-4 py-4 space-y-3">
+                    {showNotificationBanner && (
+                        <div className="p-3 bg-blue-100 border-l-4 border-blue-500 rounded-r-lg flex flex-col sm:flex-row justify-between items-center gap-4 mb-4 animate-fade-in-down">
+                            <div>
+                                <h3 className="font-bold text-blue-800">Missa inga uppdateringar!</h3>
+                                <p className="text-sm text-blue-700">Aktivera notiser för att direkt få veta när du får en plats från kölistan.</p>
+                            </div>
+                            <div className="flex gap-2 self-end sm:self-center flex-shrink-0">
+                                <Button size="sm" variant="ghost" onClick={() => setShowNotificationBanner(false)}>Senare</Button>
+                                <Button size="sm" onClick={handleEnableNotifications}>Aktivera</Button>
+                            </div>
+                        </div>
+                    )}
                     {inProgressWorkout && (
                         <div className="p-4 bg-yellow-100 border-l-4 border-yellow-500 rounded-r-lg flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade-in-down">
                             <div>
@@ -1292,7 +1433,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
 
                     <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-200">
                         <div className="grid grid-cols-2 divide-x divide-gray-200">
-                            {/* Total Sessions Stat */}
                             <div className="flex items-center justify-center sm:justify-start px-2 sm:px-4">
                                 <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-lg bg-green-100 text-green-700 mr-3 sm:mr-4">
                                     <TotalPassIcon />
@@ -1303,7 +1443,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                                 </div>
                             </div>
 
-                            {/* Current Streak Stat */}
                             <div className="flex items-center justify-center sm:justify-start px-2 sm:px-4">
                                 <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-lg bg-green-100 text-green-700 mr-3 sm:mr-4">
                                     <StreakIcon />
@@ -1592,10 +1731,8 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 };
                 handleStartWorkout(tempWorkout);
             }}
-            onCheckinScan={(checkinData) => {
-                onCheckInParticipant(checkinData.locationId);
-                setCheckinSuccess(true);
-            }}
+            onSelfCheckIn={(classInstanceId) => onSelfCheckIn(currentParticipantId, classInstanceId, 'self_qr')}
+            onLocationCheckIn={(locationId) => onLocationCheckIn(currentParticipantId, locationId)}
         />
         {participantProfile &&
             <CheckinConfirmationModal
@@ -1665,6 +1802,29 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             allWorkouts={workouts}
             membership={myMembership}
         />
+        <Modal
+            isOpen={isBirthDatePromptOpen}
+            onClose={handleDismissBirthDatePrompt}
+            title="📅 Uppdatera din profil!"
+            size="lg"
+        >
+            <div className="p-4 text-center space-y-4">
+                <h3 className="text-xl font-semibold text-gray-800">
+                    För en bättre upplevelse!
+                </h3>
+                <p className="text-base text-gray-600">
+                    Hej! För att kunna ge dig mer exakta styrkeberäkningar (FSS) och personliga insikter, skulle vi uppskatta om du lade till ditt födelsedatum i din profil.
+                </p>
+                <div className="flex justify-center gap-4 pt-4">
+                    <Button variant="secondary" onClick={handleDismissBirthDatePrompt}>
+                        Påminn mig senare
+                    </Button>
+                    <Button variant="primary" onClick={handleOpenProfileFromPrompt}>
+                        Gå till profil
+                    </Button>
+                </div>
+            </div>
+        </Modal>
     </div>
     );
 };

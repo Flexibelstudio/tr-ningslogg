@@ -2,7 +2,7 @@
   "requestFramePermissions": [
     "camera"
   ],
-  "name": "Copy of Skarp Träningslogg 28 aug",
-  "description": "Försöka få till ai-feedback",
+  "name": "Träningslogg",
+  "description": "",
   "prompt": ""
 }

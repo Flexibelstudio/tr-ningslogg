@@ -1,12 +1,14 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './Button';
 import { Input, Select } from './Input';
 import { useAppContext } from '../context/AppContext';
 import { Location } from '../types';
-import { useNetworkStatus } from '../context/NetworkStatusContext';
 import dataService from '../services/dataService';
 import { TermsModal } from './TermsModal';
+// FIX: Import 'useNetworkStatus' from the context file to resolve the "Cannot find name 'useNetworkStatus'" error.
+import { useNetworkStatus } from '../context/NetworkStatusContext';
 
 interface RegisterProps {
   onSwitchToLogin: () => void;
@@ -46,8 +48,8 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
           setLocationsForOrg(locs);
 
           if (locs.length === 0) {
-            const orgName = allOrganizations.find(o => o.id === selectedOrgId)?.name || 'Den valda organisationen';
-            setFormErrors(prev => ({ ...prev, orgId: `'${orgName}' har inga konfigurerade studios/orter.` }));
+            const orgName = allOrganizations.find((o) => o.id === selectedOrgId)?.name || 'Den valda organisationen';
+            setFormErrors((prev) => ({ ...prev, orgId: `'${orgName}' har inga konfigurerade studios/orter.` }));
           }
         } catch (err) {
           console.error('Failed to fetch locations from dataService:', err);
@@ -230,7 +232,7 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
                     />
                     <span className="text-gray-700 text-base">
                         Jag har läst och godkänner{' '}
-                        <button type="button" onClick={() => setIsTermsModalOpen(true)} className="text-flexibel hover:underline font-semibold">
+                        <button type="button" onClick={() => setIsTermsModalOpen(true)} className="text-flexibel active:underline font-semibold">
                             Användarvillkoren & Integritetspolicyn
                         </button>
                         .
@@ -245,7 +247,7 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
             </form>
 
             <div className="text-center mt-4">
-              <button onClick={onSwitchToLogin} className="text-flexibel hover:underline font-semibold">
+              <button onClick={onSwitchToLogin} className="text-flexibel active:underline font-semibold">
                 Har du redan ett konto? Logga in
               </button>
             </div>

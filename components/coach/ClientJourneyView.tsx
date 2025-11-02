@@ -33,26 +33,6 @@ const EngagementIndicator: React.FC<{ level: 'green' | 'yellow' | 'red' | 'neutr
     return <span className={`inline-block h-3 w-3 rounded-full ${color}`} title={tooltip}></span>;
 };
 
-const formatRelativeDate = (date: Date | null): { absolute: string, relative: string } => {
-    if (!date) return { absolute: '', relative: 'Aldrig' };
-  
-    const now = new Date();
-    const diffTime = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  
-    let relative = '';
-    if (diffDays === 0) relative = 'Idag';
-    else if (diffDays === 1) relative = 'Igår';
-    else if (diffDays <= 7) relative = `För ${diffDays} dgr sedan`;
-    else if (diffDays <= 30) relative = `För ${Math.floor(diffDays / 7)}v sedan`;
-    else relative = date.toLocaleDateString('sv-SE');
-    
-    return {
-        absolute: date.toLocaleDateString('sv-SE', { year: 'numeric', month: 'short', day: 'numeric' }),
-        relative: relative
-    };
-};
-
 interface ClientJourneyEntry extends ParticipantProfile {
   phase: 'Startprogram' | 'Medlem' | 'Riskzon';
   phaseColorClass: string;
@@ -371,7 +351,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
     setProspectIntroCallsData(prev => prev.map(c => c.id === callToLink.id ? updatedCall : c));
 
     // 2. Create a CoachNote from the intro call data
-    // FIX: Replaced obsolete properties with current ones from the ProspectIntroCall type.
     const noteText = `
 --- INTROSAMTALSAMMANFATTNING ---
 Datum: ${new Date(callToLink.createdDate).toLocaleDateString('sv-SE')}
@@ -593,7 +572,7 @@ ${callToLink.coachSummary || 'Ej angivet.'}
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                     {filteredAndSortedData.map(p => {
-                        const { relative: relativeDate } = formatRelativeDate(p.lastActivityDate);
+                        const { relative: relativeDate } = dateUtils.formatRelativeTime(p.lastActivityDate);
                         return (
                             <tr key={p.id} className="hover:bg-gray-50">
                                 <td className="px-4 py-4 whitespace-nowrap">
@@ -630,7 +609,7 @@ ${callToLink.coachSummary || 'Ej angivet.'}
         </div>
       </div>
 
-      {selectedParticipant && (
+      {selectedParticipant && loggedInStaff && (
         <MemberNotesModal
             isOpen={isNotesModalOpen}
             onClose={() => setIsNotesModalOpen(false)}

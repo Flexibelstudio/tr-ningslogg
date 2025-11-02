@@ -199,6 +199,7 @@ Adress: Kärra Centrum 7, Hisings Kärra
       onClose={isBlocking ? () => {} : onClose} 
       title="Villkor och Integritetspolicy" 
       size="2xl"
+      isClosable={!isBlocking}
     >
       <div className="flex flex-col h-[70vh]">
         <div

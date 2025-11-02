@@ -3,6 +3,7 @@ import { GroupClassSchedule, GroupClassDefinition, Location, StaffMember } from 
 import { Button } from '../Button';
 import { CreateScheduleModal } from './CreateScheduleModal';
 import { ConfirmationModal } from '../ConfirmationModal';
+import { useAppContext } from '../../context/AppContext';
 
 interface ScheduleManagementProps {
   schedules: GroupClassSchedule[];
@@ -19,6 +20,7 @@ const TrashIcon = () => (
 const dayOfWeekMap = ['Sön', 'Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör'];
 
 export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ schedules, setSchedules, classDefinitions, locations, coaches }) => {
+    const { getColorForCategory } = useAppContext();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [scheduleToEdit, setScheduleToEdit] = useState<GroupClassSchedule | null>(null);
     const [scheduleToDelete, setScheduleToDelete] = useState<GroupClassSchedule | null>(null);
@@ -77,9 +79,15 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ schedule
                         const location = locations.find(l => l.id === schedule.locationId);
                         const coach = coaches.find(c => c.id === schedule.coachId);
                         const days = schedule.daysOfWeek.map(d => dayOfWeekMap[d % 7]).join(', ');
+                        const categoryColor = getColorForCategory(classDef?.name);
 
                         return (
-                            <div key={schedule.id} className="p-3 border rounded-md flex flex-col sm:flex-row justify-between items-start gap-4 bg-gray-50">
+                            <div 
+                                key={schedule.id} 
+                                className="p-3 border-l-4 rounded-r-md flex flex-col sm:flex-row justify-between items-start gap-4 bg-gray-50"
+                                style={{ borderColor: categoryColor }}
+                                title={classDef?.name}
+                            >
                                 <div className="flex-grow">
                                     <p className="font-bold text-lg text-gray-800">{classDef?.name || 'Okänt pass'} - {schedule.startTime}</p>
                                     <p className="text-sm text-gray-600">

@@ -1,16 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './Button';
 import { Input } from './Input';
-import { APP_NAME } from '../constants';
-import dataService from '../services/dataService';
-import { User } from '../types';
-import { useNetworkStatus } from '../context/NetworkStatusContext';
 import { Modal } from './Modal';
+import { useNetworkStatus } from '../context/NetworkStatusContext';
 import { auth } from '../firebaseConfig';
 
 interface LoginProps {
-    onSwitchToRegister: () => void;
+  onSwitchToRegister: () => void;
 }
 
 export const Login: React.FC<LoginProps> = ({ onSwitchToRegister }) => {
@@ -34,7 +31,6 @@ export const Login: React.FC<LoginProps> = ({ onSwitchToRegister }) => {
       await login(email, password);
       // AuthProvider will handle the redirect/UI change
     } catch (err: any) {
-      console.error(err);
       if (err.message === 'AUTH_APPROVAL_PENDING') {
         setError('Ditt konto väntar på godkännande av en coach. Du kan inte logga in än.');
       } else {
@@ -54,21 +50,21 @@ export const Login: React.FC<LoginProps> = ({ onSwitchToRegister }) => {
     setResetMessage(null);
 
     try {
-        if (auth) {
-            await auth.sendPasswordResetEmail(resetEmail);
-            setResetMessage({ type: 'success', text: 'En återställningslänk har skickats till din e-postadress. Kontrollera din inkorg (och skräppostmappen).' });
-        } else {
-            throw new Error("Firebase Auth is not initialized.");
-        }
+      if (auth) {
+        await auth.sendPasswordResetEmail(resetEmail);
+        setResetMessage({ type: 'success', text: 'En återställningslänk har skickats till din e-postadress. Kontrollera din inkorg (och skräppostmappen).' });
+      } else {
+        throw new Error('Firebase Auth is not initialized.');
+      }
     } catch (error: any) {
-        console.error("Password reset error:", error);
-        if (error.code === 'auth/user-not-found') {
-            setResetMessage({ type: 'error', text: 'Ingen användare hittades med den e-postadressen.' });
-        } else {
-            setResetMessage({ type: 'error', text: 'Ett fel uppstod. Försök igen senare.' });
-        }
+      console.error("Password reset error:", error);
+      if (error.code === 'auth/user-not-found') {
+        setResetMessage({ type: 'error', text: 'Ingen användare hittades med den e-postadressen.' });
+      } else {
+        setResetMessage({ type: 'error', text: 'Ett fel uppstod. Försök igen senare.' });
+      }
     } finally {
-        setIsSendingReset(false);
+      setIsSendingReset(false);
     }
   };
 
@@ -82,16 +78,7 @@ export const Login: React.FC<LoginProps> = ({ onSwitchToRegister }) => {
           </div>
           {error && <p className="text-center bg-red-100 text-red-700 p-3 rounded-lg">{error}</p>}
           <form onSubmit={handleSubmit} className="space-y-6">
-            <Input
-              label="E-post"
-              id="email"
-              name="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-            />
+            <Input label="E-post" id="email" name="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
             <Input
               label="Lösenord"
               id="password"
@@ -103,45 +90,45 @@ export const Login: React.FC<LoginProps> = ({ onSwitchToRegister }) => {
               autoComplete="current-password"
             />
             <Button type="submit" fullWidth size="lg" disabled={isLoading || !isOnline}>
-              {isLoading ? 'Loggar in...' : (isOnline ? 'Logga in' : 'Logga in (Offline)')}
+              {isLoading ? 'Loggar in...' : isOnline ? 'Logga in' : 'Logga in (Offline)'}
             </Button>
           </form>
           <div className="text-center mt-4 space-y-2">
-              <button onClick={(e) => { e.preventDefault(); setIsResetModalOpen(true); setResetMessage(null); setResetEmail(''); }} className="text-sm text-flexibel hover:underline">
-                Glömt lösenord?
+            <button onClick={(e) => {
+              e.preventDefault();
+              setIsResetModalOpen(true);
+              setResetMessage(null);
+              setResetEmail('');
+            }} className="text-sm text-flexibel active:underline">
+              Glömt lösenord?
+            </button>
+            <p>
+              <button onClick={onSwitchToRegister} className="text-flexibel active:underline font-semibold">
+                Inget konto? Skapa ett här
               </button>
-              <p>
-                  <button onClick={onSwitchToRegister} className="text-flexibel hover:underline font-semibold">
-                      Inget konto? Skapa ett här
-                  </button>
-              </p>
+            </p>
           </div>
         </div>
       </main>
       <Modal isOpen={isResetModalOpen} onClose={() => setIsResetModalOpen(false)} title="Återställ lösenord">
         {resetMessage ? (
-            <div className="space-y-4 text-center">
+          <div className="space-y-4 text-center">
             <p className={`text-lg ${resetMessage.type === 'success' ? 'text-green-700' : 'text-red-700'}`}>{resetMessage.text}</p>
             <Button onClick={() => setIsResetModalOpen(false)}>Stäng</Button>
-            </div>
+          </div>
         ) : (
-            <form onSubmit={handlePasswordReset} className="space-y-4">
+          <form onSubmit={handlePasswordReset} className="space-y-4">
             <p>Ange din e-postadress så skickar vi en länk för att återställa ditt lösenord.</p>
-            <Input
-                label="E-post"
-                type="email"
-                value={resetEmail}
-                onChange={(e) => setResetEmail(e.target.value)}
-                required
-                autoComplete="email"
-            />
+            <Input label="E-post" type="email" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} required autoComplete="email" />
             <div className="flex justify-end gap-2">
-                <Button type="button" variant="secondary" onClick={() => setIsResetModalOpen(false)} disabled={isSendingReset}>Avbryt</Button>
-                <Button type="submit" disabled={isSendingReset || !resetEmail.trim()}>
+              <Button type="button" variant="secondary" onClick={() => setIsResetModalOpen(false)} disabled={isSendingReset}>
+                Avbryt
+              </Button>
+              <Button type="submit" disabled={isSendingReset || !resetEmail.trim()}>
                 {isSendingReset ? 'Skickar...' : 'Skicka återställningslänk'}
-                </Button>
+              </Button>
             </div>
-            </form>
+          </form>
         )}
       </Modal>
     </div>

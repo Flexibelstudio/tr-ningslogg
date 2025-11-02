@@ -116,8 +116,8 @@ export const CommunityModal: React.FC<CommunityModalProps> = ({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Community" size="2xl">
-        <div className="flex flex-col max-h-[70vh] min-h-[50vh]">
-            <div className="border-b border-gray-200 flex-shrink-0">
+        <div className="space-y-4 min-h-[50vh]">
+            <div className="border-b border-gray-200">
                 <nav className="-mb-px flex flex-wrap gap-x-4" aria-label="Tabs">
                     <button onClick={() => setActiveTab('friends')} className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('friends')}`}>
                         Mina Vänner ({myFriends.length})
@@ -132,78 +132,76 @@ export const CommunityModal: React.FC<CommunityModalProps> = ({
                 </nav>
             </div>
             
-            <div className="flex-grow overflow-y-auto pt-4 pr-2 -mr-2">
-                <div role="tabpanel" hidden={activeTab !== 'search'}>
-                    <Input placeholder="Sök efter namn..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-                    <ul className="mt-4 space-y-2">
-                        {searchResults.map(p => {
-                            const status = getConnectionStatus(p.id);
-                            return (
-                                <li key={p.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
-                                    <div className="flex items-center gap-3">
-                                        <Avatar name={p.name} photoURL={p.photoURL} size="md" className="!w-10 !h-10" />
-                                        <span className="font-medium text-lg">{p.name}</span>
-                                    </div>
-                                    {status === 'accepted' && <span className="text-base font-semibold text-green-600">Vänner</span>}
-                                    {status === 'pending' && <span className="text-base font-semibold text-yellow-600">Väntar</span>}
-                                    {status === null && <Button size="sm" onClick={() => handleSendRequest(p.id)}>Skicka förfrågan</Button>}
-                                </li>
-                            )
-                        })}
-                        {searchTerm.trim() && searchResults.length === 0 && (
-                            <p className="text-gray-500 text-center pt-4 text-lg">Inga medlemmar hittades.</p>
-                        )}
-                    </ul>
-                </div>
-
-                <div role="tabpanel" hidden={activeTab !== 'friends'}>
-                    <ul className="mt-4 space-y-2">
-                        {myFriends.length > 0 ? myFriends.map(f => (
-                            <li key={f.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
+            <div role="tabpanel" hidden={activeTab !== 'search'}>
+                <Input placeholder="Sök efter namn..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                <ul className="mt-4 space-y-2 max-h-80 overflow-y-auto pr-2 -mr-2">
+                    {searchResults.map(p => {
+                        const status = getConnectionStatus(p.id);
+                        return (
+                            <li key={p.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
                                 <div className="flex items-center gap-3">
-                                    <Avatar name={f.name} photoURL={f.photoURL} size="md" className="!w-10 !h-10" />
-                                    <span className="font-medium text-lg">{f.name}</span>
+                                    <Avatar name={p.name} photoURL={p.photoURL} size="md" className="!w-10 !h-10" />
+                                    <span className="font-medium text-lg">{p.name}</span>
                                 </div>
-                                <Button size="sm" variant="danger" onClick={() => handleRemoveFriend(f.id)}>Ta bort</Button>
+                                {status === 'accepted' && <span className="text-base font-semibold text-green-600">Vänner</span>}
+                                {status === 'pending' && <span className="text-base font-semibold text-yellow-600">Väntar</span>}
+                                {status === null && <Button size="sm" onClick={() => handleSendRequest(p.id)}>Skicka förfrågan</Button>}
                             </li>
-                        )) : <p className="text-gray-500 text-center pt-4 text-lg">Du har inga vänner än. Använd sök för att hitta andra medlemmar!</p>}
-                    </ul>
-                </div>
+                        )
+                    })}
+                    {searchTerm.trim() && searchResults.length === 0 && (
+                        <p className="text-gray-500 text-center pt-4 text-lg">Inga medlemmar hittades.</p>
+                    )}
+                </ul>
+            </div>
 
-                <div role="tabpanel" hidden={activeTab !== 'requests'}>
-                    <div className="space-y-6">
-                        <div>
-                            <h3 className="text-xl font-semibold text-gray-700 mb-2">Mottagna förfrågningar</h3>
-                            <ul className="space-y-2">
-                                {incomingRequests.length > 0 ? incomingRequests.map(r => (
-                                    <li key={r.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
-                                        <div className="flex items-center gap-3">
-                                            <Avatar name={r.requester.name} photoURL={r.requester.photoURL} size="md" className="!w-10 !h-10" />
-                                            <span className="font-medium text-lg">{r.requester.name}</span>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <Button size="sm" variant="primary" onClick={() => handleUpdateRequest(r.id, 'accepted')}>Acceptera</Button>
-                                            <Button size="sm" variant="secondary" onClick={() => handleUpdateRequest(r.id, 'declined')}>Avböj</Button>
-                                        </div>
-                                    </li>
-                                )) : <p className="text-gray-500 text-center pt-4 text-lg">Inga nya vänförfrågningar.</p>}
-                            </ul>
-                        </div>
+            <div role="tabpanel" hidden={activeTab !== 'friends'}>
+                <ul className="mt-4 space-y-2 max-h-80 overflow-y-auto pr-2 -mr-2">
+                    {myFriends.length > 0 ? myFriends.map(f => (
+                         <li key={f.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
+                            <div className="flex items-center gap-3">
+                                <Avatar name={f.name} photoURL={f.photoURL} size="md" className="!w-10 !h-10" />
+                                <span className="font-medium text-lg">{f.name}</span>
+                            </div>
+                            <Button size="sm" variant="danger" onClick={() => handleRemoveFriend(f.id)}>Ta bort</Button>
+                        </li>
+                    )) : <p className="text-gray-500 text-center pt-4 text-lg">Du har inga vänner än. Använd sök för att hitta andra medlemmar!</p>}
+                </ul>
+            </div>
 
-                        <div className="pt-6 border-t">
-                            <h3 className="text-xl font-semibold text-gray-700 mb-2">Skickade förfrågningar</h3>
-                            <ul className="space-y-2">
-                                {outgoingRequests.length > 0 ? outgoingRequests.map(r => (
-                                    <li key={r.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
-                                        <div className="flex items-center gap-3">
-                                            <Avatar name={r.receiver.name} photoURL={r.receiver.photoURL} size="md" className="!w-10 !h-10" />
-                                            <span className="font-medium text-lg">{r.receiver.name}</span>
-                                        </div>
-                                        <Button size="sm" variant="danger" onClick={() => handleCancelRequest(r.id)}>Ångra</Button>
-                                    </li>
-                                )) : <p className="text-gray-500 text-center pt-4 text-lg">Du har inga väntande skickade förfrågningar.</p>}
-                            </ul>
-                        </div>
+            <div role="tabpanel" hidden={activeTab !== 'requests'}>
+                <div className="space-y-6">
+                    <div>
+                        <h3 className="text-xl font-semibold text-gray-700 mb-2">Mottagna förfrågningar</h3>
+                        <ul className="space-y-2 max-h-40 overflow-y-auto pr-2 -mr-2">
+                            {incomingRequests.length > 0 ? incomingRequests.map(r => (
+                                <li key={r.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
+                                    <div className="flex items-center gap-3">
+                                        <Avatar name={r.requester.name} photoURL={r.requester.photoURL} size="md" className="!w-10 !h-10" />
+                                        <span className="font-medium text-lg">{r.requester.name}</span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Button size="sm" variant="primary" onClick={() => handleUpdateRequest(r.id, 'accepted')}>Acceptera</Button>
+                                        <Button size="sm" variant="secondary" onClick={() => handleUpdateRequest(r.id, 'declined')}>Avböj</Button>
+                                    </div>
+                                </li>
+                            )) : <p className="text-gray-500 text-center pt-4 text-lg">Inga nya vänförfrågningar.</p>}
+                        </ul>
+                    </div>
+
+                    <div className="pt-6 border-t">
+                        <h3 className="text-xl font-semibold text-gray-700 mb-2">Skickade förfrågningar</h3>
+                        <ul className="space-y-2 max-h-40 overflow-y-auto pr-2 -mr-2">
+                            {outgoingRequests.length > 0 ? outgoingRequests.map(r => (
+                                <li key={r.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
+                                    <div className="flex items-center gap-3">
+                                        <Avatar name={r.receiver.name} photoURL={r.receiver.photoURL} size="md" className="!w-10 !h-10" />
+                                        <span className="font-medium text-lg">{r.receiver.name}</span>
+                                    </div>
+                                    <Button size="sm" variant="danger" onClick={() => handleCancelRequest(r.id)}>Ångra</Button>
+                                </li>
+                            )) : <p className="text-gray-500 text-center pt-4 text-lg">Du har inga väntande skickade förfrågningar.</p>}
+                        </ul>
                     </div>
                 </div>
             </div>

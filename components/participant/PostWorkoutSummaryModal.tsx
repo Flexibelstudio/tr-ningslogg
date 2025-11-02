@@ -199,7 +199,7 @@ export const PostWorkoutSummaryModal: React.FC<PostWorkoutSummaryModalProps> = (
   if (hasFinalized) finalizeButtonText = "Sparat! ✓";
 
   return (
-    <Modal isOpen={isOpen} onClose={handleModalCloseWithFinalize} title="" size="lg" showCloseButtonOnly={true}>
+    <Modal isOpen={isOpen} onClose={handleModalCloseWithFinalize} title="" size="lg">
       {isNewCompletion && isOpen && summaryData && <Confetti />}
       <div ref={shareableContentRef} className="bg-white p-6 rounded-lg">
         <div className="text-center space-y-4">
@@ -318,7 +318,7 @@ export const PostWorkoutSummaryModal: React.FC<PostWorkoutSummaryModalProps> = (
             </Button>
             <Button 
               onClick={handleShare} 
-              variant="secondary" 
+              variant="accent" 
               size="md"
               className="w-full"
               disabled={isSharingImage || isFinalizing}

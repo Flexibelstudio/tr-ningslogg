@@ -1,8 +1,9 @@
 import { 
     MockDB, OrganizationData, ParticipantProfile, WorkoutLog, GeneralActivityLog, Connection, Location, 
-    StaffMember, GroupClassSchedule, Membership, WorkoutCategoryDefinition, GroupClassDefinition, User, FlowItem
+    StaffMember, GroupClassSchedule, Membership, WorkoutCategoryDefinition, GroupClassDefinition, User
 } from '../types';
-import { LOCAL_STORAGE_KEYS, PREDEFINED_GROUP_CLASSES, PREDEFINED_MEMBERSHIPS, PREDEFINED_WORKOUT_CATEGORIES } from '../constants';
+// FIX: COLOR_PALETTE was missing from this import
+import { LOCAL_STORAGE_KEYS, PREDEFINED_GROUP_CLASSES, PREDEFINED_MEMBERSHIPS, PREDEFINED_WORKOUT_CATEGORIES, COLOR_PALETTE } from '../constants';
 
 export const createInitialOrgData = (orgId: string): OrganizationData => {
     const loc1Id = 'loc-1-salem';
@@ -51,14 +52,14 @@ export const createInitialOrgData = (orgId: string): OrganizationData => {
         participantBookings: [],
         leads: [],
         prospectIntroCalls: [],
-        branding: {},
-        flowItems: [],
+        userPushSubscriptions: [],
+        branding: { categoryColorMap: {} },
     };
 
     // Add specific seeded data
     const p1: ParticipantProfile = {
         id: 'user-id-participant1-profile', name: 'Erik Svensson', email: 'erik@test.com', isActive: true,
-        creationDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), age: '35',
+        creationDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), birthDate: '1989-05-15',
         gender: 'Man', bodyweightKg: 85, lastUpdated: new Date().toISOString(),
         enableLeaderboardParticipation: true, isSearchable: true, locationId: loc1Id, // Salem
         membershipId: 'membership-standard-seed',
@@ -67,7 +68,7 @@ export const createInitialOrgData = (orgId: string): OrganizationData => {
     
     const p2: ParticipantProfile = {
         id: 'user-id-participant2-profile', name: 'Anna Andersson', email: 'anna@test.com', isActive: true,
-        creationDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), age: '32',
+        creationDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), birthDate: '1992-08-20',
         gender: 'Kvinna', bodyweightKg: 65, lastUpdated: new Date().toISOString(),
         enableLeaderboardParticipation: true, isSearchable: true, locationId: loc2Id, // Kärra
         membershipId: 'membership-mini-seed',
@@ -76,7 +77,7 @@ export const createInitialOrgData = (orgId: string): OrganizationData => {
 
     const p_sanna: ParticipantProfile = {
         id: 'user-id-admin1-profile', name: 'Sanna Admin (Medlem)', email: 'sanna.admin@flexibel.se', isActive: true,
-        creationDate: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(), age: '29',
+        creationDate: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(), birthDate: '1995-03-10',
         gender: 'Kvinna', bodyweightKg: 62, lastUpdated: new Date().toISOString(),
         enableLeaderboardParticipation: true, isSearchable: true, locationId: loc1Id, // Salem
         membershipId: 'membership-standard-seed',
@@ -90,44 +91,6 @@ export const createInitialOrgData = (orgId: string): OrganizationData => {
     const s3_erik: StaffMember = { id: 'staff-3-erik', name: 'Erik Svensson (Personal)', email: 'erik@test.com', role: 'Coach', locationId: loc1Id, isActive: true, linkedParticipantProfileId: 'user-id-participant1-profile' }; // Salem
     
     orgData.staffMembers.push(s1, s2, s3_erik);
-
-    // Add mock flow items for demonstration
-    const mockFlowItem1: FlowItem = {
-        id: 'flow-item-1-mock',
-        orgId: orgId,
-        timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // Yesterday
-        participantId: p1.id,
-        icon: '🏋️',
-        title: 'loggade ett pass: Styrkefokus Underkropp',
-        description: 'Kändes riktigt bra idag! Ökade i knäböjen.',
-        sourceLogId: 'mock-workout-log-1',
-        sourceLogType: 'workout',
-        visibility: 'friends',
-        praiseItems: [
-            { icon: '⭐', text: 'Nytt Personligt Rekord i Knäböj: 110 kg.', type: 'pb' }
-        ],
-        comments: [
-            { id: 'comment-1', authorId: p2.id, authorName: 'Anna Andersson', text: 'Starkt jobbat!! 🔥', createdDate: new Date().toISOString() }
-        ],
-        reactions: [
-            { participantId: p2.id, emoji: '💪', createdDate: new Date().toISOString() }
-        ]
-    };
-
-    const mockFlowItem2: FlowItem = {
-        id: 'flow-item-2-mock',
-        orgId: orgId,
-        timestamp: new Date().toISOString(), // Today
-        participantId: s2.id,
-        icon: '📣',
-        title: 'Nytt Schema Ute Nu!',
-        description: 'Glöm inte att boka in er på nästa veckas pass. Nya tider för HIIT och Yin Yoga är tillagda. Boka via appen!',
-        sourceLogId: 'mock-event-1',
-        sourceLogType: 'coach_event',
-        visibility: 'public'
-    };
-    orgData.flowItems.push(mockFlowItem1, mockFlowItem2);
-
 
     return orgData;
 };

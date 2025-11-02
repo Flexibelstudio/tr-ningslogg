@@ -2,7 +2,8 @@ import React, { useState, useCallback } from 'react';
 import { ParticipantProfile, WorkoutLog, OneOnOneSession } from '../../types';
 import { Button } from '../Button';
 import { callGeminiApiFn } from '../../firebaseClient';
-import { Type } from '@google/genai';
+// FIX: Aliased the 'Type' enum to 'GenAIType' to resolve a name collision.
+import { Type as GenAIType } from '@google/genai';
 
 interface AIEngagementResult {
   participantId: string;
@@ -67,13 +68,13 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
     `;
 
     const responseSchema = {
-        type: Type.ARRAY,
+        type: GenAIType.ARRAY,
         items: {
-          type: Type.OBJECT,
+          type: GenAIType.OBJECT,
           properties: {
-            participantId: { type: Type.STRING },
-            name: { type: Type.STRING },
-            reason: { type: Type.STRING }
+            participantId: { type: GenAIType.STRING },
+            name: { type: GenAIType.STRING },
+            reason: { type: GenAIType.STRING }
           },
           required: ["participantId", "name", "reason"]
         }
@@ -172,13 +173,13 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
     `;
 
     const responseSchema = {
-        type: Type.ARRAY,
+        type: GenAIType.ARRAY,
         items: {
-          type: Type.OBJECT,
+          type: GenAIType.OBJECT,
           properties: {
-            participantId: { type: Type.STRING },
-            name: { type: Type.STRING },
-            reason: { type: Type.STRING }
+            participantId: { type: GenAIType.STRING },
+            name: { type: GenAIType.STRING },
+            reason: { type: GenAIType.STRING }
           },
           required: ["participantId", "name", "reason"]
         }

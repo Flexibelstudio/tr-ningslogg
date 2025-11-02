@@ -4,8 +4,8 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 import { LOCAL_STORAGE_KEYS } from '../constants';
 import firebaseService from '../services/firebaseService';
 import { auth, db } from '../firebaseConfig';
-import dataService from '../services/dataService';
 import firebase from 'firebase/compat/app';
+import dataService from '../services/dataService';
 
 
 interface AuthState {
@@ -32,7 +32,6 @@ interface AuthContextType {
   
   viewAsParticipant: () => void;
   stopViewingAsParticipant: () => void;
-  updateCurrentUser: (data: Partial<Omit<User, 'id'>>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -54,6 +53,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
     }
     
+    // Guard against using auth or db before they are initialized.
+    if (!auth || !db) {
+        console.warn("AuthContext: Firebase not initialized. Auth state cannot be monitored.");
+        setIsLoading(false);
+        return;
+    }
+    
     const unsubscribe = auth.onAuthStateChanged(async (firebaseUser: firebase.User | null) => {
         if (firebaseUser) {
             const isNewUser = firebaseUser.metadata.creationTime === firebaseUser.metadata.lastSignInTime;
@@ -61,7 +67,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const userDocSnap = await userDocRef.get();
 
             if (userDocSnap.exists) {
-                const userData = userDocSnap.data();
+                const userData = userDocSnap.data() as Omit<User, 'id'>;
                 const { roles, linkedParticipantProfileId } = userData;
                 
                 if (roles?.participant && linkedParticipantProfileId) {
@@ -69,11 +75,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     const participantDocRef = db.collection('organizations').doc(orgId).collection('participantDirectory').doc(linkedParticipantProfileId);
                     const participantDocSnap = await participantDocRef.get();
 
-                    if (participantDocSnap.exists && participantDocSnap.data().approvalStatus === 'pending') {
-                        // This is an existing pending user (not a new registration).
-                        // Sign them out to prevent access.
+                    if (participantDocSnap.exists && participantDocSnap.data()!.approvalStatus === 'pending') {
                         await auth.signOut();
-                        return; // Stop execution here.
+                        return;
                     }
                 }
                 
@@ -87,13 +91,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 });
             } else {
                 if (isNewUser) {
-                    // This is a new user registration in progress. The user document hasn't been created yet.
-                    // We must do nothing and wait for the registration function to complete its work and sign out.
-                    // This prevents the race condition where this listener signs the user out before the DB write.
                     console.log("New user detected, Firestore doc not yet available. Waiting for registration process to complete.");
                     return;
                 } else {
-                    // This is an existing user whose document is missing, which is a critical error state.
                     console.error(`User doc for existing user ${firebaseUser.uid} not found in Firestore. Signing out.`);
                     await auth.signOut();
                 }
@@ -106,23 +106,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     return () => unsubscribe();
   }, []);
-
-  const updateCurrentUser = useCallback(async (data: Partial<Omit<User, 'id'>>) => {
-    if (!user) {
-        throw new Error("No user is currently logged in to update.");
-    }
-    if (!firebaseService.isOffline()) {
-        await firebaseService.updateUser(user.id, data);
-    }
-    const updatedUser = { ...user, ...data };
-    setUser(updatedUser);
-
-    if (firebaseService.isOffline()) {
-        dataService.set('users', (prev) =>
-            prev.map((u) => (u.id === user.id ? updatedUser : u))
-        );
-    }
-  }, [user]);
 
 
   const organizationId = useMemo(() => {
@@ -175,6 +158,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     }
     
+    if (!auth || !db) throw new Error("Firebase Auth is not initialized.");
     const userCredential = await auth.signInWithEmailAndPassword(email, password);
     const firebaseUser = userCredential.user;
 
@@ -191,7 +175,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         throw new Error('AUTH_NO_USER_PROFILE');
     }
     
-    const userData = userDocSnap.data();
+    const userData = userDocSnap.data() as Omit<User, 'id'>;
     const { roles, linkedParticipantProfileId } = userData;
 
     if (roles?.participant && linkedParticipantProfileId) {
@@ -199,7 +183,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const participantDocRef = db.collection('organizations').doc(orgId).collection('participantDirectory').doc(linkedParticipantProfileId);
         const participantDocSnap = await participantDocRef.get();
 
-        if (participantDocSnap.exists && participantDocSnap.data().approvalStatus === 'pending') {
+        if (participantDocSnap.exists && participantDocSnap.data()!.approvalStatus === 'pending') {
             await auth.signOut();
             throw new Error('AUTH_APPROVAL_PENDING');
         }
@@ -251,7 +235,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     stopImpersonating();
     localStorage.removeItem(LOCAL_STORAGE_KEYS.LAST_USED_ORG_ID);
     if (!firebaseService.isOffline()) {
-        await auth.signOut();
+        if (auth) await auth.signOut();
     } else {
         setUser(null);
     }
@@ -277,7 +261,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [user, setLocalState, stopImpersonating]);
 
-  const value = {
+  const value = useMemo(() => ({
     user,
     isLoading,
     organizationId,
@@ -292,8 +276,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     stopImpersonating,
     viewAsParticipant,
     stopViewingAsParticipant,
-    updateCurrentUser,
-  };
+  }), [
+    user,
+    isLoading,
+    organizationId,
+    currentRole,
+    currentParticipantId,
+    localState.impersonatingOrgId,
+    localState.isStaffViewingAsParticipant,
+    login,
+    register,
+    logout,
+    impersonate,
+    stopImpersonating,
+    viewAsParticipant,
+    stopViewingAsParticipant
+  ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

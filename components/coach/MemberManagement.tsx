@@ -10,7 +10,7 @@ import { MemberNotesModal } from './MemberNotesModal';
 import { useAppContext } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../Modal';
-import { addDays } from '../../utils/dateUtils';
+import { addDays, calculateAge } from '../../utils/dateUtils';
 
 
 interface ApprovalModalProps {
@@ -104,7 +104,7 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({ isOpen, onClose, particip
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={`Godkänn ${participant.name}`}>
             <div className="space-y-4">
-                <label className="flex items-start space-x-3 p-3 bg-gray-100 rounded-md cursor-pointer hover:bg-gray-200 transition-colors">
+                <label className="flex items-start space-x-3 p-3 bg-gray-100 rounded-md cursor-pointer active:bg-gray-200 transition-colors">
                     <input
                         type="radio"
                         name="approval-type"
@@ -119,7 +119,7 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({ isOpen, onClose, particip
                         </p>
                     </div>
                 </label>
-                 <label className="flex items-start space-x-3 p-3 bg-gray-100 rounded-md cursor-pointer hover:bg-gray-200 transition-colors">
+                 <label className="flex items-start space-x-3 p-3 bg-gray-100 rounded-md cursor-pointer active:bg-gray-200 transition-colors">
                     <input
                         type="radio"
                         name="approval-type"
@@ -318,10 +318,10 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
                 const bValue = b[sortConfig.key];
     
                 if (sortConfig.key === 'age') {
-                    const numA = a.age ? parseInt(a.age, 10) : -1;
-                    const numB = b.age ? parseInt(b.age, 10) : -1;
-                    if (numA < numB) return sortConfig.direction === 'asc' ? -1 : 1;
-                    if (numA > numB) return sortConfig.direction === 'asc' ? 1 : -1;
+                    const ageA = calculateAge(a.birthDate) ?? (a.age ? parseInt(a.age) : -1);
+                    const ageB = calculateAge(b.birthDate) ?? (b.age ? parseInt(b.age) : -1);
+                    if (ageA < ageB) return sortConfig.direction === 'asc' ? -1 : 1;
+                    if (ageA > ageB) return sortConfig.direction === 'asc' ? 1 : -1;
                     return 0;
                 }
     
@@ -529,7 +529,7 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                     {filteredAndSortedParticipants.map(p => (
-                        <tr key={p.id} className="hover:bg-gray-50">
+                        <tr key={p.id}>
                             <td className="p-4"><input type="checkbox" checked={selectedMembers.has(p.id)} onChange={() => handleSelectOne(p.id)} /></td>
                             <td className="px-4 py-4 whitespace-nowrap">
                                 <div className="text-sm font-medium text-gray-900">{p.name}</div>
@@ -537,7 +537,7 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
                             </td>
                             <td className="px-4 py-4 whitespace-nowrap text-sm">{getTypeDisplay(p)}</td>
                             <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{p.locationName}</td>
-                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{p.age || '-'}</td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{calculateAge(p.birthDate) ?? p.age ?? '-'}</td>
                             <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">{p.gender || '-'}</td>
                             <td className="px-4 py-4 whitespace-nowrap text-sm font-medium flex gap-2">
                                 <Button size="sm" variant="outline" onClick={() => handleOpenNotesModal(p)}>Klientkort</Button>
@@ -561,7 +561,7 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
             loggedInStaff={loggedInStaff}
         />
         
-        {selectedParticipantForNotes && (
+        {selectedParticipantForNotes && loggedInStaff && (
             <MemberNotesModal
                 isOpen={isNotesModalOpen}
                 onClose={() => setIsNotesModalOpen(false)}
@@ -585,7 +585,7 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
                 oneOnOneSessions={oneOnOneSessions}
                 setOneOnOneSessions={setOneOnOneSessionsData}
                 coaches={staffMembers}
-                loggedInCoachId={user!.id}
+                loggedInCoachId={loggedInStaff!.id}
                 workouts={workouts}
                 addWorkout={addWorkout}
                 updateWorkout={updateWorkout}

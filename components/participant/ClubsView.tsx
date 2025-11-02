@@ -115,10 +115,10 @@ const StudioFilterControl: React.FC<{
                 <button
                     key={option.value}
                     onClick={() => onChange(option.value)}
-                    className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors w-1/2 ${
+                    className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors w-1/2 ${
                         value === option.value
                             ? 'bg-white text-flexibel shadow'
-                            : 'text-gray-600 hover:bg-gray-200'
+                            : 'text-gray-600 active:bg-gray-200'
                     }`}
                 >
                     {option.label}
@@ -250,7 +250,7 @@ export const ClubsView: React.FC<ClubsViewProps> = ({
     const getTabButtonStyle = (tabName: ClubTab) => {
         return activeTab === tabName
             ? 'bg-flexibel/20 text-flexibel'
-            : 'bg-gray-100 text-gray-600 hover:bg-gray-200';
+            : 'bg-gray-100 text-gray-600 active:bg-gray-200';
     };
 
     const renderProgressBar = (current: number, target: number, prevTarget: number = 0) => {
@@ -305,7 +305,7 @@ export const ClubsView: React.FC<ClubsViewProps> = ({
                     }
 
                     return (
-                        <div key={club.id} onClick={() => setSelectedClub(club)} className={`p-4 rounded-xl shadow-md transition-all cursor-pointer ${isMyHighestClub ? 'bg-yellow-100 border-2 border-yellow-400' : 'bg-white hover:shadow-lg border-2 border-transparent'}`}>
+                        <button key={club.id} onClick={() => setSelectedClub(club)} className={`w-full text-left p-4 rounded-xl shadow-md transition-all ${isMyHighestClub ? 'bg-yellow-100 border-2 border-yellow-400' : 'bg-white active:shadow-lg border-2 border-transparent active:scale-[0.98]'}`}>
                             <div className="flex justify-between items-start">
                                 <div className="flex-grow">
                                     <h3 className="text-2xl font-bold text-gray-800">{club.icon} {club.name}</h3>
@@ -323,7 +323,7 @@ export const ClubsView: React.FC<ClubsViewProps> = ({
                                     </div>
                                 </div>
                             )}
-                        </div>
+                        </button>
                     );
                 })}
             </div>

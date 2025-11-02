@@ -1,3 +1,7 @@
+// types.ts
+/// <reference lib="dom" />
+/// <reference lib="es2015" />
+
 // Fix for `import.meta.env` TypeScript errors.
 // Replaced `/// <reference types="vite/client" />` with manual declaration
 // because the type definition file could not be found by the compiler.
@@ -18,8 +22,40 @@ declare global {
     interface ImportMeta {
       readonly env: ImportMetaEnv;
     }
+
+    // FIX: Add minimal EventTarget definition to resolve issues where DOM libs are not available.
+    interface EventTarget {
+      addEventListener(type: string, listener: any): void;
+      removeEventListener(type: string, listener: any): void;
+      dispatchEvent(event: any): boolean;
+    }
+
+    // FIX: Added WakeLockSentinel interface definition to global scope.
+    interface WakeLockSentinel extends EventTarget {
+      release(): Promise<void>;
+      // FIX: Added readonly modifier to fix "All declarations of 'type' must have identical modifiers" error.
+      readonly released: boolean;
+      readonly type: "screen";
+    }
 }
   
+// --- New: Notification System Types ---
+export interface Notification {
+  id: string;
+  type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
+  title: string;
+  message: string;
+  createdAt: Date;
+  autoDismiss?: boolean;
+}
+
+export interface AnalyticsEvent {
+    id: string;
+    type: "BOOKING_CREATED" | "BOOKING_CANCELLED" | "CHECKIN" | "WAITLIST_PROMOTION";
+    timestamp: any; // Firestore Timestamp
+    orgId: string;
+    [key: string]: any;
+}
 
 // --- Core Multi-Tenant Types ---
 export interface User {
@@ -57,6 +93,8 @@ export interface GroupClassDefinition {
   name: string;
   description?: string;
   defaultDurationMinutes?: number;
+  hasWaitlist?: boolean;
+  color?: string;
 }
 
 export interface GroupClassSchedule {
@@ -70,6 +108,7 @@ export interface GroupClassSchedule {
   maxParticipants: number;
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
+  hasWaitlist?: boolean;
 }
 
 export interface ParticipantBooking {
@@ -128,7 +167,7 @@ export interface Exercise {
   targetDistanceMeters?: number | string;
   targetDurationSeconds?: number | string;
   targetCaloriesKcal?: number | string;
-  targetRestSeconds?: number | string; // e.g. "60-90s"
+  targetRestSeconds?: string; // e.g. "60-90s"
 
   baseLiftType?: LiftType; 
   supersetIdentifier?: string; 
@@ -255,7 +294,8 @@ export interface Comment {
 }
 
 export interface WorkoutLog {
-  type: 'workout'; // Discriminating property
+  // FIX: Make 'type' property readonly to prevent accidental modification.
+  readonly type: 'workout'; // Discriminating property
   id: string; // Unique ID for the log itself
   workoutId: string; // Pekar på Workout-mallens ID
   participantId: string; // For future use, MVP is anonymous
@@ -270,7 +310,8 @@ export interface WorkoutLog {
 }
 
 export interface GeneralActivityLog {
-  type: 'general'; // Discriminating property
+  // FIX: Make 'type' property readonly to prevent accidental modification.
+  readonly type: 'general'; // Discriminating property
   id: string;
   participantId: string;
   activityName: string;
@@ -285,7 +326,8 @@ export interface GeneralActivityLog {
 }
 
 export interface GoalCompletionLog {
-  type: 'goal_completion'; // Discriminating property
+  // FIX: Make 'type' property readonly to prevent accidental modification.
+  readonly type: 'goal_completion'; // Discriminating property
   id: string;
   participantId: string;
   goalId: string;
@@ -305,6 +347,7 @@ export interface InProgressWorkout {
   workoutId: string;
   workoutTitle: string;
   startedAt: string; // ISO string
+  // FIX: Ensure 'logEntries' is correctly typed as an array of tuples.
   logEntries: [string, SetDetail[]][]; // Serialized Map
   postWorkoutComment?: string;
   moodRating?: number | null;
@@ -334,7 +377,8 @@ export interface ParticipantProfile {
   // FIX: Add missing 'isProspect' property to track new/potential members.
   isProspect?: boolean;
   creationDate?: string;
-  age?: string; 
+  birthDate?: string; // New: YYYY-MM-DD
+  age?: string; // Legacy: For fallback only
   gender?: GenderOption;
   bodyweightKg?: number;
   muscleMassKg?: number; 
@@ -552,7 +596,8 @@ export interface ClubDefinition {
   name: string;
   description: string;
   icon: string;
-  type: 'LIFT' | 'SESSION_COUNT' | 'BODYWEIGHT_LIFT' | 'CONDITIONING' | 'TOTAL_VOLUME';
+  // FIX: Make 'type' property readonly.
+  readonly type: 'LIFT' | 'SESSION_COUNT' | 'BODYWEIGHT_LIFT' | 'CONDITIONING' | 'TOTAL_VOLUME';
   liftType?: LiftType;
   threshold?: number;
   multiplier?: number;
@@ -579,7 +624,8 @@ export interface CoachEvent {
   id: string;
   title: string;
   description?: string;
-  type: 'event' | 'news';
+  // FIX: Make 'type' property readonly.
+  readonly type: 'event' | 'news';
   eventDate?: string; // ISO string for the date, optional for news
   createdDate: string; // ISO string for when the item was created
   studioTarget: 'all' | 'salem' | 'karra';
@@ -610,7 +656,8 @@ export interface Membership {
   description?: string;
 
   // New: Differentiator
-  type?: 'subscription' | 'clip_card';
+  // FIX: Make 'type' property readonly.
+  readonly type?: 'subscription' | 'clip_card';
 
   // Clip Card-specific
   clipCardClips?: number;
@@ -653,7 +700,8 @@ export interface StaffAvailability {
   staffId: string;
   startTime: string; // ISO string
   endTime: string; // ISO string
-  type: 'available' | 'unavailable';
+  // FIX: Make 'type' property readonly.
+  readonly type: 'available' | 'unavailable';
   isRecurring?: boolean;
   recurringDetails?: {
     daysOfWeek: number[]; // 1 (Mon) - 7 (Sun)
@@ -663,6 +711,14 @@ export interface StaffAvailability {
 
 export interface BrandingSettings {
   logoBase64?: string;
+  categoryColorMap?: Record<string, string>;
+}
+
+// New: For Push Notifications
+export interface UserPushSubscription {
+    id: string; // doc id
+    participantId: string;
+    subscription: PushSubscriptionJSON; // Store the JSON representation
 }
 
 export interface OrganizationData {
@@ -696,6 +752,7 @@ export interface OrganizationData {
   participantBookings: ParticipantBooking[];
   leads: Lead[];
   prospectIntroCalls: ProspectIntroCall[];
+  userPushSubscriptions: UserPushSubscription[];
   branding?: BrandingSettings;
 }
 

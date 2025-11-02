@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
 import { Workout, WorkoutLog, ParticipantProfile, Exercise } from '../../types';
-import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
+// FIX: Aliased the 'Type' enum to 'GenAIType' to resolve a name collision with other 'type' properties in the application.
+import { GoogleGenAI, GenerateContentResponse, Type as GenAIType } from "@google/genai";
 import { callGeminiApiFn } from '../../firebaseClient';
 
 export interface AiWorkoutTips {
@@ -22,33 +23,31 @@ interface AIAssistantModalProps {
   participant: ParticipantProfile;
 }
 
-// FIX: Replaced `JSX.Element` with `React.ReactElement` to fix "Cannot find namespace 'JSX'" error.
+// FIX: Replaced JSX syntax with React.createElement to fix "Cannot find namespace 'JSX'" error.
 const renderTipsContent = (tips: AiWorkoutTips | null): React.ReactElement | null => {
     if (!tips) return null;
     return (
-        <div className="space-y-4">
-            <div className="p-4 bg-gray-50 rounded-lg border">
-                <h3 className="text-lg font-semibold text-gray-800 flex items-center mb-2">
-                    <span className="text-2xl mr-2" role="img" aria-label="Robot">🤖</span>
-                    Sammanfattning & Fokus
-                </h3>
-                <p className="text-base text-gray-700 whitespace-pre-wrap">{tips.generalTips}</p>
-            </div>
-            {tips.exerciseTips.length > 0 && (
-                <div className="space-y-2">
-                     <h3 className="text-lg font-semibold text-gray-800 flex items-center">
-                        <span className="text-2xl mr-2" role="img" aria-label="Måltavla">🎯</span>
-                        Tips för dagens pass
-                    </h3>
-                    {tips.exerciseTips.map((tip, index) => (
-                        <div key={index} className="p-3 bg-blue-50 border-l-4 border-blue-400 rounded-r-lg">
-                            <p className="font-semibold text-blue-800">{tip.exerciseName}</p>
-                            <p className="text-blue-700 mt-1">{tip.tip}</p>
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
+        React.createElement('div', { className: "space-y-4" },
+            React.createElement('div', { className: "p-4 bg-gray-50 rounded-lg border" },
+                React.createElement('h3', { className: "text-lg font-semibold text-gray-800 flex items-center mb-2" },
+                    React.createElement('span', { className: "text-2xl mr-2", role: "img", 'aria-label': "Robot" }, '🤖'),
+                    "Sammanfattning & Fokus"
+                ),
+                React.createElement('p', { className: "text-base text-gray-700 whitespace-pre-wrap" }, tips.generalTips)
+            ),
+            tips.exerciseTips.length > 0 && React.createElement('div', { className: "space-y-2" },
+                React.createElement('h3', { className: "text-lg font-semibold text-gray-800 flex items-center" },
+                    React.createElement('span', { className: "text-2xl mr-2", role: "img", 'aria-label': "Måltavla" }, '🎯'),
+                    "Tips för dagens pass"
+                ),
+                ...tips.exerciseTips.map((tip, index) =>
+                    React.createElement('div', { key: index, className: "p-3 bg-blue-50 border-l-4 border-blue-400 rounded-r-lg" },
+                        React.createElement('p', { className: "font-semibold text-blue-800" }, tip.exerciseName),
+                        React.createElement('p', { className: "text-blue-700 mt-1" }, tip.tip)
+                    )
+                )
+            )
+        )
     );
 };
 
@@ -135,16 +134,16 @@ Exempel på JSON-svar:
 }`;
         
         const responseSchema = {
-            type: Type.OBJECT,
+            type: GenAIType.OBJECT,
             properties: {
-                generalTips: { type: Type.STRING },
+                generalTips: { type: GenAIType.STRING },
                 exerciseTips: {
-                    type: Type.ARRAY,
+                    type: GenAIType.ARRAY,
                     items: {
-                        type: Type.OBJECT,
+                        type: GenAIType.OBJECT,
                         properties: {
-                            exerciseName: { type: Type.STRING },
-                            tip: { type: Type.STRING },
+                            exerciseName: { type: GenAIType.STRING },
+                            tip: { type: GenAIType.STRING },
                         },
                         required: ["exerciseName", "tip"]
                     }
@@ -168,6 +167,10 @@ Exempel på JSON-svar:
               throw new Error(`Cloud Function error: ${error}`);
             }
       
+            // FIX: Add check for empty text to prevent JSON.parse from crashing
+            if (!text) {
+                throw new Error("Received empty response from AI.");
+            }
             const parsedTips = JSON.parse(text);
             setTips(parsedTips);
           } catch (err) {

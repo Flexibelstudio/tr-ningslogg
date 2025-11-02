@@ -1,13 +1,20 @@
 // firebaseClient.ts
-import { getApp, getApps, initializeApp } from "firebase/app";
-import { getFunctions, httpsCallable } from "firebase/functions";
-import { firebaseConfig } from './firebaseConfig';
+import 'firebase/compat/functions';
+import { app } from "./firebaseConfig"; // This will now import the compat app instance
 
-// Initialize Firebase if not already initialized
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+const functions = app ? app.functions('europe-west1') : null;
 
-// Initialize Cloud Functions and point to the correct region
-const functions = getFunctions(app, "europe-west1");
+export const callGeminiApiFn = functions 
+    ? functions.httpsCallable('callGeminiApi') 
+    : () => {
+        console.error("Firebase is not initialized. Cannot call cloud function 'callGeminiApi'.");
+        // Returning a promise that resolves to an error object that the calling components can handle.
+        return Promise.resolve({ data: { error: "Firebase är inte konfigurerad korrekt. Funktionen kan inte anropas." } });
+    };
 
-// Create and export the callable function for the Gemini API proxy
-export const callGeminiApiFn = httpsCallable(functions, 'callGeminiApi');
+export const getAnalyticsDataFn = functions
+    ? functions.httpsCallable('getAnalyticsData')
+    : () => {
+        console.error("Firebase is not initialized. Cannot call cloud function 'getAnalyticsData'.");
+        return Promise.resolve({ data: { error: "Firebase är inte konfigurerad korrekt. Funktionen kan inte anropas." } });
+    };

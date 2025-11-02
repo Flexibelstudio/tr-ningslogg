@@ -7,7 +7,7 @@ export const calculatePostWorkoutSummary = (
     log: WorkoutLog,
     allWorkouts: Workout[],
     myWorkoutLogs: WorkoutLog[],
-    latestStrengthStats: UserStrengthStat | null
+    strengthStatsHistory: UserStrengthStat[] | null
 ): PostWorkoutSummaryData => {
     let totalWeightLifted = 0;
     let totalDistanceMeters = 0;
@@ -25,6 +25,15 @@ export const calculatePostWorkoutSummary = (
         ? log.selectedExercisesForModifiable
         : (workoutTemplate?.blocks || []).reduce((acc, block) => acc.concat(block.exercises), [] as Exercise[]) || [];
 
+    const allTimePBs: Partial<UserStrengthStat> = {};
+    if (strengthStatsHistory && strengthStatsHistory.length > 0) {
+        strengthStatsHistory.forEach(stat => {
+            if (stat.squat1RMaxKg && stat.squat1RMaxKg > (allTimePBs.squat1RMaxKg || 0)) allTimePBs.squat1RMaxKg = stat.squat1RMaxKg;
+            if (stat.benchPress1RMaxKg && stat.benchPress1RMaxKg > (allTimePBs.benchPress1RMaxKg || 0)) allTimePBs.benchPress1RMaxKg = stat.benchPress1RMaxKg;
+            if (stat.deadlift1RMaxKg && stat.deadlift1RMaxKg > (allTimePBs.deadlift1RMaxKg || 0)) allTimePBs.deadlift1RMaxKg = stat.deadlift1RMaxKg;
+            if (stat.overheadPress1RMaxKg && stat.overheadPress1RMaxKg > (allTimePBs.overheadPress1RMaxKg || 0)) allTimePBs.overheadPress1RMaxKg = stat.overheadPress1RMaxKg;
+        });
+    }
 
     log.entries.forEach(entry => {
       const exerciseDetail = exercisesInThisLogSession.find(ex => ex.id === entry.exerciseId);
@@ -109,15 +118,15 @@ export const calculatePostWorkoutSummary = (
         });
       }
 
-      // Find historic 1RM from Strength page
+      // Find historic 1RM from Strength page using all-time PBs
       let historic1RMFromStrengthPage = 0;
-      if (latestStrengthStats && exerciseDetail.name) {
+      if (allTimePBs && exerciseDetail.name) {
           const liftName = exerciseDetail.name as LiftType;
           switch (liftName) {
-              case 'Knäböj': historic1RMFromStrengthPage = latestStrengthStats.squat1RMaxKg || 0; break;
-              case 'Bänkpress': historic1RMFromStrengthPage = latestStrengthStats.benchPress1RMaxKg || 0; break;
-              case 'Marklyft': historic1RMFromStrengthPage = latestStrengthStats.deadlift1RMaxKg || 0; break;
-              case 'Axelpress': historic1RMFromStrengthPage = latestStrengthStats.overheadPress1RMaxKg || 0; break;
+              case 'Knäböj': historic1RMFromStrengthPage = allTimePBs.squat1RMaxKg || 0; break;
+              case 'Bänkpress': historic1RMFromStrengthPage = allTimePBs.benchPress1RMaxKg || 0; break;
+              case 'Marklyft': historic1RMFromStrengthPage = allTimePBs.deadlift1RMaxKg || 0; break;
+              case 'Axelpress': historic1RMFromStrengthPage = allTimePBs.overheadPress1RMaxKg || 0; break;
           }
       }
 
@@ -318,9 +327,29 @@ export const calculatePostWorkoutSummary = (
 export const findAndUpdateStrengthStats = (
     log: WorkoutLog,
     workouts: Workout[],
-    latestStrengthStats: UserStrengthStat | null
+    strengthStatsHistory: UserStrengthStat[]
 ): { needsUpdate: boolean, updatedStats: Partial<UserStrengthStat> } => {
-    let statsToUpdate: Partial<UserStrengthStat> = latestStrengthStats ? { ...latestStrengthStats } : {};
+    
+    // Find the true all-time PBs from history
+    const allTimePBs: Partial<UserStrengthStat> = {};
+    if (strengthStatsHistory && strengthStatsHistory.length > 0) {
+        strengthStatsHistory.forEach(stat => {
+            if (stat.squat1RMaxKg && stat.squat1RMaxKg > (allTimePBs.squat1RMaxKg || 0)) {
+                allTimePBs.squat1RMaxKg = stat.squat1RMaxKg;
+            }
+            if (stat.benchPress1RMaxKg && stat.benchPress1RMaxKg > (allTimePBs.benchPress1RMaxKg || 0)) {
+                allTimePBs.benchPress1RMaxKg = stat.benchPress1RMaxKg;
+            }
+            if (stat.deadlift1RMaxKg && stat.deadlift1RMaxKg > (allTimePBs.deadlift1RMaxKg || 0)) {
+                allTimePBs.deadlift1RMaxKg = stat.deadlift1RMaxKg;
+            }
+            if (stat.overheadPress1RMaxKg && stat.overheadPress1RMaxKg > (allTimePBs.overheadPress1RMaxKg || 0)) {
+                allTimePBs.overheadPress1RMaxKg = stat.overheadPress1RMaxKg;
+            }
+        });
+    }
+
+    let statsToUpdate: Partial<UserStrengthStat> = { ...allTimePBs };
     let needsUpdate = false;
     
     const workoutTemplate = workouts.find(w => w.id === log.workoutId);

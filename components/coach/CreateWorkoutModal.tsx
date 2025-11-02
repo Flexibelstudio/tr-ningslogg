@@ -661,7 +661,7 @@ export const CreateWorkoutModal: React.FC<CreateWorkoutModalProps> = ({
                       <div key={block.id} ref={el => { if(el) blockRefs.current[block.id] = el; }} className="bg-gray-50 border border-gray-200 p-6 rounded-lg scroll-mt-4">
                           <div className="flex justify-between items-center mb-4">
                             <h3 className="text-xl font-semibold text-gray-800">Block {blockIndex + 1}</h3>
-                            <Button variant="ghost" size="sm" className="!p-1" onClick={() => handleRemoveBlock(block.id)} title="Ta bort block">
+                            <Button variant="ghost" size="sm" className="!p-2" onClick={() => handleRemoveBlock(block.id)} title="Ta bort block">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                             </Button>
                            </div>
@@ -689,8 +689,8 @@ export const CreateWorkoutModal: React.FC<CreateWorkoutModalProps> = ({
                                                     </div>
                                                 </label>
                                                 <div className="flex flex-col gap-1.5 ml-2 flex-shrink-0">
-                                                    <Button onClick={() => handleStartEditExercise(block.id, ex)} variant="outline" size="sm" className="!py-1 !px-1.5 text-xs">Ändra</Button>
-                                                    <Button onClick={() => handleRemoveExerciseFromBlock(block.id, ex.id)} variant="danger" size="sm" className="!py-1 !px-1.5 text-xs">Ta bort</Button>
+                                                    <Button onClick={() => handleStartEditExercise(block.id, ex)} variant="outline" size="sm" className="!py-2 !px-2 text-xs">Ändra</Button>
+                                                    <Button onClick={() => handleRemoveExerciseFromBlock(block.id, ex.id)} variant="danger" size="sm" className="!py-2 !px-2 text-xs">Ta bort</Button>
                                                 </div>
                                             </div>
                                           );
