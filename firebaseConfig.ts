@@ -25,19 +25,22 @@ const isAIStudioInDev = isAIStudio && env?.DEV;
 export const isMockMode =
   env?.VITE_USE_MOCK === "true" || isAIStudioInDev || false;
 
-// Prod-fallbacks (helt OK på webben)
 export const firebaseConfig = {
-  apiKey:            env?.VITE_FB_API_KEY             ?? "AIzaSyAYIyG3Vufbc6MLpb48xLgJpF8zsZa2iHk",
-  authDomain:        env?.VITE_FB_AUTH_DOMAIN         ?? "smartstudio-da995.firebaseapp.com",
-  projectId:         env?.VITE_FB_PROJECT_ID          ?? "smartstudio-da995",
-  storageBucket:     env?.VITE_FB_STORAGE_BUCKET      ?? "smartstudio-da995.appspot.com",
-  messagingSenderId: env?.VITE_FB_MESSAGING_SENDER_ID ?? "704268843753",
-  appId:             env?.VITE_FB_APP_ID              ?? "1:704268843753:web:743a263e46774a178c0e78",
+  apiKey:            env?.VITE_FB_API_KEY,
+  authDomain:        env?.VITE_FB_AUTH_DOMAIN,
+  projectId:         env?.VITE_FB_PROJECT_ID,
+  storageBucket:     env?.VITE_FB_STORAGE_BUCKET,
+  messagingSenderId: env?.VITE_FB_MESSAGING_SENDER_ID,
+  appId:             env?.VITE_FB_APP_ID,
   ...(env?.VITE_FB_MEASUREMENT_ID ? { measurementId: env.VITE_FB_MEASUREMENT_ID } : {}),
 } as const;
 
+const requiredConfigKeys: (keyof typeof firebaseConfig)[] = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
+const missingConfigKeys = requiredConfigKeys.filter(key => !firebaseConfig[key]);
+
+
 if (env?.MODE) {
-  console.log(`[FB] mode=${env.MODE}, aiStudio=${isAIStudio}, dev=${env.DEV}, mock=${isMockMode}, project=${firebaseConfig.projectId}`);
+  console.log(`[FB Modular] mode=${env.MODE}, aiStudio=${isAIStudio}, dev=${env.DEV}, mock=${isMockMode}, project=${firebaseConfig.projectId}`);
 }
 
 let app: FirebaseApp | undefined;
@@ -45,7 +48,9 @@ let auth: Auth | undefined;
 let db: Firestore | undefined;
 
 if (isMockMode) {
-  console.warn("[FB] Mock mode enabled – skipping Firebase init");
+  console.warn("[FB Modular] Mock mode enabled – skipping Firebase init");
+} else if (missingConfigKeys.length > 0) {
+    console.error(`[FB Modular] Firebase initialization failed! Missing VITE_FB_* env vars: ${missingConfigKeys.join(', ')}. Set these in your build environment (e.g., Netlify).`);
 } else {
   try {
     app = initializeApp(firebaseConfig);
@@ -55,8 +60,8 @@ if (isMockMode) {
     // Persistence (ignorera fel om flera tabs m.m.)
     enableIndexedDbPersistence(db).catch(() => {});
   } catch (e) {
-    console.error("Firebase initialization failed:", e);
-    throw e;
+    console.error("[FB Modular] Firebase initialization failed with error:", e);
+    // A failed init will leave `db` undefined, triggering offline mode.
   }
 }
 
