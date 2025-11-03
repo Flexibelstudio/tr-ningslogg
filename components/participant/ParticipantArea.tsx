@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
     Workout, WorkoutLog, GeneralActivityLog, ActivityLog,
@@ -918,10 +919,10 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
 
 
     const myUpcomingSessions = useMemo(() => {
-        return oneOnOneSessions
+        return myOneOnOneSessions
           .filter(s => s.status === 'scheduled' && new Date(s.startTime) > new Date())
           .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-    }, [oneOnOneSessions]);
+    }, [myOneOnOneSessions]);
 
     useEffect(() => {
         const todaysMeetings = myUpcomingSessions.filter(s => dateUtils.isSameDay(new Date(s.startTime), new Date()));
