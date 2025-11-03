@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
     Workout, WorkoutLog, GeneralActivityLog, ActivityLog,
@@ -210,7 +211,7 @@ function GoalProgressCard({ goal, logs }: { goal: ParticipantGoalData | null, lo
     const progress = useMemo(() => {
         if (!goal || !goal.workoutsPerWeekTarget || goal.workoutsPerWeekTarget <= 0) return null;
         const startOfWeek = dateUtils.getStartOfWeek(new Date());
-        const logsThisWeek = logs.filter(log => new Date(log.completedDate) >= startOfWeek).length;
+        const logsThisWeek = (logs || []).filter(log => new Date(log.completedDate) >= startOfWeek).length;
         return { completed: logsThisWeek, target: goal.workoutsPerWeekTarget };
     }, [goal, logs]);
 
@@ -227,12 +228,12 @@ function GoalProgressCard({ goal, logs }: { goal: ParticipantGoalData | null, lo
         const weeklyTarget = goal.workoutsPerWeekTarget > 0 ? goal.workoutsPerWeekTarget : 0;
         
         const startOfWeek = dateUtils.getStartOfWeek(new Date());
-        const logsThisWeek = logs.filter(log => new Date(log.completedDate) >= startOfWeek).length;
+        const logsThisWeek = (logs || []).filter(log => new Date(log.completedDate) >= startOfWeek).length;
         const weeklyPercentage = weeklyTarget > 0 ? Math.min(100, (logsThisWeek / weeklyTarget) * 100) : 0;
 
         const totalWeeks = Math.max(1, totalDays / 7);
         const targetWorkouts = weeklyTarget > 0 ? Math.round(totalWeeks * weeklyTarget) : 0;
-        const completedWorkouts = logs.filter(log => new Date(log.completedDate) >= startDate && new Date(log.completedDate) <= targetDate).length;
+        const completedWorkouts = (logs || []).filter(log => new Date(log.completedDate) >= startDate && new Date(log.completedDate) <= targetDate).length;
         const workoutPercentage = targetWorkouts > 0 ? Math.min(100, (completedWorkouts / targetWorkouts) * 100) : 0;
 
 
