@@ -151,6 +151,43 @@ const ModuleSettingsManager: React.FC = () => {
     );
 };
 
+const ReminderSettingsManager: React.FC = () => {
+    const { integrationSettings, setIntegrationSettingsData } = useAppContext();
+
+    const handleSettingChange = (field: keyof IntegrationSettings, value: any) => {
+        setIntegrationSettingsData(prev => ({ ...prev, [field]: value }));
+    };
+
+    return (
+        <Card title="Påminnelser">
+            <div className="space-y-4">
+                <ToggleSwitch
+                    id="session-reminder-toggle"
+                    checked={integrationSettings.enableSessionReminders ?? false}
+                    onChange={(val) => handleSettingChange('enableSessionReminders', val)}
+                    label="Aktivera påminnelser för bokade pass"
+                    description="Skickar automatiskt en push-notis till medlemmar en viss tid innan deras bokade pass startar."
+                />
+                {integrationSettings.enableSessionReminders && (
+                    <div className="pl-4 ml-4 border-l-2 border-gray-200 space-y-4 animate-fade-in-down">
+                        <h4 className="text-lg font-semibold text-gray-700">Tidsinställning</h4>
+                        <Input
+                            label="Skicka påminnelse (timmar innan pass)"
+                            type="number"
+                            min="1"
+                            max="24"
+                            step="1"
+                            value={integrationSettings.sessionReminderHoursBefore ?? ''}
+                            onChange={(e) => handleSettingChange('sessionReminderHoursBefore', e.target.value === '' ? undefined : Number(e.target.value))}
+                            placeholder="T.ex. 2"
+                        />
+                    </div>
+                )}
+            </div>
+        </Card>
+    );
+};
+
 
 const LocationManager: React.FC = () => {
     const { locations, setLocationsData, participantDirectory, staffMembers } = useAppContext();
@@ -582,6 +619,7 @@ export const SettingsManagement: React.FC<{ loggedInStaff: StaffMember | null }>
         <div className="space-y-6">
             <BrandingManager />
             <ModuleSettingsManager />
+            <ReminderSettingsManager />
             <LocationManager />
             <MembershipManager />
             <WorkoutCategoryManager />

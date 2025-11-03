@@ -676,6 +676,8 @@ export interface IntegrationSettings {
   // FIX: Add missing properties to support the start program feature.
   startProgramCategoryId?: string;
   startProgramSessionsRequired?: number;
+  enableSessionReminders?: boolean;
+  sessionReminderHoursBefore?: number;
 }
 
 // New: For Staff Management

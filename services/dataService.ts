@@ -46,6 +46,8 @@ export const createInitialOrgData = (orgId: string): OrganizationData => {
             isScheduleEnabled: true,
             startProgramCategoryId: 'cat-pt-bas',
             startProgramSessionsRequired: 4,
+            enableSessionReminders: false,
+            sessionReminderHoursBefore: 2,
         },
         groupClassDefinitions: PREDEFINED_GROUP_CLASSES,
         groupClassSchedules: [],
