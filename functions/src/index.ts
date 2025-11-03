@@ -4,6 +4,8 @@ import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { GoogleGenAI } from "@google/genai";
+import { onDocumentUpdated } from "firebase-functions/v2/firestore";
+import * as webpush from "web-push";
 
 // Init Admin SDK
 initializeApp();
@@ -28,6 +30,110 @@ function getBearerToken(req: { header?: (n: string) => string | undefined; heade
     "";
   return typeof h === "string" && h.startsWith("Bearer ") ? h.slice(7) : "";
 }
+
+export const onBookingPromoted = onDocumentUpdated(
+    {
+      document: "organizations/{orgId}/participantBookings/{bookingId}",
+      region: "europe-west1",
+      secrets: ["VAPID_PRIVATE_KEY"],
+    },
+    async (event) => {
+      const beforeData = event.data?.before.data();
+      const afterData = event.data?.after.data();
+  
+      if (!beforeData || !afterData) {
+        logger.info("No data found in trigger event.");
+        return;
+      }
+  
+      // Check if the status changed from WAITLISTED to BOOKED
+      if (beforeData.status === "WAITLISTED" && afterData.status === "BOOKED") {
+        const orgId = event.params.orgId;
+        const participantId = afterData.participantId;
+        const scheduleId = afterData.scheduleId;
+        const classDate = afterData.classDate;
+  
+        logger.info(
+          `Promotion detected for participant ${participantId} in org ${orgId}. Preparing to send notification.`
+        );
+  
+        try {
+          // 1. Get Subscription tokens for the participant
+          const subscriptionsSnapshot = await db
+            .collection("organizations")
+            .doc(orgId)
+            .collection("userPushSubscriptions")
+            .where("participantId", "==", participantId)
+            .get();
+  
+          if (subscriptionsSnapshot.empty) {
+            logger.info(`No push subscriptions found for participant ${participantId}. Aborting.`);
+            return;
+          }
+          
+          // 2. Get class details to build a nice message
+          const scheduleDoc = await db.collection("organizations").doc(orgId).collection("groupClassSchedules").doc(scheduleId).get();
+          if (!scheduleDoc.exists) {
+              logger.warn(`Schedule doc ${scheduleId} not found for promoted booking.`);
+              return;
+          }
+          const scheduleData = scheduleDoc.data()!;
+          
+          const classDefDoc = await db.collection("organizations").doc(orgId).collection("groupClassDefinitions").doc(scheduleData.groupClassId).get();
+          if (!classDefDoc.exists) {
+              logger.warn(`Class definition doc ${scheduleData.groupClassId} not found.`);
+              return;
+          }
+          const classDefData = classDefDoc.data()!;
+          
+          const date = new Date(classDate);
+          const dateString = date.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'short' });
+          const timeString = scheduleData.startTime;
+  
+          // 3. Prepare notification payload
+          const payload = JSON.stringify({
+            title: "Du har fått en plats!",
+            body: `Du har flyttats från kön och har nu en plats på ${classDefData.name} ${dateString} kl ${timeString}.`,
+          });
+  
+          // 4. Configure web-push
+          const vapidPublicKey = "BO21Yp3_p0o_5ce295-SC_pY9nZ8aGRi_SC2B5UF0jbl4M13nS2j52hce5C65a0gI55NUEM02eKYpOMYJ0pM5cE";
+          const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY!;
+          
+          if (!vapidPrivateKey) {
+              logger.error("VAPID_PRIVATE_KEY secret is not set!");
+              return;
+          }
+  
+          webpush.setVapidDetails(
+            "mailto:admin@flexibel.se",
+            vapidPublicKey,
+            vapidPrivateKey
+          );
+  
+          // 5. Send notifications and handle cleanup
+          const pushPromises = subscriptionsSnapshot.docs.map(async (doc) => {
+            const sub = doc.data().subscription;
+            try {
+              await webpush.sendNotification(sub, payload);
+              logger.info(`Push notification sent to endpoint for participant ${participantId}.`);
+            } catch (error: any) {
+              logger.error(`Error sending push notification for participant ${participantId}:`, error);
+              // If subscription is expired or invalid, delete it from Firestore
+              if (error.statusCode === 404 || error.statusCode === 410) {
+                logger.warn(`Subscription for participant ${participantId} is gone. Deleting.`);
+                await doc.ref.delete();
+              }
+            }
+          });
+  
+          await Promise.all(pushPromises);
+        } catch (error) {
+          logger.error("An unexpected error occurred in onBookingPromoted function:", error);
+        }
+      }
+    }
+);
 
 /**
  * Zapier webhook: creates lead in Firestore

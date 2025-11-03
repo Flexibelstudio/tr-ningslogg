@@ -1,4 +1,3 @@
-// types.ts
 /// <reference lib="dom" />
 /// <reference lib="es2015" />
 
