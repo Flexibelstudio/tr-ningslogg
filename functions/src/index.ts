@@ -437,6 +437,143 @@ export const callGeminiApi = onCall(
 );
 
 // -----------------------------------------------------------------------------
+// Callable: Vänbokningsnotis
+// -----------------------------------------------------------------------------
+export const notifyFriendsOnBooking = onCall(
+  {
+    region: "europe-west1",
+    secrets: ["VAPID_PRIVATE_KEY"],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Funktionen måste anropas som inloggad användare.");
+    }
+    const { orgId, participantId, scheduleId, classDate } = (request.data ?? {}) as {
+      orgId?: string;
+      participantId?: string;
+      scheduleId?: string;
+      classDate?: string;
+    };
+
+    if (!orgId || !participantId || !scheduleId || !classDate) {
+      throw new HttpsError("invalid-argument", "Nödvändiga parametrar saknas (orgId, participantId, scheduleId, classDate).");
+    }
+
+    try {
+      // 1. Get booker's profile and check privacy setting
+      const bookerProfileRef = db.collection("organizations").doc(orgId).collection("participantDirectory").doc(participantId);
+      const bookerProfileDoc = await bookerProfileRef.get();
+      if (!bookerProfileDoc.exists) {
+        logger.warn(`Booker's profile (${participantId}) not found.`);
+        return { success: false, message: "Booker not found." };
+      }
+      const bookerProfile = bookerProfileDoc.data();
+      if (!bookerProfile?.shareMyBookings) {
+        logger.info(`Booker ${participantId} has disabled booking sharing. Aborting.`);
+        return { success: true, message: "Sharing disabled by user." };
+      }
+      const bookerName = bookerProfile.name || "En kompis";
+
+      // 2. Find friends who want notifications
+      const connectionsSnap = await db.collection("organizations").doc(orgId).collection("connections").get();
+      const friendIds: string[] = [];
+      connectionsSnap.forEach((doc) => {
+        const conn = doc.data();
+        if (conn.status === "accepted") {
+          if (conn.requesterId === participantId) friendIds.push(conn.receiverId);
+          if (conn.receiverId === participantId) friendIds.push(conn.requesterId);
+        }
+      });
+
+      if (friendIds.length === 0) {
+        logger.info(`No friends found for participant ${participantId}.`);
+        return { success: true, message: "No friends to notify." };
+      }
+
+      const friendsToNotify: { id: string, name: string }[] = [];
+      const participantDirectoryRef = db.collection("organizations").doc(orgId).collection("participantDirectory");
+      const friendProfilePromises = friendIds.map((id) => participantDirectoryRef.doc(id).get());
+      const friendProfileDocs = await Promise.all(friendProfilePromises);
+
+      for (const doc of friendProfileDocs) {
+        if (doc.exists) {
+          const friendProfile = doc.data();
+          if (friendProfile && (friendProfile.receiveFriendBookingNotifications ?? true)) {
+            friendsToNotify.push({ id: doc.id, name: friendProfile.name || "Vän" });
+          }
+        }
+      }
+
+      if (friendsToNotify.length === 0) {
+        logger.info(`No friends want notifications for participant ${participantId}.`);
+        return { success: true, message: "No friends with notifications enabled." };
+      }
+
+      // 3. Get class details
+      const scheduleDoc = await db.collection("organizations").doc(orgId).collection("groupClassSchedules").doc(scheduleId).get();
+      if (!scheduleDoc.exists) {
+        logger.warn(`Schedule ${scheduleId} not found.`);
+        return { success: false, message: "Schedule not found." };
+      }
+      const schedule = scheduleDoc.data()!;
+      const classDefDoc = await db.collection("organizations").doc(orgId).collection("groupClassDefinitions").doc(schedule.groupClassId).get();
+      if (!classDefDoc.exists) {
+        logger.warn(`Class definition ${schedule.groupClassId} not found.`);
+        return { success: false, message: "Class definition not found." };
+      }
+      const className = classDefDoc.data()?.name || "ett pass";
+
+      // 4. Prepare and send notifications
+      const payload = JSON.stringify({
+        title: "Träningsdags?",
+        body: `${bookerName.split(" ")[0]} har bokat ${className}, ska du haka på?`,
+      });
+
+      const vapidPublicKey = "BO21Yp3_p0o_5ce295-SC_pY9nZ8aGRi_SC2B5UF0jbl4M13nS2j52hce5C65a0gI55NUEM02eKYpOMYJ0pM5cE";
+      const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+      if (!vapidPrivateKey) throw new HttpsError("internal", "VAPID_PRIVATE_KEY secret is not set!");
+
+      webpush.setVapidDetails("mailto:admin@flexibel.se", vapidPublicKey, vapidPrivateKey);
+
+      let notificationsSent = 0;
+      for (const friend of friendsToNotify) {
+        const subsSnap = await db
+          .collection("organizations")
+          .doc(orgId)
+          .collection("userPushSubscriptions")
+          .where("participantId", "==", friend.id)
+          .get();
+
+        if (!subsSnap.empty) {
+          await Promise.all(
+            subsSnap.docs.map(async (doc) => {
+              const sub = doc.data().subscription;
+              try {
+                await webpush.sendNotification(sub, payload);
+                notificationsSent++;
+              } catch (err: any) {
+                logger.error(`Push send error for friend ${friend.id}:`, err);
+                if (err?.statusCode === 404 || err?.statusCode === 410) {
+                  await doc.ref.delete();
+                }
+              }
+            })
+          );
+        }
+      }
+      logger.info(`Sent ${notificationsSent} notifications to friends of ${participantId}.`);
+      return { success: true, notificationsSent };
+    } catch (error) {
+      logger.error(`Error in notifyFriendsOnBooking for participant ${participantId}:`, error);
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+      throw new HttpsError("internal", "An unexpected error occurred.");
+    }
+  }
+);
+
+// -----------------------------------------------------------------------------
 // Callable: Analytics 30 dagar
 // -----------------------------------------------------------------------------
 export const getAnalyticsData = onCall(

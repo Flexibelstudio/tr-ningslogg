@@ -20,6 +20,8 @@ interface ProfileFormProps {
     locationId?: string;
     enableInBodySharing?: boolean;
     enableFssSharing?: boolean;
+    shareMyBookings?: boolean;
+    receiveFriendBookingNotifications?: boolean;
     photoURL?: string;
   }) => void;
   locations: Location[];
@@ -35,6 +37,8 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({ curre
   const [isSearchable, setIsSearchable] = useState(false);
   const [enableInBodySharing, setEnableInBodySharing] = useState(false);
   const [enableFssSharing, setEnableFssSharing] = useState(false);
+  const [shareMyBookings, setShareMyBookings] = useState(false);
+  const [receiveFriendBookingNotifications, setReceiveFriendBookingNotifications] = useState(true);
 
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -50,6 +54,8 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({ curre
     setIsSearchable(currentProfile?.isSearchable ?? true);
     setEnableInBodySharing(currentProfile?.enableInBodySharing || false);
     setEnableFssSharing(currentProfile?.enableFssSharing || false);
+    setShareMyBookings(currentProfile?.shareMyBookings || false);
+    setReceiveFriendBookingNotifications(currentProfile?.receiveFriendBookingNotifications ?? true);
     setImagePreview(null); // Reset image preview on open
   }, [currentProfile]);
 
@@ -102,6 +108,8 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({ curre
       isSearchable: isSearchable,
       enableInBodySharing: enableInBodySharing,
       enableFssSharing: enableFssSharing,
+      shareMyBookings: shareMyBookings,
+      receiveFriendBookingNotifications: receiveFriendBookingNotifications,
       photoURL: imagePreview || undefined,
     };
 
@@ -204,6 +212,36 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({ curre
             <span className="text-base font-medium text-gray-700">Gör min profil sökbar för andra medlemmar</span>
             <p className="text-sm text-gray-500">
               Genom att aktivera detta kan andra medlemmar hitta dig via sökfunktionen och skicka en vänförfrågan för att kunna se varandras flöden.
+            </p>
+          </div>
+        </label>
+        <label className="flex items-start space-x-3 p-3 bg-gray-100 rounded-md cursor-pointer">
+          <input
+            type="checkbox"
+            id="shareMyBookings"
+            checked={shareMyBookings}
+            onChange={(e) => setShareMyBookings(e.target.checked)}
+            className="h-6 w-6 mt-1 text-flexibel border-gray-300 rounded focus:ring-flexibel"
+          />
+          <div>
+            <span className="text-base font-medium text-gray-700">Dela mina passbokningar med vänner</span>
+            <p className="text-sm text-gray-500">
+                Tillåt vänner att få en notis när du bokar ett pass, så de kan haka på.
+            </p>
+          </div>
+        </label>
+        <label className="flex items-start space-x-3 p-3 bg-gray-100 rounded-md cursor-pointer">
+          <input
+            type="checkbox"
+            id="receiveFriendBookingNotifications"
+            checked={receiveFriendBookingNotifications}
+            onChange={(e) => setReceiveFriendBookingNotifications(e.target.checked)}
+            className="h-6 w-6 mt-1 text-flexibel border-gray-300 rounded focus:ring-flexibel"
+          />
+          <div>
+            <span className="text-base font-medium text-gray-700">Få notiser när vänner bokar pass</span>
+            <p className="text-sm text-gray-500">
+                Få en push-notis med en uppmaning att haka på när en vän bokar ett pass.
             </p>
           </div>
         </label>

@@ -389,6 +389,8 @@ export interface ParticipantProfile {
   enableInBodySharing?: boolean;
   enableFssSharing?: boolean;
   isSearchable?: boolean; // New: For friend feature
+  shareMyBookings?: boolean; // New: For sharing bookings with friends
+  receiveFriendBookingNotifications?: boolean; // New: For receiving notifications about friends' bookings
   locationId?: string; // FK to Location.id
   membershipId?: string; // FK to Membership.id
   startDate?: string; // ISO date string YYYY-MM-DD
