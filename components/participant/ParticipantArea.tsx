@@ -104,39 +104,43 @@ const LogbookIcon = () => (
 
 
 // Redesigned Card components
-const StatCard: React.FC<{ title: string; value: string | number; subValue?: string; icon: React.ReactNode; subValueColor?: string; iconContainerClassName?: string; }> = ({ title, value, subValue, icon, subValueColor, iconContainerClassName }) => (
-    <div className="bg-white p-3 sm:p-4 rounded-xl shadow-lg border border-gray-200 flex items-center h-full">
-        <div className={`flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-lg mr-3 sm:mr-4 ${iconContainerClassName || 'bg-flexibel/10 text-flexibel'}`}>
-            {icon}
-        </div>
-        <div className="flex-grow min-w-0">
-            <p className="text-sm sm:text-base font-medium text-gray-500 leading-tight">{title}</p>
-            <div className="flex items-baseline gap-x-1 sm:gap-x-2 flex-wrap">
-                <p className="text-2xl sm:text-3xl font-bold text-gray-800">{value}</p>
-                {subValue && <p className="text-sm sm:text-lg font-bold" style={{ color: subValueColor || '#9ca3af' }}>{subValue}</p>}
+function StatCard({ title, value, subValue, icon, subValueColor, iconContainerClassName }: { title: string; value: string | number; subValue?: string; icon: React.ReactNode; subValueColor?: string; iconContainerClassName?: string; }) {
+    return (
+        <div className="bg-white p-3 sm:p-4 rounded-xl shadow-lg border border-gray-200 flex items-center h-full">
+            <div className={`flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-lg mr-3 sm:mr-4 ${iconContainerClassName || 'bg-flexibel/10 text-flexibel'}`}>
+                {icon}
             </div>
-        </div>
-    </div>
-);
-
-const ToolCard: React.FC<{ title: string; description: string; icon: React.ReactNode; onClick: () => void; }> = ({ title, description, icon, onClick }) => (
-    <button onClick={onClick} className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 text-left w-full hover:shadow-xl hover:border-flexibel transition-all duration-200 group">
-        <div className="flex items-center justify-between">
-            <div className="flex items-center">
-                <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-lg bg-gray-100 text-flexibel mr-4 group-hover:bg-flexibel/10 transition-colors">
-                    {icon}
-                </div>
-                <div>
-                    <h3 className="text-lg font-bold text-gray-800">{title}</h3>
-                    <p className="text-base text-gray-500">{description}</p>
+            <div className="flex-grow min-w-0">
+                <p className="text-sm sm:text-base font-medium text-gray-500 leading-tight">{title}</p>
+                <div className="flex items-baseline gap-x-1 sm:gap-x-2 flex-wrap">
+                    <p className="text-2xl sm:text-3xl font-bold text-gray-800">{value}</p>
+                    {subValue && <p className="text-sm sm:text-lg font-bold" style={{ color: subValueColor || '#9ca3af' }}>{subValue}</p>}
                 </div>
             </div>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400 group-hover:text-flexibel transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
         </div>
-    </button>
-);
+    );
+}
 
-const WarningBanner: React.FC<{ message: string, type: 'warning' | 'danger', buttonText: string, onButtonClick: () => void }> = ({ message, type, buttonText, onButtonClick }) => {
+function ToolCard({ title, description, icon, onClick }: { title: string; description: string; icon: React.ReactNode; onClick: () => void; }) {
+    return (
+        <button onClick={onClick} className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 text-left w-full hover:shadow-xl hover:border-flexibel transition-all duration-200 group">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                    <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-lg bg-gray-100 text-flexibel mr-4 group-hover:bg-flexibel/10 transition-colors">
+                        {icon}
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-800">{title}</h3>
+                        <p className="text-base text-gray-500">{description}</p>
+                    </div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400 group-hover:text-flexibel transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+            </div>
+        </button>
+    );
+}
+
+function WarningBanner({ message, type, buttonText, onButtonClick }: { message: string, type: 'warning' | 'danger', buttonText: string, onButtonClick: () => void }) {
     const colors = {
         warning: { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-400', button: 'bg-yellow-400 hover:bg-yellow-500 text-yellow-900' },
         danger: { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-400', button: 'bg-orange-400 hover:bg-orange-500 text-orange-900' }
@@ -152,13 +156,13 @@ const WarningBanner: React.FC<{ message: string, type: 'warning' | 'danger', but
 };
 
 
-const ProgressCircle: React.FC<{
+function ProgressCircle({ label, displayText, displayUnit, percentage, colorClass }: {
   label: string;
   displayText: string;
   displayUnit: string;
   percentage: number;
   colorClass: string;
-}> = ({ label, displayText, displayUnit, percentage, colorClass }) => {
+}) {
   const radius = 52; 
   const strokeWidth = 16;
   const circumference = 2 * Math.PI * radius;
@@ -202,7 +206,7 @@ const ProgressCircle: React.FC<{
   );
 };
 
-const GoalProgressCard: React.FC<{ goal: ParticipantGoalData | null, logs: ActivityLog[] }> = ({ goal, logs }) => {
+function GoalProgressCard({ goal, logs }: { goal: ParticipantGoalData | null, logs: ActivityLog[] }) {
     const progress = useMemo(() => {
         if (!goal || !goal.workoutsPerWeekTarget || goal.workoutsPerWeekTarget <= 0) return null;
         const startOfWeek = dateUtils.getStartOfWeek(new Date());
@@ -407,7 +411,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     const { isOnline } = useNetworkStatus();
     const { addNotification } = useNotifications();
 
-    // ** FIX: Moved participantProfile declaration before any hooks that use it. **
     const participantProfile = useMemo(() => (participantDirectory || []).find(p => p.id === currentParticipantId), [participantDirectory, currentParticipantId]);
 
     const [currentWorkoutLog, setCurrentWorkoutLog] = useState<WorkoutLog | undefined>(undefined);
@@ -856,7 +859,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         } else {
             console.error("Logikfel i openWorkoutForEditing: Varken mall eller sparade övningar hittades.");
         }
-    }, [myWorkoutLogs, workouts, handleStartWorkout]);
+    }, [myWorkoutLogs, workouts]);
 
     const handleEditLog = useCallback((logToEdit: ActivityLog) => {
         if (isLogFormOpen) return;
@@ -1829,4 +1832,3 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     </div>
     );
 };
-
