@@ -117,6 +117,7 @@ export interface ParticipantBooking {
   classDate: string; // YYYY-MM-DD
   bookingDate: string; // ISO string
   status: BookingStatus;
+  reminderTaskId?: string;
 }
 
 export interface OneOnOneSessionType {
