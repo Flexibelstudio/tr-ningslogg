@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
     Workout, WorkoutLog, GeneralActivityLog, ActivityLog,
@@ -379,40 +378,41 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   newFlowItemsCount = 0,
 }) => {
     const {
-        participantDirectory,
+        participantDirectory = [],
         updateParticipantProfile,
-        workouts,
-        workoutLogs, setWorkoutLogsData,
-        participantGoals, setParticipantGoalsData,
-        generalActivityLogs, setGeneralActivityLogsData,
-        goalCompletionLogs, setGoalCompletionLogsData,
-        coachNotes,
-        userStrengthStats, setUserStrengthStatsData,
-        userConditioningStatsHistory, setUserConditioningStatsHistoryData,
-        participantPhysiqueHistory, setParticipantPhysiqueHistoryData,
-        participantMentalWellbeing, setParticipantMentalWellbeingData,
-        participantGamificationStats, setParticipantGamificationStatsData,
-        clubMemberships, setClubMembershipsData,
-        leaderboardSettings,
-        coachEvents,
-        connections, setConnectionsData,
+        workouts = [],
+        workoutLogs = [], setWorkoutLogsData,
+        participantGoals = [], setParticipantGoalsData,
+        generalActivityLogs = [], setGeneralActivityLogsData,
+        goalCompletionLogs = [], setGoalCompletionLogsData,
+        coachNotes = [],
+        userStrengthStats = [], setUserStrengthStatsData,
+        userConditioningStatsHistory = [], setUserConditioningStatsHistoryData,
+        participantPhysiqueHistory = [], setParticipantPhysiqueHistoryData,
+        participantMentalWellbeing = [], setParticipantMentalWellbeingData,
+        participantGamificationStats = [], setParticipantGamificationStatsData,
+        clubMemberships = [], setClubMembershipsData,
+        leaderboardSettings = { leaderboardsEnabled: true, weeklyPBChallengeEnabled: true, weeklySessionChallengeEnabled: true },
+        coachEvents = [],
+        connections = [], setConnectionsData,
         lastFlowViewTimestamp, setLastFlowViewTimestampData,
-        locations,
-        memberships,
-        staffMembers,
-        oneOnOneSessions,
-        workoutCategories,
-        integrationSettings,
-        groupClassSchedules,
-        groupClassDefinitions,
-        allParticipantBookings,
+        locations = [],
+        memberships = [],
+        staffMembers = [],
+        oneOnOneSessions = [],
+        workoutCategories = [],
+        integrationSettings = { enableQRCodeScanning: false, isBookingEnabled: false, isClientJourneyEnabled: true, isScheduleEnabled: true },
+        groupClassSchedules = [],
+        groupClassDefinitions = [],
+        allParticipantBookings = [],
+        userPushSubscriptions = [],
         setUserPushSubscriptionsData,
     } = useAppContext();
     const { organizationId, currentRole } = useAuth();
     const { isOnline } = useNetworkStatus();
     const { addNotification } = useNotifications();
 
-    const participantProfile = useMemo(() => (participantDirectory || []).find(p => p.id === currentParticipantId), [participantDirectory, currentParticipantId]);
+    const participantProfile = useMemo(() => participantDirectory.find(p => p.id === currentParticipantId), [participantDirectory, currentParticipantId]);
 
     const [currentWorkoutLog, setCurrentWorkoutLog] = useState<WorkoutLog | undefined>(undefined);
     const [logForReference, setLogForReference] = useState<WorkoutLog | undefined>(undefined);
@@ -490,16 +490,16 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         [currentParticipantId]
     );
 
-    const myWorkoutLogs = useMemo(() => (workoutLogs || []).filter(l => l.participantId === currentParticipantId).sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime()), [workoutLogs, currentParticipantId]);
+    const myWorkoutLogs = useMemo(() => workoutLogs.filter(l => l.participantId === currentParticipantId).sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime()), [workoutLogs, currentParticipantId]);
     const latestStrengthStats = useMemo(() => {
-      const myStats = (userStrengthStats || []).filter(s => s.participantId === currentParticipantId);
+      const myStats = userStrengthStats.filter(s => s.participantId === currentParticipantId);
       if (myStats.length === 0) return null;
       return [...myStats].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
     }, [userStrengthStats, currentParticipantId]);
     
     // --- NEW: Waitlist Promotion Notification ---
     const myBookings = useMemo(() => 
-        (allParticipantBookings || []).filter(b => b.participantId === currentParticipantId),
+        allParticipantBookings.filter(b => b.participantId === currentParticipantId),
         [allParticipantBookings, currentParticipantId]
     );
     const prevBookingsRef = useRef<ParticipantBooking[]>();
@@ -514,8 +514,8 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         myBookings.forEach(currentBooking => {
             const prevBooking = prevBookings.find(b => b.id === currentBooking.id);
             if (prevBooking && prevBooking.status === 'WAITLISTED' && currentBooking.status === 'BOOKED') {
-                const schedule = (groupClassSchedules || []).find(s => s.id === currentBooking.scheduleId);
-                const classDef = (groupClassDefinitions || []).find(d => d.id === schedule?.groupClassId);
+                const schedule = groupClassSchedules.find(s => s.id === currentBooking.scheduleId);
+                const classDef = groupClassDefinitions.find(d => d.id === schedule?.groupClassId);
                 
                 if (schedule && classDef) {
                     const classDate = new Date(currentBooking.classDate);
@@ -726,17 +726,17 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         }
     };
 
-    const myGeneralActivityLogs = useMemo(() => (generalActivityLogs || []).filter(l => l.participantId === currentParticipantId), [generalActivityLogs, currentParticipantId]);
-    const myGoalCompletionLogs = useMemo(() => (goalCompletionLogs || []).filter(g => g.participantId === currentParticipantId), [goalCompletionLogs, currentParticipantId]);
-    const myParticipantGoals = useMemo(() => (participantGoals || []).filter(g => g.participantId === currentParticipantId), [participantGoals, currentParticipantId]);
-    const myStrengthStats = useMemo(() => (userStrengthStats || []).filter(s => s.participantId === currentParticipantId), [userStrengthStats, currentParticipantId]);
-    const myConditioningStats = useMemo(() => (userConditioningStatsHistory || []).filter(s => s.participantId === currentParticipantId), [userConditioningStatsHistory, currentParticipantId]);
-    const myPhysiqueHistory = useMemo(() => (participantPhysiqueHistory || []).filter(s => s.participantId === currentParticipantId), [participantPhysiqueHistory, currentParticipantId]);
-    const myMentalWellbeing = useMemo(() => (participantMentalWellbeing || []).find(w => w.id === currentParticipantId), [participantMentalWellbeing, currentParticipantId]);
-    const myGamificationStats = useMemo(() => (participantGamificationStats || []).find(s => s.id === currentParticipantId), [participantGamificationStats, currentParticipantId]);
-    const myClubMemberships = useMemo(() => (clubMemberships || []).filter(c => c.participantId === currentParticipantId), [clubMemberships, currentParticipantId]);
-    const myMembership = useMemo(() => (memberships || []).find(m => m.id === participantProfile?.membershipId), [memberships, participantProfile]);
-    const myOneOnOneSessions = useMemo(() => (oneOnOneSessions || []).filter(s => s.participantId === currentParticipantId), [oneOnOneSessions, currentParticipantId]);
+    const myGeneralActivityLogs = useMemo(() => generalActivityLogs.filter(l => l.participantId === currentParticipantId), [generalActivityLogs, currentParticipantId]);
+    const myGoalCompletionLogs = useMemo(() => goalCompletionLogs.filter(g => g.participantId === currentParticipantId), [goalCompletionLogs, currentParticipantId]);
+    const myParticipantGoals = useMemo(() => participantGoals.filter(g => g.participantId === currentParticipantId), [participantGoals, currentParticipantId]);
+    const myStrengthStats = useMemo(() => userStrengthStats.filter(s => s.participantId === currentParticipantId), [userStrengthStats, currentParticipantId]);
+    const myConditioningStats = useMemo(() => userConditioningStatsHistory.filter(s => s.participantId === currentParticipantId), [userConditioningStatsHistory, currentParticipantId]);
+    const myPhysiqueHistory = useMemo(() => participantPhysiqueHistory.filter(s => s.participantId === currentParticipantId), [participantPhysiqueHistory, currentParticipantId]);
+    const myMentalWellbeing = useMemo(() => participantMentalWellbeing.find(w => w.id === currentParticipantId), [participantMentalWellbeing, currentParticipantId]);
+    const myGamificationStats = useMemo(() => participantGamificationStats.find(s => s.id === currentParticipantId), [participantGamificationStats, currentParticipantId]);
+    const myClubMemberships = useMemo(() => clubMemberships.filter(c => c.participantId === currentParticipantId), [clubMemberships, currentParticipantId]);
+    const myMembership = useMemo(() => memberships.find(m => m.id === participantProfile?.membershipId), [memberships, participantProfile]);
+    const myOneOnOneSessions = useMemo(() => oneOnOneSessions.filter(s => s.participantId === currentParticipantId), [oneOnOneSessions, currentParticipantId]);
 
     const isAiEnabled = useMemo(() => {
         return myMembership?.type === 'subscription';
@@ -824,16 +824,16 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
 
     const handleDeleteActivity = (activityId: string, activityType: 'workout' | 'general' | 'goal_completion') => {
         if (activityType === 'workout') {
-            setWorkoutLogsData(prev => (prev || []).filter(log => log.id !== activityId));
+            setWorkoutLogsData(prev => prev.filter(log => log.id !== activityId));
         } else if (activityType === 'general') {
-            setGeneralActivityLogsData(prev => (prev || []).filter(log => log.id !== activityId));
+            setGeneralActivityLogsData(prev => prev.filter(log => log.id !== activityId));
         } else if (activityType === 'goal_completion') {
-            setGoalCompletionLogsData(prev => (prev || []).filter(log => log.id !== activityId));
+            setGoalCompletionLogsData(prev => prev.filter(log => log.id !== activityId));
         }
     };
   
     const openWorkoutForEditing = useCallback((logToEdit: WorkoutLog) => {
-        const workoutTemplate = (workouts || []).find(w => w.id === logToEdit.workoutId);
+        const workoutTemplate = workouts.find(w => w.id === logToEdit.workoutId);
 
         const referenceLog = myWorkoutLogs
             .filter(l => l.workoutId === logToEdit.workoutId && new Date(l.completedDate) < new Date(logToEdit.completedDate))
@@ -873,7 +873,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 return;
             }
 
-            const workoutTemplateForSummary = (workouts || []).find(w => w.id === workoutLog.workoutId);
+            const workoutTemplateForSummary = workouts.find(w => w.id === workoutLog.workoutId);
         
             setLogForSummaryModal(workoutLog);
             setWorkoutForSummaryModal(workoutTemplateForSummary || null);
@@ -918,7 +918,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
 
 
     const myUpcomingSessions = useMemo(() => {
-        return (oneOnOneSessions || [])
+        return oneOnOneSessions
           .filter(s => s.status === 'scheduled' && new Date(s.startTime) > new Date())
           .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
     }, [oneOnOneSessions]);
@@ -949,7 +949,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     // APP BADGING LOGIC
     useEffect(() => {
         if ('setAppBadge' in navigator) {
-          const pendingRequestCount = (connections || []).filter(
+          const pendingRequestCount = connections.filter(
             c => c.receiverId === currentParticipantId && c.status === 'pending'
           ).length;
 
@@ -972,7 +972,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     }, [myWorkoutLogs, myGeneralActivityLogs, myGoalCompletionLogs]);
 
     const allActivityLogsForLeaderboard = useMemo<ActivityLog[]>(() => {
-        return [...(workoutLogs || []), ...(generalActivityLogs || []), ...(goalCompletionLogs || [])];
+        return [...workoutLogs, ...generalActivityLogs, ...goalCompletionLogs];
     }, [workoutLogs, generalActivityLogs, goalCompletionLogs]);
 
     const isNewUser = useMemo(() => {
@@ -981,10 +981,10 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
 
     const nextBooking = useMemo(() => {
         const now = new Date();
-        const myBookings = (allParticipantBookings || [])
+        const myBookings = allParticipantBookings
             .filter(b => b.participantId === currentParticipantId && (b.status === 'BOOKED' || b.status === 'WAITLISTED'))
             .map(booking => {
-                const schedule = (groupClassSchedules || []).find(s => s.id === booking.scheduleId);
+                const schedule = groupClassSchedules.find(s => s.id === booking.scheduleId);
                 if (!schedule) return null;
 
                 const [hour, minute] = schedule.startTime.split(':').map(Number);
@@ -993,8 +993,8 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
 
                 if (startDateTime < now) return null;
 
-                const classDef = (groupClassDefinitions || []).find(d => d.id === schedule.groupClassId);
-                const coach = (staffMembers || []).find(s => s.id === schedule.coachId);
+                const classDef = groupClassDefinitions.find(d => d.id === schedule.groupClassId);
+                const coach = staffMembers.find(s => s.id === schedule.coachId);
 
                 if (!classDef || !coach) return null;
 
@@ -1042,7 +1042,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   
     const latestPhysique = useMemo(() => {
         if (myPhysiqueHistory.length === 0) return null;
-        return [...myPhysiqueHistory].sort((a,b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
+        return [...myPhysiqueHistory].sort((a,b) => new Date(b.lastUpdated).getTime() - new Date(a.setDate).getTime())[0];
     }, [myPhysiqueHistory]);
 
     const flexibelStrengthScore = useMemo(() => {
@@ -1420,7 +1420,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                     {nextMeetingForCard && (
                         <UpcomingMeetingCard
                             session={nextMeetingForCard}
-                            staffMember={(staffMembers || []).find(s => s.id === nextMeetingForCard.coachId)}
+                            staffMember={staffMembers.find(s => s.id === nextMeetingForCard.coachId)}
                             onOpenModal={setSelectedSessionForModal}
                         />
                     )}
@@ -1751,7 +1751,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 isOpen={!!selectedSessionForModal}
                 onClose={() => setSelectedSessionForModal(null)}
                 session={selectedSessionForModal}
-                coach={(staffMembers || []).find(s => s.id === selectedSessionForModal.coachId) || null}
+                coach={staffMembers.find(s => s.id === selectedSessionForModal.coachId) || null}
                 currentUserId={currentParticipantId}
                 onAddComment={onAddComment}
                 onDeleteComment={onDeleteComment}
