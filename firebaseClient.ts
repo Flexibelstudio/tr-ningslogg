@@ -18,3 +18,10 @@ export const getAnalyticsDataFn = functions
         console.error("Firebase is not initialized. Cannot call cloud function 'getAnalyticsData'.");
         return Promise.resolve({ data: { error: "Firebase är inte konfigurerad korrekt. Funktionen kan inte anropas." } });
     };
+
+export const cancelClassInstanceFn = functions
+    ? functions.httpsCallable('cancelClassInstance')
+    : () => {
+        console.error("Firebase is not initialized. Cannot call cloud function 'cancelClassInstance'.");
+        return Promise.resolve({ data: { error: "Firebase är inte konfigurerad korrekt. Funktionen kan inte anropas." } });
+    };

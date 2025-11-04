@@ -3,11 +3,25 @@ import { HttpsError, onRequest, onCall } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
-import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { getFirestore, Timestamp, FieldValue } from "firebase-admin/firestore";
 import { GoogleGenAI } from "@google/genai";
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import * as webpush from "web-push";
 import { getFunctions } from "firebase-admin/functions";
+
+// -----------------------------------------------------------------------------
+// Type Definitions (Copied from frontend for backend type safety)
+// -----------------------------------------------------------------------------
+interface Membership {
+    id: string;
+    name: string;
+    description?: string;
+    readonly type?: 'subscription' | 'clip_card';
+    clipCardClips?: number;
+    clipCardValidityDays?: number;
+    restrictedCategories?: string[];
+}
+
 
 // -----------------------------------------------------------------------------
 // Init Admin
@@ -294,6 +308,134 @@ export const onBookingUpdate = onDocumentUpdated(
     }
   }
 );
+
+// -----------------------------------------------------------------------------
+// Callable: Ställ in ett helt pass
+// -----------------------------------------------------------------------------
+export const cancelClassInstance = onCall(
+    {
+      region: "europe-west1",
+      secrets: ["VAPID_PRIVATE_KEY"],
+    },
+    async (request) => {
+      if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Funktionen måste anropas som inloggad användare.");
+      }
+      const { orgId, scheduleId, classDate } = (request.data ?? {}) as {
+        orgId?: string;
+        scheduleId?: string;
+        classDate?: string;
+      };
+  
+      if (!orgId || !scheduleId || !classDate) {
+        throw new HttpsError("invalid-argument", "Nödvändiga parametrar saknas (orgId, scheduleId, classDate).");
+      }
+  
+      try {
+        const batch = db.batch();
+        const bookingsRef = db.collection("organizations").doc(orgId).collection("participantBookings");
+        const bookingsQuery = bookingsRef
+          .where("scheduleId", "==", scheduleId)
+          .where("classDate", "==", classDate)
+          .where("status", "in", ["BOOKED", "CHECKED-IN", "WAITLISTED"]);
+  
+        const bookingsSnap = await bookingsQuery.get();
+        if (bookingsSnap.empty) {
+          logger.info(`No active bookings found for schedule ${scheduleId} on ${classDate}. No action taken.`);
+          return { success: true, message: "No active bookings found." };
+        }
+  
+        const participantIdsToRefundClips = new Set<string>();
+        const affectedParticipantIds = new Set<string>();
+  
+        const membershipsSnap = await db.collection("organizations").doc(orgId).collection("memberships").get();
+        const memberships = membershipsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Membership));
+  
+        for (const doc of bookingsSnap.docs) {
+          const booking = doc.data();
+          affectedParticipantIds.add(booking.participantId);
+          
+          if (["BOOKED", "CHECKED-IN"].includes(booking.status)) {
+              const participantDoc = await db.collection("organizations").doc(orgId).collection("participantDirectory").doc(booking.participantId).get();
+              if (participantDoc.exists) {
+                  const participant = participantDoc.data();
+                  const membership = memberships.find(m => m.id === participant?.membershipId);
+                  if (membership?.type === 'clip_card') {
+                      participantIdsToRefundClips.add(booking.participantId);
+                  }
+              }
+          }
+          
+          batch.update(doc.ref, { status: "CANCELLED" });
+        }
+  
+        for (const participantId of participantIdsToRefundClips) {
+            const participantRef = db.collection("organizations").doc(orgId).collection("participantDirectory").doc(participantId);
+            batch.update(participantRef, {
+                "clipCardStatus.remainingClips": FieldValue.increment(1),
+            });
+        }
+        
+        await batch.commit();
+        logger.info(`Cancelled ${bookingsSnap.size} bookings and refunded ${participantIdsToRefundClips.size} clips.`);
+  
+        const scheduleDoc = await db.collection("organizations").doc(orgId).collection("groupClassSchedules").doc(scheduleId).get();
+        const classDefDoc = scheduleDoc.exists ? await db.collection("organizations").doc(orgId).collection("groupClassDefinitions").doc(scheduleDoc.data()!.groupClassId).get() : null;
+  
+        if (!scheduleDoc.exists || !classDefDoc?.exists) {
+            logger.warn(`Could not find class details for schedule ${scheduleId} to send notifications.`);
+            return { success: true, message: "Bookings cancelled, but failed to send notifications due to missing class details." };
+        }
+        
+        const className = classDefDoc.data()!.name;
+        const classTime = scheduleDoc.data()!.startTime;
+        const date = new Date(classDate);
+        const dateString = date.toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
+  
+        const payload = JSON.stringify({
+            title: `Pass inställt: ${className}`,
+            body: `Ditt pass ${className} den ${dateString} kl ${classTime} har tyvärr ställts in. Vi ber om ursäkt för besväret.`,
+        });
+  
+        const vapidPublicKey = "BO21Yp3_p0o_5ce295-SC_pY9nZ8aGRi_SC2B5UF0jbl4M13nS2j52hce5C65a0gI55NUEM02eKYpOMYJ0pM5cE";
+        const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+        if (!vapidPrivateKey) throw new HttpsError("internal", "VAPID_PRIVATE_KEY secret is not set!");
+  
+        webpush.setVapidDetails("mailto:admin@flexibel.se", vapidPublicKey, vapidPrivateKey);
+        
+        let notificationsSent = 0;
+        for (const participantId of affectedParticipantIds) {
+            const subsSnap = await db.collection("organizations").doc(orgId).collection("userPushSubscriptions").where("participantId", "==", participantId).get();
+            if (!subsSnap.empty) {
+                await Promise.all(
+                    subsSnap.docs.map(async (doc) => {
+                        const sub = doc.data().subscription;
+                        try {
+                            await webpush.sendNotification(sub, payload);
+                            notificationsSent++;
+                        } catch (err: any) {
+                            logger.error(`Push send error for participant ${participantId}:`, err);
+                            if (err?.statusCode === 404 || err?.statusCode === 410) {
+                                await doc.ref.delete();
+                            }
+                        }
+                    })
+                );
+            }
+        }
+        
+        logger.info(`Sent ${notificationsSent} cancellation notifications.`);
+        return { success: true, cancelledCount: bookingsSnap.size, notificationsSent };
+  
+      } catch (error) {
+        logger.error(`Error in cancelClassInstance for schedule ${scheduleId}:`, error);
+        if (error instanceof HttpsError) {
+          throw error;
+        }
+        throw new HttpsError("internal", "An unexpected error occurred while cancelling the class.");
+      }
+    }
+  );
 
 // -----------------------------------------------------------------------------
 // Zapier → skapa lead

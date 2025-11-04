@@ -17,6 +17,8 @@ import { LOCAL_STORAGE_KEYS } from './constants';
 import { FlowItemLogType, User, UserRole, GeneralActivityLog } from './types';
 import { useNotifications } from './context/NotificationsContext';
 import { logAnalyticsEvent } from './utils/analyticsLogger';
+import firebaseService from './services/firebaseService';
+import { cancelClassInstanceFn } from './firebaseClient';
 
 const CoachArea = lazy(() => import('./components/coach/CoachArea').then((m) => ({ default: m.CoachArea })));
 const ParticipantArea = lazy(() => import('./components/participant/ParticipantArea').then((m) => ({ default: m.ParticipantArea })));
@@ -1121,7 +1123,7 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
       const participantProfile = participantDirectory.find((p) => p.id === auth.currentParticipantId);
       const membership = participantProfile ? memberships.find((m) => m.id === participantProfile.membershipId) : null;
       if (membership?.name.toLowerCase() === 'startprogram') {
-        const isProfileComplete = !!(participantProfile?.age && participantProfile?.gender && participantProfile?.gender !== '-');
+        const isProfileComplete = !!(participantProfile?.birthDate && participantProfile?.gender && participantProfile?.gender !== '-');
         if (!isProfileComplete) {
           const hasBeenShown = prospectModalShownKey ? localStorage.getItem(prospectModalShownKey) === 'true' : false;
           if (!hasBeenShown) {
@@ -1133,16 +1135,13 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
   }, [auth.currentRole, auth.currentParticipantId, welcomeModalShown, participantDirectory, prospectModalShownKey, memberships]);
   
   const handleCancelClassInstance = useCallback(async (scheduleId: string, classDate: string) => {
+    // Optimistic UI Update
     const bookingsToCancel = participantBookings.filter(
         (b) => b.scheduleId === scheduleId && b.classDate === classDate && (b.status === 'BOOKED' || b.status === 'CHECKED-IN' || b.status === 'WAITLISTED')
     );
 
     if (bookingsToCancel.length === 0) {
-        addNotification({
-            type: 'INFO',
-            title: 'Inga bokningar',
-            message: 'Det fanns inga aktiva bokningar att avboka för detta pass.',
-        });
+        addNotification({ type: 'INFO', title: 'Inga bokningar', message: 'Det fanns inga aktiva bokningar att avboka för detta pass.' });
         return;
     }
 
@@ -1163,13 +1162,7 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
 
     const updatedParticipants = participantDirectory.map(p => {
         if (participantIdsToRefund.has(p.id) && p.clipCardStatus) {
-            return {
-                ...p,
-                clipCardStatus: {
-                    ...p.clipCardStatus,
-                    remainingClips: (p.clipCardStatus.remainingClips || 0) + 1,
-                },
-            };
+            return { ...p, clipCardStatus: { ...p.clipCardStatus, remainingClips: (p.clipCardStatus.remainingClips || 0) + 1 } };
         }
         return p;
     });
@@ -1177,21 +1170,29 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
     setParticipantBookingsData(updatedBookings);
     setParticipantDirectoryData(updatedParticipants);
 
-    const affectedParticipantIds = new Set(bookingsToCancel.map(b => b.participantId));
-    
     const schedule = groupClassSchedules.find(s => s.id === scheduleId);
     const classDef = definitions.find(d => d.id === schedule?.groupClassId);
-    
-    // TODO: Send push notifications in a real backend scenario.
-    console.log(`[Placeholder] Would send 'Class Cancelled' notifications to ${affectedParticipantIds.size} participants.`);
-    
     addNotification({
         type: 'SUCCESS',
         title: 'Pass Inställt',
-        message: `Passet ${classDef?.name || ''} har ställts in. ${affectedParticipantIds.size} deltagare har meddelats och eventuella klipp har återbetalats.`,
+        message: `Passet ${classDef?.name || ''} har ställts in. ${new Set(bookingsToCancel.map(b => b.participantId)).size} deltagare kommer att meddelas.`,
     });
-    
-}, [participantBookings, setParticipantBookingsData, participantDirectory, setParticipantDirectoryData, memberships, addNotification, groupClassSchedules, definitions]);
+
+    // Call the cloud function to perform backend actions & send notifications
+    if (auth.organizationId && !firebaseService.isOffline()) {
+        try {
+            await cancelClassInstanceFn({ orgId: auth.organizationId, scheduleId, classDate });
+            console.log("Cloud function 'cancelClassInstance' invoked successfully.");
+        } catch (error) {
+            console.error("Error calling 'cancelClassInstance' cloud function:", error);
+            addNotification({
+                type: 'ERROR',
+                title: 'Notifieringsfel',
+                message: 'Ett fel kan ha uppstått vid utskick av notiser till deltagare.',
+            });
+        }
+    }
+}, [participantBookings, setParticipantBookingsData, participantDirectory, setParticipantDirectoryData, memberships, addNotification, groupClassSchedules, definitions, auth.organizationId]);
 
 
   const handleProfileModalOpened = useCallback(() => {
