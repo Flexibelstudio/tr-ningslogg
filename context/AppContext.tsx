@@ -378,7 +378,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, [smartSetParticipantDirectory]);
     
     const updateParticipantProfile = useCallback(async (participantId: string, data: Partial<ParticipantProfile>) => {
-        smartSetParticipantDirectory(prev => prev.map(p => p.id === participantId ? { ...p, ...data, lastUpdated: new Date().toISOString() } : p));
+        smartSetParticipantDirectory(prev => prev.map(p => {
+            if (p.id === participantId) {
+                // Create a copy of the incoming data, explicitly removing any keys with an 'undefined' value.
+                // This prevents the spread operator `{ ...p, ...cleanData }` from overwriting an existing
+                // value (like a photoURL) with `undefined`.
+                const cleanData = Object.entries(data).reduce((acc, [key, value]) => {
+                    if (value !== undefined) {
+                        (acc as any)[key as keyof ParticipantProfile] = value;
+                    }
+                    return acc;
+                }, {} as Partial<ParticipantProfile>);
+    
+                return { ...p, ...cleanData, lastUpdated: new Date().toISOString() };
+            }
+            return p;
+        }));
     }, [smartSetParticipantDirectory]);
 
     const updateUser = useCallback(async (userId: string, data: Partial<Omit<User, 'id'>>) => {

@@ -122,7 +122,7 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({ curre
   };
 
   const handleSubmit = () => {
-    const profileData = {
+    const profileData: Partial<ParticipantProfile> = {
       name: `${firstName.trim()} ${lastName.trim()}`.trim(),
       birthDate: birthDate.trim() ? birthDate.trim() : undefined,
       gender,
@@ -134,9 +134,15 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({ curre
       shareMyBookings: shareMyBookings,
       receiveFriendBookingNotifications: receiveFriendBookingNotifications,
       notificationSettings,
-      photoURL: imagePreview || undefined,
     };
 
+    // Only include photoURL in the update if a new image has been selected or it has been removed.
+    // This prevents overwriting the existing URL with undefined.
+    if (imagePreview !== null) {
+      // An empty string signifies removal, which will be saved to Firestore.
+      profileData.photoURL = imagePreview;
+    }
+    
     onSave(profileData);
     return true;
   };
@@ -147,6 +153,8 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({ curre
 
   const locationOptions = locations.map((loc) => ({ value: loc.id, label: loc.name }));
   const combinedName = `${firstName} ${lastName}`.trim();
+  
+  const currentPhoto = imagePreview === null ? currentProfile?.photoURL : imagePreview;
 
   return (
     <div className="space-y-6 py-4">
@@ -155,11 +163,18 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({ curre
       <section className="space-y-4 pt-4 border-t">
         <h3 className="text-lg font-semibold text-gray-700">Profilbild</h3>
         <div className="flex items-center gap-4">
-          <Avatar photoURL={imagePreview || currentProfile?.photoURL} name={combinedName} size="lg" />
+          <Avatar photoURL={currentPhoto} name={combinedName} size="lg" />
           <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/png, image/jpeg" className="hidden" />
-          <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
-            Ladda upp ny bild
-          </Button>
+          <div className="flex flex-col gap-2">
+            <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
+              Ladda upp ny bild
+            </Button>
+            {currentPhoto && (
+              <Button type="button" variant="ghost" className="!text-red-600" onClick={() => setImagePreview('')}>
+                  Ta bort bild
+              </Button>
+            )}
+          </div>
         </div>
       </section>
 
