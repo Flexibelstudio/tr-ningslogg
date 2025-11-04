@@ -160,7 +160,7 @@ const ParticipantActivityViewFC: React.FC<ParticipantActivityViewProps> = ({
     });
 
     schedulesToday.forEach(schedule => {
-        const myBooking = allParticipantBookings.find(b => b.participantId === participantProfile?.id && b.scheduleId === schedule.id && b.classDate === dateStr && b.status !== 'CANCELLED');
+        const myBooking = allParticipantBookings.find(b => b.participantId === participantProfile?.id && b.scheduleId === schedule.id && b.classDate === dateStr);
         const isCoachedByMe = loggedInCoachId === schedule.coachId;
 
         if (!myBooking && !isCoachedByMe) return;
@@ -174,7 +174,7 @@ const ParticipantActivityViewFC: React.FC<ParticipantActivityViewProps> = ({
         startDateTime.setHours(hour, minute, 0, 0);
 
         const endDateTime = new Date(startDateTime.getTime() + schedule.durationMinutes * 60000);
-        if (dateUtils.isPast(endDateTime)) return;
+        if (dateUtils.isPast(endDateTime) && myBooking?.status !== 'CANCELLED') return;
         
         const allBookingsForInstance = allParticipantBookings.filter(b => b.scheduleId === schedule.id && b.classDate === dateStr && b.status !== 'CANCELLED');
         const bookedUsers = allBookingsForInstance.filter(b => b.status === 'BOOKED' || b.status === 'CHECKED-IN');
@@ -281,21 +281,25 @@ const ParticipantActivityViewFC: React.FC<ParticipantActivityViewProps> = ({
         const categoryBgColor = categoryColor + '1A';
         const startTime = instance.startDateTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
         const isCoachedByMe = loggedInCoachId === instance.coachId;
+        const isCancelled = instance.myBookingStatus === 'CANCELLED';
 
         const content = (
             <>
-                <p className="font-bold text-xs truncate" style={{ color: categoryColor }}>
+                <p className={`font-bold text-xs truncate ${isCancelled ? 'line-through' : ''}`} style={{ color: isCancelled ? '#9ca3af' : categoryColor }}>
                     {isCoachedByMe && '⭐ '}
                     {startTime} - {instance.className}
                 </p>
-                <p className={`text-xs truncate ${instance.isBookedByMe ? 'font-semibold text-gray-800' : 'text-gray-600'}`}>
-                    {isCoachedByMe 
+                <p className={`text-xs truncate ${instance.isBookedByMe ? 'font-semibold text-gray-800' : 'text-gray-600'} ${isCancelled ? 'line-through text-gray-500' : ''}`}>
+                    {isCoachedByMe
                         ? `${instance.bookedCount}/${instance.maxParticipants} bokade`
+                        : isCancelled
+                        ? '🚫 Inställt'
                         : instance.isWaitlistedByMe ? `Köplats #${instance.myWaitlistPosition}` : (instance.isBookedByMe ? 'Bokad' : '')
                     }
                 </p>
             </>
         );
+        
 
         if (isCoachedByMe && onManageClassClick) {
             return (
@@ -312,7 +316,7 @@ const ParticipantActivityViewFC: React.FC<ParticipantActivityViewProps> = ({
         }
 
         return (
-            <div key={instance.instanceId} className="w-full p-1 text-left rounded-md border-l-4" style={{ borderColor: categoryColor, backgroundColor: categoryBgColor }} title={instance.className}>
+            <div key={instance.instanceId} className="w-full p-1 text-left rounded-md border-l-4" style={{ borderColor: isCancelled ? '#d1d5db' : categoryColor, backgroundColor: isCancelled ? '#f3f4f6' : categoryBgColor }} title={instance.className}>
                 {content}
             </div>
         );
