@@ -186,18 +186,28 @@ export const OVERALL_MOOD_OPTIONS: { value: number, label: string, emoji: string
 
 export const WEIGHT_COMPARISONS: WeightComparisonItem[] = [
     { name: 'Katt', pluralName: 'Katter', weightKg: 5, emoji: '🐈', article: 'en' },
-    { name: 'Mikrovågsugn', pluralName: 'Mikrovågsugnar', weightKg: 15, emoji: ' microwave ', article: 'en' },
+    { name: 'Vattenmelon', pluralName: 'Vattenmeloner', weightKg: 10, emoji: '🍉', article: 'en' },
+    { name: 'Kalkon', pluralName: 'Kalkoner', weightKg: 12, emoji: '🦃', article: 'en' },
     { name: 'Golden Retriever', pluralName: 'Golden Retrievers', weightKg: 30, emoji: '🐕', article: 'en' },
+    { name: 'Babian', pluralName: 'Babianer', weightKg: 40, emoji: '🐒', article: 'en' },
     { name: 'Jättesäck potatis', pluralName: 'Jättesäckar potatis', weightKg: 50, emoji: '🥔', article: 'en' },
     { name: 'Full öl-kagge', pluralName: 'Fulla öl-kaggar', weightKg: 60, emoji: '🍺', article: 'ett' },
     { name: 'Varg', pluralName: 'Vargar', weightKg: 70, emoji: '🐺', article: 'en' },
     { name: 'Genomsnittlig man', pluralName: 'Genomsnittliga män', weightKg: 85, emoji: '👨', article: 'en' },
+    { name: 'Panda', pluralName: 'Pandor', weightKg: 115, emoji: '🐼', article: 'en' },
+    { name: 'Gris', pluralName: 'Grisar', weightKg: 120, emoji: '🐖', article: 'en' },
     { name: 'Gorilla', pluralName: 'Gorillor', weightKg: 160, emoji: '🦍', article: 'en' },
     { name: 'Lejon', pluralName: 'Lejon', weightKg: 190, emoji: '🦁', article: 'ett' },
     { name: 'Grizzlybjörn', pluralName: 'Grizzlybjörnar', weightKg: 270, emoji: '🐻', article: 'en' },
+    { name: 'Flygel', pluralName: 'Flyglar', weightKg: 350, emoji: '🎹', article: 'en' },
     { name: 'Häst', pluralName: 'Hästar', weightKg: 400, emoji: '🐎', article: 'en' },
     { name: 'Isbjörn', pluralName: 'Isbjörnar', weightKg: 600, emoji: '🐻‍❄️', article: 'en' },
+    { name: 'Ko', pluralName: 'Kor', weightKg: 750, emoji: '🐄', article: 'en' },
+    { name: 'Noshörning', pluralName: 'Noshörningar', weightKg: 1000, emoji: '🦏', article: 'en' },
     { name: 'Personbil', pluralName: 'Personbilar', weightKg: 1500, emoji: '🚗', article: 'en' },
+    { name: 'Flakbil', pluralName: 'Flakbilar', weightKg: 2000, emoji: '🛻', article: 'en' },
+    { name: 'Elefant', pluralName: 'Elefanter', weightKg: 5000, emoji: '🐘', article: 'en' },
+    { name: 'T-Rex', pluralName: 'T-Rexar', weightKg: 8000, emoji: '🦖', article: 'en' },
 ];
 
 export const FSS_CONFIG = {
