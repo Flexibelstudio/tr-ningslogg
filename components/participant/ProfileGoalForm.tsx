@@ -169,11 +169,6 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({ curre
             <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
               Ladda upp ny bild
             </Button>
-            {currentPhoto && (
-              <Button type="button" variant="ghost" className="!text-red-600" onClick={() => setImagePreview('')}>
-                  Ta bort bild
-              </Button>
-            )}
           </div>
         </div>
       </section>
