@@ -851,7 +851,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                 />
               ))}
             </div>
-             <Button fullWidth variant="accent" size="lg" onClick={() => handleAddSetToGroup(currentGroup)}>
+             <Button fullWidth variant="secondary" size="lg" onClick={() => handleAddSetToGroup(currentGroup)}>
                 {currentGroup.type === 'superset' ? 'Lägg till Superset' : 'Lägg till Set'}
             </Button>
             <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
