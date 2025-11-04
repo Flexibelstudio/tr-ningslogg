@@ -2,6 +2,7 @@
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import firebaseService from "../services/firebaseService";
+import { sanitizeDataForFirebase } from './firestoreUtils';
 
 /**
  * Logs an analytics event to Firestore. This is a fire-and-forget operation.
@@ -24,12 +25,13 @@ export async function logAnalyticsEvent(
   }
 
   try {
-    await addDoc(collection(db, "analyticsEvents"), {
+    const eventPayload = {
       type,
       timestamp: serverTimestamp(),
       orgId,
       ...data,
-    });
+    };
+    await addDoc(collection(db, "analyticsEvents"), sanitizeDataForFirebase(eventPayload));
   } catch (error) {
     console.error("Analytics event logging failed:", error);
   }

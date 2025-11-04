@@ -58,6 +58,7 @@ import { AICoachModal } from './AICoachModal';
 import { callGeminiApiFn } from '../../firebaseClient';
 import { db } from '../../firebaseConfig';
 import { useNotifications } from '../../context/NotificationsContext';
+import { sanitizeDataForFirebase } from '../../utils/firestoreUtils';
 
 
 const getInBodyScoreInterpretation = (score: number | undefined | null): { label: string; color: string; } | null => {
@@ -322,27 +323,6 @@ interface ParticipantAreaProps {
   newFlowItemsCount?: number;
 }
 
-// Helper function to remove undefined values, which Firestore doesn't accept.
-const sanitizeDataForFirebase = (data: any): any => {
-    if (Array.isArray(data)) {
-        return data.map(item => sanitizeDataForFirebase(item));
-    }
-    if (data instanceof Date) {
-        return data;
-    }
-    if (data !== null && typeof data === 'object') {
-        const sanitized: { [key: string]: any } = {};
-        for (const key of Object.keys(data)) {
-            const value = data[key];
-            if (value !== undefined) {
-                sanitized[key] = sanitizeDataForFirebase(value);
-            }
-        }
-        return sanitized;
-    }
-    return data;
-};
-
 function urlBase64ToUint8Array(base64String: string) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
     const base64 = (base64String + padding)
@@ -593,6 +573,16 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
 
     const saveSubscription = (subscription: PushSubscription) => {
         const subscriptionJSON = subscription.toJSON();
+        
+        if (participantProfile && participantProfile.notificationSettings?.pushEnabled !== true) {
+            updateParticipantProfile(currentParticipantId, {
+              notificationSettings: {
+                ...participantProfile.notificationSettings,
+                pushEnabled: true,
+              }
+            });
+        }
+
         const newSubscriptionRecord: UserPushSubscription = {
             id: crypto.randomUUID(),
             participantId: currentParticipantId,
@@ -1149,7 +1139,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     };
 
     const handleSaveProfile = async (
-        profileData: Partial<Pick<ParticipantProfile, 'name' | 'birthDate' | 'gender' | 'enableLeaderboardParticipation' | 'isSearchable' | 'locationId' | 'enableInBodySharing' | 'enableFssSharing' | 'photoURL'>>
+        profileData: Partial<Pick<ParticipantProfile, 'name' | 'birthDate' | 'gender' | 'enableLeaderboardParticipation' | 'isSearchable' | 'locationId' | 'enableInBodySharing' | 'enableFssSharing' | 'photoURL' | 'shareMyBookings' | 'receiveFriendBookingNotifications' | 'notificationSettings'>>
     ) => {
         try {
             await updateParticipantProfile(currentParticipantId, profileData);

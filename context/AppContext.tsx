@@ -15,6 +15,7 @@ import { useAuth } from './AuthContext';
 import { db } from '../firebaseConfig';
 import dataService from '../services/dataService';
 import { COLOR_PALETTE } from '../constants';
+import { sanitizeDataForFirebase } from '../utils/firestoreUtils';
 
 
 const sortWorkoutsByCategoryThenTitle = (workouts: Workout[]): Workout[] => {
@@ -83,27 +84,6 @@ interface AppContextType extends OrganizationData {
 
 // 2. Create the context with a default value (or undefined and check for it)
 const AppContext = createContext<AppContextType | undefined>(undefined);
-
-// NEW: Helper function to recursively remove `undefined` values from an object.
-const sanitizeDataForFirebase = (data: any): any => {
-    if (Array.isArray(data)) {
-        return data.map(item => sanitizeDataForFirebase(item));
-    }
-    if (data instanceof Date) {
-        return data;
-    }
-    if (data !== null && typeof data === 'object') {
-        const sanitized: { [key: string]: any } = {};
-        for (const key of Object.keys(data)) {
-            const value = data[key];
-            if (value !== undefined) {
-                sanitized[key] = sanitizeDataForFirebase(value);
-            }
-        }
-        return sanitized;
-    }
-    return data;
-};
 
 // 3. Create the Provider component
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
