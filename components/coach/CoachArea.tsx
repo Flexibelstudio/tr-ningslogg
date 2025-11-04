@@ -83,6 +83,7 @@ interface CoachAreaProps {
   onBookClass: (participantId: string, scheduleId: string, classDate: string) => void;
   onCancelBooking: (bookingId: string) => void;
   onPromoteFromWaitlist: (bookingId: string) => void;
+  onCancelClassInstance: (scheduleId: string, classDate: string) => void;
 }
 
 export const CoachArea: React.FC<CoachAreaProps> = ({
@@ -94,6 +95,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   onBookClass,
   onCancelBooking,
   onPromoteFromWaitlist,
+  onCancelClassInstance,
 }) => {
   const {
     participantDirectory,
@@ -636,6 +638,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
           onBookClass={onBookClass}
           onCancelBooking={onCancelBooking}
           onPromoteFromWaitlist={onPromoteFromWaitlist}
+          onCancelClassInstance={onCancelClassInstance}
         />
       )}
     </div>

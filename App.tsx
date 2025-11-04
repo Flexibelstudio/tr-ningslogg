@@ -57,6 +57,7 @@ const AppContent: React.FC = () => {
     coachEvents,
     oneOnOneSessions,
     participantBookings,
+    setParticipantBookingsData,
     groupClassSchedules,
     groupClassDefinitions: definitions,
     isOrgDataLoading,
@@ -81,7 +82,6 @@ const AppContent: React.FC = () => {
     setUserConditioningStatsHistoryData,
     setCoachEventsData,
     setOneOnOneSessionsData,
-    setParticipantBookingsData,
     setParticipantDirectoryData,
   } = useAppContext();
 
@@ -1131,6 +1131,68 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
       }
     }
   }, [auth.currentRole, auth.currentParticipantId, welcomeModalShown, participantDirectory, prospectModalShownKey, memberships]);
+  
+  const handleCancelClassInstance = useCallback(async (scheduleId: string, classDate: string) => {
+    const bookingsToCancel = participantBookings.filter(
+        (b) => b.scheduleId === scheduleId && b.classDate === classDate && (b.status === 'BOOKED' || b.status === 'CHECKED-IN' || b.status === 'WAITLISTED')
+    );
+
+    if (bookingsToCancel.length === 0) {
+        addNotification({
+            type: 'INFO',
+            title: 'Inga bokningar',
+            message: 'Det fanns inga aktiva bokningar att avboka för detta pass.',
+        });
+        return;
+    }
+
+    const participantIdsToRefund = new Set<string>();
+    const updatedBookings = participantBookings.map(booking => {
+        if (bookingsToCancel.some(b => b.id === booking.id)) {
+            if (booking.status !== 'WAITLISTED') {
+                const participant = participantDirectory.find(p => p.id === booking.participantId);
+                const membership = memberships.find(m => m.id === participant?.membershipId);
+                if (membership?.type === 'clip_card') {
+                    participantIdsToRefund.add(booking.participantId);
+                }
+            }
+            return { ...booking, status: 'CANCELLED' as const };
+        }
+        return booking;
+    });
+
+    const updatedParticipants = participantDirectory.map(p => {
+        if (participantIdsToRefund.has(p.id) && p.clipCardStatus) {
+            return {
+                ...p,
+                clipCardStatus: {
+                    ...p.clipCardStatus,
+                    remainingClips: (p.clipCardStatus.remainingClips || 0) + 1,
+                },
+            };
+        }
+        return p;
+    });
+    
+    setParticipantBookingsData(updatedBookings);
+    setParticipantDirectoryData(updatedParticipants);
+
+    const affectedParticipantIds = new Set(bookingsToCancel.map(b => b.participantId));
+    
+    const schedule = groupClassSchedules.find(s => s.id === scheduleId);
+    const classDef = definitions.find(d => d.id === schedule?.groupClassId);
+    
+    // TODO: Send push notifications in a real backend scenario.
+    console.log(`[Placeholder] Would send 'Class Cancelled' notifications to ${affectedParticipantIds.size} participants.`);
+    
+    addNotification({
+        type: 'SUCCESS',
+        title: 'Pass Inställt',
+        message: `Passet ${classDef?.name || ''} har ställts in. ${affectedParticipantIds.size} deltagare har meddelats och eventuella klipp har återbetalats.`,
+    });
+    
+}, [participantBookings, setParticipantBookingsData, participantDirectory, setParticipantDirectoryData, memberships, addNotification, groupClassSchedules, definitions]);
+
 
   const handleProfileModalOpened = useCallback(() => {
     const participantProfile = participantDirectory.find((p) => p.id === auth.currentParticipantId);
@@ -1234,6 +1296,7 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
             onBookClass={handleBookClass}
             onCancelBooking={handleCancelBooking}
             onPromoteFromWaitlist={handlePromoteFromWaitlist}
+            onCancelClassInstance={handleCancelClassInstance}
           />
         </div>
       );
@@ -1256,7 +1319,6 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
             onLocationCheckIn={handleLocationCheckIn}
             onBookClass={handleBookClass}
             onCancelBooking={handleCancelBooking}
-            onCheckInParticipant={handleCheckInParticipant}
             setProfileOpener={setProfileOpener}
             setParticipantModalOpeners={setParticipantModalOpeners}
             newFlowItemsCount={newFlowItemsCount}
@@ -1299,6 +1361,7 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
     handleBookClass,
     handleCancelBooking,
     handlePromoteFromWaitlist,
+    handleCancelClassInstance,
     handleSelfCheckIn,
     handleLocationCheckIn,
     openProfileModalOnInit,
