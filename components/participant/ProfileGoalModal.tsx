@@ -9,9 +9,11 @@ interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentProfile: ParticipantProfile | null;
-  onSave: (
-    profileData: { name?: string; birthDate?: string; gender?: GenderOption; enableLeaderboardParticipation?: boolean; isSearchable?: boolean; locationId?: string; enableInBodySharing?: boolean; enableFssSharing?: boolean; photoURL?: string; }
-  ) => void;
+  onSave: (profileData: Partial<Pick<ParticipantProfile, 
+    'name' | 'birthDate' | 'gender' | 'enableLeaderboardParticipation' | 
+    'isSearchable' | 'locationId' | 'enableInBodySharing' | 'enableFssSharing' | 
+    'photoURL' | 'shareMyBookings' | 'receiveFriendBookingNotifications' | 'notificationSettings'
+  >>) => void;
   locations: Location[];
 }
 

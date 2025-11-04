@@ -14,7 +14,7 @@ import { TermsModal } from './components/TermsModal';
 import { WelcomeModal } from './components/participant/WelcomeModal';
 import { UpdateNoticeModal } from './components/participant/UpdateNoticeModal';
 import { LOCAL_STORAGE_KEYS } from './constants';
-import { FlowItemLogType, User, UserRole, GeneralActivityLog } from './types';
+import { FlowItemLogType, User, UserRole, GeneralActivityLog, ParticipantProfile } from './types';
 import { useNotifications } from './context/NotificationsContext';
 import { logAnalyticsEvent } from './utils/analyticsLogger';
 import firebaseService from './services/firebaseService';
