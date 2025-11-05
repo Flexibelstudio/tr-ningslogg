@@ -355,18 +355,20 @@ const AppContent: React.FC = () => {
         setParticipantBookingsData((prev) => [...prev, newBooking]);
       }
 
-      // 5. Analytics logging
+      // 5. Analytics logging (fire-and-forget)
       if (schedule && classDef) {
-        logAnalyticsEvent("BOOKING_CREATED", {
-          participantId,
-          scheduleId: schedule.id,
-          classId: schedule.groupClassId,
-          classDate,
-          coachId: schedule.coachId,
-          locationId: schedule.locationId,
-          classType: classDef.name,
-          wasWaitlisted: newStatus === 'WAITLISTED',
-        }, auth.organizationId);
+        setTimeout(() => {
+          logAnalyticsEvent("BOOKING_CREATED", {
+            participantId,
+            scheduleId: schedule.id,
+            classId: schedule.groupClassId,
+            classDate,
+            coachId: schedule.coachId,
+            locationId: schedule.locationId,
+            classType: classDef.name,
+            wasWaitlisted: newStatus === 'WAITLISTED',
+          }, auth.organizationId!); // It's safe to use ! here due to the check at the start of the function.
+        }, 0);
       }
 
       // 6. Fire notification and deduct clip card if booked
