@@ -78,23 +78,21 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
 
         const memberLocationId = participantProfile.locationId;
         
-        // Filter out schedules that have already ended entirely.
         const relevantSchedules = schedules.filter(s => {
             if (s.locationId !== memberLocationId) return false;
-            // Parse endDate as local time to avoid timezone issues.
             const [endYear, endMonth, endDay] = s.endDate.split('-').map(Number);
             const endDate = new Date(endYear, endMonth - 1, endDay);
-            endDate.setHours(23, 59, 59, 999); // Ensure we include the whole end day.
+            endDate.setHours(23, 59, 59, 999);
             return endDate >= today;
         });
         
         const bookingLeadTimeWeeks = integrationSettings.bookingLeadTimeWeeks || 2;
         const daysToScan = bookingLeadTimeWeeks * 7;
-        const now = new Date(); // Get current time once for consistent comparison
+        const now = new Date();
     
         for (let i = 0; i < daysToScan; i++) {
             const currentDate = dateUtils.addDays(today, i);
-            const dayOfWeek = currentDate.getDay() === 0 ? 7 : currentDate.getDay(); // Mon=1, Sun=7
+            const dayOfWeek = currentDate.getDay() === 0 ? 7 : currentDate.getDay();
             const currentDateStr = dateUtils.toYYYYMMDD(currentDate);
     
             relevantSchedules.forEach(schedule => {
@@ -118,13 +116,11 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                         const startDateTime = new Date(currentDate);
                         startDateTime.setHours(hour, minute, 0, 0);
 
-                        // Explicitly check if the class start time is in the past.
                         if (startDateTime < now) {
                             return;
                         }
 
-                        const allBookingsForInstance = bookings.filter(b => b.scheduleId === schedule.id && b.classDate === currentDateStr);
-                        const activeBookingsForInstance = allBookingsForInstance.filter(b => b.status !== 'CANCELLED');
+                        const activeBookingsForInstance = bookings.filter(b => b.scheduleId === schedule.id && b.classDate === currentDateStr && b.status !== 'CANCELLED');
                         
                         const myBooking = activeBookingsForInstance.find(b => b.participantId === currentParticipantId);
                         
@@ -153,7 +149,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                             maxParticipants: schedule.maxParticipants,
                             bookedCount: bookedUsers.length,
                             waitlistCount: waitlistedUsers.length,
-                            isBookedByMe: myBooking?.status === 'BOOKED' || myBooking?.status === 'CHECKED-IN',
+                            isBookedByMe: !!myBooking && (myBooking.status === 'BOOKED' || myBooking.status === 'CHECKED-IN'),
                             isWaitlistedByMe: myBooking?.status === 'WAITLISTED',
                             myBookingStatus: myBooking?.status,
                             myWaitlistPosition: myPosition,
@@ -161,7 +157,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                             isFull: bookedUsers.length >= schedule.maxParticipants,
                             cancellationCutoffHours: integrationSettings.cancellationCutoffHours ?? 2,
                             isRestricted: isRestricted,
-                            hasWaitlist: schedule.hasWaitlist ?? classDef.hasWaitlist ?? false,
+                            hasWaitlist: schedule.hasWaitlist ?? classDef.hasWaitlist ?? true,
                             color: classDef.color || getColorForCategory(classDef.name),
                         });
                     }
@@ -280,7 +276,12 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                 );
             } else {
                 return (
-                    <Button disabled>FULLBOKAT</Button>
+                    <div className="relative w-full">
+                        <Button disabled className="w-full !bg-green-200 !text-green-800 !cursor-not-allowed !opacity-100">
+                            FULLBOKAT
+                        </Button>
+                        <span className="absolute -top-2 -right-2 text-xs bg-gray-200 text-gray-700 font-bold px-2 py-0.5 rounded-md shadow">FULLT</span>
+                    </div>
                 );
             }
         }
@@ -344,12 +345,10 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                                             title={instance.className}
                                         >
                                             {isRestricted && <div className="absolute inset-0 bg-gray-200/50 rounded-lg z-10 cursor-not-allowed"></div>}
-                                            {instance.isFull && !instance.isBookedByMe && !instance.isWaitlistedByMe && (
-                                                <span className="absolute top-1 right-1 bg-gray-200 text-gray-700 text-xs font-semibold px-2 py-0.5 rounded z-20">FULLT</span>
-                                            )}
+                                            
                                             <div 
                                                 className={`flex-shrink-0 w-20 h-20 flex flex-col items-center justify-center rounded-md text-white z-20 ${isRestricted ? 'opacity-60' : ''}`}
-                                                style={{ backgroundColor: instance.isBookedByMe ? '#0aa5a1' : instance.color }}
+                                                style={{ backgroundColor: instance.color }}
                                             >
                                                 <p className="text-2xl font-bold">{instance.startDateTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}</p>
                                                 <p className="text-sm">{instance.duration} min</p>

@@ -323,24 +323,19 @@ const GroupClassDefinitionManager: React.FC = () => {
     const { groupClassDefinitions, setGroupClassDefinitionsData, groupClassSchedules } = useAppContext();
     const [newDefinitionName, setNewDefinitionName] = useState('');
     const [definitionToDelete, setDefinitionToDelete] = useState<GroupClassDefinition | null>(null);
+    const [editingDefinition, setEditingDefinition] = useState<GroupClassDefinition | null>(null);
 
-    const handleAdd = () => {
-        if (newDefinitionName.trim() && !groupClassDefinitions.some(c => c.name.toLowerCase() === newDefinitionName.trim().toLowerCase())) {
-            const existingColors = new Set(groupClassDefinitions.map(def => def.color).filter(Boolean));
-            let newColor = COLOR_PALETTE.find(c => !existingColors.has(c));
-            if (!newColor) {
-                newColor = COLOR_PALETTE[groupClassDefinitions.length % COLOR_PALETTE.length];
+    const handleSave = (def: GroupClassDefinition) => {
+        setGroupClassDefinitionsData(prev => {
+            const index = prev.findIndex(d => d.id === def.id);
+            if (index > -1) {
+                const newDefs = [...prev];
+                newDefs[index] = def;
+                return newDefs;
             }
-
-            const newDef: GroupClassDefinition = {
-                id: crypto.randomUUID(),
-                name: newDefinitionName.trim(),
-                hasWaitlist: true, // Default to having a waitlist
-                color: newColor,
-            };
-            setGroupClassDefinitionsData(prev => [...prev, newDef]);
-            setNewDefinitionName('');
-        }
+            return [...prev, def];
+        });
+        setEditingDefinition(null);
     };
     
     const handleDelete = (definition: GroupClassDefinition) => {
@@ -358,35 +353,71 @@ const GroupClassDefinitionManager: React.FC = () => {
         }
         setDefinitionToDelete(null);
     }
+    
+    const openAddModal = () => {
+        setEditingDefinition({
+            id: crypto.randomUUID(),
+            name: '',
+            hasWaitlist: true,
+            color: COLOR_PALETTE[groupClassDefinitions.length % COLOR_PALETTE.length],
+        });
+    };
 
     return (
         <>
             <Card title="Hantera Gruppass-typer">
                  <p className="text-sm text-gray-500 -mt-2 mb-4">Dessa är de pass som kan schemaläggas och bokas av medlemmar.</p>
-                 <div className="space-y-4">
-                    <div>
-                        <label htmlFor="new-class-def" className="block text-base font-medium text-gray-700 mb-1">Ny Gruppass-typ</label>
-                        <div className="flex gap-2">
-                            <Input id="new-class-def" value={newDefinitionName} onChange={e => setNewDefinitionName(e.target.value)} placeholder="T.ex. Yoga Flow" />
-                            <Button onClick={handleAdd}>Lägg till</Button>
-                        </div>
-                    </div>
-                    <div>
-                        <h4 className="text-base font-medium text-gray-700 mb-2">Befintliga Gruppass-typer</h4>
-                        <div className="space-y-2">
-                            {groupClassDefinitions.map(def => (
-                                <div key={def.id} className="flex justify-between items-center p-2 bg-gray-100 rounded-md">
-                                    <span className="text-gray-800 flex items-center gap-2">
-                                        <span className="w-4 h-4 rounded-full" style={{ backgroundColor: def.color || '#ccc' }}></span>
-                                        {def.name}
-                                    </span>
-                                    <Button variant="danger" size="sm" className="!p-1.5" onClick={() => handleDelete(def)}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg></Button>
+                 <div className="flex justify-end mb-4">
+                    <Button onClick={openAddModal}>Ny Passtyp</Button>
+                 </div>
+                 <div className="space-y-3">
+                    {groupClassDefinitions.map(def => (
+                        <div key={def.id} className="p-3 bg-gray-50 rounded-lg border flex justify-between items-center gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-md" style={{ backgroundColor: def.color || '#ccc' }}></div>
+                                <div>
+                                    <p className="text-lg font-semibold text-gray-800">{def.name}</p>
+                                    <p className={`text-sm font-medium ${def.hasWaitlist ? 'text-green-600' : 'text-gray-500'}`}>
+                                        {def.hasWaitlist ? 'Kölista är aktiv' : 'Kölista är inaktiv'}
+                                    </p>
                                 </div>
-                            ))}
+                            </div>
+                            <div className="flex gap-2 flex-shrink-0">
+                                <Button variant="outline" size="sm" className="!text-xs" onClick={() => setEditingDefinition(def)}>Redigera</Button>
+                                <Button variant="danger" size="sm" className="!p-1.5" onClick={() => handleDelete(def)}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                                </Button>
+                            </div>
+                        </div>
+                    ))}
+                 </div>
+            </Card>
+            
+            {editingDefinition && (
+                <Modal isOpen={!!editingDefinition} onClose={() => setEditingDefinition(null)} title={editingDefinition.name ? 'Redigera Passtyp' : 'Ny Passtyp'}>
+                    <div className="space-y-4">
+                        <Input label="Namn" value={editingDefinition.name} onChange={e => setEditingDefinition(p => p ? {...p, name: e.target.value} : null)} />
+                        <Input label="Beskrivning" value={editingDefinition.description || ''} onChange={e => setEditingDefinition(p => p ? {...p, description: e.target.value} : null)} />
+                        <Input label="Standardlängd (minuter)" type="number" value={String(editingDefinition.defaultDurationMinutes || '')} onChange={e => setEditingDefinition(p => p ? {...p, defaultDurationMinutes: Number(e.target.value)} : null)} />
+                        <div className="flex items-center gap-3">
+                            <label htmlFor="class-color">Färg</label>
+                            <input id="class-color" type="color" value={editingDefinition.color || '#cccccc'} onChange={e => setEditingDefinition(p => p ? {...p, color: e.target.value} : null)} />
+                        </div>
+                        <ToggleSwitch
+                            id="class-waitlist"
+                            label="Aktivera kölista"
+                            description="Tillåt medlemmar att ställa sig i kö när passet är fullt."
+                            checked={editingDefinition.hasWaitlist ?? false}
+                            onChange={val => setEditingDefinition(p => p ? {...p, hasWaitlist: val} : null)}
+                        />
+                        <div className="flex justify-end gap-2 pt-4 border-t">
+                            <Button variant="secondary" onClick={() => setEditingDefinition(null)}>Avbryt</Button>
+                            <Button onClick={() => handleSave(editingDefinition)}>Spara</Button>
                         </div>
                     </div>
-                </div>
-            </Card>
+                </Modal>
+            )}
+
             <ConfirmationModal 
                 isOpen={!!definitionToDelete}
                 onClose={() => setDefinitionToDelete(null)}
@@ -407,7 +438,7 @@ const QRCodeManager: React.FC = () => {
 
     useEffect(() => {
         if (selectedLocationId && canvasRef.current) {
-            const data = `flexibel-location-checkin:${selectedLocationId}`;
+            const data = JSON.stringify({ type: 'flexibel-checkin', locationId: selectedLocationId });
             QRCode.toCanvas(canvasRef.current, data, { width: 256, margin: 2 }, (error) => {
                 if (error) console.error(error);
             });
@@ -446,9 +477,8 @@ const QRCodeManager: React.FC = () => {
             />
             {selectedLocationId && (
                 <div className="mt-4 text-center space-y-4">
-                    <p className="font-semibold text-xl">Checka in på {locationName}</p>
+                    <p className="font-semibold text-xl">Checka in på ${locationName}</p>
                     <canvas ref={canvasRef} className="mx-auto" />
-                    <p className="text-sm text-gray-600">Denna kod används av deltagare för att checka in på alla pass på denna plats.</p>
                     <Button onClick={handlePrint}>Skriv ut / Spara som PDF</Button>
                 </div>
             )}

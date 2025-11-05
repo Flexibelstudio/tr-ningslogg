@@ -3,6 +3,7 @@ import { Modal } from '../Modal';
 import { Input, Select } from '../Input';
 import { Button } from '../Button';
 import { GroupClassSchedule, GroupClassDefinition, Location, StaffMember } from '../../types';
+import { ToggleSwitch } from '../ToggleSwitch';
 
 interface CreateScheduleModalProps {
   isOpen: boolean;
@@ -39,7 +40,7 @@ const DayOfWeekSelector: React.FC<{ selectedDays: number[]; onToggleDay: (day: n
 };
 
 export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen, onClose, onSave, scheduleToEdit, classDefinitions, locations, coaches }) => {
-    const [formState, setFormState] = useState<Omit<GroupClassSchedule, 'id' | 'maxParticipants' | 'durationMinutes'> & { maxParticipants: number | string, durationMinutes: number | string }>({
+    const [formState, setFormState] = useState<Partial<Omit<GroupClassSchedule, 'id'>> & { maxParticipants: number | string, durationMinutes: number | string }>({
         locationId: '',
         groupClassId: '',
         coachId: '',
@@ -49,21 +50,24 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen
         maxParticipants: 12,
         startDate: '',
         endDate: '',
+        hasWaitlist: true,
     });
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [saveAndCopySuccess, setSaveAndCopySuccess] = useState<string | null>(null);
 
     const resetForm = useCallback(() => {
+        const initialClassDef = classDefinitions[0];
         setFormState({
             locationId: locations[0]?.id || '',
-            groupClassId: classDefinitions[0]?.id || '',
+            groupClassId: initialClassDef?.id || '',
             coachId: coaches.filter(c => c.isActive)[0]?.id || '',
             daysOfWeek: [],
             startTime: '',
-            durationMinutes: classDefinitions[0]?.defaultDurationMinutes || 45,
+            durationMinutes: initialClassDef?.defaultDurationMinutes || 45,
             maxParticipants: 12,
             startDate: '',
             endDate: '',
+            hasWaitlist: initialClassDef?.hasWaitlist ?? true,
         });
         setErrors({});
     }, [locations, classDefinitions, coaches]);
@@ -80,18 +84,22 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen
         }
     }, [isOpen, scheduleToEdit, resetForm]);
 
-    useEffect(() => {
-        if (!scheduleToEdit) {
-            const classDef = classDefinitions.find(c => c.id === formState.groupClassId);
-            if (classDef && classDef.defaultDurationMinutes) {
-                setFormState(prev => ({ ...prev, durationMinutes: classDef.defaultDurationMinutes! }));
-            }
-        }
-    }, [formState.groupClassId, classDefinitions, scheduleToEdit]);
-
     const handleInputChange = (field: keyof typeof formState, value: any) => {
         setFormState(prev => ({ ...prev, [field]: value }));
     };
+
+    useEffect(() => {
+        if (!scheduleToEdit) { // Only for new schedules, not when editing
+            const classDef = classDefinitions.find(c => c.id === formState.groupClassId);
+            if (classDef) {
+                setFormState(prev => ({
+                    ...prev,
+                    durationMinutes: classDef.defaultDurationMinutes || 45,
+                    hasWaitlist: classDef.hasWaitlist ?? true
+                }));
+            }
+        }
+    }, [formState.groupClassId, classDefinitions, scheduleToEdit]);
 
     const handleDayToggle = (day: number) => {
         setFormState(prev => {
@@ -107,7 +115,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen
         if (!formState.locationId) newErrors.locationId = 'Ort måste väljas.';
         if (!formState.groupClassId) newErrors.groupClassId = 'Pass måste väljas.';
         if (!formState.coachId) newErrors.coachId = 'Coach måste väljas.';
-        if (formState.daysOfWeek.length === 0) newErrors.daysOfWeek = 'Välj minst en dag.';
+        if (!formState.daysOfWeek || formState.daysOfWeek.length === 0) newErrors.daysOfWeek = 'Välj minst en dag.';
         if (!formState.startTime) newErrors.time = 'Tid måste anges.';
         if (!formState.durationMinutes || Number(formState.durationMinutes) <= 0) newErrors.duration = 'Längd måste vara större än 0.';
         if (!formState.maxParticipants || Number(formState.maxParticipants) <= 0) newErrors.maxParticipants = 'Max deltagare måste vara större än 0.';
@@ -125,9 +133,16 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen
         
         const scheduleData: GroupClassSchedule = {
             id: scheduleToEdit ? scheduleToEdit.id : crypto.randomUUID(),
-            ...formState,
+            locationId: formState.locationId!,
+            groupClassId: formState.groupClassId!,
+            coachId: formState.coachId!,
+            daysOfWeek: formState.daysOfWeek!,
+            startTime: formState.startTime!,
+            startDate: formState.startDate!,
+            endDate: formState.endDate!,
             durationMinutes: Number(formState.durationMinutes),
             maxParticipants: Number(formState.maxParticipants),
+            hasWaitlist: formState.hasWaitlist ?? false,
         };
         
         onSave(scheduleData);
@@ -157,7 +172,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen
                 
                 <div>
                     <label className="block text-xl font-medium text-gray-700 mb-1">Veckodag(ar) *</label>
-                    <DayOfWeekSelector selectedDays={formState.daysOfWeek} onToggleDay={handleDayToggle} />
+                    <DayOfWeekSelector selectedDays={formState.daysOfWeek || []} onToggleDay={handleDayToggle} />
                     {errors.daysOfWeek && <p className="mt-1 text-sm text-red-600">{errors.daysOfWeek}</p>}
                 </div>
                 
@@ -172,6 +187,16 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Input label="Från vecka (startdatum) *" type="date" value={formState.startDate} onChange={e => handleInputChange('startDate', e.target.value)} error={errors.date} />
                     <Input label="Till vecka (slutdatum) *" type="date" value={formState.endDate} onChange={e => handleInputChange('endDate', e.target.value)} />
+                </div>
+
+                <div className="pt-4 border-t">
+                    <ToggleSwitch
+                        id="hasWaitlist"
+                        label="Aktivera kölista"
+                        description="Tillåt medlemmar att köa om passet är fullt."
+                        checked={formState.hasWaitlist ?? false}
+                        onChange={(val) => handleInputChange('hasWaitlist', val)}
+                    />
                 </div>
 
                 <div className="flex justify-between items-center pt-4 border-t">
