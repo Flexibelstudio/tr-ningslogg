@@ -165,7 +165,7 @@ export const sendSessionReminder = onRequest(
         })
       );
       
-      await bookingRef.update({ reminderTaskId: FieldValue.delete() }).catch(() => {});
+      // The reminderTaskId field is no longer used, so no need to delete it.
       response.status(200).send("Reminder sent.");
     } catch (error) {
       logger.error(`Failed to send reminder for booking ${bookingId}:`, error);
@@ -294,9 +294,13 @@ export const onBookingUpdate = onDocumentUpdated(
           const queue = getFunctions().taskQueue("sendSessionReminder", "europe-west1");
           const project = process.env.GCLOUD_PROJECT;
           const targetUri = `https://europe-west1-${project}.cloudfunctions.net/sendSessionReminder`;
-          const task = await queue.enqueue({ orgId, bookingId }, { scheduleTime, uri: targetUri });
-          await event.data!.after.ref.update({ reminderTaskId: task.name });
-          logger.info(`Scheduled reminder task ${task.name} for booking ${bookingId}.`);
+          
+          // Enqueue returns Promise<void> in v2. We no longer get a task object.
+          await queue.enqueue({ orgId, bookingId }, { scheduleTime, uri: targetUri });
+          
+          // The scheduled function will check the booking status before sending.
+          // So, we don't need to store the task ID or delete it upon cancellation.
+          logger.info(`Scheduled reminder for booking ${bookingId}.`);
         }
       } catch (error) {
         logger.error(`Failed to schedule reminder for booking ${bookingId}:`, error);
@@ -304,20 +308,9 @@ export const onBookingUpdate = onDocumentUpdated(
     }
 
     // --- C) Avbokning: ta bort schemalagd påminnelse ---
-    if (["BOOKED", "CHECKED-IN"].includes(beforeStatus) && afterStatus === "CANCELLED" && beforeData.reminderTaskId) {
-        try {
-            const queue = getFunctions().taskQueue("sendSessionReminder", "europe-west1");
-            await queue.delete(beforeData.reminderTaskId);
-            await event.data!.after.ref.update({ reminderTaskId: FieldValue.delete() });
-            logger.info(`Deleted scheduled task ${beforeData.reminderTaskId} for cancelled booking ${bookingId}.`);
-        } catch (error) {
-            // Om tasken inte finns (redan körts eller fel id) är det ingen fara.
-            if ((error as any)?.code !== 5) {
-                logger.error(`Failed to delete task ${beforeData.reminderTaskId} for booking ${bookingId}:`, error);
-            }
-            await event.data!.after.ref.update({ reminderTaskId: FieldValue.delete() }).catch(() => {});
-        }
-    }
+    // This block is no longer needed. The scheduled function `sendSessionReminder`
+    // will check the booking status. If the booking is CANCELLED, it will simply
+    // exit without sending a notification. This is the new recommended pattern.
   }
 );
 
