@@ -126,7 +126,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                         const allBookingsForInstance = bookings.filter(b => b.scheduleId === schedule.id && b.classDate === currentDateStr);
                         const activeBookingsForInstance = allBookingsForInstance.filter(b => b.status !== 'CANCELLED');
                         
-                        const myBooking = allBookingsForInstance.find(b => b.participantId === currentParticipantId);
+                        const myBooking = activeBookingsForInstance.find(b => b.participantId === currentParticipantId);
                         
                         const bookedUsers = activeBookingsForInstance.filter(b => b.status === 'BOOKED' || b.status === 'CHECKED-IN');
                         const waitlistedUsers = activeBookingsForInstance.filter(b => b.status === 'WAITLISTED').sort((a,b) => new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime());
@@ -236,10 +236,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
         if (instance.isRestricted) {
             return <Button variant="secondary" onClick={onOpenUpgradeModal}><LockIcon />Lås upp</Button>;
         }
-        if (instance.myBookingStatus === 'CANCELLED') {
-            return <Button variant="ghost" disabled className="!text-red-600">Avbokad</Button>;
-        }
-
+        
         const now = new Date().getTime();
         const cutoffTime = instance.startDateTime.getTime() - (instance.cancellationCutoffHours * 3600 * 1000);
         const canCancel = now < cutoffTime;
@@ -335,39 +332,38 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                                 <div className="space-y-3">
                                 {instances.length > 0 ? instances.map(instance => {
                                     const isRestricted = instance.isRestricted;
-                                    const isCancelledByCoach = instance.myBookingStatus === 'CANCELLED';
                                     return (
                                         <div 
                                             key={instance.instanceId} 
                                             className={`relative flex items-center gap-3 p-3 rounded-lg shadow-sm border-l-4 transition-colors ${
-                                                isRestricted || isCancelledByCoach
+                                                isRestricted
                                                     ? 'bg-gray-100' 
                                                     : 'bg-white'
                                             }`}
-                                            style={{ borderColor: isRestricted || isCancelledByCoach ? '#d1d5db' : instance.color }}
+                                            style={{ borderColor: isRestricted ? '#d1d5db' : instance.color }}
                                             title={instance.className}
                                         >
-                                            {(isRestricted || isCancelledByCoach) && <div className="absolute inset-0 bg-gray-200/50 rounded-lg z-10 cursor-not-allowed"></div>}
-                                            {instance.isFull && !instance.isBookedByMe && !instance.isWaitlistedByMe && !isCancelledByCoach && (
+                                            {isRestricted && <div className="absolute inset-0 bg-gray-200/50 rounded-lg z-10 cursor-not-allowed"></div>}
+                                            {instance.isFull && !instance.isBookedByMe && !instance.isWaitlistedByMe && (
                                                 <span className="absolute top-1 right-1 bg-gray-200 text-gray-700 text-xs font-semibold px-2 py-0.5 rounded z-20">FULLT</span>
                                             )}
                                             <div 
-                                                className={`flex-shrink-0 w-20 h-20 flex flex-col items-center justify-center rounded-md text-white z-20 ${isRestricted || isCancelledByCoach ? 'opacity-60' : ''}`}
-                                                style={{ backgroundColor: instance.isBookedByMe ? '#0aa5a1' : (isCancelledByCoach ? '#9ca3af' : instance.color) }}
+                                                className={`flex-shrink-0 w-20 h-20 flex flex-col items-center justify-center rounded-md text-white z-20 ${isRestricted ? 'opacity-60' : ''}`}
+                                                style={{ backgroundColor: instance.isBookedByMe ? '#0aa5a1' : instance.color }}
                                             >
                                                 <p className="text-2xl font-bold">{instance.startDateTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}</p>
                                                 <p className="text-sm">{instance.duration} min</p>
                                             </div>
                                             <div className="flex-grow z-20">
-                                                <p className={`font-bold text-lg ${isRestricted || isCancelledByCoach ? 'text-gray-500' : ''}`}>{instance.className}</p>
-                                                <div className={`flex items-center gap-2 text-sm ${isRestricted || isCancelledByCoach ? 'text-gray-500' : 'text-gray-600'}`}>
+                                                <p className={`font-bold text-lg ${isRestricted ? 'text-gray-500' : ''}`}>{instance.className}</p>
+                                                <div className={`flex items-center gap-2 text-sm ${isRestricted ? 'text-gray-500' : 'text-gray-600'}`}>
                                                     <Avatar name={instance.coachName} size="sm" className="!w-6 !h-6 !text-xs" />
                                                     <span>{instance.coachName}</span>
                                                 </div>
                                             </div>
                                             <div className="flex-shrink-0 text-center sm:w-48 z-20">
                                                 {renderActionButton(instance)}
-                                                 {instance.myBookingStatus !== 'WAITLISTED' && !instance.isRestricted && !isCancelledByCoach && (
+                                                 {instance.myBookingStatus !== 'WAITLISTED' && !instance.isRestricted && (
                                                     <p className="text-sm text-gray-500 mt-1">{instance.maxParticipants - instance.bookedCount} lediga</p>
                                                  )}
                                             </div>
