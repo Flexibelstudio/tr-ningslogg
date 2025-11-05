@@ -25,3 +25,10 @@ export const cancelClassInstanceFn = functions
         console.error("Firebase is not initialized. Cannot call cloud function 'cancelClassInstance'.");
         return Promise.resolve({ data: { error: "Firebase är inte konfigurerad korrekt. Funktionen kan inte anropas." } });
     };
+
+export const notifyFriendsOnBookingFn = functions
+    ? functions.httpsCallable('notifyFriendsOnBooking')
+    : () => {
+        console.error("Firebase is not initialized. Cannot call cloud function 'notifyFriendsOnBooking'.");
+        return Promise.resolve({ data: { error: "Firebase är inte konfigurerad korrekt. Funktionen kan inte anropas." } });
+    };

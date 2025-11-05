@@ -1,5 +1,6 @@
 // functions/src/index.ts
-import { HttpsError, onRequest, onCall } from "firebase-functions/v2/https";
+import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
@@ -84,7 +85,6 @@ export const sendSessionReminder = onRequest(
       }
 
       const booking = bookingDoc.data()!;
-      // Self-cancel: skicka bara om bokningen fortfarande är aktiv
       if (!["BOOKED", "CHECKED-IN"].includes(booking.status)) {
         logger.info(`Booking ${bookingId} is not active (status: ${booking.status}). Skipping reminder.`);
         response.status(200).send("Booking not active.");
@@ -92,6 +92,22 @@ export const sendSessionReminder = onRequest(
       }
 
       const { participantId, scheduleId } = booking;
+      
+      const participantProfileDoc = await db.collection("organizations").doc(orgId).collection("participantDirectory").doc(participantId).get();
+      if (!participantProfileDoc.exists) {
+          logger.warn(`Participant profile ${participantId} not found for reminder.`);
+          response.status(200).send("Participant profile not found.");
+          return;
+      }
+      const profile = participantProfileDoc.data();
+      const settings = profile?.notificationSettings;
+
+      if (settings?.pushEnabled === false || settings?.sessionReminder === false) {
+          logger.info(`Reminders disabled for participant ${participantId}. Skipping.`);
+          response.status(200).send("Reminders disabled by user.");
+          return;
+      }
+
       const subsSnap = await db
         .collection("organizations")
         .doc(orgId)
@@ -143,13 +159,13 @@ export const sendSessionReminder = onRequest(
             logger.error(`Push send error (participant ${participantId})`, err);
             if (err?.statusCode === 404 || err?.statusCode === 410) {
               await doc.ref.delete();
+              await participantProfileDoc.ref.set({ notificationSettings: { pushEnabled: false } }, { merge: true });
             }
           }
         })
       );
-
-      // Rensa ev. flaggor (ingen task-id lagras i denna version)
-      await bookingRef.update({ reminderTaskId: null }).catch(() => {});
+      
+      await bookingRef.update({ reminderTaskId: FieldValue.delete() }).catch(() => {});
       response.status(200).send("Reminder sent.");
     } catch (error) {
       logger.error(`Failed to send reminder for booking ${bookingId}:`, error);
@@ -160,9 +176,6 @@ export const sendSessionReminder = onRequest(
 
 // -----------------------------------------------------------------------------
 // Firestore: Reagerar på bokningsuppdateringar
-//  - WAITLISTED -> BOOKED: skicka “plats släppt”
-//  - Ny BOOKED: schemalägg påminnelse via Cloud Tasks
-//  - Avbokning: ingen explicit delete (vi har inget task-id); self-cancel räcker
 // -----------------------------------------------------------------------------
 export const onBookingUpdate = onDocumentUpdated(
   {
@@ -191,6 +204,19 @@ export const onBookingUpdate = onDocumentUpdated(
       const classDate = afterData.classDate as string;
 
       try {
+        const participantProfileDoc = await db.collection("organizations").doc(orgId).collection("participantDirectory").doc(participantId).get();
+        if (!participantProfileDoc.exists) {
+            logger.warn(`Waitlist promotion: Participant profile ${participantId} not found.`);
+            return;
+        }
+        const profile = participantProfileDoc.data();
+        const settings = profile?.notificationSettings;
+
+        if (settings?.pushEnabled === false || settings?.waitlistPromotion === false) {
+            logger.info(`Waitlist promotion notifications disabled for participant ${participantId}. Skipping.`);
+            return;
+        }
+
         const subsSnap = await db
           .collection("organizations")
           .doc(orgId)
@@ -199,19 +225,9 @@ export const onBookingUpdate = onDocumentUpdated(
           .get();
 
         if (!subsSnap.empty) {
-          const schedDoc = await db
-            .collection("organizations")
-            .doc(orgId)
-            .collection("groupClassSchedules")
-            .doc(scheduleId)
-            .get();
+          const schedDoc = await db.collection("organizations").doc(orgId).collection("groupClassSchedules").doc(scheduleId).get();
           const classDefDoc = schedDoc.exists
-            ? await db
-                .collection("organizations")
-                .doc(orgId)
-                .collection("groupClassDefinitions")
-                .doc(schedDoc.data()!.groupClassId)
-                .get()
+            ? await db.collection("organizations").doc(orgId).collection("groupClassDefinitions").doc(schedDoc.data()!.groupClassId).get()
             : null;
 
           if (schedDoc.exists && classDefDoc?.exists) {
@@ -240,6 +256,7 @@ export const onBookingUpdate = onDocumentUpdated(
                   logger.error("Promotion push error:", err);
                   if (err?.statusCode === 404 || err?.statusCode === 410) {
                     await doc.ref.delete();
+                    await participantProfileDoc.ref.set({ notificationSettings: { pushEnabled: false } }, { merge: true });
                   }
                 }
               })
@@ -254,13 +271,7 @@ export const onBookingUpdate = onDocumentUpdated(
     // --- B) Ny BOOKED: schemalägg påminnelse ---
     if (afterStatus === "BOOKED" && beforeStatus !== "BOOKED") {
       try {
-        const settingsDoc = await db
-          .collection("organizations")
-          .doc(orgId)
-          .collection("integrationSettings")
-          .doc("settings")
-          .get();
-
+        const settingsDoc = await db.collection("organizations").doc(orgId).collection("integrationSettings").doc("settings").get();
         if (!settingsDoc.exists || !settingsDoc.data()?.enableSessionReminders) {
           logger.info(`Reminders disabled for org ${orgId}. Skipping scheduling.`);
           return;
@@ -272,12 +283,7 @@ export const onBookingUpdate = onDocumentUpdated(
             : 2;
         if (reminderHours <= 0) return;
 
-        const schedDoc = await db
-          .collection("organizations")
-          .doc(orgId)
-          .collection("groupClassSchedules")
-          .doc(afterData.scheduleId as string)
-          .get();
+        const schedDoc = await db.collection("organizations").doc(orgId).collection("groupClassSchedules").doc(afterData.scheduleId as string).get();
         if (!schedDoc.exists) return;
 
         const [h, m] = String(schedDoc.data()!.startTime).split(":").map((n) => Number(n));
@@ -288,23 +294,29 @@ export const onBookingUpdate = onDocumentUpdated(
           const queue = getFunctions().taskQueue("sendSessionReminder", "europe-west1");
           const project = process.env.GCLOUD_PROJECT;
           const targetUri = `https://europe-west1-${project}.cloudfunctions.net/sendSessionReminder`;
-
-          await queue.enqueue({ orgId, bookingId }, { scheduleTime, uri: targetUri });
-
-          logger.info(`Scheduled reminder task for booking ${bookingId}.`);
-          // Vi har inget task-id; låt ev. fältet vara null/inte satt.
-          await event.data!.after.ref.update({ reminderTaskId: null }).catch(() => {});
+          const task = await queue.enqueue({ orgId, bookingId }, { scheduleTime, uri: targetUri });
+          await event.data!.after.ref.update({ reminderTaskId: task.name });
+          logger.info(`Scheduled reminder task ${task.name} for booking ${bookingId}.`);
         }
       } catch (error) {
         logger.error(`Failed to schedule reminder for booking ${bookingId}:`, error);
       }
     }
 
-    // --- C) Avbokning: inget aktivt delete-anrop (utan task-id) ---
-    if (["BOOKED", "CHECKED-IN"].includes(beforeStatus) && afterStatus === "CANCELLED") {
-      // Inget att ta bort – reminder gör self-cancel när den körs.
-      await event.data!.after.ref.update({ reminderTaskId: null }).catch(() => {});
-      logger.info(`Booking ${bookingId} cancelled – no explicit task delete (self-cancel strategy).`);
+    // --- C) Avbokning: ta bort schemalagd påminnelse ---
+    if (["BOOKED", "CHECKED-IN"].includes(beforeStatus) && afterStatus === "CANCELLED" && beforeData.reminderTaskId) {
+        try {
+            const queue = getFunctions().taskQueue("sendSessionReminder", "europe-west1");
+            await queue.delete(beforeData.reminderTaskId);
+            await event.data!.after.ref.update({ reminderTaskId: FieldValue.delete() });
+            logger.info(`Deleted scheduled task ${beforeData.reminderTaskId} for cancelled booking ${bookingId}.`);
+        } catch (error) {
+            // Om tasken inte finns (redan körts eller fel id) är det ingen fara.
+            if ((error as any)?.code !== 5) {
+                logger.error(`Failed to delete task ${beforeData.reminderTaskId} for booking ${bookingId}:`, error);
+            }
+            await event.data!.after.ref.update({ reminderTaskId: FieldValue.delete() }).catch(() => {});
+        }
     }
   }
 );
@@ -405,6 +417,15 @@ export const cancelClassInstance = onCall(
         
         let notificationsSent = 0;
         for (const participantId of affectedParticipantIds) {
+            const participantProfileDoc = await db.collection("organizations").doc(orgId).collection("participantDirectory").doc(participantId).get();
+            if (!participantProfileDoc.exists) continue;
+            const profile = participantProfileDoc.data();
+            const settings = profile?.notificationSettings;
+            if (settings?.pushEnabled === false || settings?.classCancellation === false) {
+                logger.info(`Class cancellation notifications disabled for participant ${participantId}. Skipping.`);
+                continue;
+            }
+
             const subsSnap = await db.collection("organizations").doc(orgId).collection("userPushSubscriptions").where("participantId", "==", participantId).get();
             if (!subsSnap.empty) {
                 await Promise.all(
@@ -417,6 +438,7 @@ export const cancelClassInstance = onCall(
                             logger.error(`Push send error for participant ${participantId}:`, err);
                             if (err?.statusCode === 404 || err?.statusCode === 410) {
                                 await doc.ref.delete();
+                                await participantProfileDoc.ref.set({ notificationSettings: { pushEnabled: false } }, { merge: true });
                             }
                         }
                     })
@@ -435,7 +457,7 @@ export const cancelClassInstance = onCall(
         throw new HttpsError("internal", "An unexpected error occurred while cancelling the class.");
       }
     }
-  );
+);
 
 // -----------------------------------------------------------------------------
 // Zapier → skapa lead
@@ -602,70 +624,48 @@ export const notifyFriendsOnBooking = onCall(
     }
 
     try {
-      // 1. Get booker's profile and check privacy setting
       const bookerProfileRef = db.collection("organizations").doc(orgId).collection("participantDirectory").doc(participantId);
       const bookerProfileDoc = await bookerProfileRef.get();
-      if (!bookerProfileDoc.exists) {
-        logger.warn(`Booker's profile (${participantId}) not found.`);
-        return { success: false, message: "Booker not found." };
+      if (!bookerProfileDoc.exists || !bookerProfileDoc.data()?.shareMyBookings) {
+        return { success: true, message: "Sharing disabled." };
       }
-      const bookerProfile = bookerProfileDoc.data();
-      if (!bookerProfile?.shareMyBookings) {
-        logger.info(`Booker ${participantId} has disabled booking sharing. Aborting.`);
-        return { success: true, message: "Sharing disabled by user." };
-      }
-      const bookerName = bookerProfile.name || "En kompis";
+      const bookerName = bookerProfileDoc.data()?.name || "En kompis";
 
-      // 2. Find friends who want notifications
       const connectionsSnap = await db.collection("organizations").doc(orgId).collection("connections").get();
-      const friendIds: string[] = [];
+      const friendIds = new Set<string>();
       connectionsSnap.forEach((doc) => {
         const conn = doc.data();
         if (conn.status === "accepted") {
-          if (conn.requesterId === participantId) friendIds.push(conn.receiverId);
-          if (conn.receiverId === participantId) friendIds.push(conn.requesterId);
+          if (conn.requesterId === participantId) friendIds.add(conn.receiverId);
+          if (conn.receiverId === participantId) friendIds.add(conn.requesterId);
         }
       });
 
-      if (friendIds.length === 0) {
-        logger.info(`No friends found for participant ${participantId}.`);
-        return { success: true, message: "No friends to notify." };
-      }
+      if (friendIds.size === 0) return { success: true, message: "No friends." };
 
-      const friendsToNotify: { id: string, name: string }[] = [];
+      const friendsToNotify: { id: string, doc: FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData> }[] = [];
       const participantDirectoryRef = db.collection("organizations").doc(orgId).collection("participantDirectory");
-      const friendProfilePromises = friendIds.map((id) => participantDirectoryRef.doc(id).get());
+      const friendProfilePromises = Array.from(friendIds).map((id) => participantDirectoryRef.doc(id).get());
       const friendProfileDocs = await Promise.all(friendProfilePromises);
-
+      
       for (const doc of friendProfileDocs) {
-        if (doc.exists) {
-          const friendProfile = doc.data();
-          if (friendProfile && (friendProfile.receiveFriendBookingNotifications ?? true)) {
-            friendsToNotify.push({ id: doc.id, name: friendProfile.name || "Vän" });
+          if (doc.exists) {
+              const friendProfile = doc.data();
+              if (friendProfile && (friendProfile.receiveFriendBookingNotifications ?? true) && friendProfile.notificationSettings?.pushEnabled !== false) {
+                  friendsToNotify.push({ id: doc.id, doc: doc.ref });
+              }
           }
-        }
       }
 
-      if (friendsToNotify.length === 0) {
-        logger.info(`No friends want notifications for participant ${participantId}.`);
-        return { success: true, message: "No friends with notifications enabled." };
-      }
+      if (friendsToNotify.length === 0) return { success: true, message: "No friends with notifications enabled." };
 
-      // 3. Get class details
       const scheduleDoc = await db.collection("organizations").doc(orgId).collection("groupClassSchedules").doc(scheduleId).get();
-      if (!scheduleDoc.exists) {
-        logger.warn(`Schedule ${scheduleId} not found.`);
-        return { success: false, message: "Schedule not found." };
-      }
+      if (!scheduleDoc.exists) return { success: false, message: "Schedule not found." };
       const schedule = scheduleDoc.data()!;
       const classDefDoc = await db.collection("organizations").doc(orgId).collection("groupClassDefinitions").doc(schedule.groupClassId).get();
-      if (!classDefDoc.exists) {
-        logger.warn(`Class definition ${schedule.groupClassId} not found.`);
-        return { success: false, message: "Class definition not found." };
-      }
+      if (!classDefDoc.exists) return { success: false, message: "Class definition not found." };
       const className = classDefDoc.data()?.name || "ett pass";
 
-      // 4. Prepare and send notifications
       const payload = JSON.stringify({
         title: "Träningsdags?",
         body: `${bookerName.split(" ")[0]} har bokat ${className}, ska du haka på?`,
@@ -679,13 +679,7 @@ export const notifyFriendsOnBooking = onCall(
 
       let notificationsSent = 0;
       for (const friend of friendsToNotify) {
-        const subsSnap = await db
-          .collection("organizations")
-          .doc(orgId)
-          .collection("userPushSubscriptions")
-          .where("participantId", "==", friend.id)
-          .get();
-
+        const subsSnap = await db.collection("organizations").doc(orgId).collection("userPushSubscriptions").where("participantId", "==", friend.id).get();
         if (!subsSnap.empty) {
           await Promise.all(
             subsSnap.docs.map(async (doc) => {
@@ -696,20 +690,18 @@ export const notifyFriendsOnBooking = onCall(
               } catch (err: any) {
                 logger.error(`Push send error for friend ${friend.id}:`, err);
                 if (err?.statusCode === 404 || err?.statusCode === 410) {
-                  await doc.ref.delete();
+                    await doc.ref.delete();
+                    await friend.doc.set({ notificationSettings: { pushEnabled: false } }, { merge: true });
                 }
               }
             })
           );
         }
       }
-      logger.info(`Sent ${notificationsSent} notifications to friends of ${participantId}.`);
       return { success: true, notificationsSent };
     } catch (error) {
       logger.error(`Error in notifyFriendsOnBooking for participant ${participantId}:`, error);
-      if (error instanceof HttpsError) {
-        throw error;
-      }
+      if (error instanceof HttpsError) throw error;
       throw new HttpsError("internal", "An unexpected error occurred.");
     }
   }

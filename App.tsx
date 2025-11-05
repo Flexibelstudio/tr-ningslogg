@@ -18,7 +18,7 @@ import { FlowItemLogType, User, UserRole, GeneralActivityLog, ParticipantProfile
 import { useNotifications } from './context/NotificationsContext';
 import { logAnalyticsEvent } from './utils/analyticsLogger';
 import firebaseService from './services/firebaseService';
-import { cancelClassInstanceFn } from './firebaseClient';
+import { cancelClassInstanceFn, notifyFriendsOnBookingFn } from './firebaseClient';
 
 const CoachArea = lazy(() => import('./components/coach/CoachArea').then((m) => ({ default: m.CoachArea })));
 const ParticipantArea = lazy(() => import('./components/participant/ParticipantArea').then((m) => ({ default: m.ParticipantArea })));
@@ -385,6 +385,16 @@ const AppContent: React.FC = () => {
               message: `Du är nu bokad på ${classDef?.name} den ${new Date(classDate).toLocaleDateString('sv-SE')}.`
           });
           deductClipCard();
+          
+          // 7. Notify friends (fire-and-forget)
+          if (auth.currentParticipantId && auth.currentParticipantId === participantId && !firebaseService.isOffline()) {
+              const bookerProfile = participantDirectory.find(p => p.id === auth.currentParticipantId);
+              if (bookerProfile?.shareMyBookings) {
+                  notifyFriendsOnBookingFn({ orgId: auth.organizationId, participantId: auth.currentParticipantId, scheduleId, classDate }).catch(err => {
+                      console.warn("Friend notification function failed:", err);
+                  });
+              }
+          }
       } else { // WAITLISTED
           addNotification({
               type: 'INFO',
@@ -394,7 +404,7 @@ const AppContent: React.FC = () => {
       }
        setTimeout(() => setOperationInProgress(prev => prev.filter(id => id !== instanceId)), 1000);
     },
-    [groupClassSchedules, participantBookings, memberships, setParticipantBookingsData, setParticipantDirectoryData, definitions, addNotification, auth.organizationId]
+    [groupClassSchedules, participantBookings, memberships, setParticipantBookingsData, setParticipantDirectoryData, definitions, addNotification, auth.organizationId, auth.currentParticipantId, participantDirectory]
   );
 
   const handleCancelBooking = useCallback(
