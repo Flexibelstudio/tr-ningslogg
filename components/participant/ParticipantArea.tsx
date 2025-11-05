@@ -387,7 +387,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         integrationSettings = { enableQRCodeScanning: false, isBookingEnabled: false, isClientJourneyEnabled: true, isScheduleEnabled: true },
         groupClassSchedules = [],
         groupClassDefinitions = [],
-        allParticipantBookings = [],
+        participantBookings: allParticipantBookings = [],
         userPushSubscriptions = [],
         setUserPushSubscriptionsData,
     } = useAppContext();
@@ -539,7 +539,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             addNotification({
                 type: 'WARNING',
                 title: 'Notiser blockerade',
-                message: 'Du kan ändra detta i din webbläsares inställningar.'
+                message: 'Du kan ändra detta i din webbläsare/s inställningar.'
             });
         }
     };
@@ -1774,7 +1774,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 setShowDeleteConfirm(false);
             }}
             title="Ta bort utkast?"
-            message={`Är du säker på att du vill ta bort det pågående utkastet för "${inProgressWorkout?.workoutTitle}"? Detta kan inte ångras.`}
+            message={`Är du säker på att du vill ta bort det pågående utkastet för "${inProgressWorkout?.title}"? Detta kan inte ångras.`}
             confirmButtonText="Ja, ta bort"
             cancelButtonText="Avbryt"
         />
