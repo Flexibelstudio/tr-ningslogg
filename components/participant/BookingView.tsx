@@ -44,6 +44,7 @@ interface BookingViewProps {
     integrationSettings: IntegrationSettings;
     membership: Membership | null | undefined;
     onOpenUpgradeModal: () => void;
+    operationInProgress: string[];
 }
 
 const LockIcon = () => (
@@ -52,8 +53,15 @@ const LockIcon = () => (
     </svg>
 );
 
+const SpinnerIcon = () => (
+    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+);
 
-export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, schedules, definitions, bookings, staff, onBookClass, onCancelBooking, currentParticipantId, participantProfile, integrationSettings, membership, onOpenUpgradeModal }) => {
+
+export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, schedules, definitions, bookings, staff, onBookClass, onCancelBooking, currentParticipantId, participantProfile, integrationSettings, membership, onOpenUpgradeModal, operationInProgress }) => {
     const { getColorForCategory } = useAppContext();
     const today = useMemo(() => {
         const d = new Date();
@@ -218,11 +226,18 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
     };
 
     const renderActionButton = (instance: EnrichedClassInstance) => {
+        const isInProgress = operationInProgress.includes(instance.instanceId);
+
+        if (isInProgress) {
+            const isCancelling = instance.isBookedByMe || instance.isWaitlistedByMe;
+            return <Button disabled className="w-full flex justify-center"><SpinnerIcon />{isCancelling ? 'Avbokar...' : 'Bokar...'}</Button>;
+        }
+
         if (instance.isRestricted) {
-            return <Button variant="accent" onClick={onOpenUpgradeModal}><LockIcon />Lås upp</Button>;
+            return <Button variant="secondary" onClick={onOpenUpgradeModal}><LockIcon />Lås upp</Button>;
         }
         if (instance.myBookingStatus === 'CANCELLED') {
-            return <Button variant="ghost" disabled className="!text-red-600">Inställt 🚫</Button>;
+            return <Button variant="ghost" disabled className="!text-red-600">Avbokad</Button>;
         }
 
         const now = new Date().getTime();
@@ -230,37 +245,45 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
         const canCancel = now < cutoffTime;
 
         if (instance.isBookedByMe) {
-            if (instance.myBookingStatus === 'CHECKED-IN') {
-                return <Button variant="ghost" disabled className="!text-green-600">Incheckad ✅</Button>;
-            }
-            return (
-                <Button variant="danger" onClick={() => setBookingToCancel(instance)} disabled={!canCancel} title={!canCancel ? `Avbokning måste ske senast ${instance.cancellationCutoffHours} timmar innan.` : 'Avboka passet'}>
-                    {canCancel ? 'Avboka' : 'För sent'}
-                </Button>
+             return (
+                <div className="flex items-center justify-end gap-2">
+                    <div className="text-green-600 font-semibold flex items-center gap-1 text-sm sm:text-base">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        Bokad
+                    </div>
+                    <Button variant="danger" size="sm" onClick={() => setBookingToCancel(instance)} disabled={!canCancel} title={!canCancel ? `Avbokning måste ske senast ${instance.cancellationCutoffHours} timmar innan.` : 'Avboka passet'}>
+                        Avboka
+                    </Button>
+                </div>
             );
         }
         if (instance.isWaitlistedByMe) {
-            return (
-                <Button variant="accent" onClick={() => setBookingToCancel(instance)}>
-                    Lämna kö
-                </Button>
+             return (
+                <div className="flex items-center justify-end gap-2">
+                    <div className="text-amber-600 font-semibold flex items-center gap-1 text-sm sm:text-base">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                        </svg>
+                        Köplats #{instance.myWaitlistPosition}
+                    </div>
+                    <Button variant="secondary" size="sm" onClick={() => setBookingToCancel(instance)}>
+                        Lämna kö
+                    </Button>
+                </div>
             );
         }
         if (instance.isFull) {
             if (instance.hasWaitlist) {
                 return (
                     <Button variant="outline" onClick={() => onBookClass(currentParticipantId, instance.scheduleId, instance.date)}>
-                        Gå med i kö
+                        Gå med i kö ({instance.waitlistCount})
                     </Button>
                 );
             } else {
                 return (
-                    <button
-                        disabled
-                        className="w-full rounded-lg bg-gray-300 text-gray-600 font-semibold py-2 cursor-not-allowed"
-                    >
-                        FULLBOKAT
-                    </button>
+                    <Button disabled>FULLBOKAT</Button>
                 );
             }
         }
@@ -312,43 +335,41 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                                 <div className="space-y-3">
                                 {instances.length > 0 ? instances.map(instance => {
                                     const isRestricted = instance.isRestricted;
-                                    const isCancelled = instance.myBookingStatus === 'CANCELLED';
+                                    const isCancelledByCoach = instance.myBookingStatus === 'CANCELLED';
                                     return (
                                         <div 
                                             key={instance.instanceId} 
                                             className={`relative flex items-center gap-3 p-3 rounded-lg shadow-sm border-l-4 transition-colors ${
-                                                isRestricted || isCancelled
+                                                isRestricted || isCancelledByCoach
                                                     ? 'bg-gray-100' 
                                                     : 'bg-white'
                                             }`}
-                                            style={{ borderColor: isRestricted || isCancelled ? '#d1d5db' : instance.color }}
+                                            style={{ borderColor: isRestricted || isCancelledByCoach ? '#d1d5db' : instance.color }}
                                             title={instance.className}
                                         >
-                                            {(isRestricted || isCancelled) && <div className="absolute inset-0 bg-gray-200/50 rounded-lg z-10 cursor-not-allowed"></div>}
-                                            {instance.isFull && !isCancelled && (
+                                            {(isRestricted || isCancelledByCoach) && <div className="absolute inset-0 bg-gray-200/50 rounded-lg z-10 cursor-not-allowed"></div>}
+                                            {instance.isFull && !instance.isBookedByMe && !instance.isWaitlistedByMe && !isCancelledByCoach && (
                                                 <span className="absolute top-1 right-1 bg-gray-200 text-gray-700 text-xs font-semibold px-2 py-0.5 rounded z-20">FULLT</span>
                                             )}
                                             <div 
-                                                className={`flex-shrink-0 w-20 h-20 flex flex-col items-center justify-center rounded-md text-white z-20 ${isRestricted || isCancelled ? 'opacity-60' : ''}`}
-                                                style={{ backgroundColor: instance.isBookedByMe ? '#f43f5e' : (isCancelled ? '#9ca3af' : instance.color) }}
+                                                className={`flex-shrink-0 w-20 h-20 flex flex-col items-center justify-center rounded-md text-white z-20 ${isRestricted || isCancelledByCoach ? 'opacity-60' : ''}`}
+                                                style={{ backgroundColor: instance.isBookedByMe ? '#0aa5a1' : (isCancelledByCoach ? '#9ca3af' : instance.color) }}
                                             >
                                                 <p className="text-2xl font-bold">{instance.startDateTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}</p>
                                                 <p className="text-sm">{instance.duration} min</p>
                                             </div>
                                             <div className="flex-grow z-20">
-                                                <p className={`font-bold text-lg ${isRestricted || isCancelled ? 'text-gray-500' : ''}`}>{instance.className}</p>
-                                                <div className={`flex items-center gap-2 text-sm ${isRestricted || isCancelled ? 'text-gray-500' : 'text-gray-600'}`}>
+                                                <p className={`font-bold text-lg ${isRestricted || isCancelledByCoach ? 'text-gray-500' : ''}`}>{instance.className}</p>
+                                                <div className={`flex items-center gap-2 text-sm ${isRestricted || isCancelledByCoach ? 'text-gray-500' : 'text-gray-600'}`}>
                                                     <Avatar name={instance.coachName} size="sm" className="!w-6 !h-6 !text-xs" />
                                                     <span>{instance.coachName}</span>
                                                 </div>
                                             </div>
-                                            <div className="flex-shrink-0 text-center w-28 z-20">
+                                            <div className="flex-shrink-0 text-center sm:w-48 z-20">
                                                 {renderActionButton(instance)}
-                                                {instance.isWaitlistedByMe ? (
-                                                    <p className="text-sm text-amber-600 font-semibold mt-1">Köplats #{instance.myWaitlistPosition}</p>
-                                                ) : (
-                                                    !isRestricted && !isCancelled && <p className="text-sm text-gray-500 mt-1">{instance.maxParticipants - instance.bookedCount} lediga</p>
-                                                )}
+                                                 {instance.myBookingStatus !== 'WAITLISTED' && !instance.isRestricted && !isCancelledByCoach && (
+                                                    <p className="text-sm text-gray-500 mt-1">{instance.maxParticipants - instance.bookedCount} lediga</p>
+                                                 )}
                                             </div>
                                         </div>
                                     )

@@ -321,6 +321,7 @@ interface ParticipantAreaProps {
     openAiReceptModal: () => void;
   }) => void;
   newFlowItemsCount?: number;
+  operationInProgress: string[];
 }
 
 function urlBase64ToUint8Array(base64String: string) {
@@ -357,6 +358,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   setProfileOpener,
   setParticipantModalOpeners,
   newFlowItemsCount = 0,
+  operationInProgress,
 }) => {
     const {
         participantDirectory = [],
@@ -1713,6 +1715,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 integrationSettings={integrationSettings}
                 membership={myMembership}
                 onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
+                operationInProgress={operationInProgress}
             />
         }
         <QrScannerModal

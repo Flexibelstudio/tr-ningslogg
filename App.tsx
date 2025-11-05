@@ -91,6 +91,8 @@ const AppContent: React.FC = () => {
   const { addNotification } = useNotifications();
   const [view, setView] = useState<'login' | 'register'>('login');
   const [registrationPendingMessage, setRegistrationPendingMessage] = useState(false);
+  const [operationInProgress, setOperationInProgress] = useState<string[]>([]);
+
 
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
   const [welcomeModalShown, setWelcomeModalShown] = useState(() => localStorage.getItem(LOCAL_STORAGE_KEYS.WELCOME_MESSAGE_SHOWN_PARTICIPANT) === 'true');
@@ -280,6 +282,8 @@ const AppContent: React.FC = () => {
   const handleBookClass = useCallback(
     (participantId: string, scheduleId: string, classDate: string) => {
       if (!auth.organizationId) return;
+       const instanceId = `${scheduleId}-${classDate}`;
+       setOperationInProgress(prev => [...prev, instanceId]);
 
       // 1. Check for an ACTIVE booking. If one exists, do nothing.
       const activeBooking = participantBookings.find(
@@ -292,12 +296,14 @@ const AppContent: React.FC = () => {
 
       if (activeBooking) {
         console.warn('Participant is already actively booked or on the waitlist for this class.');
+        setTimeout(() => setOperationInProgress(prev => prev.filter(id => id !== instanceId)), 1000);
         return;
       }
 
       const schedule = groupClassSchedules.find((s) => s.id === scheduleId);
       if (!schedule) {
         console.error('Schedule not found');
+        setTimeout(() => setOperationInProgress(prev => prev.filter(id => id !== instanceId)), 1000);
         return;
       }
       const classDef = definitions.find((d) => d.id === schedule.groupClassId);
@@ -386,6 +392,7 @@ const AppContent: React.FC = () => {
               message: `Passet är fullt. Du har placerats på kölistan för ${classDef?.name}.`
           });
       }
+       setTimeout(() => setOperationInProgress(prev => prev.filter(id => id !== instanceId)), 1000);
     },
     [groupClassSchedules, participantBookings, memberships, setParticipantBookingsData, setParticipantDirectoryData, definitions, addNotification, auth.organizationId]
   );
@@ -393,6 +400,12 @@ const AppContent: React.FC = () => {
   const handleCancelBooking = useCallback(
     (bookingId: string) => {
       if (!auth.organizationId) return;
+
+       const bookingToCancelForId = participantBookings.find(b => b.id === bookingId);
+       if (!bookingToCancelForId) return;
+       const instanceId = `${bookingToCancelForId.scheduleId}-${bookingToCancelForId.classDate}`;
+       setOperationInProgress(prev => [...prev, instanceId]);
+
       const bookingToCancel = participantBookings.find(b => b.id === bookingId);
       if (!bookingToCancel) return;
       
@@ -517,6 +530,7 @@ const AppContent: React.FC = () => {
           title: 'Avbokning bekräftad',
           message: `Du har avbokat dig från ${classDef?.name || 'passet'}.`
       });
+       setTimeout(() => setOperationInProgress(prev => prev.filter(id => id !== instanceId)), 1000);
     },
     [participantDirectory, memberships, setParticipantBookingsData, definitions, participantBookings, groupClassSchedules, addNotification, auth.currentRole, auth.organizationId, setParticipantDirectoryData, auth.currentParticipantId]
   );
@@ -1325,6 +1339,7 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
             setProfileOpener={setProfileOpener}
             setParticipantModalOpeners={setParticipantModalOpeners}
             newFlowItemsCount={newFlowItemsCount}
+            operationInProgress={operationInProgress}
           />
           <WelcomeModal
             isOpen={isWelcomeModalOpen}
@@ -1375,6 +1390,7 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
     isWelcomeModalOpen,
     welcomeModalShown,
     setWelcomeModalShown,
+    operationInProgress,
   ]);
 
   return (
