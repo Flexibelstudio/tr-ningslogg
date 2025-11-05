@@ -104,7 +104,7 @@ const ParticipantActivityViewFC: React.FC<ParticipantActivityViewProps> = ({
   loggedInCoachId,
   onManageClassClick,
 }) => {
-  const { getColorForCategory, participantBookings } = useAppContext();
+  const { getColorForCategory } = useAppContext();
   const [activeTab, setActiveTab] = useState<ActivityViewTab>('calendar');
   const [referenceDate, setReferenceDate] = useState<Date>(new Date());
   const [isDayActivitiesModalOpen, setIsDayActivitiesModalOpen] = useState(false);
@@ -160,7 +160,7 @@ const ParticipantActivityViewFC: React.FC<ParticipantActivityViewProps> = ({
     });
 
     schedulesToday.forEach(schedule => {
-        const myBooking = participantBookings.find(b => b.participantId === participantProfile?.id && b.scheduleId === schedule.id && b.classDate === dateStr);
+        const myBooking = allParticipantBookings.find(b => b.participantId === participantProfile?.id && b.scheduleId === schedule.id && b.classDate === dateStr && b.status !== 'CANCELLED');
         const isCoachedByMe = loggedInCoachId === schedule.coachId;
 
         if (!myBooking && !isCoachedByMe) return;
@@ -174,9 +174,9 @@ const ParticipantActivityViewFC: React.FC<ParticipantActivityViewProps> = ({
         startDateTime.setHours(hour, minute, 0, 0);
 
         const endDateTime = new Date(startDateTime.getTime() + schedule.durationMinutes * 60000);
-        if (dateUtils.isPast(endDateTime) && myBooking?.status !== 'CANCELLED') return;
+        if (dateUtils.isPast(endDateTime)) return;
         
-        const allBookingsForInstance = participantBookings.filter(b => b.scheduleId === schedule.id && b.classDate === dateStr && b.status !== 'CANCELLED');
+        const allBookingsForInstance = allParticipantBookings.filter(b => b.scheduleId === schedule.id && b.classDate === dateStr && b.status !== 'CANCELLED');
         const bookedUsers = allBookingsForInstance.filter(b => b.status === 'BOOKED' || b.status === 'CHECKED-IN');
         const waitlistedUsers = allBookingsForInstance.filter(b => b.status === 'WAITLISTED').sort((a,b) => new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime());
         
@@ -250,7 +250,7 @@ const ParticipantActivityViewFC: React.FC<ParticipantActivityViewProps> = ({
     }
 
     return { activities: dayLogs, events: dayEvents, groupClasses };
-  }, [allActivityLogs, participantBookings, participantProfile, groupClassSchedules, groupClassDefinitions, staffMembers, oneOnOneSessions, clubMemberships, physiqueHistory, strengthStatsHistory, conditioningStatsHistory, allParticipantGoals, activeGoal, loggedInCoachId, getColorForCategory, integrationSettings.cancellationCutoffHours]);
+  }, [allActivityLogs, allParticipantBookings, participantProfile, groupClassSchedules, groupClassDefinitions, staffMembers, oneOnOneSessions, clubMemberships, physiqueHistory, strengthStatsHistory, conditioningStatsHistory, allParticipantGoals, activeGoal, loggedInCoachId, getColorForCategory, integrationSettings.cancellationCutoffHours]);
   
   const renderDayContent = useCallback((day: Date) => {
     const { activities, events, groupClasses } = getDayContent(day);

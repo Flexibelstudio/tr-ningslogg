@@ -156,7 +156,7 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
 
   const groupClassesForDay = useMemo((): FullBookingInfo[] => {
     if (!selectedDate || !participantProfile) return [];
-    const myBookingsToday = allParticipantBookings.filter(b => b.participantId === participantProfile.id && b.classDate === dateUtils.toYYYYMMDD(selectedDate));
+    const myBookingsToday = allParticipantBookings.filter(b => b.participantId === participantProfile.id && b.classDate === dateUtils.toYYYYMMDD(selectedDate) && b.status !== 'CANCELLED');
     
     return myBookingsToday.map(booking => {
         const schedule = groupClassSchedules.find(s => s.id === booking.scheduleId);
