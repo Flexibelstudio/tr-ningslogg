@@ -344,22 +344,9 @@ export interface GoalCompletionLog {
   comments?: Comment[];
 }
 
-// New for notification events in flow
-export interface NotificationLog {
-  readonly type: 'notification'; // Discriminating property
-  id: string;
-  participantId: string; // The user who sees this in their flow
-  notificationType: 'WAITLIST_PROMOTION' | 'CLASS_CANCELLATION';
-  title: string;
-  message: string;
-  createdDate: string; // ISO string
-  reactions?: Reaction[];
-  comments?: Comment[];
-}
-
 export type ActivityLog = WorkoutLog | GeneralActivityLog | GoalCompletionLog;
 
-export type FlowItemLogType = 'workout' | 'general' | 'coach_event' | 'one_on_one_session' | 'goal_completion' | 'participant_club_membership' | 'user_strength_stat' | 'participant_physique_stat' | 'participant_goal_data' | 'participant_conditioning_stat' | 'notification_event';
+export type FlowItemLogType = 'workout' | 'general' | 'coach_event' | 'one_on_one_session' | 'goal_completion' | 'participant_club_membership' | 'user_strength_stat' | 'participant_physique_stat' | 'participant_goal_data' | 'participant_conditioning_stat';
 
 export interface InProgressWorkout {
   participantId: string;
@@ -783,7 +770,6 @@ export interface OrganizationData {
   leads: Lead[];
   prospectIntroCalls: ProspectIntroCall[];
   userPushSubscriptions: UserPushSubscription[];
-  notificationLogs: NotificationLog[];
   branding?: BrandingSettings;
 }
 
