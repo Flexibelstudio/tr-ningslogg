@@ -4,7 +4,7 @@ import {
     ParticipantGoalData, ParticipantProfile,
     UserStrengthStat, ParticipantConditioningStat,
     UserRole, ParticipantMentalWellbeing, Exercise, GoalCompletionLog, ParticipantGamificationStats, WorkoutCategory, PostWorkoutSummaryData, NewPB, ParticipantClubMembership, LeaderboardSettings, CoachEvent, GenderOption, Connection, Reaction, Comment, NewBaseline, ParticipantPhysiqueStat, LiftType, Location, Membership, StaffMember, OneOnOneSession, IntegrationSettings,
-    GroupClassDefinition, GroupClassSchedule, ParticipantBooking, WorkoutCategoryDefinition, InProgressWorkout, AchievementDefinition, FlowItemLogType, UserPushSubscription, GroupClassScheduleException
+    GroupClassDefinition, GroupClassSchedule, ParticipantBooking, WorkoutCategoryDefinition, InProgressWorkout, AchievementDefinition, FlowItemLogType, UserPushSubscription, GroupClassScheduleException, NotificationLog
 } from '../../types';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { Button } from '../Button';
@@ -386,9 +386,10 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         groupClassSchedules = [],
         groupClassDefinitions = [],
         groupClassScheduleExceptions = [],
-        participantBookings: allParticipantBookings = [],
+        allParticipantBookings = [],
         userPushSubscriptions = [],
         setUserPushSubscriptionsData,
+        setNotificationLogsData,
     } = useAppContext();
     const { organizationId, currentRole } = useAuth();
     const { isOnline } = useNetworkStatus();
@@ -504,17 +505,29 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                     const dateString = classDate.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'short' });
                     const timeString = schedule.startTime;
 
+                    const message = `Du har flyttats från kön och har nu en bokad plats på ${classDef.name} ${dateString} kl ${timeString}.`;
                     addNotification({
                         type: 'SUCCESS',
                         title: 'Du har fått en plats!',
-                        message: `Du har flyttats från kön och har nu en bokad plats på ${classDef.name} ${dateString} kl ${timeString}.`
+                        message: message,
                     });
+                     // Also create a permanent log for the flow
+                    const newNotificationLog: NotificationLog = {
+                        type: 'notification',
+                        id: crypto.randomUUID(),
+                        participantId: currentParticipantId,
+                        notificationType: 'WAITLIST_PROMOTION',
+                        title: 'Du har fått en plats!',
+                        message: message,
+                        createdDate: new Date().toISOString(),
+                    };
+                    setNotificationLogsData(prev => [...(prev || []), newNotificationLog]);
                 }
             }
         });
         
         prevBookingsRef.current = myBookings;
-    }, [myBookings, addNotification, groupClassSchedules, groupClassDefinitions]);
+    }, [myBookings, addNotification, groupClassSchedules, groupClassDefinitions, currentParticipantId, setNotificationLogsData]);
     // --- END: Waitlist Promotion Notification ---
 
     // --- NEW: Push Notification Logic ---

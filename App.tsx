@@ -802,8 +802,8 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
         return false;
     }
 
-    let closestValidSchedule: GroupClassSchedule | null = null;
-    let closestUpcomingSchedule: GroupClassSchedule | null = null;
+    let closestValidSchedule: typeof groupClassSchedules[0] | null = null;
+    let closestUpcomingSchedule: typeof groupClassSchedules[0] | null = null;
     let minValidDiff = Infinity;
     let minUpcomingDiff = Infinity;
 
@@ -1163,12 +1163,6 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
   }, [auth.currentRole, auth.currentParticipantId, welcomeModalShown, participantDirectory, prospectModalShownKey, memberships]);
   
   const handleCancelClassInstance = useCallback(async (scheduleId: string, classDate: string) => {
-    const alreadyCancelled = groupClassScheduleExceptions.some(ex => ex.scheduleId === scheduleId && ex.date === classDate);
-    if (alreadyCancelled) {
-        addNotification({ type: 'INFO', title: 'Redan inställt', message: 'Detta pass är redan markerat som inställt.' });
-        return;
-    }
-    
     // Optimistic UI Update: Create exception
     const newException: GroupClassScheduleException = {
         id: crypto.randomUUID(),
@@ -1176,49 +1170,7 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
         date: classDate,
     };
     setGroupClassScheduleExceptionsData(prev => [...prev, newException]);
-
-    const bookingsToCancel = participantBookings.filter(
-        (b) => b.scheduleId === scheduleId && b.classDate === classDate && (b.status === 'BOOKED' || b.status === 'CHECKED-IN' || b.status === 'WAITLISTED')
-    );
-
-    if (bookingsToCancel.length === 0) {
-        addNotification({ type: 'SUCCESS', title: 'Pass Inställt', message: 'Passet har ställts in. Inga deltagare var bokade.' });
-        return;
-    }
-
-    const participantIdsToRefund = new Set<string>();
-    const updatedBookings = participantBookings.map(booking => {
-        if (bookingsToCancel.some(b => b.id === booking.id)) {
-            if (booking.status !== 'WAITLISTED') {
-                const participant = participantDirectory.find(p => p.id === booking.participantId);
-                const membership = memberships.find(m => m.id === participant?.membershipId);
-                if (membership?.type === 'clip_card') {
-                    participantIdsToRefund.add(booking.participantId);
-                }
-            }
-            return { ...booking, status: 'CANCELLED' as const };
-        }
-        return booking;
-    });
-
-    const updatedParticipants = participantDirectory.map(p => {
-        if (participantIdsToRefund.has(p.id) && p.clipCardStatus) {
-            return { ...p, clipCardStatus: { ...p.clipCardStatus, remainingClips: (p.clipCardStatus.remainingClips || 0) + 1 } };
-        }
-        return p;
-    });
     
-    setParticipantBookingsData(updatedBookings);
-    setParticipantDirectoryData(updatedParticipants);
-
-    const schedule = groupClassSchedules.find(s => s.id === scheduleId);
-    const classDef = definitions.find(d => d.id === schedule?.groupClassId);
-    addNotification({
-        type: 'SUCCESS',
-        title: 'Pass Inställt',
-        message: `Passet ${classDef?.name || ''} har ställts in. ${new Set(bookingsToCancel.map(b => b.participantId)).size} deltagare kommer att meddelas.`,
-    });
-
     // Call the cloud function to perform backend actions & send notifications
     if (auth.organizationId && !firebaseService.isOffline()) {
         try {
@@ -1229,11 +1181,11 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
             addNotification({
                 type: 'ERROR',
                 title: 'Notifieringsfel',
-                message: 'Ett fel kan ha uppstått vid utskick av notiser till deltagare.',
+                message: 'Ett fel uppstod vid utskick av notiser till deltagare.',
             });
         }
     }
-}, [participantBookings, setParticipantBookingsData, participantDirectory, setParticipantDirectoryData, memberships, addNotification, groupClassSchedules, definitions, auth.organizationId, groupClassScheduleExceptions, setGroupClassScheduleExceptionsData]);
+}, [setGroupClassScheduleExceptionsData, auth.organizationId, addNotification]);
 
 
   const handleProfileModalOpened = useCallback(() => {
