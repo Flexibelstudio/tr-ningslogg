@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { WorkoutLog, Workout, GeneralActivityLog, ActivityLog, GoalCompletionLog, ParticipantGoalData, UserStrengthStat, ParticipantConditioningStat, ParticipantClubMembership, ParticipantProfile, LeaderboardSettings, CoachEvent, ParticipantPhysiqueStat, OneOnOneSession, StaffMember, GroupClassSchedule, GroupClassDefinition, ParticipantBooking, Location, IntegrationSettings, BookingStatus } from '../../types';
+import { WorkoutLog, Workout, GeneralActivityLog, ActivityLog, GoalCompletionLog, ParticipantGoalData, UserStrengthStat, ParticipantConditioningStat, ParticipantClubMembership, ParticipantProfile, CoachEvent, ParticipantPhysiqueStat, OneOnOneSession, StaffMember, GroupClassSchedule, GroupClassDefinition, ParticipantBooking, Location, IntegrationSettings, BookingStatus, GroupClassScheduleException } from '../../types';
 import * as dateUtils from '../../utils/dateUtils';
 import { DayActivitiesModal } from './DayActivitiesModal'; 
 import { CLUB_DEFINITIONS, DEFAULT_COACH_EVENT_ICON, STUDIO_TARGET_OPTIONS } from '../../constants';
@@ -56,6 +56,7 @@ interface ParticipantActivityViewProps {
   currentParticipantId: string;
   groupClassSchedules: GroupClassSchedule[];
   groupClassDefinitions: GroupClassDefinition[];
+  groupClassScheduleExceptions: GroupClassScheduleException[];
   allParticipantBookings: ParticipantBooking[];
   locations: Location[];
   onCancelBooking: (bookingId: string) => void;
@@ -97,6 +98,7 @@ const ParticipantActivityViewFC: React.FC<ParticipantActivityViewProps> = ({
   currentParticipantId,
   groupClassSchedules,
   groupClassDefinitions,
+  groupClassScheduleExceptions,
   allParticipantBookings,
   locations,
   onCancelBooking,
@@ -151,6 +153,9 @@ const ParticipantActivityViewFC: React.FC<ParticipantActivityViewProps> = ({
     const dateStr = dateUtils.toYYYYMMDD(day);
 
     const schedulesToday = groupClassSchedules.filter(schedule => {
+        const isCancelled = groupClassScheduleExceptions.some(ex => ex.scheduleId === schedule.id && ex.date === dateStr);
+        if (isCancelled) return false;
+
         const [startYear, startMonth, startDay] = schedule.startDate.split('-').map(Number);
         const startDate = new Date(startYear, startMonth - 1, startDay);
         const [endYear, endMonth, endDay] = schedule.endDate.split('-').map(Number);
@@ -250,7 +255,7 @@ const ParticipantActivityViewFC: React.FC<ParticipantActivityViewProps> = ({
     }
 
     return { activities: dayLogs, events: dayEvents, groupClasses };
-  }, [allActivityLogs, allParticipantBookings, participantProfile, groupClassSchedules, groupClassDefinitions, staffMembers, oneOnOneSessions, clubMemberships, physiqueHistory, strengthStatsHistory, conditioningStatsHistory, allParticipantGoals, activeGoal, loggedInCoachId, getColorForCategory, integrationSettings.cancellationCutoffHours]);
+  }, [allActivityLogs, allParticipantBookings, participantProfile, groupClassSchedules, groupClassScheduleExceptions, groupClassDefinitions, staffMembers, oneOnOneSessions, clubMemberships, physiqueHistory, strengthStatsHistory, conditioningStatsHistory, allParticipantGoals, activeGoal, loggedInCoachId, getColorForCategory, integrationSettings.cancellationCutoffHours]);
   
   const renderDayContent = useCallback((day: Date) => {
     const { activities, events, groupClasses } = getDayContent(day);

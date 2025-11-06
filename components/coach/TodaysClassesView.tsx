@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { GroupClassSchedule, GroupClassDefinition, ParticipantBooking, StaffMember } from '../../types';
+import { GroupClassSchedule, GroupClassDefinition, ParticipantBooking, StaffMember, GroupClassScheduleException } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { Button } from '../Button';
 
@@ -28,9 +28,10 @@ interface TodaysClassesViewProps {
   coaches: StaffMember[];
   onManageClick: (instance: EnrichedClassInstance) => void;
   loggedInStaff: StaffMember | null;
+  groupClassScheduleExceptions: GroupClassScheduleException[];
 }
 
-export const TodaysClassesView: React.FC<TodaysClassesViewProps> = ({ schedules, definitions, bookings, coaches, onManageClick, loggedInStaff }) => {
+export const TodaysClassesView: React.FC<TodaysClassesViewProps> = ({ schedules, definitions, bookings, coaches, onManageClick, loggedInStaff, groupClassScheduleExceptions }) => {
   const { getColorForCategory } = useAppContext();
   
   const todaysInstances = useMemo(() => {
@@ -50,6 +51,9 @@ export const TodaysClassesView: React.FC<TodaysClassesViewProps> = ({ schedules,
         return schedule.daysOfWeek.includes(dayOfWeek) && today >= startDate && today <= endDate;
       })
       .map((schedule) => {
+        const isCancelled = groupClassScheduleExceptions.some(ex => ex.scheduleId === schedule.id && ex.date === dateStr);
+        if (isCancelled) return null;
+
         const classDef = definitions.find((d) => d.id === schedule.groupClassId);
         // We already know the coach is the loggedInStaff, so we can simplify.
         if (!classDef) return null;
@@ -82,7 +86,7 @@ export const TodaysClassesView: React.FC<TodaysClassesViewProps> = ({ schedules,
       })
       .filter((i): i is EnrichedClassInstance => i !== null)
       .sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
-  }, [schedules, definitions, bookings, getColorForCategory, loggedInStaff]);
+  }, [schedules, definitions, bookings, getColorForCategory, loggedInStaff, groupClassScheduleExceptions]);
 
   if (todaysInstances.length === 0) {
     return null;

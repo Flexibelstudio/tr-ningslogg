@@ -1,12 +1,10 @@
-
-
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
     Workout, WorkoutLog, GeneralActivityLog, ActivityLog,
     ParticipantGoalData, ParticipantProfile,
     UserStrengthStat, ParticipantConditioningStat,
     UserRole, ParticipantMentalWellbeing, Exercise, GoalCompletionLog, ParticipantGamificationStats, WorkoutCategory, PostWorkoutSummaryData, NewPB, ParticipantClubMembership, LeaderboardSettings, CoachEvent, GenderOption, Connection, Reaction, Comment, NewBaseline, ParticipantPhysiqueStat, LiftType, Location, Membership, StaffMember, OneOnOneSession, IntegrationSettings,
-    GroupClassDefinition, GroupClassSchedule, ParticipantBooking, WorkoutCategoryDefinition, InProgressWorkout, AchievementDefinition, FlowItemLogType, UserPushSubscription
+    GroupClassDefinition, GroupClassSchedule, ParticipantBooking, WorkoutCategoryDefinition, InProgressWorkout, AchievementDefinition, FlowItemLogType, UserPushSubscription, GroupClassScheduleException
 } from '../../types';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { Button } from '../Button';
@@ -387,6 +385,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         integrationSettings = { enableQRCodeScanning: false, isBookingEnabled: false, isClientJourneyEnabled: true, isScheduleEnabled: true },
         groupClassSchedules = [],
         groupClassDefinitions = [],
+        groupClassScheduleExceptions = [],
         participantBookings: allParticipantBookings = [],
         userPushSubscriptions = [],
         setUserPushSubscriptionsData,
@@ -1501,6 +1500,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                             currentParticipantId={currentParticipantId}
                             groupClassSchedules={groupClassSchedules}
                             groupClassDefinitions={groupClassDefinitions}
+                            groupClassScheduleExceptions={groupClassScheduleExceptions}
                             allParticipantBookings={allParticipantBookings}
                             locations={locations}
                             onCancelBooking={onCancelBooking}
@@ -1707,6 +1707,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 schedules={groupClassSchedules}
                 definitions={groupClassDefinitions}
                 bookings={allParticipantBookings}
+                groupClassScheduleExceptions={groupClassScheduleExceptions}
                 staff={staffMembers}
                 onBookClass={onBookClass}
                 onCancelBooking={onCancelBooking}

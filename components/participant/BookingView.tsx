@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
 import { Avatar } from '../Avatar';
-import { GroupClassSchedule, GroupClassDefinition, ParticipantBooking, StaffMember, ParticipantProfile, IntegrationSettings, BookingStatus, Membership } from '../../types';
+import { GroupClassSchedule, GroupClassDefinition, ParticipantBooking, StaffMember, ParticipantProfile, IntegrationSettings, BookingStatus, Membership, GroupClassScheduleException } from '../../types';
 import * as dateUtils from '../../utils/dateUtils';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { useAppContext } from '../../context/AppContext';
@@ -36,6 +36,7 @@ interface BookingViewProps {
     schedules: GroupClassSchedule[];
     definitions: GroupClassDefinition[];
     bookings: ParticipantBooking[];
+    groupClassScheduleExceptions: GroupClassScheduleException[];
     staff: StaffMember[];
     onBookClass: (participantId: string, scheduleId: string, classDate: string) => void;
     onCancelBooking: (bookingId: string) => void;
@@ -61,7 +62,7 @@ const SpinnerIcon = () => (
 );
 
 
-export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, schedules, definitions, bookings, staff, onBookClass, onCancelBooking, currentParticipantId, participantProfile, integrationSettings, membership, onOpenUpgradeModal, operationInProgress }) => {
+export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, schedules, definitions, bookings, groupClassScheduleExceptions, staff, onBookClass, onCancelBooking, currentParticipantId, participantProfile, integrationSettings, membership, onOpenUpgradeModal, operationInProgress }) => {
     const { getColorForCategory } = useAppContext();
     const today = useMemo(() => {
         const d = new Date();
@@ -96,6 +97,9 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
             const currentDateStr = dateUtils.toYYYYMMDD(currentDate);
     
             relevantSchedules.forEach(schedule => {
+                const isCancelled = groupClassScheduleExceptions.some(ex => ex.scheduleId === schedule.id && ex.date === currentDateStr);
+                if (isCancelled) return;
+
                 const [startYear, startMonth, startDay] = schedule.startDate.split('-').map(Number);
                 const startDate = new Date(startYear, startMonth - 1, startDay);
                 
@@ -166,7 +170,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
             });
         }
         return instances.sort((a,b) => a.startDateTime.getTime() - b.startDateTime.getTime());
-    }, [schedules, definitions, staff, bookings, currentParticipantId, today, participantProfile, integrationSettings, membership, getColorForCategory]);
+    }, [schedules, definitions, staff, bookings, currentParticipantId, today, participantProfile, integrationSettings, membership, getColorForCategory, groupClassScheduleExceptions]);
 
     const groupedInstances = useMemo(() => {
         const groups: Map<string, EnrichedClassInstance[]> = new Map();
