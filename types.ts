@@ -110,6 +110,12 @@ export interface GroupClassSchedule {
   hasWaitlist?: boolean;
 }
 
+export interface GroupClassScheduleException {
+  id: string;
+  scheduleId: string; // FK to GroupClassSchedule.id
+  date: string; // YYYY-MM-DD of the cancelled instance
+}
+
 export interface ParticipantBooking {
   id: string;
   participantId: string;
@@ -759,6 +765,7 @@ export interface OrganizationData {
   integrationSettings: IntegrationSettings;
   groupClassDefinitions: GroupClassDefinition[];
   groupClassSchedules: GroupClassSchedule[];
+  groupClassScheduleExceptions: GroupClassScheduleException[];
   participantBookings: ParticipantBooking[];
   leads: Lead[];
   prospectIntroCalls: ProspectIntroCall[];

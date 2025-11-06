@@ -14,7 +14,7 @@ import { TermsModal } from './components/TermsModal';
 import { WelcomeModal } from './components/participant/WelcomeModal';
 import { UpdateNoticeModal } from './components/participant/UpdateNoticeModal';
 import { LOCAL_STORAGE_KEYS } from './constants';
-import { FlowItemLogType, User, UserRole, GeneralActivityLog, ParticipantProfile } from './types';
+import { FlowItemLogType, User, UserRole, GeneralActivityLog, ParticipantProfile, GroupClassScheduleException } from './types';
 import { useNotifications } from './context/NotificationsContext';
 import { logAnalyticsEvent } from './utils/analyticsLogger';
 import firebaseService from './services/firebaseService';
@@ -53,6 +53,7 @@ const AppContent: React.FC = () => {
 
   const {
     participantDirectory,
+    setParticipantDirectoryData,
     memberships,
     workoutLogs,
     generalActivityLogs,
@@ -84,7 +85,8 @@ const AppContent: React.FC = () => {
     setUserConditioningStatsHistoryData,
     setCoachEventsData,
     setOneOnOneSessionsData,
-    setParticipantDirectoryData,
+    groupClassScheduleExceptions,
+    setGroupClassScheduleExceptionsData
   } = useAppContext();
 
   const auth = useAuth();
@@ -1161,13 +1163,26 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
   }, [auth.currentRole, auth.currentParticipantId, welcomeModalShown, participantDirectory, prospectModalShownKey, memberships]);
   
   const handleCancelClassInstance = useCallback(async (scheduleId: string, classDate: string) => {
-    // Optimistic UI Update
+    const alreadyCancelled = groupClassScheduleExceptions.some(ex => ex.scheduleId === scheduleId && ex.date === classDate);
+    if (alreadyCancelled) {
+        addNotification({ type: 'INFO', title: 'Redan inställt', message: 'Detta pass är redan markerat som inställt.' });
+        return;
+    }
+    
+    // Optimistic UI Update: Create exception
+    const newException: GroupClassScheduleException = {
+        id: crypto.randomUUID(),
+        scheduleId,
+        date: classDate,
+    };
+    setGroupClassScheduleExceptionsData(prev => [...prev, newException]);
+
     const bookingsToCancel = participantBookings.filter(
         (b) => b.scheduleId === scheduleId && b.classDate === classDate && (b.status === 'BOOKED' || b.status === 'CHECKED-IN' || b.status === 'WAITLISTED')
     );
 
     if (bookingsToCancel.length === 0) {
-        addNotification({ type: 'INFO', title: 'Inga bokningar', message: 'Det fanns inga aktiva bokningar att avboka för detta pass.' });
+        addNotification({ type: 'SUCCESS', title: 'Pass Inställt', message: 'Passet har ställts in. Inga deltagare var bokade.' });
         return;
     }
 
@@ -1218,7 +1233,7 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
             });
         }
     }
-}, [participantBookings, setParticipantBookingsData, participantDirectory, setParticipantDirectoryData, memberships, addNotification, groupClassSchedules, definitions, auth.organizationId]);
+}, [participantBookings, setParticipantBookingsData, participantDirectory, setParticipantDirectoryData, memberships, addNotification, groupClassSchedules, definitions, auth.organizationId, groupClassScheduleExceptions, setGroupClassScheduleExceptionsData]);
 
 
   const handleProfileModalOpened = useCallback(() => {

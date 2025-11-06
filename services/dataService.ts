@@ -51,6 +51,7 @@ export const createInitialOrgData = (orgId: string): OrganizationData => {
         },
         groupClassDefinitions: PREDEFINED_GROUP_CLASSES,
         groupClassSchedules: [],
+        groupClassScheduleExceptions: [],
         participantBookings: [],
         leads: [],
         prospectIntroCalls: [],

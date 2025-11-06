@@ -8,7 +8,7 @@ import {
     CoachEvent, Connection, Location, StaffMember, Membership, 
     WeeklyHighlightSettings, OneOnOneSession, WorkoutCategoryDefinition, 
     StaffAvailability, IntegrationSettings, GroupClassDefinition, 
-    GroupClassSchedule, ParticipantBooking, AppData, BrandingSettings, ProspectIntroCall, Lead, UserPushSubscription
+    GroupClassSchedule, ParticipantBooking, AppData, BrandingSettings, ProspectIntroCall, Lead, UserPushSubscription, GroupClassScheduleException
 } from '../types';
 import firebaseService from '../services/firebaseService'; // Use the new service
 import { useAuth } from './AuthContext';
@@ -75,6 +75,7 @@ interface AppContextType extends OrganizationData {
   setIntegrationSettingsData: (updater: React.SetStateAction<AppData['integrationSettings']>) => void;
   setGroupClassDefinitionsData: (updater: React.SetStateAction<AppData['groupClassDefinitions']>) => void;
   setGroupClassSchedulesData: (updater: React.SetStateAction<AppData['groupClassSchedules']>) => void;
+  setGroupClassScheduleExceptionsData: (updater: React.SetStateAction<AppData['groupClassScheduleExceptions']>) => void;
   setParticipantBookingsData: (updater: React.SetStateAction<AppData['participantBookings']>) => void;
   setLeadsData: (updater: React.SetStateAction<AppData['leads']>) => void;
   setProspectIntroCallsData: (updater: React.SetStateAction<AppData['prospectIntroCalls']>) => void;
@@ -119,6 +120,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [integrationSettings, setIntegrationSettings] = useState<IntegrationSettings>({ enableQRCodeScanning: false, isBookingEnabled: false, isClientJourneyEnabled: true, isScheduleEnabled: true });
     const [groupClassDefinitions, setGroupClassDefinitions] = useState<GroupClassDefinition[]>([]);
     const [groupClassSchedules, setGroupClassSchedules] = useState<GroupClassSchedule[]>([]);
+    const [groupClassScheduleExceptions, setGroupClassScheduleExceptions] = useState<GroupClassScheduleException[]>([]);
     const [participantBookings, setParticipantBookings] = useState<ParticipantBooking[]>([]);
     const [leads, setLeads] = useState<Lead[]>([]);
     const [prospectIntroCalls, setProspectIntroCalls] = useState<ProspectIntroCall[]>([]);
@@ -208,6 +210,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     setIntegrationSettings(data.integrationSettings);
                     setGroupClassDefinitions(data.groupClassDefinitions);
                     setGroupClassSchedules(data.groupClassSchedules);
+                    setGroupClassScheduleExceptions(data.groupClassScheduleExceptions);
                     setParticipantBookings(data.participantBookings);
                     setLeads(data.leads);
                     setProspectIntroCalls(data.prospectIntroCalls);
@@ -246,7 +249,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setWeeklyHighlightSettings({ isEnabled: false, dayOfWeek: 1, time: '09:00', studioTarget: 'separate' });
             setOneOnOneSessions([]); setWorkoutCategories([]); setStaffAvailability([]);
             setIntegrationSettings({ enableQRCodeScanning: false, isBookingEnabled: false, isClientJourneyEnabled: true, isScheduleEnabled: true });
-            setGroupClassDefinitions([]); setGroupClassSchedules([]); setParticipantBookings([]);
+            setGroupClassDefinitions([]); setGroupClassSchedules([]); setGroupClassScheduleExceptions([]); setParticipantBookings([]);
             setLeads([]); setProspectIntroCalls([]); setUserPushSubscriptions([]); setBranding(undefined);
         }
     }, [organizationId]);
@@ -301,7 +304,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
         return newState;
       });
-    }, [organizationId, collectionKey]);
+    }, [organizationId]);
   };
   
   const createCollectionUpdater = <T,>(
@@ -367,6 +370,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const smartSetIntegrationSettings = createSingleDocUpdater('integrationSettings', setIntegrationSettings);
     const smartSetGroupClassDefinitions = createSmartCollectionUpdater('groupClassDefinitions', setGroupClassDefinitions);
     const smartSetGroupClassSchedules = createSmartCollectionUpdater('groupClassSchedules', setGroupClassSchedules);
+    const smartSetGroupClassScheduleExceptions = createSmartCollectionUpdater('groupClassScheduleExceptions', setGroupClassScheduleExceptions);
     const smartSetParticipantBookings = createSmartCollectionUpdater('participantBookings', setParticipantBookings);
     const smartSetLeads = createSmartCollectionUpdater('leads', setLeads);
     const smartSetProspectIntroCalls = createSmartCollectionUpdater('prospectIntroCalls', setProspectIntroCalls);
@@ -462,7 +466,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     participantGamificationStats, clubMemberships, leaderboardSettings, coachEvents,
     connections, lastFlowViewTimestamp, locations, staffMembers, memberships,
     weeklyHighlightSettings, oneOnOneSessions, workoutCategories, staffAvailability,
-    integrationSettings, groupClassDefinitions, groupClassSchedules, participantBookings,
+    integrationSettings, groupClassDefinitions, groupClassSchedules, groupClassScheduleExceptions, participantBookings,
     leads, prospectIntroCalls, userPushSubscriptions, branding, isOrgDataLoading, isGlobalDataLoading,
     isOrgDataFromFallback, orgDataError, getColorForCategory, addParticipant, updateParticipantProfile,
     updateUser, addWorkout, updateWorkout, deleteWorkout,
@@ -492,6 +496,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setIntegrationSettingsData: smartSetIntegrationSettings,
     setGroupClassDefinitionsData: smartSetGroupClassDefinitions,
     setGroupClassSchedulesData: smartSetGroupClassSchedules,
+    setGroupClassScheduleExceptionsData: smartSetGroupClassScheduleExceptions,
     setParticipantBookingsData: smartSetParticipantBookings,
     setLeadsData: smartSetLeads,
     setProspectIntroCallsData: smartSetProspectIntroCalls,
