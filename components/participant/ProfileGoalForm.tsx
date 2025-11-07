@@ -4,6 +4,7 @@ import { ParticipantProfile, GenderOption, Location } from '../../types';
 import { GENDER_OPTIONS } from '../../constants';
 import { Avatar } from '../Avatar';
 import { Button } from '../Button';
+import { ToggleSwitch } from '../ToggleSwitch';
 
 export interface ProfileFormRef {
   submitForm: () => boolean;
@@ -20,6 +21,14 @@ interface ProfileFormProps {
     locationId?: string;
     enableInBodySharing?: boolean;
     enableFssSharing?: boolean;
+    shareMyBookings?: boolean;
+    receiveFriendBookingNotifications?: boolean;
+    notificationSettings?: {
+        pushEnabled: boolean;
+        waitlistPromotion: boolean;
+        sessionReminder: boolean;
+        classCancellation: boolean;
+    };
     photoURL?: string;
   }) => void;
   locations: Location[];
@@ -35,6 +44,14 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({ curre
   const [isSearchable, setIsSearchable] = useState(false);
   const [enableInBodySharing, setEnableInBodySharing] = useState(false);
   const [enableFssSharing, setEnableFssSharing] = useState(false);
+  const [shareMyBookings, setShareMyBookings] = useState(false);
+  const [receiveFriendBookingNotifications, setReceiveFriendBookingNotifications] = useState(true);
+  const [notificationSettings, setNotificationSettings] = useState({
+    pushEnabled: true,
+    waitlistPromotion: true,
+    sessionReminder: true,
+    classCancellation: true,
+  });
 
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -50,8 +67,20 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({ curre
     setIsSearchable(currentProfile?.isSearchable ?? true);
     setEnableInBodySharing(currentProfile?.enableInBodySharing || false);
     setEnableFssSharing(currentProfile?.enableFssSharing || false);
+    setShareMyBookings(currentProfile?.shareMyBookings || false);
+    setReceiveFriendBookingNotifications(currentProfile?.receiveFriendBookingNotifications ?? true);
+    setNotificationSettings({
+        pushEnabled: currentProfile?.notificationSettings?.pushEnabled ?? true,
+        waitlistPromotion: currentProfile?.notificationSettings?.waitlistPromotion ?? true,
+        sessionReminder: currentProfile?.notificationSettings?.sessionReminder ?? true,
+        classCancellation: currentProfile?.notificationSettings?.classCancellation ?? true,
+    });
     setImagePreview(null); // Reset image preview on open
   }, [currentProfile]);
+  
+  const handleNotificationSettingChange = (field: keyof typeof notificationSettings, value: boolean) => {
+    setNotificationSettings(prev => ({ ...prev, [field]: value }));
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -93,7 +122,7 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({ curre
   };
 
   const handleSubmit = () => {
-    const profileData = {
+    const profileData: Partial<ParticipantProfile> = {
       name: `${firstName.trim()} ${lastName.trim()}`.trim(),
       birthDate: birthDate.trim() ? birthDate.trim() : undefined,
       gender,
@@ -102,9 +131,18 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({ curre
       isSearchable: isSearchable,
       enableInBodySharing: enableInBodySharing,
       enableFssSharing: enableFssSharing,
-      photoURL: imagePreview || undefined,
+      shareMyBookings: shareMyBookings,
+      receiveFriendBookingNotifications: receiveFriendBookingNotifications,
+      notificationSettings,
     };
 
+    // Only include photoURL in the update if a new image has been selected or it has been removed.
+    // This prevents overwriting the existing URL with undefined.
+    if (imagePreview !== null) {
+      // An empty string signifies removal, which will be saved to Firestore.
+      profileData.photoURL = imagePreview;
+    }
+    
     onSave(profileData);
     return true;
   };
@@ -115,6 +153,8 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({ curre
 
   const locationOptions = locations.map((loc) => ({ value: loc.id, label: loc.name }));
   const combinedName = `${firstName} ${lastName}`.trim();
+  
+  const currentPhoto = imagePreview === null ? currentProfile?.photoURL : imagePreview;
 
   return (
     <div className="space-y-6 py-4">
@@ -123,11 +163,13 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({ curre
       <section className="space-y-4 pt-4 border-t">
         <h3 className="text-lg font-semibold text-gray-700">Profilbild</h3>
         <div className="flex items-center gap-4">
-          <Avatar photoURL={imagePreview || currentProfile?.photoURL} name={combinedName} size="lg" />
+          <Avatar photoURL={currentPhoto} name={combinedName} size="lg" />
           <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/png, image/jpeg" className="hidden" />
-          <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
-            Ladda upp ny bild
-          </Button>
+          <div className="flex flex-col gap-2">
+            <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
+              Ladda upp ny bild
+            </Button>
+          </div>
         </div>
       </section>
 
@@ -148,65 +190,87 @@ export const ProfileForm = forwardRef<ProfileFormRef, ProfileFormProps>(({ curre
           options={[{ value: '', label: 'Välj en ort...' }, ...locationOptions]}
         />
       </section>
+
       <section className="space-y-4 pt-4 border-t">
-        <h3 className="text-lg font-semibold text-gray-700">Inställningar</h3>
-        <label className="flex items-start space-x-3 p-3 bg-gray-100 rounded-md cursor-pointer">
-          <input
-            type="checkbox"
+        <h3 className="text-lg font-semibold text-gray-700">Notis- & Delningsinställningar</h3>
+        <div className="p-3 bg-gray-100 rounded-md space-y-2">
+          <ToggleSwitch
+            id="pushEnabled"
+            checked={notificationSettings.pushEnabled}
+            onChange={(val) => handleNotificationSettingChange('pushEnabled', val)}
+            label="Ta emot pushnotiser"
+            description="Få notiser på din enhet även när appen är stängd."
+          />
+          {notificationSettings.pushEnabled && (
+            <div className="pl-6 pt-2 border-l-2 border-gray-300 space-y-2 animate-fade-in-down">
+              <ToggleSwitch
+                id="waitlistPromotion"
+                checked={notificationSettings.waitlistPromotion}
+                onChange={(val) => handleNotificationSettingChange('waitlistPromotion', val)}
+                label="När jag får en plats från kölistan"
+              />
+              <ToggleSwitch
+                id="sessionReminder"
+                checked={notificationSettings.sessionReminder}
+                onChange={(val) => handleNotificationSettingChange('sessionReminder', val)}
+                label="Påminnelser innan pass"
+              />
+              <ToggleSwitch
+                id="classCancellation"
+                checked={notificationSettings.classCancellation}
+                onChange={(val) => handleNotificationSettingChange('classCancellation', val)}
+                label="När ett pass ställs in"
+              />
+              <ToggleSwitch
+                  id="receiveFriendBookingNotifications"
+                  checked={receiveFriendBookingNotifications}
+                  onChange={setReceiveFriendBookingNotifications}
+                  label="När en vän bokar ett pass"
+                />
+            </div>
+          )}
+        </div>
+        <div className="p-3 bg-gray-100 rounded-md">
+          <ToggleSwitch
+            id="shareMyBookings"
+            checked={shareMyBookings}
+            onChange={setShareMyBookings}
+            label="Dela mina passbokningar med vänner"
+            description="Tillåt vänner att få en notis när du bokar ett pass, så de kan haka på."
+          />
+        </div>
+      </section>
+
+      <section className="space-y-4 pt-4 border-t">
+        <h3 className="text-lg font-semibold text-gray-700">Synlighet & Topplistor</h3>
+        <ToggleSwitch
             id="enableLeaderboard"
             checked={enableLeaderboard}
-            onChange={(e) => setEnableLeaderboard(e.target.checked)}
-            className="h-6 w-6 mt-1 text-flexibel border-gray-300 rounded focus:ring-flexibel"
-          />
-          <div>
-            <span className="text-base font-medium text-gray-700">Delta i Topplistor & Utmaningar</span>
-            <p className="text-sm text-gray-500">
-              Genom att kryssa i denna ruta godkänner du att ditt namn och dina resultat (t.ex. antal pass, personliga rekord) visas på interna topplistor som är synliga för
-              andra medlemmar och coacher.
-            </p>
-          </div>
-        </label>
-        <label className="flex items-start space-x-3 p-3 bg-gray-100 rounded-md cursor-pointer">
-          <input
-            type="checkbox"
+            onChange={setEnableLeaderboard}
+            label="Delta i Topplistor & Utmaningar"
+            description="Tillåt att ditt namn och dina resultat (t.ex. antal pass, personliga rekord) visas på interna topplistor som är synliga för andra medlemmar och coacher."
+        />
+        <ToggleSwitch
             id="enableInBodySharing"
             checked={enableInBodySharing}
-            onChange={(e) => setEnableInBodySharing(e.target.checked)}
-            className="h-6 w-6 mt-1 text-flexibel border-gray-300 rounded focus:ring-flexibel"
-          />
-          <div>
-            <span className="text-base font-medium text-gray-700">Visa InBody-poäng på topplistor</span>
-            <p className="text-sm text-gray-500">Tillåt att din InBody-poäng visas på "All-Time Topplistor" som är synlig för andra medlemmar och coacher.</p>
-          </div>
-        </label>
-        <label className="flex items-start space-x-3 p-3 bg-gray-100 rounded-md cursor-pointer">
-          <input
-            type="checkbox"
+            onChange={setEnableInBodySharing}
+            label="Visa InBody-poäng på topplistor"
+            description='Tillåt att din InBody-poäng visas på "All-Time Topplistor" som är synlig för andra medlemmar och coacher.'
+        />
+        <ToggleSwitch
             id="enableFssSharing"
             checked={enableFssSharing}
-            onChange={(e) => setEnableFssSharing(e.target.checked)}
-            className="h-6 w-6 mt-1 text-flexibel border-gray-300 rounded focus:ring-flexibel"
-          />
-          <div>
-            <span className="text-base font-medium text-gray-700">Visa FSS-poäng på topplistor</span>
-            <p className="text-sm text-gray-500">Tillåt att din FSS-poäng (styrkepoäng) visas på "All-Time Topplistor" som är synlig för andra medlemmar och coacher.</p>
-          </div>
-        </label>
-        <label className="flex items-start space-x-3 p-3 bg-gray-100 rounded-md cursor-pointer">
-          <input
-            type="checkbox"
+            onChange={setEnableFssSharing}
+            label="Visa FSS-poäng på topplistor"
+            description='Tillåt att din FSS-poäng (styrkepoäng) visas på "All-Time Topplistor" som är synlig för andra medlemmar och coacher.'
+        />
+        <ToggleSwitch
             id="isSearchable"
             checked={isSearchable}
-            onChange={(e) => setIsSearchable(e.target.checked)}
-            className="h-6 w-6 mt-1 text-flexibel border-gray-300 rounded focus:ring-flexibel"
-          />
-          <div>
-            <span className="text-base font-medium text-gray-700">Gör min profil sökbar för andra medlemmar</span>
-            <p className="text-sm text-gray-500">
-              Genom att aktivera detta kan andra medlemmar hitta dig via sökfunktionen och skicka en vänförfrågan för att kunna se varandras flöden.
-            </p>
-          </div>
-        </label>
+            onChange={setIsSearchable}
+            label="Gör min profil sökbar för andra medlemmar"
+            description="Tillåt andra medlemmar att hitta dig via sökfunktionen och skicka en vänförfrågan för att kunna se varandras flöden."
+        />
       </section>
     </div>
   );

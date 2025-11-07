@@ -330,46 +330,41 @@ export const findAndUpdateStrengthStats = (
     strengthStatsHistory: UserStrengthStat[]
 ): { needsUpdate: boolean, updatedStats: Partial<UserStrengthStat> } => {
     
-    // Find the true all-time PBs from history
-    const allTimePBs: Partial<UserStrengthStat> = {};
-    if (strengthStatsHistory && strengthStatsHistory.length > 0) {
-        strengthStatsHistory.forEach(stat => {
-            if (stat.squat1RMaxKg && stat.squat1RMaxKg > (allTimePBs.squat1RMaxKg || 0)) {
-                allTimePBs.squat1RMaxKg = stat.squat1RMaxKg;
-            }
-            if (stat.benchPress1RMaxKg && stat.benchPress1RMaxKg > (allTimePBs.benchPress1RMaxKg || 0)) {
-                allTimePBs.benchPress1RMaxKg = stat.benchPress1RMaxKg;
-            }
-            if (stat.deadlift1RMaxKg && stat.deadlift1RMaxKg > (allTimePBs.deadlift1RMaxKg || 0)) {
-                allTimePBs.deadlift1RMaxKg = stat.deadlift1RMaxKg;
-            }
-            if (stat.overheadPress1RMaxKg && stat.overheadPress1RMaxKg > (allTimePBs.overheadPress1RMaxKg || 0)) {
-                allTimePBs.overheadPress1RMaxKg = stat.overheadPress1RMaxKg;
-            }
-        });
-    }
+    // 1. Find the LATEST strength stat record for the user to use as the current baseline.
+    const latestStat = strengthStatsHistory.length > 0 
+        ? [...strengthStatsHistory].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0]
+        : null;
 
-    let statsToUpdate: Partial<UserStrengthStat> = { ...allTimePBs };
+    const currentPBs = {
+        squat1RMaxKg: latestStat?.squat1RMaxKg || 0,
+        benchPress1RMaxKg: latestStat?.benchPress1RMaxKg || 0,
+        deadlift1RMaxKg: latestStat?.deadlift1RMaxKg || 0,
+        overheadPress1RMaxKg: latestStat?.overheadPress1RMaxKg || 0,
+    };
+    
+    // 2. Calculate potential new PBs from the current workout log.
+    const newPBsFromLog: Partial<UserStrengthStat> = {};
     let needsUpdate = false;
-    
+
     const workoutTemplate = workouts.find(w => w.id === log.workoutId);
-    if (!workoutTemplate || log.entries.length === 0) {
-        return { needsUpdate: false, updatedStats: {} };
-    }
-    
-    const allExercisesInTemplate = (log.selectedExercisesForModifiable && log.selectedExercisesForModifiable.length > 0)
+    const allExercisesInTemplate = 
+        (log.selectedExercisesForModifiable && log.selectedExercisesForModifiable.length > 0)
         ? log.selectedExercisesForModifiable
-        : (workoutTemplate.blocks || []).flatMap(b => b.exercises);
+        : (workoutTemplate?.blocks || []).flatMap(b => b.exercises);
 
     log.entries.forEach(entry => {
         const exerciseDetail = allExercisesInTemplate.find(ex => ex.id === entry.exerciseId);
         if (!exerciseDetail) return;
+        
+        // IMPORTANT: Only check the exercise's direct name. Do not use baseLiftType.
         const liftType = exerciseDetail.name as LiftType;
 
-        if (['Knäböj', 'Bänkpress', 'Marklyft', 'Axelpress'].includes(liftType)) {
+        const mainLifts: LiftType[] = ['Knäböj', 'Bänkpress', 'Marklyft', 'Axelpress'];
+        if (mainLifts.includes(liftType)) {
             let bestE1RMInLog = 0;
             entry.loggedSets.forEach(set => {
-                if (set.isCompleted && set.weight !== undefined && set.reps !== undefined) {
+                // Set must be completed to count for a PB
+                if (set.isCompleted) {
                     const e1RM = calculateEstimated1RM(set.weight, set.reps);
                     if (e1RM && e1RM > bestE1RMInLog) {
                         bestE1RMInLog = e1RM;
@@ -377,23 +372,27 @@ export const findAndUpdateStrengthStats = (
                 }
             });
 
-            if (bestE1RMInLog > 0) {
-                if (liftType === 'Knäböj' && bestE1RMInLog > (statsToUpdate.squat1RMaxKg || 0)) {
-                    statsToUpdate.squat1RMaxKg = bestE1RMInLog;
-                    needsUpdate = true;
-                } else if (liftType === 'Bänkpress' && bestE1RMInLog > (statsToUpdate.benchPress1RMaxKg || 0)) {
-                    statsToUpdate.benchPress1RMaxKg = bestE1RMInLog;
-                    needsUpdate = true;
-                } else if (liftType === 'Marklyft' && bestE1RMInLog > (statsToUpdate.deadlift1RMaxKg || 0)) {
-                    statsToUpdate.deadlift1RMaxKg = bestE1RMInLog;
-                    needsUpdate = true;
-                } else if (liftType === 'Axelpress' && bestE1RMInLog > (statsToUpdate.overheadPress1RMaxKg || 0)) {
-                    statsToUpdate.overheadPress1RMaxKg = bestE1RMInLog;
-                    needsUpdate = true;
-                }
+            if (liftType === 'Knäböj' && bestE1RMInLog > currentPBs.squat1RMaxKg) {
+                newPBsFromLog.squat1RMaxKg = bestE1RMInLog;
+                needsUpdate = true;
+            }
+            if (liftType === 'Bänkpress' && bestE1RMInLog > currentPBs.benchPress1RMaxKg) {
+                newPBsFromLog.benchPress1RMaxKg = bestE1RMInLog;
+                needsUpdate = true;
+            }
+            if (liftType === 'Marklyft' && bestE1RMInLog > currentPBs.deadlift1RMaxKg) {
+                newPBsFromLog.deadlift1RMaxKg = bestE1RMInLog;
+                needsUpdate = true;
+            }
+            if (liftType === 'Axelpress' && bestE1RMInLog > currentPBs.overheadPress1RMaxKg) {
+                newPBsFromLog.overheadPress1RMaxKg = bestE1RMInLog;
+                needsUpdate = true;
             }
         }
     });
     
-    return { needsUpdate, updatedStats: statsToUpdate };
+    // 3. Merge the current PBs with any new PBs to get the final, correct state for the NEW record.
+    const updatedStats = { ...currentPBs, ...newPBsFromLog };
+
+    return { needsUpdate, updatedStats };
 };

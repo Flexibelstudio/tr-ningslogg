@@ -1,4 +1,3 @@
-// types.ts
 /// <reference lib="dom" />
 /// <reference lib="es2015" />
 
@@ -111,6 +110,12 @@ export interface GroupClassSchedule {
   hasWaitlist?: boolean;
 }
 
+export interface GroupClassScheduleException {
+  id: string;
+  scheduleId: string; // FK to GroupClassSchedule.id
+  date: string; // YYYY-MM-DD of the cancelled instance
+}
+
 export interface ParticipantBooking {
   id: string;
   participantId: string;
@@ -118,6 +123,7 @@ export interface ParticipantBooking {
   classDate: string; // YYYY-MM-DD
   bookingDate: string; // ISO string
   status: BookingStatus;
+  reminderTaskId?: string;
 }
 
 export interface OneOnOneSessionType {
@@ -389,6 +395,14 @@ export interface ParticipantProfile {
   enableInBodySharing?: boolean;
   enableFssSharing?: boolean;
   isSearchable?: boolean; // New: For friend feature
+  shareMyBookings?: boolean; // New: For sharing bookings with friends
+  receiveFriendBookingNotifications?: boolean; // New: For receiving notifications about friends' bookings
+  notificationSettings?: {
+    pushEnabled: boolean;
+    waitlistPromotion: boolean;
+    sessionReminder: boolean;
+    classCancellation: boolean;
+  };
   locationId?: string; // FK to Location.id
   membershipId?: string; // FK to Membership.id
   startDate?: string; // ISO date string YYYY-MM-DD
@@ -677,6 +691,8 @@ export interface IntegrationSettings {
   // FIX: Add missing properties to support the start program feature.
   startProgramCategoryId?: string;
   startProgramSessionsRequired?: number;
+  enableSessionReminders?: boolean;
+  sessionReminderHoursBefore?: number;
 }
 
 // New: For Staff Management
@@ -749,6 +765,7 @@ export interface OrganizationData {
   integrationSettings: IntegrationSettings;
   groupClassDefinitions: GroupClassDefinition[];
   groupClassSchedules: GroupClassSchedule[];
+  groupClassScheduleExceptions: GroupClassScheduleException[];
   participantBookings: ParticipantBooking[];
   leads: Lead[];
   prospectIntroCalls: ProspectIntroCall[];

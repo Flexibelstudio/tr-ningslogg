@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { OneOnOneSession, ParticipantProfile, StaffMember, GroupClassSchedule, GroupClassDefinition, ParticipantBooking } from '../../types';
+import { OneOnOneSession, ParticipantProfile, StaffMember, GroupClassSchedule, GroupClassDefinition, ParticipantBooking, GroupClassScheduleException } from '../../types';
 import { CalendarGrid } from '../CalendarGrid';
 import * as dateUtils from '../../utils/dateUtils';
 import { useAppContext } from '../../context/AppContext';
@@ -32,6 +32,7 @@ interface CalendarViewProps {
   onSessionDelete: (session: OneOnOneSession) => void;
   groupClassSchedules: GroupClassSchedule[];
   groupClassDefinitions: GroupClassDefinition[];
+  groupClassScheduleExceptions: GroupClassScheduleException[];
   bookings: ParticipantBooking[];
   onGroupClassClick: (instance: EnrichedClassInstance) => void;
   loggedInCoachId?: string;
@@ -46,7 +47,7 @@ const SESSION_TYPE_STYLES: Record<string, { bg: string; border: string; text: st
 
 const CalendarViewFC: React.FC<CalendarViewProps> = ({ 
     sessions, participants, coaches, onSessionClick, onDayClick,
-    groupClassSchedules, groupClassDefinitions, bookings, onGroupClassClick, loggedInCoachId
+    groupClassSchedules, groupClassDefinitions, groupClassScheduleExceptions, bookings, onGroupClassClick, loggedInCoachId
 }) => {
   const { getColorForCategory } = useAppContext();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -57,6 +58,9 @@ const CalendarViewFC: React.FC<CalendarViewProps> = ({
 
     return groupClassSchedules
       .filter(schedule => {
+        const isCancelled = groupClassScheduleExceptions.some(ex => ex.scheduleId === schedule.id && ex.date === dateStr);
+        if (isCancelled) return false;
+
         const [startYear, startMonth, startDay] = schedule.startDate.split('-').map(Number);
         const startDate = new Date(startYear, startMonth - 1, startDay);
         
@@ -99,7 +103,7 @@ const CalendarViewFC: React.FC<CalendarViewProps> = ({
       })
       .filter((i): i is EnrichedClassInstance => i !== null)
       .sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
-  }, [groupClassSchedules, groupClassDefinitions, coaches, bookings, getColorForCategory]);
+  }, [groupClassSchedules, groupClassDefinitions, coaches, bookings, getColorForCategory, groupClassScheduleExceptions]);
 
   const sessionsByDay = useMemo(() => {
     const map = new Map<string, OneOnOneSession[]>();
@@ -119,7 +123,7 @@ const CalendarViewFC: React.FC<CalendarViewProps> = ({
     for (let i = 0; i < 42; i++) { // 42 days for 6 weeks
         const day = dateUtils.addDays(gridStartDate, i);
         const dayStr = day.toDateString();
-        const classes = getEnrichedGroupClassesForDay(day);
+        const classes = getEnrichedGroupClassesForDay(new Date(day));
         if (classes.length > 0) {
             map.set(dayStr, classes);
         }

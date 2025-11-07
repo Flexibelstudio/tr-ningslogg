@@ -23,6 +23,7 @@ import {
   ParticipantBooking,
   User,
   ParticipantConditioningStat,
+  GroupClassScheduleException,
 } from '../../types';
 import { MemberManagement } from './MemberManagement';
 import { ParticipantActivityOverview } from './ParticipantActivityOverview';
@@ -83,6 +84,7 @@ interface CoachAreaProps {
   onBookClass: (participantId: string, scheduleId: string, classDate: string) => void;
   onCancelBooking: (bookingId: string) => void;
   onPromoteFromWaitlist: (bookingId: string) => void;
+  onCancelClassInstance: (scheduleId: string, classDate: string) => void;
 }
 
 export const CoachArea: React.FC<CoachAreaProps> = ({
@@ -94,6 +96,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   onBookClass,
   onCancelBooking,
   onPromoteFromWaitlist,
+  onCancelClassInstance,
 }) => {
   const {
     participantDirectory,
@@ -118,6 +121,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     integrationSettings,
     groupClassDefinitions,
     groupClassSchedules,
+    groupClassScheduleExceptions,
     participantBookings,
     // ... all updater functions
     setOneOnOneSessionsData,
@@ -453,6 +457,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
               coaches={staffMembers}
               onManageClick={(instance) => setManagedClassInfo({ scheduleId: instance.scheduleId, date: instance.date })}
               loggedInStaff={loggedInStaff}
+              groupClassScheduleExceptions={groupClassScheduleExceptions}
             />
             <div className="border-b border-gray-200">
               <nav className="-mb-px flex space-x-4 overflow-x-auto" aria-label="Location Tabs">
@@ -501,6 +506,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
                 onSessionDelete={setSessionToDelete}
                 groupClassSchedules={schedulesForLocationTab}
                 groupClassDefinitions={groupClassDefinitions}
+                groupClassScheduleExceptions={groupClassScheduleExceptions}
                 bookings={bookingsForLocationTab}
                 onGroupClassClick={(instance) => setManagedClassInfo({ scheduleId: instance.scheduleId, date: instance.date })}
                 loggedInCoachId={loggedInStaff.id}
@@ -631,11 +637,13 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
           onClose={() => setManagedClassInfo(null)}
           classInstance={classInstanceForManagement}
           participants={participantDirectory}
+          groupClassScheduleExceptions={groupClassScheduleExceptions}
           onCheckIn={onCheckInParticipant}
           onUnCheckIn={onUnCheckInParticipant}
           onBookClass={onBookClass}
           onCancelBooking={onCancelBooking}
           onPromoteFromWaitlist={onPromoteFromWaitlist}
+          onCancelClassInstance={onCancelClassInstance}
         />
       )}
     </div>

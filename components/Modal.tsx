@@ -102,24 +102,26 @@ export const Modal: React.FC<ModalProps> = ({
             </button>
           )
         ) : (
-          <div className="flex items-center justify-center border-b border-gray-200 relative py-2 px-3">
-            {title && (
-              <h3 id={titleId} className="text-base font-semibold text-gray-900">
-                {title}
-              </h3>
-            )}
-            {isClosable && (
-              <button
-                onClick={onClose}
-                className="absolute top-1.5 right-1.5 p-1 text-gray-500 hover:text-gray-800 hover:bg-gray-100 active:bg-gray-200 rounded-full transition-colors z-10"
-                aria-label="Stäng modal"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-          </div>
+          (title || isClosable) && (
+            <div className="flex items-center justify-center border-b border-gray-200 relative py-2 px-3">
+              {title && (
+                <h3 id={titleId} className="text-base font-semibold text-gray-900">
+                  {title}
+                </h3>
+              )}
+              {isClosable && (
+                <button
+                  onClick={onClose}
+                  className="absolute top-1.5 right-1.5 p-1 text-gray-500 hover:text-gray-800 hover:bg-gray-100 active:bg-gray-200 rounded-full transition-colors z-10"
+                  aria-label="Stäng modal"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          )
         )}
 
         {/* Minimal innehålls-padding */}

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
-import { ParticipantProfile, ParticipantBooking } from '../../types';
+import { ParticipantProfile, ParticipantBooking, GroupClassScheduleException } from '../../types';
 import { Select } from '../Input';
 import { ConfirmationModal } from '../ConfirmationModal';
 
@@ -21,18 +21,21 @@ interface ClassManagementModalProps {
   onClose: () => void;
   classInstance: EnrichedClassInstance;
   participants: ParticipantProfile[];
+  groupClassScheduleExceptions: GroupClassScheduleException[];
   onCheckIn: (bookingId: string) => void;
   onUnCheckIn: (bookingId: string) => void;
   onBookClass: (participantId: string, scheduleId: string, classDate: string) => void;
   onCancelBooking: (bookingId: string) => void;
   onPromoteFromWaitlist: (bookingId: string) => void;
+  onCancelClassInstance: (scheduleId: string, classDate: string) => void;
 }
 
 export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({ 
-    isOpen, onClose, classInstance, participants, onCheckIn, onUnCheckIn, onBookClass, onCancelBooking, onPromoteFromWaitlist 
+    isOpen, onClose, classInstance, participants, groupClassScheduleExceptions, onCheckIn, onUnCheckIn, onBookClass, onCancelBooking, onPromoteFromWaitlist, onCancelClassInstance 
 }) => {
     const [participantToAdd, setParticipantToAdd] = useState('');
     const [bookingToCancel, setBookingToCancel] = useState<ParticipantBooking | null>(null);
+    const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
 
     const { booked, waitlisted, availableSpots, checkedInCount } = useMemo(() => {
         const b = classInstance.allBookingsForInstance.filter(b => b.status === 'BOOKED' || b.status === 'CHECKED-IN');
@@ -41,6 +44,18 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
         const checkedIn = b.filter(booking => booking.status === 'CHECKED-IN').length;
         return { booked: b, waitlisted: w, availableSpots: spots, checkedInCount: checkedIn };
     }, [classInstance]);
+    
+    const isCancelled = useMemo(() => {
+        return groupClassScheduleExceptions.some(ex => ex.scheduleId === classInstance.scheduleId && ex.date === classInstance.date);
+    }, [groupClassScheduleExceptions, classInstance]);
+
+    const isPast = useMemo(() => classInstance.startDateTime < new Date(), [classInstance.startDateTime]);
+
+    const handleConfirmCancellation = () => {
+        onCancelClassInstance(classInstance.scheduleId, classInstance.date);
+        setIsCancelConfirmOpen(false);
+        onClose();
+    };
 
     const availableParticipantsForDropdown = useMemo(() => {
         const currentlyInClassIds = new Set(classInstance.allBookingsForInstance.map(b => b.participantId));
@@ -136,9 +151,35 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                             <Button onClick={handleAddParticipant} disabled={!participantToAdd} size="sm">Lägg till</Button>
                         </div>
                     </div>
+
+                    <div className="pt-4 border-t border-red-200">
+                        <h3 className="text-lg font-semibold text-red-700 mb-2">Inställning av pass</h3>
+                        <p className="text-sm text-gray-600 mb-3">
+                            Att ställa in ett pass kommer att meddela alla bokade deltagare och de på kölistan. Eventuella klippkortsklipp kommer att återbetalas. Detta kan inte ångras.
+                        </p>
+                        <Button 
+                            variant={isCancelled ? 'secondary' : 'danger'} 
+                            onClick={() => setIsCancelConfirmOpen(true)}
+                            disabled={isPast || isCancelled}
+                            fullWidth
+                            title={isPast ? "Kan inte ställa in ett pass som redan har varit" : (isCancelled ? "Detta pass är redan inställt" : "Ställ in detta pass")}
+                        >
+                            {isCancelled ? 'Passet är Inställt' : 'Ställ in detta pass'}
+                        </Button>
+                    </div>
                 </div>
             </Modal>
             
+            <ConfirmationModal
+                isOpen={isCancelConfirmOpen}
+                onClose={() => setIsCancelConfirmOpen(false)}
+                onConfirm={handleConfirmCancellation}
+                title="Ställ in pass?"
+                message={`Är du säker på att du vill ställa in ${classInstance.className}? Alla ${booked.length} bokade medlemmar och ${waitlisted.length} på kölistan kommer att meddelas. Eventuella klipp återbetalas. Detta kan inte ångras.`}
+                confirmButtonText="Ja, ställ in passet"
+                confirmButtonVariant="danger"
+            />
+
             <ConfirmationModal
                 isOpen={!!bookingToCancel}
                 onClose={() => setBookingToCancel(null)}

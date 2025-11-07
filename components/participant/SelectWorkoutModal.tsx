@@ -86,7 +86,7 @@ const WorkoutCard: React.FC<{
           )}
         </div>
         {isRestricted ? (
-          <Button onClick={onUpgrade} size="md" variant="accent" className="w-full sm:w-auto flex-shrink-0 mt-2 sm:mt-0" aria-label={`Lås upp passet ${workout.title}`}>
+          <Button onClick={onUpgrade} size="md" variant="secondary" className="w-full sm:w-auto flex-shrink-0 mt-2 sm:mt-0" aria-label={`Lås upp passet ${workout.title}`}>
             <LockIcon /> Lås Upp
           </Button>
         ) : (

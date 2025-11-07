@@ -154,7 +154,7 @@ const firebaseService = {
             'connections', 'lastFlowViewTimestamp', 'locations', 'staffMembers', 'memberships',
             'weeklyHighlightSettings', 'oneOnOneSessions', 'workoutCategories', 'staffAvailability',
             'integrationSettings', 'groupClassDefinitions', 'groupClassSchedules', 'participantBookings', 'branding',
-            'leads', 'prospectIntroCalls'
+            'leads', 'prospectIntroCalls', 'groupClassScheduleExceptions',
         ];
 
         const promises = collectionKeys.map(key => this.getCollection(orgId, key));
@@ -386,7 +386,7 @@ const firebaseService = {
             'memberships', 'oneOnOneSessions', 'workoutCategories', 'staffAvailability',
             'groupClassDefinitions', 'groupClassSchedules', 'participantBookings',
             'leaderboardSettings', 'lastFlowViewTimestamp', 'weeklyHighlightSettings', 'integrationSettings', 'branding',
-            'leads', 'prospectIntroCalls'
+            'leads', 'prospectIntroCalls', 'groupClassScheduleExceptions'
         ];
 
         for (const collectionKey of collectionsToDelete) {

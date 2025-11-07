@@ -3,11 +3,11 @@
 // SW uppdaterar sig själv (skipWaiting + clients.claim), rensar gamla caches,
 // stör inte API/Firebase och tål saknade precache-filer.
 
-const VERSION = '2025-11-02-3'; // bumpa när du vill tvinga alla att uppdatera
+const VERSION = '2025-11-07-1'; // bumpa när du vill tvinga alla att uppdatera
 
 // BUMPA dessa när du vill forcera ut ny version
-const STATIC_CACHE_NAME  = 'traningslogg-static-v22';
-const DYNAMIC_CACHE_NAME = 'traningslogg-dynamic-v17';
+const STATIC_CACHE_NAME  = 'traningslogg-static-v21';
+const DYNAMIC_CACHE_NAME = 'traningslogg-dynamic-v16';
 const MAX_DYNAMIC_ENTRIES = 80;
 
 const URLS_TO_CACHE = [

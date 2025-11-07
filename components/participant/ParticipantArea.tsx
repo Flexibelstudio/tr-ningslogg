@@ -4,7 +4,7 @@ import {
     ParticipantGoalData, ParticipantProfile,
     UserStrengthStat, ParticipantConditioningStat,
     UserRole, ParticipantMentalWellbeing, Exercise, GoalCompletionLog, ParticipantGamificationStats, WorkoutCategory, PostWorkoutSummaryData, NewPB, ParticipantClubMembership, LeaderboardSettings, CoachEvent, GenderOption, Connection, Reaction, Comment, NewBaseline, ParticipantPhysiqueStat, LiftType, Location, Membership, StaffMember, OneOnOneSession, IntegrationSettings,
-    GroupClassDefinition, GroupClassSchedule, ParticipantBooking, WorkoutCategoryDefinition, InProgressWorkout, AchievementDefinition, FlowItemLogType, UserPushSubscription
+    GroupClassDefinition, GroupClassSchedule, ParticipantBooking, WorkoutCategoryDefinition, InProgressWorkout, AchievementDefinition, FlowItemLogType, UserPushSubscription, GroupClassScheduleException
 } from '../../types';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { Button } from '../Button';
@@ -56,6 +56,7 @@ import { AICoachModal } from './AICoachModal';
 import { callGeminiApiFn } from '../../firebaseClient';
 import { db } from '../../firebaseConfig';
 import { useNotifications } from '../../context/NotificationsContext';
+import { sanitizeDataForFirebase } from '../../utils/firestoreUtils';
 
 
 const getInBodyScoreInterpretation = (score: number | undefined | null): { label: string; color: string; } | null => {
@@ -103,39 +104,43 @@ const LogbookIcon = () => (
 
 
 // Redesigned Card components
-const StatCard: React.FC<{ title: string; value: string | number; subValue?: string; icon: React.ReactNode; subValueColor?: string; iconContainerClassName?: string; }> = ({ title, value, subValue, icon, subValueColor, iconContainerClassName }) => (
-    <div className="bg-white p-3 sm:p-4 rounded-xl shadow-lg border border-gray-200 flex items-center h-full">
-        <div className={`flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-lg mr-3 sm:mr-4 ${iconContainerClassName || 'bg-flexibel/10 text-flexibel'}`}>
-            {icon}
-        </div>
-        <div className="flex-grow min-w-0">
-            <p className="text-sm sm:text-base font-medium text-gray-500 leading-tight">{title}</p>
-            <div className="flex items-baseline gap-x-1 sm:gap-x-2 flex-wrap">
-                <p className="text-2xl sm:text-3xl font-bold text-gray-800">{value}</p>
-                {subValue && <p className="text-sm sm:text-lg font-bold" style={{ color: subValueColor || '#9ca3af' }}>{subValue}</p>}
+function StatCard({ title, value, subValue, icon, subValueColor, iconContainerClassName }: { title: string; value: string | number; subValue?: string; icon: React.ReactNode; subValueColor?: string; iconContainerClassName?: string; }) {
+    return (
+        <div className="bg-white p-3 sm:p-4 rounded-xl shadow-lg border border-gray-200 flex items-center h-full">
+            <div className={`flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-lg mr-3 sm:mr-4 ${iconContainerClassName || 'bg-flexibel/10 text-flexibel'}`}>
+                {icon}
             </div>
-        </div>
-    </div>
-);
-
-const ToolCard: React.FC<{ title: string; description: string; icon: React.ReactNode; onClick: () => void; }> = ({ title, description, icon, onClick }) => (
-    <button onClick={onClick} className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 text-left w-full hover:shadow-xl hover:border-flexibel transition-all duration-200 group">
-        <div className="flex items-center justify-between">
-            <div className="flex items-center">
-                <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-lg bg-gray-100 text-flexibel mr-4 group-hover:bg-flexibel/10 transition-colors">
-                    {icon}
-                </div>
-                <div>
-                    <h3 className="text-lg font-bold text-gray-800">{title}</h3>
-                    <p className="text-base text-gray-500">{description}</p>
+            <div className="flex-grow min-w-0">
+                <p className="text-sm sm:text-base font-medium text-gray-500 leading-tight">{title}</p>
+                <div className="flex items-baseline gap-x-1 sm:gap-x-2 flex-wrap">
+                    <p className="text-2xl sm:text-3xl font-bold text-gray-800">{value}</p>
+                    {subValue && <p className="text-sm sm:text-lg font-bold" style={{ color: subValueColor || '#9ca3af' }}>{subValue}</p>}
                 </div>
             </div>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400 group-hover:text-flexibel transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
         </div>
-    </button>
-);
+    );
+}
 
-const WarningBanner: React.FC<{ message: string, type: 'warning' | 'danger', buttonText: string, onButtonClick: () => void }> = ({ message, type, buttonText, onButtonClick }) => {
+function ToolCard({ title, description, icon, onClick }: { title: string; description: string; icon: React.ReactNode; onClick: () => void; }) {
+    return (
+        <button onClick={onClick} className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 text-left w-full hover:shadow-xl hover:border-flexibel transition-all duration-200 group">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                    <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-lg bg-gray-100 text-flexibel mr-4 group-hover:bg-flexibel/10 transition-colors">
+                        {icon}
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-800">{title}</h3>
+                        <p className="text-base text-gray-500">{description}</p>
+                    </div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400 group-hover:text-flexibel transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+            </div>
+        </button>
+    );
+}
+
+function WarningBanner({ message, type, buttonText, onButtonClick }: { message: string, type: 'warning' | 'danger', buttonText: string, onButtonClick: () => void }) {
     const colors = {
         warning: { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-400', button: 'bg-yellow-400 hover:bg-yellow-500 text-yellow-900' },
         danger: { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-400', button: 'bg-orange-400 hover:bg-orange-500 text-orange-900' }
@@ -151,13 +156,13 @@ const WarningBanner: React.FC<{ message: string, type: 'warning' | 'danger', but
 };
 
 
-const ProgressCircle: React.FC<{
+function ProgressCircle({ label, displayText, displayUnit, percentage, colorClass }: {
   label: string;
   displayText: string;
   displayUnit: string;
   percentage: number;
   colorClass: string;
-}> = ({ label, displayText, displayUnit, percentage, colorClass }) => {
+}) {
   const radius = 52; 
   const strokeWidth = 16;
   const circumference = 2 * Math.PI * radius;
@@ -201,11 +206,11 @@ const ProgressCircle: React.FC<{
   );
 };
 
-const GoalProgressCard: React.FC<{ goal: ParticipantGoalData | null, logs: ActivityLog[] }> = ({ goal, logs }) => {
+function GoalProgressCard({ goal, logs }: { goal: ParticipantGoalData | null, logs: ActivityLog[] }) {
     const progress = useMemo(() => {
         if (!goal || !goal.workoutsPerWeekTarget || goal.workoutsPerWeekTarget <= 0) return null;
         const startOfWeek = dateUtils.getStartOfWeek(new Date());
-        const logsThisWeek = logs.filter(log => new Date(log.completedDate) >= startOfWeek).length;
+        const logsThisWeek = (logs || []).filter(log => new Date(log.completedDate) >= startOfWeek).length;
         return { completed: logsThisWeek, target: goal.workoutsPerWeekTarget };
     }, [goal, logs]);
 
@@ -222,12 +227,12 @@ const GoalProgressCard: React.FC<{ goal: ParticipantGoalData | null, logs: Activ
         const weeklyTarget = goal.workoutsPerWeekTarget > 0 ? goal.workoutsPerWeekTarget : 0;
         
         const startOfWeek = dateUtils.getStartOfWeek(new Date());
-        const logsThisWeek = logs.filter(log => new Date(log.completedDate) >= startOfWeek).length;
+        const logsThisWeek = (logs || []).filter(log => new Date(log.completedDate) >= startOfWeek).length;
         const weeklyPercentage = weeklyTarget > 0 ? Math.min(100, (logsThisWeek / weeklyTarget) * 100) : 0;
 
         const totalWeeks = Math.max(1, totalDays / 7);
         const targetWorkouts = weeklyTarget > 0 ? Math.round(totalWeeks * weeklyTarget) : 0;
-        const completedWorkouts = logs.filter(log => new Date(log.completedDate) >= startDate && new Date(log.completedDate) <= targetDate).length;
+        const completedWorkouts = (logs || []).filter(log => new Date(log.completedDate) >= startDate && new Date(log.completedDate) <= targetDate).length;
         const workoutPercentage = targetWorkouts > 0 ? Math.min(100, (completedWorkouts / targetWorkouts) * 100) : 0;
 
 
@@ -314,28 +319,8 @@ interface ParticipantAreaProps {
     openAiReceptModal: () => void;
   }) => void;
   newFlowItemsCount?: number;
+  operationInProgress: string[];
 }
-
-// Helper function to remove undefined values, which Firestore doesn't accept.
-const sanitizeDataForFirebase = (data: any): any => {
-    if (Array.isArray(data)) {
-        return data.map(item => sanitizeDataForFirebase(item));
-    }
-    if (data instanceof Date) {
-        return data;
-    }
-    if (data !== null && typeof data === 'object') {
-        const sanitized: { [key: string]: any } = {};
-        for (const key of Object.keys(data)) {
-            const value = data[key];
-            if (value !== undefined) {
-                sanitized[key] = sanitizeDataForFirebase(value);
-            }
-        }
-        return sanitized;
-    }
-    return data;
-};
 
 function urlBase64ToUint8Array(base64String: string) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -371,42 +356,44 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   setProfileOpener,
   setParticipantModalOpeners,
   newFlowItemsCount = 0,
+  operationInProgress,
 }) => {
     const {
-        participantDirectory,
+        participantDirectory = [],
         updateParticipantProfile,
-        workouts,
-        workoutLogs, setWorkoutLogsData,
-        participantGoals, setParticipantGoalsData,
-        generalActivityLogs, setGeneralActivityLogsData,
-        goalCompletionLogs, setGoalCompletionLogsData,
-        coachNotes,
-        userStrengthStats, setUserStrengthStatsData,
-        userConditioningStatsHistory, setUserConditioningStatsHistoryData,
-        participantPhysiqueHistory, setParticipantPhysiqueHistoryData,
-        participantMentalWellbeing, setParticipantMentalWellbeingData,
-        participantGamificationStats, setParticipantGamificationStatsData,
-        clubMemberships, setClubMembershipsData,
-        leaderboardSettings,
-        coachEvents,
-        connections, setConnectionsData,
+        workouts = [],
+        workoutLogs = [], setWorkoutLogsData,
+        participantGoals = [], setParticipantGoalsData,
+        generalActivityLogs = [], setGeneralActivityLogsData,
+        goalCompletionLogs = [], setGoalCompletionLogsData,
+        coachNotes = [],
+        userStrengthStats = [], setUserStrengthStatsData,
+        userConditioningStatsHistory = [], setUserConditioningStatsHistoryData,
+        participantPhysiqueHistory = [], setParticipantPhysiqueHistoryData,
+        participantMentalWellbeing = [], setParticipantMentalWellbeingData,
+        participantGamificationStats = [], setParticipantGamificationStatsData,
+        clubMemberships = [], setClubMembershipsData,
+        leaderboardSettings = { leaderboardsEnabled: true, weeklyPBChallengeEnabled: true, weeklySessionChallengeEnabled: true },
+        coachEvents = [],
+        connections = [], setConnectionsData,
         lastFlowViewTimestamp, setLastFlowViewTimestampData,
-        locations,
-        memberships,
-        staffMembers,
-        oneOnOneSessions,
-        workoutCategories,
-        integrationSettings,
-        groupClassSchedules,
-        groupClassDefinitions,
-        participantBookings: allParticipantBookings,
+        locations = [],
+        memberships = [],
+        staffMembers = [],
+        oneOnOneSessions = [],
+        workoutCategories = [],
+        integrationSettings = { enableQRCodeScanning: false, isBookingEnabled: false, isClientJourneyEnabled: true, isScheduleEnabled: true },
+        groupClassSchedules = [],
+        groupClassDefinitions = [],
+        groupClassScheduleExceptions = [],
+        participantBookings: allParticipantBookings = [],
+        userPushSubscriptions = [],
         setUserPushSubscriptionsData,
     } = useAppContext();
     const { organizationId, currentRole } = useAuth();
     const { isOnline } = useNetworkStatus();
     const { addNotification } = useNotifications();
 
-    // ** FIX: Moved participantProfile declaration before any hooks that use it. **
     const participantProfile = useMemo(() => participantDirectory.find(p => p.id === currentParticipantId), [participantDirectory, currentParticipantId]);
 
     const [currentWorkoutLog, setCurrentWorkoutLog] = useState<WorkoutLog | undefined>(undefined);
@@ -486,10 +473,15 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     );
 
     const myWorkoutLogs = useMemo(() => workoutLogs.filter(l => l.participantId === currentParticipantId).sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime()), [workoutLogs, currentParticipantId]);
+    const myStrengthStats = useMemo(() => userStrengthStats.filter(s => s.participantId === currentParticipantId), [userStrengthStats, currentParticipantId]);
+
     const latestStrengthStats = useMemo(() => {
-      const myStats = userStrengthStats.filter(s => s.participantId === currentParticipantId);
-      if (myStats.length === 0) return null;
-      return [...myStats].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
+      // FIX: Corrected logic to robustly find the latest strength stat entry specifically for the current user.
+      // This prevents data from other users from being displayed.
+      const participantStats = (userStrengthStats || []).filter(s => s.participantId === currentParticipantId);
+      if (participantStats.length === 0) return null;
+      // Sort the user's personal stats by date and return the most recent one.
+      return participantStats.sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
     }, [userStrengthStats, currentParticipantId]);
     
     // --- NEW: Waitlist Promotion Notification ---
@@ -551,7 +543,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             addNotification({
                 type: 'WARNING',
                 title: 'Notiser blockerade',
-                message: 'Du kan ändra detta i din webbläsares inställningar.'
+                message: 'Du kan ändra detta i din webbläsare/s inställningar.'
             });
         }
     };
@@ -587,6 +579,16 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
 
     const saveSubscription = (subscription: PushSubscription) => {
         const subscriptionJSON = subscription.toJSON();
+        
+        if (participantProfile && participantProfile.notificationSettings?.pushEnabled !== true) {
+            updateParticipantProfile(currentParticipantId, {
+              notificationSettings: {
+                ...participantProfile.notificationSettings,
+                pushEnabled: true,
+              }
+            });
+        }
+
         const newSubscriptionRecord: UserPushSubscription = {
             id: crypto.randomUUID(),
             participantId: currentParticipantId,
@@ -595,11 +597,11 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     
         setUserPushSubscriptionsData(prev => {
             // Avoid duplicates based on endpoint
-            const existing = prev.find(sub => sub.subscription.endpoint === subscriptionJSON.endpoint);
+            const existing = (prev || []).find(sub => sub.subscription.endpoint === subscriptionJSON.endpoint);
             if (existing) {
                 return prev;
             }
-            return [...prev, newSubscriptionRecord];
+            return [...(prev || []), newSubscriptionRecord];
         });
         
         addNotification({
@@ -681,12 +683,12 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
 
             // On success, update local state
             if (newStatRecord) {
-                setUserStrengthStatsData(prev => [...prev, newStatRecord!]);
+                setUserStrengthStatsData(prev => [...(prev || []), newStatRecord!]);
             }
             setWorkoutLogsData(tempUpdatedWorkoutLogs);
-            setParticipantGoalsData(prev => [...prev.filter(g => g.participantId !== currentParticipantId), ...updatedGoals]);
+            setParticipantGoalsData(prev => [...(prev || []).filter(g => g.participantId !== currentParticipantId), ...updatedGoals]);
             if (updatedGamificationStats) {
-                setParticipantGamificationStatsData(prev => [...prev.filter(s => s.id !== currentParticipantId), updatedGamificationStats]);
+                setParticipantGamificationStatsData(prev => [...(prev || []).filter(s => s.id !== currentParticipantId), updatedGamificationStats]);
             }
 
             // --- 4. Final UI steps ---
@@ -724,7 +726,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     const myGeneralActivityLogs = useMemo(() => generalActivityLogs.filter(l => l.participantId === currentParticipantId), [generalActivityLogs, currentParticipantId]);
     const myGoalCompletionLogs = useMemo(() => goalCompletionLogs.filter(g => g.participantId === currentParticipantId), [goalCompletionLogs, currentParticipantId]);
     const myParticipantGoals = useMemo(() => participantGoals.filter(g => g.participantId === currentParticipantId), [participantGoals, currentParticipantId]);
-    const myStrengthStats = useMemo(() => userStrengthStats.filter(s => s.participantId === currentParticipantId), [userStrengthStats, currentParticipantId]);
+    
     const myConditioningStats = useMemo(() => userConditioningStatsHistory.filter(s => s.participantId === currentParticipantId), [userConditioningStatsHistory, currentParticipantId]);
     const myPhysiqueHistory = useMemo(() => participantPhysiqueHistory.filter(s => s.participantId === currentParticipantId), [participantPhysiqueHistory, currentParticipantId]);
     const myMentalWellbeing = useMemo(() => participantMentalWellbeing.find(w => w.id === currentParticipantId), [participantMentalWellbeing, currentParticipantId]);
@@ -1037,7 +1039,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   
     const latestPhysique = useMemo(() => {
         if (myPhysiqueHistory.length === 0) return null;
-        return [...myPhysiqueHistory].sort((a,b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
+        return [...myPhysiqueHistory].sort((a,b) => new Date(b.lastUpdated).getTime() - new Date(a.setDate).getTime())[0];
     }, [myPhysiqueHistory]);
 
     const flexibelStrengthScore = useMemo(() => {
@@ -1143,7 +1145,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     };
 
     const handleSaveProfile = async (
-        profileData: Partial<Pick<ParticipantProfile, 'name' | 'birthDate' | 'gender' | 'enableLeaderboardParticipation' | 'isSearchable' | 'locationId' | 'enableInBodySharing' | 'enableFssSharing' | 'photoURL'>>
+        profileData: Partial<Pick<ParticipantProfile, 'name' | 'birthDate' | 'gender' | 'enableLeaderboardParticipation' | 'isSearchable' | 'locationId' | 'enableInBodySharing' | 'enableFssSharing' | 'photoURL' | 'shareMyBookings' | 'receiveFriendBookingNotifications' | 'notificationSettings'>>
     ) => {
         try {
             await updateParticipantProfile(currentParticipantId, profileData);
@@ -1219,7 +1221,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         }
     
         setParticipantGoalsData(prevGoals => {
-            let newGoalsArray = [...prevGoals];
+            let newGoalsArray = [...(prevGoals || [])];
             const participantOldGoals = newGoalsArray.filter(g => g.participantId === currentParticipantId);
     
             if (markLatestGoalAsCompleted) {
@@ -1236,7 +1238,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                         goalDescription: latestExistingGoal.fitnessGoals,
                         completedDate: new Date().toISOString(),
                     };
-                    setGoalCompletionLogsData(prev => [...prev, newGoalCompletionLog]);
+                    setGoalCompletionLogsData(prev => [...(prev || []), newGoalCompletionLog]);
                     
                     newGoalsArray = newGoalsArray.map(g => 
                         g.id === latestExistingGoal.id 
@@ -1293,7 +1295,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             participantId: currentParticipantId,
             type: 'general',
         };
-        setGeneralActivityLogsData(prev => [...prev, newActivity]);
+        setGeneralActivityLogsData(prev => [...(prev || []), newActivity]);
         setLastGeneralActivity(newActivity);
         setIsGeneralActivitySummaryOpen(true);
     };
@@ -1324,7 +1326,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         );
 
         if (newAchievements.length > 0) {
-            setClubMembershipsData(prev => [...prev, ...newAchievements]);
+            setClubMembershipsData(prev => [...(prev || []), ...newAchievements]);
             
             const firstNewClubId = newAchievements[0].clubId;
             const clubDef = CLUB_DEFINITIONS.find(c => c.id === firstNewClubId);
@@ -1503,6 +1505,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                             currentParticipantId={currentParticipantId}
                             groupClassSchedules={groupClassSchedules}
                             groupClassDefinitions={groupClassDefinitions}
+                            groupClassScheduleExceptions={groupClassScheduleExceptions}
                             allParticipantBookings={allParticipantBookings}
                             locations={locations}
                             onCancelBooking={onCancelBooking}
@@ -1592,11 +1595,11 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             participantId={participantProfile?.id}
             onSave={(wellbeingData) => {
                 setParticipantMentalWellbeingData(prev => {
-                    const existing = prev.find(w => w.id === wellbeingData.id);
+                    const existing = (prev || []).find(w => w.id === wellbeingData.id);
                     if (existing) {
-                        return prev.map(w => w.id === wellbeingData.id ? wellbeingData : w);
+                        return (prev || []).map(w => w.id === wellbeingData.id ? wellbeingData : w);
                     }
-                    return [...prev, wellbeingData];
+                    return [...(prev || []), wellbeingData];
                 });
             }}
         />
@@ -1622,7 +1625,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             latestGoal={latestGoal}
             userStrengthStatsHistory={myStrengthStats}
             clubMemberships={myClubMemberships}
-            onSaveStrengthStats={(stats) => setUserStrengthStatsData(prev => [...prev.filter(s => s.participantId !== currentParticipantId), stats])}
+            onSaveStrengthStats={(stats) => setUserStrengthStatsData(prev => [...(prev || []).filter(s => s.participantId !== currentParticipantId), stats])}
             onOpenPhysiqueModal={handleOpenPhysiqueFromStrength}
         />
         <ConditioningStatsModal
@@ -1637,7 +1640,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                     participantId: currentParticipantId,
                     ...statsData,
                 };
-                setUserConditioningStatsHistoryData(prev => [...prev, newStat]);
+                setUserConditioningStatsHistoryData(prev => [...(prev || []), newStat]);
             }}
         />
         <PhysiqueManagerModal
@@ -1651,7 +1654,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                     lastUpdated: new Date().toISOString(),
                     ...physiqueData,
                 };
-                setParticipantPhysiqueHistoryData(prev => [...prev, newHistoryEntry]);
+                setParticipantPhysiqueHistoryData(prev => [...(prev || []), newHistoryEntry]);
                 updateParticipantProfile(currentParticipantId, physiqueData);
             }}
         />
@@ -1709,6 +1712,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 schedules={groupClassSchedules}
                 definitions={groupClassDefinitions}
                 bookings={allParticipantBookings}
+                groupClassScheduleExceptions={groupClassScheduleExceptions}
                 staff={staffMembers}
                 onBookClass={onBookClass}
                 onCancelBooking={onCancelBooking}
@@ -1717,6 +1721,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 integrationSettings={integrationSettings}
                 membership={myMembership}
                 onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
+                operationInProgress={operationInProgress}
             />
         }
         <QrScannerModal
@@ -1775,7 +1780,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 setShowDeleteConfirm(false);
             }}
             title="Ta bort utkast?"
-            message={`Är du säker på att du vill ta bort det pågående utkastet för "${inProgressWorkout?.workoutTitle}"? Detta kan inte ångras.`}
+            message={`Är du säker på att du vill ta bort det pågående utkastet för "${inProgressWorkout?.title}"? Detta kan inte ångras.`}
             confirmButtonText="Ja, ta bort"
             cancelButtonText="Avbryt"
         />

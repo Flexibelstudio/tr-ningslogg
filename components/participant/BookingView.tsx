@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
 import { Avatar } from '../Avatar';
-import { GroupClassSchedule, GroupClassDefinition, ParticipantBooking, StaffMember, ParticipantProfile, IntegrationSettings, BookingStatus, Membership } from '../../types';
+import { GroupClassSchedule, GroupClassDefinition, ParticipantBooking, StaffMember, ParticipantProfile, IntegrationSettings, BookingStatus, Membership, GroupClassScheduleException } from '../../types';
 import * as dateUtils from '../../utils/dateUtils';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { useAppContext } from '../../context/AppContext';
@@ -36,6 +36,7 @@ interface BookingViewProps {
     schedules: GroupClassSchedule[];
     definitions: GroupClassDefinition[];
     bookings: ParticipantBooking[];
+    groupClassScheduleExceptions: GroupClassScheduleException[];
     staff: StaffMember[];
     onBookClass: (participantId: string, scheduleId: string, classDate: string) => void;
     onCancelBooking: (bookingId: string) => void;
@@ -44,6 +45,7 @@ interface BookingViewProps {
     integrationSettings: IntegrationSettings;
     membership: Membership | null | undefined;
     onOpenUpgradeModal: () => void;
+    operationInProgress: string[];
 }
 
 const LockIcon = () => (
@@ -52,8 +54,15 @@ const LockIcon = () => (
     </svg>
 );
 
+const SpinnerIcon = () => (
+    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+);
 
-export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, schedules, definitions, bookings, staff, onBookClass, onCancelBooking, currentParticipantId, participantProfile, integrationSettings, membership, onOpenUpgradeModal }) => {
+
+export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, schedules, definitions, bookings, groupClassScheduleExceptions, staff, onBookClass, onCancelBooking, currentParticipantId, participantProfile, integrationSettings, membership, onOpenUpgradeModal, operationInProgress }) => {
     const { getColorForCategory } = useAppContext();
     const today = useMemo(() => {
         const d = new Date();
@@ -70,26 +79,27 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
 
         const memberLocationId = participantProfile.locationId;
         
-        // Filter out schedules that have already ended entirely.
         const relevantSchedules = schedules.filter(s => {
             if (s.locationId !== memberLocationId) return false;
-            // Parse endDate as local time to avoid timezone issues.
             const [endYear, endMonth, endDay] = s.endDate.split('-').map(Number);
             const endDate = new Date(endYear, endMonth - 1, endDay);
-            endDate.setHours(23, 59, 59, 999); // Ensure we include the whole end day.
+            endDate.setHours(23, 59, 59, 999);
             return endDate >= today;
         });
         
         const bookingLeadTimeWeeks = integrationSettings.bookingLeadTimeWeeks || 2;
         const daysToScan = bookingLeadTimeWeeks * 7;
-        const now = new Date(); // Get current time once for consistent comparison
+        const now = new Date();
     
         for (let i = 0; i < daysToScan; i++) {
             const currentDate = dateUtils.addDays(today, i);
-            const dayOfWeek = currentDate.getDay() === 0 ? 7 : currentDate.getDay(); // Mon=1, Sun=7
+            const dayOfWeek = currentDate.getDay() === 0 ? 7 : currentDate.getDay();
             const currentDateStr = dateUtils.toYYYYMMDD(currentDate);
     
             relevantSchedules.forEach(schedule => {
+                const isCancelled = groupClassScheduleExceptions.some(ex => ex.scheduleId === schedule.id && ex.date === currentDateStr);
+                if (isCancelled) return;
+
                 const [startYear, startMonth, startDay] = schedule.startDate.split('-').map(Number);
                 const startDate = new Date(startYear, startMonth - 1, startDay);
                 
@@ -110,16 +120,17 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                         const startDateTime = new Date(currentDate);
                         startDateTime.setHours(hour, minute, 0, 0);
 
-                        // Explicitly check if the class start time is in the past.
                         if (startDateTime < now) {
                             return;
                         }
 
-                        const allBookingsForInstance = bookings.filter(b => b.scheduleId === schedule.id && b.classDate === currentDateStr && b.status !== 'CANCELLED');
-                        const myBooking = allBookingsForInstance.find(b => b.participantId === currentParticipantId);
+                        const allBookingsForInstance = bookings.filter(b => b.scheduleId === schedule.id && b.classDate === currentDateStr);
                         
-                        const bookedUsers = allBookingsForInstance.filter(b => b.status === 'BOOKED' || b.status === 'CHECKED-IN');
-                        const waitlistedUsers = allBookingsForInstance.filter(b => b.status === 'WAITLISTED').sort((a,b) => new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime());
+                        const myBooking = allBookingsForInstance.find(b => b.participantId === currentParticipantId && b.status !== 'CANCELLED');
+                        
+                        const activeBookingsForInstance = allBookingsForInstance.filter(b => b.status !== 'CANCELLED');
+                        const bookedUsers = activeBookingsForInstance.filter(b => b.status === 'BOOKED' || b.status === 'CHECKED-IN');
+                        const waitlistedUsers = activeBookingsForInstance.filter(b => b.status === 'WAITLISTED').sort((a,b) => new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime());
                         
                         let myPosition = 0;
                         if (myBooking?.status === 'WAITLISTED') {
@@ -143,7 +154,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                             maxParticipants: schedule.maxParticipants,
                             bookedCount: bookedUsers.length,
                             waitlistCount: waitlistedUsers.length,
-                            isBookedByMe: myBooking?.status === 'BOOKED' || myBooking?.status === 'CHECKED-IN',
+                            isBookedByMe: !!myBooking && (myBooking.status === 'BOOKED' || myBooking.status === 'CHECKED-IN'),
                             isWaitlistedByMe: myBooking?.status === 'WAITLISTED',
                             myBookingStatus: myBooking?.status,
                             myWaitlistPosition: myPosition,
@@ -151,7 +162,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                             isFull: bookedUsers.length >= schedule.maxParticipants,
                             cancellationCutoffHours: integrationSettings.cancellationCutoffHours ?? 2,
                             isRestricted: isRestricted,
-                            hasWaitlist: schedule.hasWaitlist ?? classDef.hasWaitlist ?? false,
+                            hasWaitlist: schedule.hasWaitlist ?? classDef.hasWaitlist ?? true,
                             color: classDef.color || getColorForCategory(classDef.name),
                         });
                     }
@@ -159,7 +170,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
             });
         }
         return instances.sort((a,b) => a.startDateTime.getTime() - b.startDateTime.getTime());
-    }, [schedules, definitions, staff, bookings, currentParticipantId, today, participantProfile, integrationSettings, membership, getColorForCategory]);
+    }, [schedules, definitions, staff, bookings, currentParticipantId, today, participantProfile, integrationSettings, membership, getColorForCategory, groupClassScheduleExceptions]);
 
     const groupedInstances = useMemo(() => {
         const groups: Map<string, EnrichedClassInstance[]> = new Map();
@@ -216,45 +227,66 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
     };
 
     const renderActionButton = (instance: EnrichedClassInstance) => {
-        if (instance.isRestricted) {
-            return <Button variant="accent" onClick={onOpenUpgradeModal}><LockIcon />Lås upp</Button>;
+        const isInProgress = operationInProgress.includes(instance.instanceId);
+
+        if (isInProgress) {
+            const isCancelling = instance.isBookedByMe || instance.isWaitlistedByMe;
+            return <Button disabled className="w-full flex justify-center"><SpinnerIcon />{isCancelling ? 'Avbokar...' : 'Bokar...'}</Button>;
         }
+
+        if (instance.isRestricted) {
+            return <Button variant="secondary" onClick={onOpenUpgradeModal}><LockIcon />Lås upp</Button>;
+        }
+        
         const now = new Date().getTime();
         const cutoffTime = instance.startDateTime.getTime() - (instance.cancellationCutoffHours * 3600 * 1000);
         const canCancel = now < cutoffTime;
 
         if (instance.isBookedByMe) {
-            if (instance.myBookingStatus === 'CHECKED-IN') {
-                return <Button variant="ghost" disabled className="!text-green-600">Incheckad ✅</Button>;
-            }
-            return (
-                <Button variant="danger" onClick={() => setBookingToCancel(instance)} disabled={!canCancel} title={!canCancel ? `Avbokning måste ske senast ${instance.cancellationCutoffHours} timmar innan.` : 'Avboka passet'}>
-                    {canCancel ? 'Avboka' : 'För sent'}
-                </Button>
+             return (
+                <div className="flex flex-col items-end gap-2">
+                    <div className="text-green-600 font-semibold flex items-center gap-1 text-sm sm:text-base">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        Bokad
+                    </div>
+                    <Button variant="danger" size="sm" onClick={() => setBookingToCancel(instance)} disabled={!canCancel} title={!canCancel ? `Avbokning måste ske senast ${instance.cancellationCutoffHours} timmar innan.` : 'Avboka passet'}>
+                        Avboka
+                    </Button>
+                </div>
             );
         }
         if (instance.isWaitlistedByMe) {
-            return (
-                <Button variant="accent" onClick={() => setBookingToCancel(instance)}>
-                    Lämna kö
-                </Button>
+             return (
+                <div className="flex flex-col items-end gap-2">
+                    <div className="text-amber-600 font-semibold flex items-center gap-1 text-sm sm:text-base">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                        </svg>
+                        Köplats #{instance.myWaitlistPosition}
+                    </div>
+                    <Button variant="secondary" size="sm" onClick={() => setBookingToCancel(instance)}>
+                        Lämna kö
+                    </Button>
+                </div>
             );
         }
         if (instance.isFull) {
             if (instance.hasWaitlist) {
                 return (
                     <Button variant="outline" onClick={() => onBookClass(currentParticipantId, instance.scheduleId, instance.date)}>
-                        Gå med i kö
+                        Gå med i kö ({instance.waitlistCount})
                     </Button>
                 );
             } else {
                 return (
-                    <button
-                        disabled
-                        className="w-full rounded-lg bg-gray-300 text-gray-600 font-semibold py-2 cursor-not-allowed"
-                    >
-                        FULLBOKAT
-                    </button>
+                    <div className="relative w-full">
+                        <Button disabled className="w-full !bg-green-200 !text-green-800 !cursor-not-allowed !opacity-100">
+                            FULLBOKAT
+                        </Button>
+                        <span className="absolute -top-2 -right-2 text-xs bg-gray-200 text-gray-700 font-bold px-2 py-0.5 rounded-md shadow">FULLT</span>
+                    </div>
                 );
             }
         }
@@ -310,7 +342,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                                         <div 
                                             key={instance.instanceId} 
                                             className={`relative flex items-center gap-3 p-3 rounded-lg shadow-sm border-l-4 transition-colors ${
-                                                isRestricted 
+                                                isRestricted
                                                     ? 'bg-gray-100' 
                                                     : 'bg-white'
                                             }`}
@@ -318,12 +350,10 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                                             title={instance.className}
                                         >
                                             {isRestricted && <div className="absolute inset-0 bg-gray-200/50 rounded-lg z-10 cursor-not-allowed"></div>}
-                                            {instance.isFull && (
-                                                <span className="absolute top-1 right-1 bg-gray-200 text-gray-700 text-xs font-semibold px-2 py-0.5 rounded z-20">FULLT</span>
-                                            )}
+                                            
                                             <div 
                                                 className={`flex-shrink-0 w-20 h-20 flex flex-col items-center justify-center rounded-md text-white z-20 ${isRestricted ? 'opacity-60' : ''}`}
-                                                style={{ backgroundColor: instance.isBookedByMe ? '#f43f5e' : instance.color }}
+                                                style={{ backgroundColor: instance.color }}
                                             >
                                                 <p className="text-2xl font-bold">{instance.startDateTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}</p>
                                                 <p className="text-sm">{instance.duration} min</p>
@@ -335,13 +365,11 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                                                     <span>{instance.coachName}</span>
                                                 </div>
                                             </div>
-                                            <div className="flex-shrink-0 text-center w-28 z-20">
+                                            <div className="flex-shrink-0 text-center sm:w-48 z-20">
                                                 {renderActionButton(instance)}
-                                                {instance.isWaitlistedByMe ? (
-                                                    <p className="text-sm text-amber-600 font-semibold mt-1">Köplats #{instance.myWaitlistPosition}</p>
-                                                ) : (
-                                                    !isRestricted && <p className="text-sm text-gray-500 mt-1">{instance.maxParticipants - instance.bookedCount} lediga</p>
-                                                )}
+                                                 {instance.myBookingStatus !== 'WAITLISTED' && !instance.isRestricted && (
+                                                    <p className="text-sm text-gray-500 mt-1">{instance.maxParticipants - instance.bookedCount} lediga</p>
+                                                 )}
                                             </div>
                                         </div>
                                     )

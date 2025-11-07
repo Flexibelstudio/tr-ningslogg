@@ -156,26 +156,11 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
 
   const groupClassesForDay = useMemo((): FullBookingInfo[] => {
     if (!selectedDate || !participantProfile) return [];
+    const myBookingsToday = allParticipantBookings.filter(b => b.participantId === participantProfile.id && b.classDate === dateUtils.toYYYYMMDD(selectedDate) && b.status !== 'CANCELLED');
     
-    const dateStr = dateUtils.toYYYYMMDD(selectedDate);
-    const dayOfWeek = selectedDate.getDay() === 0 ? 7 : selectedDate.getDay();
-    const now = new Date();
-
-    const schedulesToday = groupClassSchedules.filter(schedule => {
-        const [startYear, startMonth, startDay] = schedule.startDate.split('-').map(Number);
-        const startDate = new Date(startYear, startMonth - 1, startDay);
-        const [endYear, endMonth, endDay] = schedule.endDate.split('-').map(Number);
-        const endDate = new Date(endYear, endMonth - 1, endDay);
-        endDate.setHours(23, 59, 59, 999);
-        return schedule.daysOfWeek.includes(dayOfWeek) && selectedDate >= startDate && selectedDate <= endDate;
-    });
-
-    return schedulesToday.map(schedule => {
-        const myBooking = allParticipantBookings.find(b => b.participantId === participantProfile.id && b.scheduleId === schedule.id && b.classDate === dateStr && b.status !== 'CANCELLED');
-        const isMyClassAsCoach = loggedInCoachId === schedule.coachId;
-
-        if (!myBooking && !isMyClassAsCoach) return null;
-
+    return myBookingsToday.map(booking => {
+        const schedule = groupClassSchedules.find(s => s.id === booking.scheduleId);
+        if (!schedule) return null;
         const classDef = groupClassDefinitions.find(d => d.id === schedule.groupClassId);
         const coach = staffMembers.find(s => s.id === schedule.coachId);
         if (!classDef || !coach) return null;
@@ -185,36 +170,29 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
         classStartDateTime.setHours(hour, minute, 0, 0);
         
         const classEndDateTime = new Date(classStartDateTime.getTime() + schedule.durationMinutes * 60000);
-        if (classEndDateTime < now) {
-            return null; // Don't show past classes
+        if (dateUtils.isPast(classEndDateTime) && booking.status !== 'CANCELLED') {
+            return null;
         }
 
-        const waitlistedUsers = allParticipantBookings.filter(b => b.scheduleId === schedule.id && b.classDate === dateStr && b.status === 'WAITLISTED').sort((a,b) => new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime());
+        const waitlistedUsers = allParticipantBookings.filter(b => b.scheduleId === schedule.id && b.classDate === dateUtils.toYYYYMMDD(selectedDate) && b.status === 'WAITLISTED').sort((a,b) => new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime());
         let myPosition = 0;
-        if (myBooking?.status === 'WAITLISTED') {
-            myPosition = waitlistedUsers.findIndex(b => b.id === myBooking.id) + 1;
+        if (booking.status === 'WAITLISTED') {
+            myPosition = waitlistedUsers.findIndex(b => b.id === booking.id) + 1;
         }
 
         return {
-            ...(myBooking || {
-                id: `coach-view-${schedule.id}`,
-                participantId: participantProfile.id,
-                bookingDate: '',
-                status: 'BOOKED' as const,
-            }),
-            scheduleId: schedule.id,
-            classDate: dateStr,
+            ...booking,
             className: classDef.name,
             startTime: schedule.startTime,
             coachName: coach.name,
             coachId: coach.id,
             startDateTime: classStartDateTime,
-            isWaitlistedByMe: myBooking?.status === 'WAITLISTED',
+            isWaitlistedByMe: booking.status === 'WAITLISTED',
             myWaitlistPosition: myPosition,
             color: classDef.color || getColorForCategory(classDef.name),
         };
     }).filter((b): b is FullBookingInfo => b !== null).sort((a, b) => a.startTime.localeCompare(b.startTime));
-  }, [selectedDate, participantProfile, allParticipantBookings, groupClassSchedules, groupClassDefinitions, staffMembers, loggedInCoachId, getColorForCategory]);
+  }, [selectedDate, participantProfile, allParticipantBookings, groupClassSchedules, groupClassDefinitions, staffMembers, getColorForCategory]);
 
 
   const specialEventsForDay = useMemo(() => {
@@ -355,36 +333,41 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
                           const now = new Date();
                           const cutoffHours = integrationSettings.cancellationCutoffHours ?? 2;
                           const canCancel = booking.startDateTime.getTime() - now.getTime() > cutoffHours * 3600 * 1000;
+                          const isCancelled = booking.status === 'CANCELLED';
                           const isMyClassAsCoach = loggedInCoachId === booking.coachId;
                           
                           return (
                             <li key={booking.id} 
-                                className="flex items-center text-lg p-2 bg-white rounded-md border-l-4"
-                                style={{ borderColor: booking.color }}
+                                className={`flex items-center text-lg p-2 bg-white rounded-md border-l-4 ${isCancelled ? 'opacity-60' : ''}`}
+                                style={{ borderColor: isCancelled ? '#d1d5db' : booking.color }}
                             >
                                 <span className="text-2xl mr-2">🎟️</span>
                                 <div className="flex-grow">
                                     <div className="flex items-center gap-2">
-                                      <span className="font-semibold text-gray-800">{booking.startTime} - {booking.className}</span>
+                                      <span className={`font-semibold text-gray-800 ${isCancelled ? 'line-through' : ''}`}>{booking.startTime} - {booking.className}</span>
                                       {booking.status === 'CHECKED-IN' && <span className="text-xs font-bold bg-green-200 text-green-800 px-2 py-0.5 rounded-full">Incheckad</span>}
                                     </div>
-                                    <p className="text-base text-gray-500">med {booking.coachName}</p>
+                                    <p className={`text-base text-gray-500 ${isCancelled ? 'line-through' : ''}`}>med {booking.coachName}</p>
                                     {booking.isWaitlistedByMe && <p className="text-sm font-semibold text-amber-600 mt-1">Köplats #{booking.myWaitlistPosition}</p>}
                                 </div>
-                                {isMyClassAsCoach ? (
+                                {isMyClassAsCoach && !isCancelled ? (
                                     <Button size="sm" onClick={() => onManageClassClick?.({ scheduleId: booking.scheduleId, date: booking.classDate })}>Hantera</Button>
                                 ) : (
-                                    booking.status !== 'CHECKED-IN' && (
-                                        <Button 
-                                        size="sm" 
-                                        variant="danger" 
-                                        className="!text-xs self-center"
-                                        onClick={() => setBookingToCancel(booking)}
-                                        disabled={!canCancel}
-                                        title={!canCancel ? `Avbokning måste ske senast ${cutoffHours} timmar innan.` : 'Avboka passet'}
-                                        >
-                                        {canCancel ? 'Avboka' : 'För sent'}
-                                        </Button>
+                                    isCancelled ? (
+                                        <span className="font-bold text-red-600 text-sm">INSTÄLLT</span>
+                                    ) : (
+                                        booking.status !== 'CHECKED-IN' && (
+                                            <Button 
+                                                size="sm" 
+                                                variant="danger" 
+                                                className="!text-xs self-center"
+                                                onClick={() => setBookingToCancel(booking)}
+                                                disabled={!canCancel}
+                                                title={!canCancel ? `Avbokning måste ske senast ${cutoffHours} timmar innan.` : 'Avboka passet'}
+                                            >
+                                                {canCancel ? 'Avboka' : 'För sent'}
+                                            </Button>
+                                        )
                                     )
                                 )}
                             </li>
