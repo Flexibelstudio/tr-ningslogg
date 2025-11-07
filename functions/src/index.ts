@@ -159,7 +159,7 @@ export const sendSessionReminder = onRequest(
             logger.error(`Push send error (participant ${participantId})`, err);
             if (err?.statusCode === 404 || err?.statusCode === 410) {
               await doc.ref.delete();
-              await participantProfileDoc.ref.set({ notificationSettings: { pushEnabled: false } }, { merge: true });
+              await participantProfileDoc.ref.update({ "notificationSettings.pushEnabled": false });
             }
           }
         })
@@ -256,7 +256,7 @@ export const onBookingUpdate = onDocumentUpdated(
                   logger.error("Promotion push error:", err);
                   if (err?.statusCode === 404 || err?.statusCode === 410) {
                     await doc.ref.delete();
-                    await participantProfileDoc.ref.set({ notificationSettings: { pushEnabled: false } }, { merge: true });
+                    await participantProfileDoc.ref.update({ "notificationSettings.pushEnabled": false });
                   }
                 }
               })
@@ -684,7 +684,7 @@ export const notifyFriendsOnBooking = onCall(
                 logger.error(`Push send error for friend ${friend.id}:`, err);
                 if (err?.statusCode === 404 || err?.statusCode === 410) {
                     await doc.ref.delete();
-                    await friend.doc.set({ notificationSettings: { pushEnabled: false } }, { merge: true });
+                    await friend.doc.update({ "notificationSettings.pushEnabled": false });
                 }
               }
             })

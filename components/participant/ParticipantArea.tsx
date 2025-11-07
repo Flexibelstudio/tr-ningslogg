@@ -476,11 +476,8 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     const myStrengthStats = useMemo(() => userStrengthStats.filter(s => s.participantId === currentParticipantId), [userStrengthStats, currentParticipantId]);
 
     const latestStrengthStats = useMemo(() => {
-      // FIX: Corrected logic to robustly find the latest strength stat entry specifically for the current user.
-      // This prevents data from other users from being displayed.
       const participantStats = (userStrengthStats || []).filter(s => s.participantId === currentParticipantId);
       if (participantStats.length === 0) return null;
-      // Sort the user's personal stats by date and return the most recent one.
       return participantStats.sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
     }, [userStrengthStats, currentParticipantId]);
     
@@ -1529,7 +1526,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                             currentParticipantId={currentParticipantId}
                             groupClassSchedules={groupClassSchedules}
                             groupClassDefinitions={groupClassDefinitions}
-                            groupClassScheduleExceptions={groupClassScheduleExceptions}
                             allParticipantBookings={allParticipantBookings}
                             locations={locations}
                             onCancelBooking={onCancelBooking}
