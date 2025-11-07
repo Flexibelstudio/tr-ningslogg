@@ -1298,62 +1298,96 @@ const AppContent: React.FC = () => {
     }
   }, [auth.currentRole, auth.currentParticipantId, welcomeModalShown, participantDirectory, prospectModalShownKey, memberships]);
 
-  const handleCancelClassInstance = useCallback(async (scheduleId: string, classDate: string) => {
-    const alreadyCancelled = groupClassScheduleExceptions.some(ex => ex.scheduleId === scheduleId && ex.date === classDate);
-    if (alreadyCancelled) {
-      addNotification({ type: 'INFO', title: 'Redan inställt', message: 'Detta pass är redan markerat som inställt.' });
-      return;
-    }
+const handleCancelClassInstance = useCallback(async (scheduleId: string, classDate: string) => {
+  // Redan inställt?
+  const alreadyCancelled = groupClassScheduleExceptions.some(ex => ex.scheduleId === scheduleId && ex.date === classDate);
+  if (alreadyCancelled) {
+    addNotification({ type: 'INFO', title: 'Redan inställt', message: 'Detta pass är redan markerat som inställt.' });
+    return;
+  }
 
-    const newException: GroupClassScheduleException = {
-      id: crypto.randomUUID(),
-      scheduleId,
-      date: classDate,
-      createdBy: { uid: auth.user!.id, name: auth.user!.name },
-      createdAt: new Date().toISOString(),
-    };
-    setGroupClassScheduleExceptionsData(prev => [...prev, newException]);
+  // 0) Räkna fram vilka som berörs (innan något skrivs om)
+  const bookingsToCancelNow = participantBookings.filter(
+    b => b.scheduleId === scheduleId &&
+         b.classDate === classDate &&
+         (b.status === 'BOOKED' || b.status === 'CHECKED-IN' || b.status === 'WAITLISTED')
+  );
+  const affectedParticipantIds = new Set(bookingsToCancelNow.map(b => b.participantId));
 
-    const bookingsToCancel = participantBookings.filter(
-      (b) => b.scheduleId === scheduleId && b.classDate === classDate && (b.status === 'BOOKED' || b.status === 'CHECKED-IN' || b.status === 'WAITLISTED')
-    );
-    const affectedParticipantIds = new Set(bookingsToCancel.map(b => b.participantId));
-
-    if (affectedParticipantIds.size > 0) {
-      const participantIdsToRefundClips = new Set<string>();
-
-      const updatedBookings = participantBookings.map(booking => {
-        if (bookingsToCancel.some(b => b.id === booking.id)) {
-          if (booking.status !== 'WAITLISTED') {
-            const participant = participantDirectory.find(p => p.id === booking.participantId);
-            const membership = memberships.find(m => m.id === participant?.membershipId);
-            if (membership?.type === 'clip_card') {
-              participantIdsToRefundClips.add(booking.participantId);
-            }
-          }
-          return { ...booking, status: 'CANCELLED' as const, cancelReason: 'coach_cancelled' as const };
-        }
-        return booking;
+  // 1) Kör backend-funktionen FÖRST så den kan skicka push till aktiva bokningar
+  if (auth.organizationId && !firebaseService.isOffline()) {
+    try {
+      await cancelClassInstanceFn({
+        orgId: auth.organizationId,
+        scheduleId,
+        classDate,
+        // Om din Cloud Function kan ta emot mottagarlista, skicka gärna med:
+        recipients: Array.from(affectedParticipantIds),
       });
-      setParticipantBookingsData(updatedBookings);
-
-      if (participantIdsToRefundClips.size > 0) {
-        const updatedParticipants = participantDirectory.map(p => {
-          if (participantIdsToRefundClips.has(p.id) && p.clipCardStatus) {
-            return { ...p, clipCardStatus: { ...p.clipCardStatus, remainingClips: (p.clipCardStatus.remainingClips || 0) + 1 } };
-          }
-          return p;
-        });
-        setParticipantDirectoryData(updatedParticipants);
-      }
+      console.log("Cloud function 'cancelClassInstance' invoked successfully.");
+    } catch (error) {
+      console.error("Error calling 'cancelClassInstance':", error);
+      addNotification({
+        type: 'ERROR',
+        title: 'Notifieringsfel',
+        message: 'Ett fel uppstod vid utskick av notiser. Försök igen.',
+      });
+      return; // Avbryt – skriv inte om lokalt om backend misslyckades
     }
+  }
 
-    const classDef = definitions.find(d => d.id === groupClassSchedules.find(s => s.id === scheduleId)?.groupClassId);
-    addNotification({
-      type: 'SUCCESS',
-      title: 'Pass Inställt',
-      message: `Passet ${classDef?.name || ''} har ställts in. ${affectedParticipantIds.size} deltagare kommer att meddelas.`,
+  // 2) Optimistic/klient-uppdateringar EFTER att backend har kört klart
+
+  // a) Skapa exception
+  const newException: GroupClassScheduleException = {
+    id: crypto.randomUUID(),
+    scheduleId,
+    date: classDate,
+    createdBy: { uid: auth.user!.id, name: auth.user!.name },
+    createdAt: new Date().toISOString(),
+  };
+  setGroupClassScheduleExceptionsData(prev => [...prev, newException]);
+
+  // b) Avboka + återbetala ev. klipp
+  if (affectedParticipantIds.size > 0) {
+    const participantIdsToRefundClips = new Set<string>();
+
+    const updatedBookings = participantBookings.map(booking => {
+      if (bookingsToCancelNow.some(b => b.id === booking.id)) {
+        if (booking.status !== 'WAITLISTED') {
+          const participant = participantDirectory.find(p => p.id === booking.participantId);
+          const membership = memberships.find(m => m.id === participant?.membershipId);
+          if (membership?.type === 'clip_card') participantIdsToRefundClips.add(booking.participantId);
+        }
+        return { ...booking, status: 'CANCELLED' as const, cancelReason: 'coach_cancelled' as const };
+      }
+      return booking;
     });
+    setParticipantBookingsData(updatedBookings);
+
+    if (participantIdsToRefundClips.size > 0) {
+      setParticipantDirectoryData(prev =>
+        prev.map(p =>
+          participantIdsToRefundClips.has(p.id) && p.clipCardStatus
+            ? { ...p, clipCardStatus: { ...p.clipCardStatus, remainingClips: (p.clipCardStatus.remainingClips || 0) + 1 } }
+            : p
+        )
+      );
+    }
+  }
+
+  // c) Coach-feedback
+  const classDef = definitions.find(d => d.id === groupClassSchedules.find(s => s.id === scheduleId)?.groupClassId);
+  addNotification({
+    type: 'SUCCESS',
+    title: 'Pass Inställt',
+    message: `Passet ${classDef?.name || ''} har ställts in. ${affectedParticipantIds.size} deltagare har meddelats.`,
+  });
+}, [
+  auth.user, auth.organizationId, groupClassScheduleExceptions, participantBookings, participantDirectory,
+  memberships, definitions, groupClassSchedules,
+  setGroupClassScheduleExceptionsData, setParticipantBookingsData, setParticipantDirectoryData, addNotification,
+]);
 
     if (auth.organizationId && !firebaseService.isOffline()) {
       try {
