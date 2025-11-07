@@ -431,7 +431,7 @@ export const cancelClassInstance = onCall(
                             logger.error(`Push send error for participant ${participantId}:`, err);
                             if (err?.statusCode === 404 || err?.statusCode === 410) {
                                 await doc.ref.delete();
-                                await participantProfileDoc.ref.set({ notificationSettings: { pushEnabled: false } }, { merge: true });
+                                await participantProfileDoc.ref.update({ "notificationSettings.pushEnabled": false });
                             }
                         }
                     })

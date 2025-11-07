@@ -484,7 +484,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
       return participantStats.sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
     }, [userStrengthStats, currentParticipantId]);
     
-    // --- NEW: Waitlist Promotion Notification ---
+    // --- In-app Toast Notifications for booking changes ---
     const myBookings = useMemo(() => 
         allParticipantBookings.filter(b => b.participantId === currentParticipantId),
         [allParticipantBookings, currentParticipantId]
@@ -500,27 +500,51 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
 
         myBookings.forEach(currentBooking => {
             const prevBooking = prevBookings.find(b => b.id === currentBooking.id);
-            if (prevBooking && prevBooking.status === 'WAITLISTED' && currentBooking.status === 'BOOKED') {
-                const schedule = groupClassSchedules.find(s => s.id === currentBooking.scheduleId);
-                const classDef = groupClassDefinitions.find(d => d.id === schedule?.groupClassId);
-                
-                if (schedule && classDef) {
-                    const classDate = new Date(currentBooking.classDate);
-                    const dateString = classDate.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'short' });
-                    const timeString = schedule.startTime;
+            if (!prevBooking) return; // This is a new booking, not a status change.
+    
+            const schedule = groupClassSchedules.find(s => s.id === currentBooking.scheduleId);
+            const classDef = groupClassDefinitions.find(d => d.id === schedule?.groupClassId);
+            if (!schedule || !classDef) return;
+    
+            const classDate = new Date(currentBooking.classDate);
+            // Adjust for timezone offset before formatting to ensure correct date is displayed
+            const userTimezoneOffset = classDate.getTimezoneOffset() * 60000;
+            const localDate = new Date(classDate.getTime() + userTimezoneOffset);
+            const dateString = localDate.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'short' });
+            const timeString = schedule.startTime;
+    
+            // Case 1: Waitlist Promotion
+            if (prevBooking.status === 'WAITLISTED' && currentBooking.status === 'BOOKED') {
+                addNotification({
+                    type: 'SUCCESS',
+                    title: 'Du har fått en plats!',
+                    message: `Du har flyttats från kön och är nu bokad på ${classDef.name} ${dateString} kl ${timeString}.`
+                });
+            }
+            
+            // Case 2: Class Cancellation by Coach
+            const wasActive = ['BOOKED', 'WAITLISTED', 'CHECKED-IN'].includes(prevBooking.status);
+            const isCancelledNow = currentBooking.status === 'CANCELLED';
 
-                    addNotification({
-                        type: 'SUCCESS',
-                        title: 'Du har fått en plats!',
-                        message: `Du har flyttats från kön och har nu en bokad plats på ${classDef.name} ${dateString} kl ${timeString}.`
+            if (wasActive && isCancelledNow) {
+                // To confirm it was a coach cancellation, check if a general exception exists for this class instance.
+                const isInstanceCancelledByCoach = groupClassScheduleExceptions.some(
+                    ex => ex.scheduleId === currentBooking.scheduleId && ex.date === currentBooking.classDate
+                );
+
+                if (isInstanceCancelledByCoach) {
+                     addNotification({
+                        type: 'WARNING',
+                        title: 'Pass Inställt!',
+                        message: `Ditt pass ${classDef.name}, ${dateString} kl ${timeString}, har tyvärr ställts in.`
                     });
                 }
             }
         });
         
         prevBookingsRef.current = myBookings;
-    }, [myBookings, addNotification, groupClassSchedules, groupClassDefinitions]);
-    // --- END: Waitlist Promotion Notification ---
+    }, [myBookings, addNotification, groupClassSchedules, groupClassDefinitions, groupClassScheduleExceptions]);
+    // --- END: In-app Toast Notifications ---
 
     // --- NEW: Push Notification Logic ---
     useEffect(() => {
