@@ -777,6 +777,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                                 isNewSession={isNewSession}
                                 myWorkoutLogs={myWorkoutLogs}
                                 allWorkouts={allWorkouts}
+                                logForReference={logForReferenceOrEdit}
                             />
                         ))}
                         <div className="p-4 bg-white rounded-lg border shadow-sm space-y-3">
@@ -807,6 +808,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                                     isNewSession={isNewSession}
                                     myWorkoutLogs={myWorkoutLogs}
                                     allWorkouts={allWorkouts}
+                                    logForReference={logForReferenceOrEdit}
                                 />
                             ))}
                         </div>
