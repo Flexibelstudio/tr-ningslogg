@@ -14,15 +14,14 @@ import { getFunctions } from "firebase-admin/functions";
 // Type Definitions (Copied from frontend for backend type safety)
 // -----------------------------------------------------------------------------
 interface Membership {
-    id: string;
-    name: string;
-    description?: string;
-    readonly type?: 'subscription' | 'clip_card';
-    clipCardClips?: number;
-    clipCardValidityDays?: number;
-    restrictedCategories?: string[];
+  id: string;
+  name: string;
+  description?: string;
+  readonly type?: "subscription" | "clip_card";
+  clipCardClips?: number;
+  clipCardValidityDays?: number;
+  restrictedCategories?: string[];
 }
-
 
 // -----------------------------------------------------------------------------
 // Init Admin
@@ -49,6 +48,24 @@ function getBearerToken(req: { header?: (n: string) => string | undefined; heade
     (req.headers?.Authorization as string | undefined) ??
     "";
   return typeof h === "string" && h.startsWith("Bearer ") ? h.slice(7) : "";
+}
+
+// Normalisera olika datumformat till "YYYY-MM-DD"
+function normalizeDateKey(input: string): string {
+  const s = String(input ?? "");
+  // om redan rätt format
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  // annars försök parsa
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const y = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${y}-${mm}-${dd}`;
+  }
+  // sista utväg: ta första 10 tecken (om strängen börjar med datum)
+  return s.slice(0, 10);
 }
 
 // -----------------------------------------------------------------------------
@@ -92,20 +109,20 @@ export const sendSessionReminder = onRequest(
       }
 
       const { participantId, scheduleId } = booking;
-      
+
       const participantProfileDoc = await db.collection("organizations").doc(orgId).collection("participantDirectory").doc(participantId).get();
       if (!participantProfileDoc.exists) {
-          logger.warn(`Participant profile ${participantId} not found for reminder.`);
-          response.status(200).send("Participant profile not found.");
-          return;
+        logger.warn(`Participant profile ${participantId} not found for reminder.`);
+        response.status(200).send("Participant profile not found.");
+        return;
       }
       const profile = participantProfileDoc.data();
       const settings = profile?.notificationSettings;
 
       if (settings?.pushEnabled === false || settings?.sessionReminder === false) {
-          logger.info(`Reminders disabled for participant ${participantId}. Skipping.`);
-          response.status(200).send("Reminders disabled by user.");
-          return;
+        logger.info(`Reminders disabled for participant ${participantId}. Skipping.`);
+        response.status(200).send("Reminders disabled by user.");
+        return;
       }
 
       const subsSnap = await db
@@ -159,14 +176,12 @@ export const sendSessionReminder = onRequest(
             logger.error(`Push send error (participant ${participantId})`, err);
             if (err?.statusCode === 404 || err?.statusCode === 410) {
               await doc.ref.delete();
-              // Update notification settings using dot notation to avoid overwriting other fields.
               await participantProfileDoc.ref.update({ "notificationSettings.pushEnabled": false });
             }
           }
         })
       );
-      
-      // The reminderTaskId field is no longer used, so no need to delete it.
+
       response.status(200).send("Reminder sent.");
     } catch (error) {
       logger.error(`Failed to send reminder for booking ${bookingId}:`, error);
@@ -207,15 +222,15 @@ export const onBookingUpdate = onDocumentUpdated(
       try {
         const participantProfileDoc = await db.collection("organizations").doc(orgId).collection("participantDirectory").doc(participantId).get();
         if (!participantProfileDoc.exists) {
-            logger.warn(`Waitlist promotion: Participant profile ${participantId} not found.`);
-            return;
+          logger.warn(`Waitlist promotion: Participant profile ${participantId} not found.`);
+          return;
         }
         const profile = participantProfileDoc.data();
         const settings = profile?.notificationSettings;
 
         if (settings?.pushEnabled === false || settings?.waitlistPromotion === false) {
-            logger.info(`Waitlist promotion notifications disabled for participant ${participantId}. Skipping.`);
-            return;
+          logger.info(`Waitlist promotion notifications disabled for participant ${participantId}. Skipping.`);
+          return;
         }
 
         const subsSnap = await db
@@ -288,35 +303,29 @@ export const onBookingUpdate = onDocumentUpdated(
         if (!schedDoc.exists) return;
 
         const [h, m] = String(schedDoc.data()!.startTime).split(":").map((n) => Number(n));
-        const classDateTime = new Date(`${afterData.classDate as string}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`);
+        const classDateTime = new Date(
+          `${afterData.classDate as string}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`
+        );
         const scheduleTime = new Date(classDateTime.getTime() - reminderHours * 60 * 60 * 1000);
 
         if (scheduleTime > new Date()) {
           const queue = getFunctions().taskQueue("sendSessionReminder", "europe-west1");
           const project = process.env.GCLOUD_PROJECT;
           const targetUri = `https://europe-west1-${project}.cloudfunctions.net/sendSessionReminder`;
-          
-          // Enqueue returns Promise<void> in v2. We no longer get a task object.
+
           await queue.enqueue({ orgId, bookingId }, { scheduleTime, uri: targetUri });
-          
-          // The scheduled function will check the booking status before sending.
-          // So, we don't need to store the task ID or delete it upon cancellation.
+
           logger.info(`Scheduled reminder for booking ${bookingId}.`);
         }
       } catch (error) {
         logger.error(`Failed to schedule reminder for booking ${bookingId}:`, error);
       }
     }
-
-    // --- C) Avbokning: ta bort schemalagd påminnelse ---
-    // This block is no longer needed. The scheduled function `sendSessionReminder`
-    // will check the booking status. If the booking is CANCELLED, it will simply
-    // exit without sending a notification. This is the new recommended pattern.
   }
 );
 
 // -----------------------------------------------------------------------------
-// Callable: Ställ in ett helt pass
+// Callable: Ställ in ett helt pass (ROBUST)
 // -----------------------------------------------------------------------------
 export const cancelClassInstance = onCall(
   {
@@ -332,89 +341,155 @@ export const cancelClassInstance = onCall(
     const { orgId, scheduleId, classDate } = (request.data ?? {}) as {
       orgId?: string;
       scheduleId?: string;
-      classDate?: string;
+      classDate?: string; // kan vara "YYYY-MM-DD" eller ISO
     };
 
     if (!orgId || !scheduleId || !classDate) {
       throw new HttpsError("invalid-argument", "Nödvändiga parametrar saknas (orgId, scheduleId, classDate).");
     }
 
+    const opId = `${scheduleId}-${Date.now()}`;
+    logger.info("cancelClassInstance called", { opId, orgId, scheduleId, classDate, coachUid: uid, coachName: name });
+
     try {
       // Step 1: Create the exception to mark the class as cancelled
-      const exceptionRef = db.collection("organizations").doc(orgId).collection("groupClassScheduleExceptions").doc();
+      const exceptionRef = db
+        .collection("organizations")
+        .doc(orgId)
+        .collection("groupClassScheduleExceptions")
+        .doc();
+
       await exceptionRef.set({
-          scheduleId,
-          date: classDate,
-          createdBy: { uid, name },
-          createdAt: new Date().toISOString(),
+        scheduleId,
+        date: classDate,
+        createdBy: { uid, name },
+        createdAt: new Date().toISOString(),
+      });
+      logger.info(`[${opId}] WROTE exception`, { exceptionId: exceptionRef.id });
+
+      // --- Step 2: Robust booking lookup ---
+      const dateKey = normalizeDateKey(String(classDate));
+
+      logger.info(`[${opId}] Booking lookup input`, {
+        scheduleId,
+        classDateInput: classDate,
+        normalizedDateKey: dateKey,
       });
 
-      // Step 2: Find and cancel all active bookings
-      const batch = db.batch();
       const bookingsRef = db.collection("organizations").doc(orgId).collection("participantBookings");
-      const bookingsQuery = bookingsRef
-        .where("scheduleId", "==", scheduleId)
-        .where("classDate", "==", classDate)
-        .where("status", "in", ["BOOKED", "CHECKED-IN", "WAITLISTED"]);
 
-      const bookingsSnap = await bookingsQuery.get();
+      // Primär query: scheduleId + normalized date + bred status
+      let bookingsSnap = await bookingsRef
+        .where("scheduleId", "==", scheduleId)
+        .where("classDate", "==", dateKey)
+        .where("status", "in", ["BOOKED", "CHECKED-IN", "CONFIRMED", "ACTIVE"])
+        .get();
+
+      logger.info(`[${opId}] Primary bookings query`, { count: bookingsSnap.size });
+
+      // Fallback: scheduleId-only och filtrera i minnet
       if (bookingsSnap.empty) {
-        logger.info(`No active bookings found for schedule ${scheduleId} on ${classDate}. Exception created.`);
+        const schedOnlySnap = await bookingsRef
+          .where("scheduleId", "==", scheduleId)
+          .where("status", "in", ["BOOKED", "CHECKED-IN", "CONFIRMED", "ACTIVE"])
+          .get();
+
+        const candidates: FirebaseFirestore.QueryDocumentSnapshot[] = [];
+        schedOnlySnap.forEach((d) => {
+          const b = d.data() as any;
+          const cd = String(b.classDate || "");
+          if (cd.slice(0, 10) === dateKey) candidates.push(d);
+        });
+
+        if (candidates.length > 0) {
+          (bookingsSnap as any) = { empty: false, size: candidates.length, docs: candidates };
+          logger.info(`[${opId}] Fallback hit (scheduleId-only + in-memory date filter)`, { count: candidates.length });
+        }
+      }
+
+      if (bookingsSnap.empty) {
+        logger.info(`[${opId}] No active bookings found for schedule ${scheduleId} on ${dateKey}. Exception created.`);
         return { success: true, message: "Class cancelled, no active bookings found." };
       }
 
+      // --- Uppdatera bokningar + ev. refund + skapa event ---
+      const batch = db.batch();
       const participantIdsToRefundClips = new Set<string>();
       const affectedParticipantIds = new Set<string>();
 
       const membershipsSnap = await db.collection("organizations").doc(orgId).collection("memberships").get();
       const memberships = membershipsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Membership));
 
+      const nowTs = Timestamp.now();
+
       for (const doc of bookingsSnap.docs) {
-        const booking = doc.data();
+        const booking = doc.data() as any;
         affectedParticipantIds.add(booking.participantId);
-        
-        if (["BOOKED", "CHECKED-IN"].includes(booking.status)) {
-            const participantDoc = await db.collection("organizations").doc(orgId).collection("participantDirectory").doc(booking.participantId).get();
-            if (participantDoc.exists) {
-                const participant = participantDoc.data();
-                const membership = memberships.find(m => m.id === participant?.membershipId);
-                if (membership?.type === 'clip_card') {
-                    participantIdsToRefundClips.add(booking.participantId);
-                }
+
+        if (["BOOKED", "CHECKED-IN", "CONFIRMED", "ACTIVE"].includes(booking.status)) {
+          const participantDoc = await db
+            .collection("organizations")
+            .doc(orgId)
+            .collection("participantDirectory")
+            .doc(booking.participantId)
+            .get();
+          if (participantDoc.exists) {
+            const participant = participantDoc.data() as any;
+            const membership = memberships.find((m) => m.id === participant?.membershipId);
+            if (membership?.type === "clip_card") {
+              participantIdsToRefundClips.add(booking.participantId);
             }
+          }
         }
-        
-        batch.update(doc.ref, { status: "CANCELLED", cancelReason: "coach_cancelled" });
+
+        batch.update(doc.ref, {
+          status: "CANCELLED",
+          cancelReason: "coach_cancelled",
+          cancelledAt: nowTs,
+          updatedAt: nowTs,
+        });
       }
 
       for (const participantId of participantIdsToRefundClips) {
-          const participantRef = db.collection("organizations").doc(orgId).collection("participantDirectory").doc(participantId);
-          batch.update(participantRef, {
-              "clipCardStatus.remainingClips": FieldValue.increment(1),
-          });
+        const participantRef = db
+          .collection("organizations")
+          .doc(orgId)
+          .collection("participantDirectory")
+          .doc(participantId);
+        batch.update(participantRef, { "clipCardStatus.remainingClips": FieldValue.increment(1) });
       }
-      
+
+      // Hämta detaljer för event & push (OK om saknas – vi commitar ändå)
       const scheduleDoc = await db.collection("organizations").doc(orgId).collection("groupClassSchedules").doc(scheduleId).get();
-      const classDefDoc = scheduleDoc.exists ? await db.collection("organizations").doc(orgId).collection("groupClassDefinitions").doc(scheduleDoc.data()!.groupClassId).get() : null;
+      const classDefDoc = scheduleDoc.exists
+        ? await db.collection("organizations").doc(orgId).collection("groupClassDefinitions").doc(scheduleDoc.data()!.groupClassId).get()
+        : null;
 
-      if (!scheduleDoc.exists || !classDefDoc?.exists) {
-          logger.warn(`Could not find class details for schedule ${scheduleId} to send notifications.`);
-          await batch.commit(); // commit db changes even if we can't notify
-          return { success: true, message: "Bookings cancelled, but failed to send notifications due to missing class details." };
+      let className = "passet";
+      let classTime = "";
+      let locationName = "din studio";
+      if (scheduleDoc.exists) {
+        classTime = scheduleDoc.data()!.startTime;
+        const locationDoc = await db
+          .collection("organizations")
+          .doc(orgId)
+          .collection("locations")
+          .doc(scheduleDoc.data()!.locationId)
+          .get();
+        if (locationDoc.exists) locationName = locationDoc.data()!.name;
       }
+      if (classDefDoc?.exists) className = classDefDoc.data()!.name;
 
-      const className = classDefDoc.data()!.name;
-      const classTime = scheduleDoc.data()!.startTime;
-      const locationDoc = await db.collection("organizations").doc(orgId).collection("locations").doc(scheduleDoc.data()!.locationId).get();
-      const locationName = locationDoc.exists ? locationDoc.data()!.name : "din studio";
-      
-      const date = new Date(classDate);
+      const date = new Date(String(classDate));
       const dateString = `${date.getDate()} ${date.toLocaleString("sv-SE", { month: "long" })}`;
 
-      // Step 3: Create a targeted CoachEvent for each participant's feed
       const eventTitle = `INSTÄLLT: ${className}`;
       const eventDescription = `Passet ${className} (${locationName}) den ${dateString} kl ${classTime} är tyvärr inställt.`;
-      const studioTarget = locationName.toLowerCase().includes("salem") ? "salem" : locationName.toLowerCase().includes("kärra") ? "karra" : "all";
+      const studioTarget = locationName.toLowerCase().includes("salem")
+        ? "salem"
+        : locationName.toLowerCase().includes("kärra") || locationName.toLowerCase().includes("karra")
+        ? "karra"
+        : "all";
 
       const eventRef = db.collection("organizations").doc(orgId).collection("coachEvents").doc();
       batch.set(eventRef, {
@@ -425,55 +500,91 @@ export const cancelClassInstance = onCall(
         targetParticipantIds: Array.from(affectedParticipantIds),
         createdDate: new Date().toISOString(),
       });
-      
-      await batch.commit();
-      logger.info(`Cancelled ${bookingsSnap.size} bookings, created event, and refunded ${participantIdsToRefundClips.size} clips.`);
 
-      // Step 4: Send Push Notifications
-      const payload = JSON.stringify({
-          title: `Pass inställt: ${className}`,
-          body: `Ditt pass ${className} den ${dateString} kl ${classTime} har tyvärr ställts in.`,
+      // (Frivilligt) Skapa in-app notiser per deltagare för bombsäker toast
+      for (const participantId of affectedParticipantIds) {
+        const notifRef = db
+          .collection("organizations")
+          .doc(orgId)
+          .collection("participantDirectory")
+          .doc(participantId)
+          .collection("user_notifications")
+          .doc();
+
+        batch.set(notifRef, {
+          type: "CLASS_CANCELLED",
+          scheduleId,
+          classDate: dateKey,
+          title: "Pass inställt",
+          body: "Ditt bokade pass har ställts in av en coach.",
+          createdAt: nowTs,
+          read: false,
+        });
+      }
+
+      await batch.commit();
+      logger.info(`[${opId}] Bookings updated`, {
+        cancelledCount: bookingsSnap.size,
+        affectedParticipants: Array.from(affectedParticipantIds).length,
+        refunds: participantIdsToRefundClips.size,
       });
 
-      const vapidPublicKey = "BO21Yp3_p0o_5ce295-SC_pY9nZ8aGRi_SC2B5UF0jbl4M13nS2j52hce5C65a0gI55NUEM02eKYpOMYJ0pM5cE";
+      // Step 4: Push Notifications
+      const payload = JSON.stringify({
+        title: `Pass inställt: ${className}`,
+        body: `Ditt pass ${className} den ${dateString} kl ${classTime} har tyvärr ställts in.`,
+      });
+
+      const vapidPublicKey =
+        "BO21Yp3_p0o_5ce295-SC_pY9nZ8aGRi_SC2B5UF0jbl4M13nS2j52hce5C65a0gI55NUEM02eKYpOMYJ0pM5cE";
       const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
       if (!vapidPrivateKey) throw new HttpsError("internal", "VAPID_PRIVATE_KEY secret is not set!");
 
       webpush.setVapidDetails("mailto:admin@flexibel.se", vapidPublicKey, vapidPrivateKey);
-      
+
       let notificationsSent = 0;
       for (const participantId of affectedParticipantIds) {
-          const participantProfileDoc = await db.collection("organizations").doc(orgId).collection("participantDirectory").doc(participantId).get();
-          if (!participantProfileDoc.exists) continue;
-          const profile = participantProfileDoc.data();
-          const settings = profile?.notificationSettings;
-          if (settings?.pushEnabled === false || settings?.classCancellation === false) {
-              continue;
-          }
+        const participantProfileDoc = await db
+          .collection("organizations")
+          .doc(orgId)
+          .collection("participantDirectory")
+          .doc(participantId)
+          .get();
+        if (!participantProfileDoc.exists) continue;
+        const profile = participantProfileDoc.data();
+        const settings = (profile as any)?.notificationSettings;
+        if (settings?.pushEnabled === false || settings?.classCancellation === false) {
+          continue;
+        }
 
-          const subsSnap = await db.collection("organizations").doc(orgId).collection("userPushSubscriptions").where("participantId", "==", participantId).get();
-          if (!subsSnap.empty) {
-              await Promise.all(
-                  subsSnap.docs.map(async (doc) => {
-                      const sub = doc.data().subscription;
-                      try {
-                          await webpush.sendNotification(sub, payload);
-                          notificationsSent++;
-                      } catch (err: any) {
-                          logger.error(`Push send error for participant ${participantId}:`, err);
-                          if (err?.statusCode === 404 || err?.statusCode === 410) {
-                              await doc.ref.delete();
-                              await participantProfileDoc.ref.update({ "notificationSettings.pushEnabled": false });
-                          }
-                      }
-                  })
-              );
-          }
+        const subsSnap = await db
+          .collection("organizations")
+          .doc(orgId)
+          .collection("userPushSubscriptions")
+          .where("participantId", "==", participantId)
+          .get();
+        if (!subsSnap.empty) {
+          await Promise.all(
+            subsSnap.docs.map(async (doc) => {
+              const sub = doc.data().subscription;
+              try {
+                await webpush.sendNotification(sub, payload);
+                notificationsSent++;
+              } catch (err: any) {
+                logger.error(`Push send error for participant ${participantId}:`, err);
+                if (err?.statusCode === 404 || err?.statusCode === 410) {
+                  await doc.ref.delete();
+                  await participantProfileDoc.ref.update({ "notificationSettings.pushEnabled": false });
+                }
+              }
+            })
+          );
+        }
       }
-      
-      logger.info(`Sent ${notificationsSent} cancellation notifications.`);
-      return { success: true, cancelledCount: bookingsSnap.size, notificationsSent };
 
+      logger.info(`[${opId}] SENT push`, { notificationsSent });
+      logger.info(`[${opId}] DONE`);
+      return { success: true, cancelledCount: (bookingsSnap as any).size, notificationsSent };
     } catch (error) {
       logger.error(`Error in cancelClassInstance for schedule ${scheduleId}:`, error);
       if (error instanceof HttpsError) {
@@ -483,7 +594,6 @@ export const cancelClassInstance = onCall(
     }
   }
 );
-
 
 // -----------------------------------------------------------------------------
 // Zapier → skapa lead
@@ -669,18 +779,22 @@ export const notifyFriendsOnBooking = onCall(
 
       if (friendIds.size === 0) return { success: true, message: "No friends." };
 
-      const friendsToNotify: { id: string, doc: FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData> }[] = [];
+      const friendsToNotify: { id: string; doc: FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData> }[] = [];
       const participantDirectoryRef = db.collection("organizations").doc(orgId).collection("participantDirectory");
       const friendProfilePromises = Array.from(friendIds).map((id) => participantDirectoryRef.doc(id).get());
       const friendProfileDocs = await Promise.all(friendProfilePromises);
-      
+
       for (const doc of friendProfileDocs) {
-          if (doc.exists) {
-              const friendProfile = doc.data();
-              if (friendProfile && (friendProfile.receiveFriendBookingNotifications ?? true) && friendProfile.notificationSettings?.pushEnabled !== false) {
-                  friendsToNotify.push({ id: doc.id, doc: doc.ref });
-              }
+        if (doc.exists) {
+          const friendProfile = doc.data() as any;
+          if (
+            friendProfile &&
+            (friendProfile.receiveFriendBookingNotifications ?? true) &&
+            friendProfile.notificationSettings?.pushEnabled !== false
+          ) {
+            friendsToNotify.push({ id: doc.id, doc: doc.ref });
           }
+        }
       }
 
       if (friendsToNotify.length === 0) return { success: true, message: "No friends with notifications enabled." };
@@ -697,7 +811,8 @@ export const notifyFriendsOnBooking = onCall(
         body: `${bookerName.split(" ")[0]} har bokat ${className}, ska du haka på?`,
       });
 
-      const vapidPublicKey = "BO21Yp3_p0o_5ce295-SC_pY9nZ8aGRi_SC2B5UF0jbl4M13nS2j52hce5C65a0gI55NUEM02eKYpOMYJ0pM5cE";
+      const vapidPublicKey =
+        "BO21Yp3_p0o_5ce295-SC_pY9nZ8aGRi_SC2B5UF0jbl4M13nS2j52hce5C65a0gI55NUEM02eKYpOMYJ0pM5cE";
       const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
       if (!vapidPrivateKey) throw new HttpsError("internal", "VAPID_PRIVATE_KEY secret is not set!");
 
@@ -705,7 +820,12 @@ export const notifyFriendsOnBooking = onCall(
 
       let notificationsSent = 0;
       for (const friend of friendsToNotify) {
-        const subsSnap = await db.collection("organizations").doc(orgId).collection("userPushSubscriptions").where("participantId", "==", friend.id).get();
+        const subsSnap = await db
+          .collection("organizations")
+          .doc(orgId)
+          .collection("userPushSubscriptions")
+          .where("participantId", "==", friend.id)
+          .get();
         if (!subsSnap.empty) {
           await Promise.all(
             subsSnap.docs.map(async (doc) => {
@@ -716,8 +836,8 @@ export const notifyFriendsOnBooking = onCall(
               } catch (err: any) {
                 logger.error(`Push send error for friend ${friend.id}:`, err);
                 if (err?.statusCode === 404 || err?.statusCode === 410) {
-                    await doc.ref.delete();
-                    await friend.doc.update({ "notificationSettings.pushEnabled": false });
+                  await doc.ref.delete();
+                  await friend.doc.update({ "notificationSettings.pushEnabled": false });
                 }
               }
             })
@@ -736,85 +856,82 @@ export const notifyFriendsOnBooking = onCall(
 // -----------------------------------------------------------------------------
 // Callable: Analytics 30 dagar
 // -----------------------------------------------------------------------------
-export const getAnalyticsData = onCall(
-  { region: "europe-west1" },
-  async (request) => {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
-    }
-    const { orgId } = request.data || {};
-    if (!orgId) {
-      throw new HttpsError("invalid-argument", "The function must be called with an 'orgId'.");
-    }
-
-    try {
-      const since = new Date();
-      since.setDate(since.getDate() - 30);
-      since.setHours(0, 0, 0, 0);
-      const sinceTs = Timestamp.fromDate(since);
-
-      const daily = new Map<string, { bookings: number; cancellations: number; checkins: number }>();
-      for (let i = 0; i <= 30; i++) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        const key = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())).toISOString().split("T")[0];
-        daily.set(key, { bookings: 0, cancellations: 0, checkins: 0 });
-      }
-
-      const makeQuery = (type: "BOOKING_CREATED" | "BOOKING_CANCELLED" | "CHECKIN") =>
-        db
-          .collection("analyticsEvents")
-          .where("orgId", "==", orgId)
-          .where("type", "==", type)
-          .where("timestamp", ">=", sinceTs)
-          .orderBy("timestamp", "asc")
-          .get();
-
-      const [q1, q2, q3] = await Promise.all([makeQuery("BOOKING_CREATED"), makeQuery("BOOKING_CANCELLED"), makeQuery("CHECKIN")]);
-
-      const toKey = (ts: Timestamp) => {
-        const dt = ts.toDate();
-        return new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate())).toISOString().split("T")[0];
-        };
-
-      q1.forEach((doc) => {
-        const ts = doc.get("timestamp") as Timestamp | undefined;
-        if (ts) {
-          const key = toKey(ts);
-          const r = daily.get(key);
-          if (r) r.bookings += 1;
-        }
-      });
-
-      q2.forEach((doc) => {
-        const ts = doc.get("timestamp") as Timestamp | undefined;
-        if (ts) {
-          const key = toKey(ts);
-          const r = daily.get(key);
-          if (r) r.cancellations += 1;
-        }
-      });
-
-      q3.forEach((doc) => {
-        const ts = doc.get("timestamp") as Timestamp | undefined;
-        if (ts) {
-          const key = toKey(ts);
-          const r = daily.get(key);
-          if (r) r.checkins += 1;
-        }
-      });
-
-      const data = Array.from(daily.entries())
-        .map(([date, counts]) => ({ date, ...counts }))
-        .sort((a, b) => a.date.localeCompare(b.date));
-
-      return { data };
-    } catch (err) {
-      logger.error("getAnalyticsData failed:", err);
-      throw new HttpsError("internal", "Failed to retrieve analytics data.");
-    }
+export const getAnalyticsData = onCall({ region: "europe-west1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
-);
+  const { orgId } = request.data || {};
+  if (!orgId) {
+    throw new HttpsError("invalid-argument", "The function must be called with an 'orgId'.");
+  }
+
+  try {
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+    since.setHours(0, 0, 0, 0);
+    const sinceTs = Timestamp.fromDate(since);
+
+    const daily = new Map<string, { bookings: number; cancellations: number; checkins: number }>();
+    for (let i = 0; i <= 30; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())).toISOString().split("T")[0];
+      daily.set(key, { bookings: 0, cancellations: 0, checkins: 0 });
+    }
+
+    const makeQuery = (type: "BOOKING_CREATED" | "BOOKING_CANCELLED" | "CHECKIN") =>
+      db
+        .collection("analyticsEvents")
+        .where("orgId", "==", orgId)
+        .where("type", "==", type)
+        .where("timestamp", ">=", sinceTs)
+        .orderBy("timestamp", "asc")
+        .get();
+
+    const [q1, q2, q3] = await Promise.all([makeQuery("BOOKING_CREATED"), makeQuery("BOOKING_CANCELLED"), makeQuery("CHECKIN")]);
+
+    const toKey = (ts: Timestamp) => {
+      const dt = ts.toDate();
+      return new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate())).toISOString().split("T")[0];
+    };
+
+    q1.forEach((doc) => {
+      const ts = doc.get("timestamp") as Timestamp | undefined;
+      if (ts) {
+        const key = toKey(ts);
+        const r = daily.get(key);
+        if (r) r.bookings += 1;
+      }
+    });
+
+    q2.forEach((doc) => {
+      const ts = doc.get("timestamp") as Timestamp | undefined;
+      if (ts) {
+        const key = toKey(ts);
+        const r = daily.get(key);
+        if (r) r.cancellations += 1;
+      }
+    });
+
+    q3.forEach((doc) => {
+      const ts = doc.get("timestamp") as Timestamp | undefined;
+      if (ts) {
+        const key = toKey(ts);
+        const r = daily.get(key);
+        if (r) r.checkins += 1;
+      }
+    });
+
+    const data = Array.from(daily.entries())
+      .map(([date, counts]) => ({ date, ...counts }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    return { data };
+  } catch (err) {
+    logger.error("getAnalyticsData failed:", err);
+    throw new HttpsError("internal", "Failed to retrieve analytics data.");
+  }
+});
 
 // -----------------------------------------------------------------------------
 // Cron: Weekly Highlights (Gemini)

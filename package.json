@@ -23,6 +23,7 @@
     "framer-motion": "^11.3.19",
     "html2canvas": "^1.4.1",
     "jsqr": "^1.4.0",
+    "luxon": "^3.7.2",
     "qrcode": "^1.5.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
