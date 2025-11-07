@@ -1235,6 +1235,15 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
             targetParticipantIds: Array.from(affectedParticipantIds),
         };
         setCoachEventsData(prev => [...prev, { ...cancelledEvent, id: crypto.randomUUID(), createdDate: new Date().toISOString() }]);
+
+        // Check if current user is affected and show an in-app notification.
+        if (auth.currentParticipantId && affectedParticipantIds.has(auth.currentParticipantId)) {
+            addNotification({
+                type: 'WARNING',
+                title: `Pass Inställt: ${classDef.name}`,
+                message: `Ditt pass den ${dateString} kl ${schedule.startTime} har ställts in.`
+            });
+        }
     }
     
     addNotification({
@@ -1260,7 +1269,7 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
 }, [
     participantBookings, setParticipantBookingsData, participantDirectory, setParticipantDirectoryData, 
     memberships, addNotification, groupClassSchedules, definitions, auth.organizationId, 
-    groupClassScheduleExceptions, setGroupClassScheduleExceptionsData, locations, setCoachEventsData
+    groupClassScheduleExceptions, setGroupClassScheduleExceptionsData, locations, setCoachEventsData, auth.currentParticipantId
 ]);
 
 
