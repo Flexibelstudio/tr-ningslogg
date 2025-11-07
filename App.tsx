@@ -17,39 +17,44 @@ import { UpdateNoticeModal } from './components/participant/UpdateNoticeModal';
 import { LOCAL_STORAGE_KEYS } from './constants';
 import {
   FlowItemLogType,
-  User,
-  UserRole,
   GeneralActivityLog,
-  ParticipantProfile,
+  GroupClassSchedule,
   GroupClassScheduleException,
-  CoachEvent,
-  ParticipantBooking,
-  GroupClassSchedule
+  ParticipantProfile,
 } from './types';
 import { useNotifications } from './context/NotificationsContext';
 import { logAnalyticsEvent } from './utils/analyticsLogger';
 import firebaseService from './services/firebaseService';
 import { cancelClassInstanceFn, notifyFriendsOnBookingFn } from './firebaseClient';
 
-// NEW: Firestore helpers for saving web push subscriptions
+// Firestore helpers (moderna v9 APIs)
 import {
   collection,
   query,
   where,
   getDocs,
-  addDoc,
   updateDoc,
+  getFirestore,
+  setDoc,
   doc as fsDoc,
-  getFirestore,   // ⬅️ NY
-  setDoc,         // ⬅️ NY (används nedan för robust upsert)
-  doc,            // ⬅️ NY
+  doc,
 } from 'firebase/firestore';
 
-const CoachArea = lazy(() => import('./components/coach/CoachArea').then((m) => ({ default: m.CoachArea })));
-const ParticipantArea = lazy(() => import('./components/participant/ParticipantArea').then((m) => ({ default: m.ParticipantArea })));
-const SystemOwnerArea = lazy(() => import('./components/SystemOwnerArea').then((m) => ({ default: m.SystemOwnerArea })));
-const PublicLeadForm = lazy(() => import('./components/public/PublicLeadForm').then((m) => ({ default: m.PublicLeadForm })));
-const ZapierWebhookHandler = lazy(() => import('./components/api/ZapierWebhookHandler').then((m) => ({ default: m.ZapierWebhookHandler })));
+const CoachArea = lazy(() =>
+  import('./components/coach/CoachArea').then((m) => ({ default: m.CoachArea }))
+);
+const ParticipantArea = lazy(() =>
+  import('./components/participant/ParticipantArea').then((m) => ({ default: m.ParticipantArea }))
+);
+const SystemOwnerArea = lazy(() =>
+  import('./components/SystemOwnerArea').then((m) => ({ default: m.SystemOwnerArea }))
+);
+const PublicLeadForm = lazy(() =>
+  import('./components/public/PublicLeadForm').then((m) => ({ default: m.PublicLeadForm }))
+);
+const ZapierWebhookHandler = lazy(() =>
+  import('./components/api/ZapierWebhookHandler').then((m) => ({ default: m.ZapierWebhookHandler }))
+);
 
 const LoadingSpinner = () => (
   <div className="fixed inset-0 flex items-center justify-center bg-gray-100 bg-opacity-75 z-50">
@@ -57,9 +62,9 @@ const LoadingSpinner = () => (
   </div>
 );
 
-/** ─────────────────────────────────────────────────────────────────────────────
- *  NEW: Web Push helpers (VAPID public key must match backend)
- *  ---------------------------------------------------------------------------*/
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Web Push helpers
+ * ───────────────────────────────────────────────────────────────────────────*/
 const VAPID_PUBLIC_KEY =
   'BO21Yp3_p0o_5ce295-SC_pY9nZ8aGRi_SC2B5UF0jbl4M13nS2j52hce5C65a0gI55NUEM02eKYpOMYJ0pM5cE';
 
@@ -78,19 +83,16 @@ async function ensureWebPushSubscription(orgId: string, participantId: string) {
     return;
   }
 
-  // 1) Registrera SW
   const registration =
     (await navigator.serviceWorker.getRegistration()) ??
     (await navigator.serviceWorker.register('/sw.js'));
 
-  // 2) Permission
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') {
-    console.warn('[Push] Permission nekad/ej granted.');
+    console.warn('[Push] Permission nekad.');
     return;
   }
 
-  // 3) Skapa/hämta subscription
   const existing = await registration.pushManager.getSubscription();
   const subscription =
     existing ??
@@ -99,27 +101,23 @@ async function ensureWebPushSubscription(orgId: string, participantId: string) {
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
     }));
 
-  // 4) Firestore-instans (fixen)
-  //  - Prova firebaseService.db
-  //  - Annars getFirestore(firebaseService.app) eller global getFirestore()
   let db: any;
   try {
     db =
       (firebaseService as any).db ??
       ((firebaseService as any).app ? getFirestore((firebaseService as any).app) : getFirestore());
-  } catch (e) {
+  } catch {
     db = getFirestore();
   }
   if (!db) {
-    console.error('[Push] Ingen Firestore-instans kunde skapas.');
+    console.error('[Push] Ingen Firestore-instans.');
     return;
   }
 
-  // 5) Upsert i organizations/{orgId}/userPushSubscriptions
   try {
     const subsCol = collection(db, 'organizations', orgId, 'userPushSubscriptions');
-
     const json = subscription.toJSON() as any;
+
     const payload = {
       participantId,
       subscription: {
@@ -130,7 +128,7 @@ async function ensureWebPushSubscription(orgId: string, participantId: string) {
       ua: navigator.userAgent,
     };
 
-    // Sök om exakt samma endpoint redan finns för denna participant
+    // Finns redan?
     const q = query(
       subsCol,
       where('participantId', '==', participantId),
@@ -139,8 +137,7 @@ async function ensureWebPushSubscription(orgId: string, participantId: string) {
     const snap = await getDocs(q);
 
     if (snap.empty) {
-      // använd setDoc med egen id (stabilare än addDoc om du vill undvika dubletter)
-      const stableId = btoa(`${participantId}::${json.endpoint}`).replace(/=+$/,'');
+      const stableId = btoa(`${participantId}::${json.endpoint}`).replace(/=+$/, '');
       await setDoc(doc(subsCol, stableId), payload);
       console.log('[Push] Ny prenumeration sparad.');
     } else {
@@ -151,10 +148,10 @@ async function ensureWebPushSubscription(orgId: string, participantId: string) {
     console.error('[Push] Kunde inte spara prenumeration:', err);
   }
 }
-/** ───────────────────────────────────────────────────────────────────────────*/
+/* ───────────────────────────────────────────────────────────────────────────*/
 
 const AppContent: React.FC = () => {
-  // NEW ROUTING LOGIC for public lead form
+  // Publika routes
   if (window.location.pathname.startsWith('/public/lead-form')) {
     return (
       <Suspense fallback={<LoadingSpinner />}>
@@ -162,8 +159,6 @@ const AppContent: React.FC = () => {
       </Suspense>
     );
   }
-
-  // Add back webhook handler for preview environment
   if (window.location.pathname.startsWith('/api/zapier-lead-webhook')) {
     return (
       <Suspense fallback={<div>Processing...</div>}>
@@ -185,7 +180,7 @@ const AppContent: React.FC = () => {
     groupClassSchedules,
     groupClassDefinitions: definitions,
     isOrgDataLoading,
-    isGlobalDataLoading, // Get new loading state
+    isGlobalDataLoading,
     branding,
     goalCompletionLogs,
     clubMemberships,
@@ -218,7 +213,9 @@ const AppContent: React.FC = () => {
   const [operationInProgress, setOperationInProgress] = useState<string[]>([]);
 
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
-  const [welcomeModalShown, setWelcomeModalShown] = useState(() => localStorage.getItem(LOCAL_STORAGE_KEYS.WELCOME_MESSAGE_SHOWN_PARTICIPANT) === 'true');
+  const [welcomeModalShown, setWelcomeModalShown] = useState(
+    () => localStorage.getItem(LOCAL_STORAGE_KEYS.WELCOME_MESSAGE_SHOWN_PARTICIPANT) === 'true'
+  );
   const [openProfileModalOnInit, setOpenProfileModalOnInit] = useState(false);
   const [profileOpener, setProfileOpener] = useState<{ open: () => void } | null>(null);
   const [cachedLogo, setCachedLogo] = useState<string | null>(() => {
@@ -251,7 +248,7 @@ const AppContent: React.FC = () => {
     }
   }, [auth.user, updateUser]);
 
-  // --- Update Notice Logic ---
+  // Update notice
   const UPDATE_NOTICE_KEY = 'updateNotice_v3_AICoach';
   const LAST_SEEN_UPDATE_KEY = 'flexibel_lastSeenUpdateNotice';
   const [showLatestUpdateView, setShowLatestUpdateView] = useState(false);
@@ -260,9 +257,7 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (auth.user && auth.currentRole === 'participant') {
       const lastSeenVersion = localStorage.getItem(LAST_SEEN_UPDATE_KEY);
-      if (lastSeenVersion !== UPDATE_NOTICE_KEY) {
-        setHasUnreadUpdate(true);
-      }
+      if (lastSeenVersion !== UPDATE_NOTICE_KEY) setHasUnreadUpdate(true);
     }
   }, [auth.user, auth.currentRole]);
 
@@ -271,9 +266,8 @@ const AppContent: React.FC = () => {
     localStorage.setItem(LAST_SEEN_UPDATE_KEY, UPDATE_NOTICE_KEY);
     setHasUnreadUpdate(false);
   }, []);
-  // --- END: Update Notice Logic ---
 
-  // State for modal openers to be passed from ParticipantArea to Navbar
+  // Modal openers (för Navbar ↔ ParticipantArea)
   const [participantModalOpeners, setParticipantModalOpeners] = useState({
     openGoalModal: () => {},
     openCommunityModal: () => {},
@@ -281,18 +275,22 @@ const AppContent: React.FC = () => {
     openAiReceptModal: () => {},
   });
 
-  // Derived data for Navbar
+  // Derived data för Navbar
   const { aiRecept, pendingRequestsCount, newFlowItemsCount } = useMemo(() => {
     if (auth.currentRole !== 'participant' || !auth.currentParticipantId) {
       return { aiRecept: null, pendingRequestsCount: 0, newFlowItemsCount: 0 };
     }
 
     const myParticipantGoals = participantGoals.filter((g) => g.participantId === auth.currentParticipantId);
-    const sortedGoals = [...myParticipantGoals].sort((a, b) => new Date(b.setDate).getTime() - new Date(a.setDate).getTime());
+    const sortedGoals = [...myParticipantGoals].sort(
+      (a, b) => new Date(b.setDate).getTime() - new Date(a.setDate).getTime()
+    );
     const latestActiveGoal = sortedGoals.find((g) => !g.isCompleted) || sortedGoals[0] || null;
 
     const recept = latestActiveGoal?.aiPrognosis;
-    const requests = connections.filter((c) => c.receiverId === auth.currentParticipantId && c.status === 'pending').length;
+    const requests = connections.filter(
+      (c) => c.receiverId === auth.currentParticipantId && c.status === 'pending'
+    ).length;
 
     let count = 0;
     if (lastFlowViewTimestamp) {
@@ -315,16 +313,7 @@ const AppContent: React.FC = () => {
         }
       });
 
-      const allUserContent: (
-        | typeof workoutLogs[0]
-        | typeof generalActivityLogs[0]
-        | typeof goalCompletionLogs[0]
-        | typeof clubMemberships[0]
-        | typeof userStrengthStats[0]
-        | typeof participantPhysiqueHistory[0]
-        | typeof participantGoals[0]
-        | typeof userConditioningStatsHistory[0]
-      )[] = [
+      const allUserContent: any[] = [
         ...workoutLogs,
         ...generalActivityLogs,
         ...goalCompletionLogs,
@@ -335,7 +324,7 @@ const AppContent: React.FC = () => {
         ...userConditioningStatsHistory,
       ];
 
-      allUserContent.forEach((item) => {
+      allUserContent.forEach((item: any) => {
         const itemDate = new Date(
           'completedDate' in item
             ? item.completedDate
@@ -346,19 +335,19 @@ const AppContent: React.FC = () => {
             : item.lastUpdated
         ).getTime();
 
-        if (myFriendsIds.has((item as { participantId: string }).participantId) && itemDate > lastViewTime) {
-          newNotificationItems.add(`item-${(item as any).id}`);
+        if (myFriendsIds.has(item.participantId) && itemDate > lastViewTime) {
+          newNotificationItems.add(`item-${item.id}`);
         }
 
-        if ((item as { participantId: string }).participantId === myId) {
-          (item as any).comments?.forEach((comment: any) => {
+        if (item.participantId === myId) {
+          item.comments?.forEach((comment: any) => {
             if (comment.authorId !== myId && new Date(comment.createdDate).getTime() > lastViewTime) {
               newNotificationItems.add(`comment-${comment.id}`);
             }
           });
-          (item as any).reactions?.forEach((reaction: any) => {
+          item.reactions?.forEach((reaction: any) => {
             if (reaction.participantId !== myId && new Date(reaction.createdDate).getTime() > lastViewTime) {
-              newNotificationItems.add(`reaction-${(item as any).id}-${reaction.participantId}-${reaction.emoji}`);
+              newNotificationItems.add(`reaction-${item.id}-${reaction.participantId}-${reaction.emoji}`);
             }
           });
         }
@@ -392,16 +381,10 @@ const AppContent: React.FC = () => {
     }
   }, [auth.organizationId, auth.isLoading]);
 
-  /** ──────────────────────────────────────────────────────────────────────────
-   *  NEW: Trigger web push prenumeration när vi är i participant-läge
-   *  ------------------------------------------------------------------------*/
+  // Web push subscription när vi är deltagare
   useEffect(() => {
-    if (
-      auth.currentRole === 'participant' &&
-      auth.organizationId &&
-      auth.currentParticipantId
-    ) {
-      const profile = participantDirectory.find(p => p.id === auth.currentParticipantId);
+    if (auth.currentRole === 'participant' && auth.organizationId && auth.currentParticipantId) {
+      const profile = participantDirectory.find((p) => p.id === auth.currentParticipantId);
       const pushEnabled = profile?.notificationSettings?.pushEnabled ?? true;
       if (pushEnabled) {
         ensureWebPushSubscription(auth.organizationId, auth.currentParticipantId);
@@ -410,13 +393,16 @@ const AppContent: React.FC = () => {
       }
     }
   }, [auth.currentRole, auth.organizationId, auth.currentParticipantId, participantDirectory]);
-  /** ─────────────────────────────────────────────────────────────────────────*/
 
+  /* ─────────────────────────────────────────────────────────────────────────
+   * Book / Cancel / Waitlist / Check-in m.m.
+   * (oförändrat beteende)
+   * ───────────────────────────────────────────────────────────────────────*/
   const handleBookClass = useCallback(
     (participantId: string, scheduleId: string, classDate: string) => {
       if (!auth.organizationId) return;
       const instanceId = `${scheduleId}-${classDate}`;
-      setOperationInProgress(prev => [...prev, instanceId]);
+      setOperationInProgress((prev) => [...prev, instanceId]);
 
       const activeBooking = participantBookings.find(
         (b) =>
@@ -428,14 +414,14 @@ const AppContent: React.FC = () => {
 
       if (activeBooking) {
         console.warn('Participant is already actively booked or on the waitlist for this class.');
-        setTimeout(() => setOperationInProgress(prev => prev.filter(id => id !== instanceId)), 1000);
+        setTimeout(() => setOperationInProgress((prev) => prev.filter((id) => id !== instanceId)), 1000);
         return;
       }
 
       const schedule = groupClassSchedules.find((s) => s.id === scheduleId);
       if (!schedule) {
         console.error('Schedule not found');
-        setTimeout(() => setOperationInProgress(prev => prev.filter(id => id !== instanceId)), 1000);
+        setTimeout(() => setOperationInProgress((prev) => prev.filter((id) => id !== instanceId)), 1000);
         return;
       }
       const classDef = definitions.find((d) => d.id === schedule.groupClassId);
@@ -449,7 +435,14 @@ const AppContent: React.FC = () => {
           if (membership?.type === 'clip_card' && participant.clipCardStatus && participant.clipCardStatus.remainingClips > 0) {
             return prevParticipants.map((p) =>
               p.id === participantId
-                ? { ...p, clipCardStatus: { ...p.clipCardStatus, remainingClips: p.clipCardStatus.remainingClips - 1 }, lastUpdated: new Date().toISOString() }
+                ? {
+                    ...p,
+                    clipCardStatus: {
+                      ...p.clipCardStatus,
+                      remainingClips: p.clipCardStatus.remainingClips - 1,
+                    },
+                    lastUpdated: new Date().toISOString(),
+                  }
                 : p
             );
           }
@@ -458,67 +451,79 @@ const AppContent: React.FC = () => {
       };
 
       const bookedCount = participantBookings.filter(
-        (b) => b.scheduleId === scheduleId && b.classDate === classDate && (b.status === 'BOOKED' || b.status === 'CHECKED-IN')
+        (b) =>
+          b.scheduleId === scheduleId &&
+          b.classDate === classDate &&
+          (b.status === 'BOOKED' || b.status === 'CHECKED-IN')
       ).length;
 
       const newStatus = bookedCount >= schedule.maxParticipants ? 'WAITLISTED' : 'BOOKED';
 
       const cancelledBooking = participantBookings.find(
-        (b) => b.participantId === participantId && b.scheduleId === scheduleId && b.classDate === classDate && b.status === 'CANCELLED'
+        (b) =>
+          b.participantId === participantId &&
+          b.scheduleId === scheduleId &&
+          b.classDate === classDate &&
+          b.status === 'CANCELLED'
       );
 
       if (cancelledBooking) {
-        const reactivatedBooking: typeof participantBookings[0] = {
+        const reactivatedBooking = {
           ...cancelledBooking,
           status: newStatus,
           bookingDate: new Date().toISOString(),
         };
-
         setParticipantBookingsData((prev) => prev.map((b) => (b.id === cancelledBooking.id ? reactivatedBooking : b)));
       } else {
-        const newBooking: typeof participantBookings[0] = {
+        const newBooking = {
           id: crypto.randomUUID(),
           participantId,
           scheduleId,
           classDate,
           bookingDate: new Date().toISOString(),
-          status: newStatus,
+          status: newStatus as 'BOOKED' | 'WAITLISTED',
         };
-
         setParticipantBookingsData((prev) => [...prev, newBooking]);
       }
 
       if (schedule && classDef) {
-        setTimeout(() => {
-          logAnalyticsEvent(
-            'BOOKING_CREATED',
-            {
-              participantId,
-              scheduleId: schedule.id,
-              classId: schedule.groupClassId,
-              classDate,
-              coachId: schedule.coachId,
-              locationId: schedule.locationId,
-              classType: classDef.name,
-              wasWaitlisted: newStatus === 'WAITLISTED',
-            },
-            auth.organizationId!
-          );
-        }, 0);
+        setTimeout(
+          () =>
+            logAnalyticsEvent(
+              'BOOKING_CREATED',
+              {
+                participantId,
+                scheduleId: schedule.id,
+                classId: schedule.groupClassId,
+                classDate,
+                coachId: schedule.coachId,
+                locationId: schedule.locationId,
+                classType: classDef.name,
+                wasWaitlisted: newStatus === 'WAITLISTED',
+              },
+              auth.organizationId!
+            ),
+          0
+        );
       }
 
       if (newStatus === 'BOOKED') {
         addNotification({
           type: 'SUCCESS',
           title: 'Bokning Lyckades!',
-          message: `Du är nu bokad på ${classDef?.name} den ${new Date(classDate).toLocaleDateString('sv-SE')}.`
+          message: `Du är nu bokad på ${classDef?.name} den ${new Date(classDate).toLocaleDateString('sv-SE')}.`,
         });
         deductClipCard();
 
         if (auth.currentParticipantId && auth.currentParticipantId === participantId && !firebaseService.isOffline()) {
-          const bookerProfile = participantDirectory.find(p => p.id === auth.currentParticipantId);
+          const bookerProfile = participantDirectory.find((p) => p.id === auth.currentParticipantId);
           if (bookerProfile?.shareMyBookings) {
-            notifyFriendsOnBookingFn({ orgId: auth.organizationId, participantId: auth.currentParticipantId, scheduleId, classDate }).catch(err => {
+            notifyFriendsOnBookingFn({
+              orgId: auth.organizationId,
+              participantId: auth.currentParticipantId,
+              scheduleId,
+              classDate,
+            }).catch((err) => {
               console.warn('Friend notification function failed:', err);
             });
           }
@@ -527,28 +532,39 @@ const AppContent: React.FC = () => {
         addNotification({
           type: 'INFO',
           title: 'Du är på kölistan',
-          message: `Passet är fullt. Du har placerats på kölistan för ${classDef?.name}.`
+          message: `Passet är fullt. Du har placerats på kölistan för ${classDef?.name}.`,
         });
       }
-      setTimeout(() => setOperationInProgress(prev => prev.filter(id => id !== instanceId)), 1000);
+      setTimeout(() => setOperationInProgress((prev) => prev.filter((id) => id !== instanceId)), 1000);
     },
-    [groupClassSchedules, participantBookings, memberships, setParticipantBookingsData, setParticipantDirectoryData, definitions, addNotification, auth.organizationId, auth.currentParticipantId, participantDirectory]
+    [
+      groupClassSchedules,
+      participantBookings,
+      memberships,
+      setParticipantBookingsData,
+      setParticipantDirectoryData,
+      definitions,
+      addNotification,
+      auth.organizationId,
+      auth.currentParticipantId,
+      participantDirectory,
+    ]
   );
 
   const handleCancelBooking = useCallback(
     (bookingId: string) => {
       if (!auth.organizationId) return;
 
-      const bookingToCancelForId = participantBookings.find(b => b.id === bookingId);
+      const bookingToCancelForId = participantBookings.find((b) => b.id === bookingId);
       if (!bookingToCancelForId) return;
       const instanceId = `${bookingToCancelForId.scheduleId}-${bookingToCancelForId.classDate}`;
-      setOperationInProgress(prev => [...prev, instanceId]);
+      setOperationInProgress((prev) => [...prev, instanceId]);
 
-      const bookingToCancel = participantBookings.find(b => b.id === bookingId);
+      const bookingToCancel = participantBookings.find((b) => b.id === bookingId);
       if (!bookingToCancel) return;
 
-      const schedule = groupClassSchedules.find(s => s.id === bookingToCancel.scheduleId);
-      const classDef = definitions.find(d => d.id === schedule?.groupClassId);
+      const schedule = groupClassSchedules.find((s) => s.id === bookingToCancel.scheduleId);
+      const classDef = definitions.find((d) => d.id === schedule?.groupClassId);
 
       if (schedule && classDef) {
         const [hour, minute] = schedule.startTime.split(':').map(Number);
@@ -575,18 +591,20 @@ const AppContent: React.FC = () => {
       setParticipantBookingsData((prevBookings) => {
         let promotedParticipant: ParticipantProfile | null = null;
         let cancelledClassDef: typeof definitions[0] | null = null;
-        const bookingToCancel = prevBookings.find((b) => b.id === bookingId);
-
-        if (!bookingToCancel) return prevBookings;
 
         const wasBooked = bookingToCancel.status === 'BOOKED' || bookingToCancel.status === 'CHECKED-IN';
 
-        let promotedBooking: typeof participantBookings[0] | undefined;
+        let promotedBooking: (typeof participantBookings)[0] | undefined;
         let participantToPromoteId: string | undefined;
 
         if (wasBooked) {
           const waitlisters = prevBookings
-            .filter((b) => b.scheduleId === bookingToCancel.scheduleId && b.classDate === bookingToCancel.classDate && b.status === 'WAITLISTED')
+            .filter(
+              (b) =>
+                b.scheduleId === bookingToCancel.scheduleId &&
+                b.classDate === bookingToCancel.classDate &&
+                b.status === 'WAITLISTED'
+            )
             .sort((a, b) => new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime());
 
           if (waitlisters.length > 0) {
@@ -604,8 +622,8 @@ const AppContent: React.FC = () => {
                 promotedBooking = potentialPromotion;
                 participantToPromoteId = potentialPromotion.participantId;
                 promotedParticipant = participantProfile || null;
-                const promotedSchedule = groupClassSchedules.find(s => s.id === promotedBooking!.scheduleId);
-                cancelledClassDef = definitions.find(d => d.id === promotedSchedule?.groupClassId) || null;
+                const promotedSchedule = groupClassSchedules.find((s) => s.id === promotedBooking!.scheduleId);
+                cancelledClassDef = definitions.find((d) => d.id === promotedSchedule?.groupClassId) || null;
                 break;
               }
             }
@@ -620,7 +638,14 @@ const AppContent: React.FC = () => {
             if (membershipToRefund?.type === 'clip_card' && participantToRefund?.clipCardStatus) {
               nextParticipants = nextParticipants.map((p) =>
                 p.id === participantToRefund.id
-                  ? { ...p, clipCardStatus: { ...p.clipCardStatus!, remainingClips: p.clipCardStatus!.remainingClips + 1 }, lastUpdated: new Date().toISOString() }
+                  ? {
+                      ...p,
+                      clipCardStatus: {
+                        ...p.clipCardStatus!,
+                        remainingClips: p.clipCardStatus!.remainingClips + 1,
+                      },
+                      lastUpdated: new Date().toISOString(),
+                    }
                   : p
               );
             }
@@ -630,7 +655,14 @@ const AppContent: React.FC = () => {
               if (membershipToPromote?.type === 'clip_card' && participantToPromote?.clipCardStatus) {
                 nextParticipants = nextParticipants.map((p) =>
                   p.id === participantToPromote.id
-                    ? { ...p, clipCardStatus: { ...p.clipCardStatus!, remainingClips: p.clipCardStatus!.remainingClips - 1 }, lastUpdated: new Date().toISOString() }
+                    ? {
+                        ...p,
+                        clipCardStatus: {
+                          ...p.clipCardStatus!,
+                          remainingClips: p.clipCardStatus!.remainingClips - 1,
+                        },
+                        lastUpdated: new Date().toISOString(),
+                      }
                     : p
                 );
               }
@@ -641,22 +673,26 @@ const AppContent: React.FC = () => {
 
         if (promotedParticipant && cancelledClassDef && schedule && auth.currentParticipantId !== promotedParticipant.id) {
           const classDate = new Date(bookingToCancel.classDate);
-          const dateString = classDate.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'short' });
+          const dateString = classDate.toLocaleDateString('sv-SE', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'short',
+          });
           const timeString = schedule.startTime;
 
           addNotification({
             type: 'SUCCESS',
             title: `Plats tilldelad: ${promotedParticipant.name}`,
-            message: `${promotedParticipant.name} har fått en plats på ${cancelledClassDef.name} ${dateString} kl ${timeString}.`
+            message: `${promotedParticipant.name} har fått en plats på ${cancelledClassDef.name} ${dateString} kl ${timeString}.`,
           });
         }
 
         return prevBookings.map((b) => {
           if (b.id === bookingId) {
-            return { ...b, status: 'CANCELLED' as 'CANCELLED', cancelReason: 'participant_cancelled' };
+            return { ...b, status: 'CANCELLED' as const, cancelReason: 'participant_cancelled' as const };
           }
           if (promotedBooking && b.id === promotedBooking.id) {
-            return { ...b, status: 'BOOKED' as 'BOOKED' };
+            return { ...b, status: 'BOOKED' as const };
           }
           return b;
         });
@@ -665,11 +701,23 @@ const AppContent: React.FC = () => {
       addNotification({
         type: 'SUCCESS',
         title: 'Avbokning bekräftad',
-        message: `Du har avbokat dig från ${classDef?.name || 'passet'}.`
+        message: `Du har avbokat dig från ${classDef?.name || 'passet'}.`,
       });
-      setTimeout(() => setOperationInProgress(prev => prev.filter(id => id !== instanceId)), 1000);
+      setTimeout(() => setOperationInProgress((prev) => prev.filter((id) => id !== instanceId)), 1000);
     },
-    [participantDirectory, memberships, setParticipantBookingsData, definitions, participantBookings, groupClassSchedules, addNotification, auth.currentRole, auth.organizationId, setParticipantDirectoryData, auth.currentParticipantId]
+    [
+      participantDirectory,
+      memberships,
+      setParticipantBookingsData,
+      definitions,
+      participantBookings,
+      groupClassSchedules,
+      addNotification,
+      auth.currentRole,
+      auth.organizationId,
+      setParticipantDirectoryData,
+      auth.currentParticipantId,
+    ]
   );
 
   const handlePromoteFromWaitlist = useCallback(
@@ -685,7 +733,10 @@ const AppContent: React.FC = () => {
         if (!schedule) return prevBookings;
 
         const bookedCount = prevBookings.filter(
-          (b) => b.scheduleId === bookingToPromote.scheduleId && b.classDate === bookingToPromote.classDate && (b.status === 'BOOKED' || b.status === 'CHECKED-IN')
+          (b) =>
+            b.scheduleId === bookingToPromote.scheduleId &&
+            b.classDate === bookingToPromote.classDate &&
+            (b.status === 'BOOKED' || b.status === 'CHECKED-IN')
         ).length;
         if (bookedCount >= schedule.maxParticipants) {
           addNotification({ type: 'WARNING', title: 'Kan inte flytta upp', message: 'Passet är redan fullt.' });
@@ -693,7 +744,7 @@ const AppContent: React.FC = () => {
         }
 
         const participant = participantDirectory.find((p) => p.id === bookingToPromote.participantId);
-        const classDef = definitions.find(d => d.id === schedule.groupClassId);
+        const classDef = definitions.find((d) => d.id === schedule.groupClassId);
         if (participant && classDef) {
           const classDate = new Date(bookingToPromote.classDate);
           const dateString = classDate.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'short' });
@@ -702,7 +753,7 @@ const AppContent: React.FC = () => {
           addNotification({
             type: 'SUCCESS',
             title: 'Deltagare Uppflyttad!',
-            message: `${participant.name} har nu en bokad plats på ${classDef.name} ${dateString} kl ${timeString}.`
+            message: `${participant.name} har nu en bokad plats på ${classDef.name} ${dateString} kl ${timeString}.`,
           });
 
           logAnalyticsEvent(
@@ -725,27 +776,43 @@ const AppContent: React.FC = () => {
           setParticipantDirectoryData((prevParts) =>
             prevParts.map((p) =>
               p.id === participant.id
-                ? { ...p, clipCardStatus: { ...p.clipCardStatus!, remainingClips: p.clipCardStatus!.remainingClips - 1 }, lastUpdated: new Date().toISOString() }
+                ? {
+                    ...p,
+                    clipCardStatus: {
+                      ...p.clipCardStatus!,
+                      remainingClips: p.clipCardStatus!.remainingClips - 1,
+                    },
+                    lastUpdated: new Date().toISOString(),
+                  }
                 : p
             )
           );
         }
 
-        return prevBookings.map((b) => (b.id === bookingId ? { ...b, status: 'BOOKED' as 'BOOKED' } : b));
+        return prevBookings.map((b) => (b.id === bookingId ? { ...b, status: 'BOOKED' as const } : b));
       });
     },
-    [groupClassSchedules, participantDirectory, memberships, setParticipantBookingsData, definitions, addNotification, auth.organizationId, setParticipantDirectoryData]
+    [
+      groupClassSchedules,
+      participantDirectory,
+      memberships,
+      setParticipantBookingsData,
+      definitions,
+      addNotification,
+      auth.organizationId,
+      setParticipantDirectoryData,
+    ]
   );
 
   const handleCheckInParticipant = useCallback(
     (bookingId: string) => {
       if (!auth.organizationId) return;
-      setParticipantBookingsData(prev => {
-        const booking = prev.find(b => b.id === bookingId);
+      setParticipantBookingsData((prev) => {
+        const booking = prev.find((b) => b.id === bookingId);
         if (booking) {
-          const participant = participantDirectory.find(p => p.id === booking.participantId);
-          const schedule = groupClassSchedules.find(s => s.id === booking.scheduleId);
-          const classDef = definitions.find(d => d.id === schedule?.groupClassId);
+          const participant = participantDirectory.find((p) => p.id === booking.participantId);
+          const schedule = groupClassSchedules.find((s) => s.id === booking.scheduleId);
+          const classDef = definitions.find((d) => d.id === schedule?.groupClassId);
 
           if (participant && schedule && classDef) {
             logAnalyticsEvent(
@@ -766,11 +833,11 @@ const AppContent: React.FC = () => {
             addNotification({
               type: 'SUCCESS',
               title: 'Incheckad!',
-              message: `${participant.name} är nu incheckad på ${classDef.name}.`
+              message: `${participant.name} är nu incheckad på ${classDef.name}.`,
             });
           }
         }
-        return prev.map(b => (b.id === bookingId ? { ...b, status: 'CHECKED-IN' as 'CHECKED-IN' } : b));
+        return prev.map((b) => (b.id === bookingId ? { ...b, status: 'CHECKED-IN' as const } : b));
       });
     },
     [setParticipantBookingsData, participantDirectory, groupClassSchedules, definitions, addNotification, auth.organizationId]
@@ -778,237 +845,254 @@ const AppContent: React.FC = () => {
 
   const handleUnCheckInParticipant = useCallback(
     (bookingId: string) => {
-      setParticipantBookingsData((prev) => prev.map((b) => (b.id === bookingId && b.status === 'CHECKED-IN' ? { ...b, status: 'BOOKED' as 'BOOKED' } : b)));
+      setParticipantBookingsData((prev) =>
+        prev.map((b) => (b.id === bookingId && b.status === 'CHECKED-IN' ? { ...b, status: 'BOOKED' as const } : b))
+      );
     },
     [setParticipantBookingsData]
   );
 
-  const handleSelfCheckIn = useCallback((
-    participantId: string,
-    classInstanceId: string,
-    checkinType: 'self_qr' | 'location_qr'
-  ): boolean => {
-    if (!auth.organizationId) return false;
-    const parts = classInstanceId.split('-');
-    if (parts.length < 4) {
-      console.error('Invalid classInstanceId format for self-check-in:', classInstanceId);
-      addNotification({
-        type: 'ERROR',
-        title: 'Incheckning Misslyckades',
-        message: 'QR-koden är ogiltig eller har fel format.'
-      });
-      return false;
-    }
-
-    const date = parts.slice(-3).join('-');
-    const scheduleId = parts.slice(0, -3).join('-');
-
-    const schedule = groupClassSchedules.find(s => s.id === scheduleId);
-    if (!schedule) {
-      addNotification({ type: 'ERROR', title: 'Incheckning Misslyckades', message: 'Kunde inte hitta det schemalagda passet.' });
-      return false;
-    }
-
-    const now = new Date();
-    const [hour, minute] = schedule.startTime.split(':').map(Number);
-    const [year, month, day] = date.split('-').map(Number);
-    const startDateTime = new Date(year, month - 1, day, hour, minute);
-
-    const fifteenMinutesBefore = new Date(startDateTime.getTime() - 15 * 60 * 1000);
-
-    if (now < fifteenMinutesBefore) {
-      addNotification({
-        type: 'WARNING',
-        title: 'För tidigt för incheckning',
-        message: 'Du kan checka in tidigast 15 min före passet.'
-      });
-      return false;
-    }
-
-    if (now > startDateTime) {
-      addNotification({
-        type: 'WARNING',
-        title: 'För sent för incheckning',
-        message: 'Passet har redan startat.'
-      });
-      return false;
-    }
-
-    const bookingToUpdate = participantBookings.find(b =>
-      b.participantId === participantId &&
-      b.scheduleId === scheduleId &&
-      b.classDate === date &&
-      (b.status === 'BOOKED' || b.status === 'WAITLISTED')
-    );
-
-    if (!bookingToUpdate) {
-      addNotification({
-        type: 'WARNING',
-        title: 'Incheckning Misslyckades',
-        message: 'Kunde inte hitta en aktiv bokning för detta pass.'
-      });
-      return false;
-    }
-
-    if (bookingToUpdate.status === 'WAITLISTED') {
-      const bookedCount = participantBookings.filter(b =>
-        b.scheduleId === scheduleId &&
-        b.classDate === date &&
-        (b.status === 'BOOKED' || b.status === 'CHECKED-IN')
-      ).length;
-
-      if (bookedCount >= schedule.maxParticipants) {
+  const handleSelfCheckIn = useCallback(
+    (participantId: string, classInstanceId: string, checkinType: 'self_qr' | 'location_qr'): boolean => {
+      if (!auth.organizationId) return false;
+      const parts = classInstanceId.split('-');
+      if (parts.length < 4) {
+        console.error('Invalid classInstanceId format for self-check-in:', classInstanceId);
         addNotification({
-          type: 'WARNING',
+          type: 'ERROR',
           title: 'Incheckning Misslyckades',
-          message: 'Passet är fullt. Du kan inte checka in från kölistan just nu.'
+          message: 'QR-koden är ogiltig eller har fel format.',
         });
         return false;
       }
-    }
 
-    setParticipantBookingsData(prev => prev.map(b =>
-      b.id === bookingToUpdate.id ? { ...b, status: 'CHECKED-IN' as const } : b
-    ));
+      const date = parts.slice(-3).join('-');
+      const scheduleId = parts.slice(0, -3).join('-');
 
-    const classDef = definitions.find(d => d.id === schedule?.groupClassId);
+      const schedule = groupClassSchedules.find((s) => s.id === scheduleId);
+      if (!schedule) {
+        addNotification({ type: 'ERROR', title: 'Incheckning Misslyckades', message: 'Kunde inte hitta det schemalagda passet.' });
+        return false;
+      }
 
-    if (schedule && classDef) {
-      logAnalyticsEvent(
-        'CHECKIN',
-        {
-          participantId: participantId,
-          scheduleId: schedule.id,
-          classId: schedule.groupClassId,
-          classDate: date,
-          coachId: schedule.coachId,
-          locationId: schedule.locationId,
-          classType: classDef.name,
-          checkinType: checkinType,
-        },
-        auth.organizationId
-      );
-    }
-
-    const attendanceRecord: GeneralActivityLog = {
-      type: 'general',
-      id: crypto.randomUUID(),
-      participantId: participantId,
-      activityName: `Incheckning: ${classDef?.name || 'Gruppass'}`,
-      durationMinutes: 0,
-      completedDate: new Date().toISOString(),
-      comment: `Självincheckning via QR-kod för pass den ${date}.`
-    };
-
-    setGeneralActivityLogsData(prev => [...prev, attendanceRecord]);
-
-    addNotification({
-      type: 'SUCCESS',
-      title: 'Incheckad!',
-      message: `Du är nu incheckad på ${classDef?.name || 'passet'}.`
-    });
-    return true;
-  }, [participantBookings, groupClassSchedules, definitions, setParticipantBookingsData, setGeneralActivityLogsData, addNotification, auth.organizationId]);
-
-  const handleLocationCheckIn = useCallback((participantId: string, locationId: string): boolean => {
-    if (!auth.organizationId) return false;
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
-    const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay();
-    const nowInMinutes = now.getHours() * 60 + now.getMinutes();
-
-    const todaysSchedules = groupClassSchedules.filter((schedule) => {
-      if (schedule.locationId !== locationId) return false;
-      if (!schedule.daysOfWeek.includes(dayOfWeek)) return false;
-
-      const [startYear, startMonth, startDay] = schedule.startDate.split('-').map(Number);
-      const startDate = new Date(startYear, startMonth - 1, startDay);
-
-      const [endYear, endMonth, endDay] = schedule.endDate.split('-').map(Number);
-      const endDate = new Date(endYear, endMonth - 1, endDay);
-      endDate.setHours(23, 59, 59, 999);
-
-      return now >= startDate && now <= endDate;
-    });
-
-    if (todaysSchedules.length === 0) {
-      addNotification({
-        type: 'WARNING',
-        title: 'Incheckning Misslyckades',
-        message: 'Ingen schemalagd klass hittades på denna plats idag.'
-      });
-      return false;
-    }
-
-    let closestValidSchedule: GroupClassSchedule | null = null;
-    let closestUpcomingSchedule: GroupClassSchedule | null = null;
-    let minValidDiff = Infinity;
-    let minUpcomingDiff = Infinity;
-
-    for (const schedule of todaysSchedules) {
+      const now = new Date();
       const [hour, minute] = schedule.startTime.split(':').map(Number);
-      const scheduleTimeInMinutes = hour * 60 + minute;
-      const diff = scheduleTimeInMinutes - nowInMinutes;
+      const [year, month, day] = date.split('-').map(Number);
+      const startDateTime = new Date(year, month - 1, day, hour, minute);
+      const fifteenMinutesBefore = new Date(startDateTime.getTime() - 15 * 60 * 1000);
 
-      if (nowInMinutes >= (scheduleTimeInMinutes - 15) && nowInMinutes <= scheduleTimeInMinutes) {
-        if (diff < minValidDiff) {
-          minValidDiff = diff;
-          closestValidSchedule = schedule;
+      if (now < fifteenMinutesBefore) {
+        addNotification({
+          type: 'WARNING',
+          title: 'För tidigt för incheckning',
+          message: 'Du kan checka in tidigast 15 min före passet.',
+        });
+        return false;
+      }
+      if (now > startDateTime) {
+        addNotification({
+          type: 'WARNING',
+          title: 'För sent för incheckning',
+          message: 'Passet har redan startat.',
+        });
+        return false;
+      }
+
+      const bookingToUpdate = participantBookings.find(
+        (b) =>
+          b.participantId === participantId &&
+          b.scheduleId === scheduleId &&
+          b.classDate === date &&
+          (b.status === 'BOOKED' || b.status === 'WAITLISTED')
+      );
+      if (!bookingToUpdate) {
+        addNotification({
+          type: 'WARNING',
+          title: 'Incheckning Misslyckades',
+          message: 'Kunde inte hitta en aktiv bokning för detta pass.',
+        });
+        return false;
+      }
+
+      if (bookingToUpdate.status === 'WAITLISTED') {
+        const bookedCount = participantBookings.filter(
+          (b) =>
+            b.scheduleId === scheduleId &&
+            b.classDate === date &&
+            (b.status === 'BOOKED' || b.status === 'CHECKED-IN')
+        ).length;
+        if (bookedCount >= schedule.maxParticipants) {
+          addNotification({
+            type: 'WARNING',
+            title: 'Incheckning Misslyckades',
+            message: 'Passet är fullt. Du kan inte checka in från kölistan just nu.',
+          });
+          return false;
         }
       }
 
-      if (diff > 0 && diff < minUpcomingDiff) {
-        minUpcomingDiff = diff;
-        closestUpcomingSchedule = schedule;
+      setParticipantBookingsData((prev) =>
+        prev.map((b) => (b.id === bookingToUpdate.id ? { ...b, status: 'CHECKED-IN' as const } : b))
+      );
+
+      const classDef = definitions.find((d) => d.id === schedule?.groupClassId);
+      if (schedule && classDef) {
+        logAnalyticsEvent(
+          'CHECKIN',
+          {
+            participantId: participantId,
+            scheduleId: schedule.id,
+            classId: schedule.groupClassId,
+            classDate: date,
+            coachId: schedule.coachId,
+            locationId: schedule.locationId,
+            classType: classDef.name,
+            checkinType,
+          },
+          auth.organizationId
+        );
       }
-    }
 
-    if (closestValidSchedule) {
-      const classInstanceId = `${closestValidSchedule.id}-${todayStr}`;
-      return handleSelfCheckIn(participantId, classInstanceId, 'location_qr');
-    }
+      const attendanceRecord: GeneralActivityLog = {
+        type: 'general',
+        id: crypto.randomUUID(),
+        participantId: participantId,
+        activityName: `Incheckning: ${classDef?.name || 'Gruppass'}`,
+        durationMinutes: 0,
+        completedDate: new Date().toISOString(),
+        comment: `Självincheckning via QR-kod för pass den ${date}.`,
+      };
+      setGeneralActivityLogsData((prev) => [...prev, attendanceRecord]);
 
-    if (closestUpcomingSchedule) {
       addNotification({
-        type: 'WARNING',
-        title: 'För tidigt för incheckning',
-        message: 'Du kan checka in tidigast 15 min före passet.'
+        type: 'SUCCESS',
+        title: 'Incheckad!',
+        message: `Du är nu incheckad på ${classDef?.name || 'passet'}.`,
       });
-      return false;
-    } else {
-      addNotification({
-        type: 'WARNING',
-        title: 'För sent för incheckning',
-        message: 'Passet har redan startat, eller så finns inga fler pass idag.'
+      return true;
+    },
+    [
+      participantBookings,
+      groupClassSchedules,
+      definitions,
+      setParticipantBookingsData,
+      setGeneralActivityLogsData,
+      addNotification,
+      auth.organizationId,
+    ]
+  );
+
+  const handleLocationCheckIn = useCallback(
+    (participantId: string, locationId: string): boolean => {
+      if (!auth.organizationId) return false;
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+      const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay();
+      const nowInMinutes = now.getHours() * 60 + now.getMinutes();
+
+      const todaysSchedules = groupClassSchedules.filter((schedule) => {
+        if (schedule.locationId !== locationId) return false;
+        if (!schedule.daysOfWeek.includes(dayOfWeek)) return false;
+
+        const [startYear, startMonth, startDay] = schedule.startDate.split('-').map(Number);
+        const startDate = new Date(startYear, startMonth - 1, startDay);
+
+        const [endYear, endMonth, endDay] = schedule.endDate.split('-').map(Number);
+        const endDate = new Date(endYear, endMonth - 1, endDay);
+        endDate.setHours(23, 59, 59, 999);
+
+        return now >= startDate && now <= endDate;
       });
-      return false;
-    }
-  }, [groupClassSchedules, handleSelfCheckIn, addNotification, auth.organizationId]);
+
+      if (todaysSchedules.length === 0) {
+        addNotification({
+          type: 'WARNING',
+          title: 'Incheckning Misslyckades',
+          message: 'Ingen schemalagd klass hittades på denna plats idag.',
+        });
+        return false;
+      }
+
+      let closestValidSchedule: GroupClassSchedule | null = null;
+      let closestUpcomingSchedule: GroupClassSchedule | null = null;
+      let minValidDiff = Infinity;
+      let minUpcomingDiff = Infinity;
+
+      for (const schedule of todaysSchedules) {
+        const [hour, minute] = schedule.startTime.split(':').map(Number);
+        const scheduleTimeInMinutes = hour * 60 + minute;
+        const diff = scheduleTimeInMinutes - nowInMinutes;
+
+        if (nowInMinutes >= scheduleTimeInMinutes - 15 && nowInMinutes <= scheduleTimeInMinutes) {
+          if (diff < minValidDiff) {
+            minValidDiff = diff;
+            closestValidSchedule = schedule;
+          }
+        }
+
+        if (diff > 0 && diff < minUpcomingDiff) {
+          minUpcomingDiff = diff;
+          closestUpcomingSchedule = schedule;
+        }
+      }
+
+      if (closestValidSchedule) {
+        const classInstanceId = `${closestValidSchedule.id}-${todayStr}`;
+        return handleSelfCheckIn(participantId, classInstanceId, 'location_qr');
+      }
+
+      if (closestUpcomingSchedule) {
+        addNotification({
+          type: 'WARNING',
+          title: 'För tidigt för incheckning',
+          message: 'Du kan checka in tidigast 15 min före passet.',
+        });
+        return false;
+      } else {
+        addNotification({
+          type: 'WARNING',
+          title: 'För sent för incheckning',
+          message: 'Passet har redan startat, eller så finns inga fler pass idag.',
+        });
+        return false;
+      }
+    },
+    [groupClassSchedules, handleSelfCheckIn, addNotification, auth.organizationId]
+  );
 
   const handleToggleReaction = useCallback(
     (logId: string, logType: FlowItemLogType, emoji: string) => {
       if (!auth.currentParticipantId) return;
 
-      const updater = (logs: any[]) => {
-        return logs.map((log) => {
+      const updater = (logs: any[]) =>
+        logs.map((log) => {
           if (log.id === logId) {
-            const myReactions = (log.reactions || []).filter((r: { participantId: string }) => r.participantId === auth.currentParticipantId);
+            const myReactions = (log.reactions || []).filter(
+              (r: { participantId: string }) => r.participantId === auth.currentParticipantId
+            );
             let updatedReactions = [...(log.reactions || [])];
 
             if (myReactions.length > 0) {
               const myExistingReaction = myReactions.find((r: { emoji: string }) => r.emoji === emoji);
               updatedReactions = updatedReactions.filter((r) => r.participantId !== auth.currentParticipantId);
               if (!myExistingReaction) {
-                updatedReactions.push({ participantId: auth.currentParticipantId, emoji, createdDate: new Date().toISOString() });
+                updatedReactions.push({
+                  participantId: auth.currentParticipantId,
+                  emoji,
+                  createdDate: new Date().toISOString(),
+                });
               }
             } else {
-              updatedReactions.push({ participantId: auth.currentParticipantId, emoji, createdDate: new Date().toISOString() });
+              updatedReactions.push({
+                participantId: auth.currentParticipantId,
+                emoji,
+                createdDate: new Date().toISOString(),
+              });
             }
             return { ...log, reactions: updatedReactions };
           }
           return log;
         });
-      };
 
       switch (logType) {
         case 'workout':
@@ -1075,15 +1159,8 @@ const AppContent: React.FC = () => {
         createdDate: new Date().toISOString(),
       };
 
-      const updater = (logs: any[]) => {
-        return logs.map((log) => {
-          if (log.id === logId) {
-            const updatedComments = [...(log.comments || []), newComment];
-            return { ...log, comments: updatedComments };
-          }
-          return log;
-        });
-      };
+      const updater = (logs: any[]) =>
+        logs.map((log) => (log.id === logId ? { ...log, comments: [...(log.comments || []), newComment] } : log));
 
       switch (logType) {
         case 'workout':
@@ -1140,15 +1217,12 @@ const AppContent: React.FC = () => {
 
   const handleDeleteComment = useCallback(
     (logId: string, logType: FlowItemLogType, commentId: string) => {
-      const updater = (logs: any[]) => {
-        return logs.map((log) => {
-          if (log.id === logId) {
-            const updatedComments = (log.comments || []).filter((c: { id: string }) => c.id !== commentId);
-            return { ...log, comments: updatedComments };
-          }
-          return log;
-        });
-      };
+      const updater = (logs: any[]) =>
+        logs.map((log) =>
+          log.id === logId
+            ? { ...log, comments: (log.comments || []).filter((c: { id: string }) => c.id !== commentId) }
+            : log
+        );
 
       switch (logType) {
         case 'workout':
@@ -1204,27 +1278,25 @@ const AppContent: React.FC = () => {
       if (!auth.currentParticipantId) return;
       const participantId = auth.currentParticipantId;
 
-      const updater = (prevLogs: any[]) => {
-        return prevLogs.map((log) => {
+      const updater = (prevLogs: any[]) =>
+        prevLogs.map((log) => {
           if (log.id === logId) {
             const updatedComments = (log.comments || []).map((comment: any) => {
-              if (comment.id === commentId) {
-                const existingReactions = comment.reactions || [];
-                const myReactionIndex = existingReactions.findIndex((r: { participantId: string }) => r.participantId === participantId);
-
-                if (myReactionIndex > -1) {
-                  return { ...comment, reactions: existingReactions.filter((_: any, index: number) => index !== myReactionIndex) };
-                } else {
-                  return { ...comment, reactions: [...existingReactions, { participantId, emoji: '❤️', createdDate: new Date().toISOString() }] };
-                }
+              const existingReactions = comment.reactions || [];
+              const myReactionIndex = existingReactions.findIndex((r: { participantId: string }) => r.participantId === participantId);
+              if (comment.id !== commentId) return comment;
+              if (myReactionIndex > -1) {
+                return { ...comment, reactions: existingReactions.filter((_: any, idx: number) => idx !== myReactionIndex) };
               }
-              return comment;
+              return {
+                ...comment,
+                reactions: [...existingReactions, { participantId, emoji: '❤️', createdDate: new Date().toISOString() }],
+              };
             });
             return { ...log, comments: updatedComments };
           }
           return log;
         });
-      };
 
       switch (logType) {
         case 'workout':
@@ -1276,13 +1348,13 @@ const AppContent: React.FC = () => {
     ]
   );
 
-  const prospectModalShownKey = auth.currentParticipantId ? `flexibel_prospectProfileModalShown_${auth.currentParticipantId}` : null;
+  const prospectModalShownKey = auth.currentParticipantId
+    ? `flexibel_prospectProfileModalShown_${auth.currentParticipantId}`
+    : null;
 
   useEffect(() => {
     if (auth.currentRole === 'participant' && auth.currentParticipantId && participantDirectory.length > 0) {
-      if (!welcomeModalShown) {
-        setIsWelcomeModalOpen(true);
-      }
+      if (!welcomeModalShown) setIsWelcomeModalOpen(true);
 
       const participantProfile = participantDirectory.find((p) => p.id === auth.currentParticipantId);
       const membership = participantProfile ? memberships.find((m) => m.id === participantProfile.membershipId) : null;
@@ -1290,122 +1362,132 @@ const AppContent: React.FC = () => {
         const isProfileComplete = !!(participantProfile?.birthDate && participantProfile?.gender && participantProfile?.gender !== '-');
         if (!isProfileComplete) {
           const hasBeenShown = prospectModalShownKey ? localStorage.getItem(prospectModalShownKey) === 'true' : false;
-          if (!hasBeenShown) {
-            setOpenProfileModalOnInit(true);
-          }
+          if (!hasBeenShown) setOpenProfileModalOnInit(true);
         }
-      }
-    }
-  }, [auth.currentRole, auth.currentParticipantId, welcomeModalShown, participantDirectory, prospectModalShownKey, memberships]);
-
-const handleCancelClassInstance = useCallback(async (scheduleId: string, classDate: string) => {
-  // Redan inställt?
-  const alreadyCancelled = groupClassScheduleExceptions.some(ex => ex.scheduleId === scheduleId && ex.date === classDate);
-  if (alreadyCancelled) {
-    addNotification({ type: 'INFO', title: 'Redan inställt', message: 'Detta pass är redan markerat som inställt.' });
-    return;
-  }
-
-  // 0) Räkna fram vilka som berörs (innan något skrivs om)
-  const bookingsToCancelNow = participantBookings.filter(
-    b => b.scheduleId === scheduleId &&
-         b.classDate === classDate &&
-         (b.status === 'BOOKED' || b.status === 'CHECKED-IN' || b.status === 'WAITLISTED')
-  );
-  const affectedParticipantIds = new Set(bookingsToCancelNow.map(b => b.participantId));
-
-  // 1) Kör backend-funktionen FÖRST så den kan skicka push till aktiva bokningar
-  if (auth.organizationId && !firebaseService.isOffline()) {
-    try {
-      await cancelClassInstanceFn({
-        orgId: auth.organizationId,
-        scheduleId,
-        classDate,
-        // Om din Cloud Function kan ta emot mottagarlista, skicka gärna med:
-        recipients: Array.from(affectedParticipantIds),
-      });
-      console.log("Cloud function 'cancelClassInstance' invoked successfully.");
-    } catch (error) {
-      console.error("Error calling 'cancelClassInstance':", error);
-      addNotification({
-        type: 'ERROR',
-        title: 'Notifieringsfel',
-        message: 'Ett fel uppstod vid utskick av notiser. Försök igen.',
-      });
-      return; // Avbryt – skriv inte om lokalt om backend misslyckades
-    }
-  }
-
-  // 2) Optimistic/klient-uppdateringar EFTER att backend har kört klart
-
-  // a) Skapa exception
-  const newException: GroupClassScheduleException = {
-    id: crypto.randomUUID(),
-    scheduleId,
-    date: classDate,
-    createdBy: { uid: auth.user!.id, name: auth.user!.name },
-    createdAt: new Date().toISOString(),
-  };
-  setGroupClassScheduleExceptionsData(prev => [...prev, newException]);
-
-  // b) Avboka + återbetala ev. klipp
-  if (affectedParticipantIds.size > 0) {
-    const participantIdsToRefundClips = new Set<string>();
-
-    const updatedBookings = participantBookings.map(booking => {
-      if (bookingsToCancelNow.some(b => b.id === booking.id)) {
-        if (booking.status !== 'WAITLISTED') {
-          const participant = participantDirectory.find(p => p.id === booking.participantId);
-          const membership = memberships.find(m => m.id === participant?.membershipId);
-          if (membership?.type === 'clip_card') participantIdsToRefundClips.add(booking.participantId);
-        }
-        return { ...booking, status: 'CANCELLED' as const, cancelReason: 'coach_cancelled' as const };
-      }
-      return booking;
-    });
-    setParticipantBookingsData(updatedBookings);
-
-    if (participantIdsToRefundClips.size > 0) {
-      setParticipantDirectoryData(prev =>
-        prev.map(p =>
-          participantIdsToRefundClips.has(p.id) && p.clipCardStatus
-            ? { ...p, clipCardStatus: { ...p.clipCardStatus, remainingClips: (p.clipCardStatus.remainingClips || 0) + 1 } }
-            : p
-        )
-      );
-    }
-  }
-
-  // c) Coach-feedback
-  const classDef = definitions.find(d => d.id === groupClassSchedules.find(s => s.id === scheduleId)?.groupClassId);
-  addNotification({
-    type: 'SUCCESS',
-    title: 'Pass Inställt',
-    message: `Passet ${classDef?.name || ''} har ställts in. ${affectedParticipantIds.size} deltagare har meddelats.`,
-  });
-}, [
-  auth.user, auth.organizationId, groupClassScheduleExceptions, participantBookings, participantDirectory,
-  memberships, definitions, groupClassSchedules,
-  setGroupClassScheduleExceptionsData, setParticipantBookingsData, setParticipantDirectoryData, addNotification,
-]);
-
-    if (auth.organizationId && !firebaseService.isOffline()) {
-      try {
-        await cancelClassInstanceFn({ orgId: auth.organizationId, scheduleId, classDate });
-        console.log("Cloud function 'cancelClassInstance' invoked successfully.");
-      } catch (error) {
-        console.error("Error calling 'cancelClassInstance' cloud function:", error);
-        addNotification({
-          type: 'ERROR',
-          title: 'Notifieringsfel',
-          message: 'Ett fel uppstod vid utskick av notiser. Databasen är dock uppdaterad.',
-        });
       }
     }
   }, [
-    auth.user, auth.organizationId, groupClassScheduleExceptions, participantBookings, participantDirectory, memberships, definitions, groupClassSchedules,
-    setGroupClassScheduleExceptionsData, setParticipantBookingsData, setParticipantDirectoryData, addNotification,
+    auth.currentRole,
+    auth.currentParticipantId,
+    welcomeModalShown,
+    participantDirectory,
+    prospectModalShownKey,
+    memberships,
   ]);
+
+  // ✅ FIXAD: EN enda async useCallback, inga lösa "await" efteråt
+  const handleCancelClassInstance = useCallback(
+    async (scheduleId: string, classDate: string) => {
+      // Redan inställt?
+      const alreadyCancelled = groupClassScheduleExceptions.some(
+        (ex) => ex.scheduleId === scheduleId && ex.date === classDate
+      );
+      if (alreadyCancelled) {
+        addNotification({
+          type: 'INFO',
+          title: 'Redan inställt',
+          message: 'Detta pass är redan markerat som inställt.',
+        });
+        return;
+      }
+
+      // Vilka berörs?
+      const bookingsToCancelNow = participantBookings.filter(
+        (b) =>
+          b.scheduleId === scheduleId &&
+          b.classDate === classDate &&
+          (b.status === 'BOOKED' || b.status === 'CHECKED-IN' || b.status === 'WAITLISTED')
+      );
+      const affectedParticipantIds = new Set(bookingsToCancelNow.map((b) => b.participantId));
+
+      // Kör backend (sköter push/notiser)
+      if (auth.organizationId && !firebaseService.isOffline()) {
+        try {
+          await cancelClassInstanceFn({
+            orgId: auth.organizationId,
+            scheduleId,
+            classDate,
+            recipients: Array.from(affectedParticipantIds),
+          });
+          console.log("Cloud function 'cancelClassInstance' invoked successfully.");
+        } catch (error) {
+          console.error("Error calling 'cancelClassInstance':", error);
+          addNotification({
+            type: 'ERROR',
+            title: 'Notifieringsfel',
+            message: 'Ett fel uppstod vid utskick av notiser. Försök igen.',
+          });
+          return; // skriv inte om lokalt om backend failar
+        }
+      }
+
+      // Optimistiska klient-uppdateringar
+      const newException: GroupClassScheduleException = {
+        id: crypto.randomUUID(),
+        scheduleId,
+        date: classDate,
+        createdBy: { uid: auth.user!.id, name: auth.user!.name },
+        createdAt: new Date().toISOString(),
+      };
+      setGroupClassScheduleExceptionsData((prev) => [...prev, newException]);
+
+      if (affectedParticipantIds.size > 0) {
+        const participantIdsToRefundClips = new Set<string>();
+
+        const updatedBookings = participantBookings.map((booking) => {
+          if (bookingsToCancelNow.some((b) => b.id === booking.id)) {
+            if (booking.status !== 'WAITLISTED') {
+              const participant = participantDirectory.find((p) => p.id === booking.participantId);
+              const membership = memberships.find((m) => m.id === participant?.membershipId);
+              if (membership?.type === 'clip_card') participantIdsToRefundClips.add(booking.participantId);
+            }
+            return { ...booking, status: 'CANCELLED' as const, cancelReason: 'coach_cancelled' as const };
+          }
+          return booking;
+        });
+        setParticipantBookingsData(updatedBookings);
+
+        if (participantIdsToRefundClips.size > 0) {
+          setParticipantDirectoryData((prev) =>
+            prev.map((p) =>
+              participantIdsToRefundClips.has(p.id) && p.clipCardStatus
+                ? {
+                    ...p,
+                    clipCardStatus: {
+                      ...p.clipCardStatus,
+                      remainingClips: (p.clipCardStatus.remainingClips || 0) + 1,
+                    },
+                  }
+                : p
+            )
+          );
+        }
+      }
+
+      const classDef = definitions.find(
+        (d) => d.id === groupClassSchedules.find((s) => s.id === scheduleId)?.groupClassId
+      );
+      addNotification({
+        type: 'SUCCESS',
+        title: 'Pass Inställt',
+        message: `Passet ${classDef?.name || ''} har ställts in. ${affectedParticipantIds.size} deltagare har meddelats.`,
+      });
+    },
+    [
+      auth.user,
+      auth.organizationId,
+      groupClassScheduleExceptions,
+      participantBookings,
+      participantDirectory,
+      memberships,
+      definitions,
+      groupClassSchedules,
+      setGroupClassScheduleExceptionsData,
+      setParticipantBookingsData,
+      setParticipantDirectoryData,
+      addNotification,
+    ]
+  );
 
   const handleProfileModalOpened = useCallback(() => {
     const participantProfile = participantDirectory.find((p) => p.id === auth.currentParticipantId);
@@ -1447,7 +1529,8 @@ const handleCancelClassInstance = useCallback(async (scheduleId: string, classDa
           <div className="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-md space-y-4 text-center">
             <h2 className="text-3xl font-semibold text-green-700">Tack för din registrering!</h2>
             <p className="text-lg text-gray-600">
-              Ditt konto väntar på godkännande av en coach. Godkännande sker vanligtvis inom 2 timmar. Du kommer inte kunna logga in förrän det är godkänt.
+              Ditt konto väntar på godkännande av en coach. Godkännande sker vanligtvis inom 2 timmar. Du kommer inte
+              kunna logga in förrän det är godkänt.
             </p>
             <Button
               onClick={() => {
@@ -1465,12 +1548,9 @@ const handleCancelClassInstance = useCallback(async (scheduleId: string, classDa
     }
 
     if (!auth.user) {
-      if (view === 'login') {
-        return <Login onSwitchToRegister={() => setView('register')} />;
-      }
-      if (view === 'register') {
+      if (view === 'login') return <Login onSwitchToRegister={() => setView('register')} />;
+      if (view === 'register')
         return <Register onSwitchToLogin={() => setView('login')} onRegistrationSuccess={() => setRegistrationPendingMessage(true)} />;
-      }
     }
 
     if (auth.user && isOrgDataLoading) {
@@ -1554,7 +1634,6 @@ const handleCancelClassInstance = useCallback(async (scheduleId: string, classDa
     auth.isImpersonating,
     auth.viewAsParticipant,
     auth.stopViewingAsParticipant,
-    auth.logout,
     isGlobalDataLoading,
     isOrgDataLoading,
     cachedLogo,
@@ -1603,9 +1682,13 @@ const handleCancelClassInstance = useCallback(async (scheduleId: string, classDa
       </main>
       <DevToolbar />
 
-      {showLatestUpdateView && <UpdateNoticeModal show={showLatestUpdateView} onClose={() => setShowLatestUpdateView(false)} />}
+      {showLatestUpdateView && (
+        <UpdateNoticeModal show={showLatestUpdateView} onClose={() => setShowLatestUpdateView(false)} />
+      )}
 
-      {showTermsModal && <TermsModal isOpen={showTermsModal} onClose={() => {}} onAccept={handleAcceptTerms} isBlocking={true} />}
+      {showTermsModal && (
+        <TermsModal isOpen={showTermsModal} onClose={() => {}} onAccept={handleAcceptTerms} isBlocking={true} />
+      )}
     </div>
   );
 };
