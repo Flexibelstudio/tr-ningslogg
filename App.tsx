@@ -14,7 +14,7 @@ import { TermsModal } from './components/TermsModal';
 import { WelcomeModal } from './components/participant/WelcomeModal';
 import { UpdateNoticeModal } from './components/participant/UpdateNoticeModal';
 import { LOCAL_STORAGE_KEYS } from './constants';
-import { FlowItemLogType, User, UserRole, GeneralActivityLog, ParticipantProfile, GroupClassScheduleException } from './types';
+import { FlowItemLogType, User, UserRole, GeneralActivityLog, ParticipantProfile, GroupClassScheduleException, CoachEvent } from './types';
 import { useNotifications } from './context/NotificationsContext';
 import { logAnalyticsEvent } from './utils/analyticsLogger';
 import firebaseService from './services/firebaseService';
@@ -86,7 +86,8 @@ const AppContent: React.FC = () => {
     setCoachEventsData,
     setOneOnOneSessionsData,
     groupClassScheduleExceptions,
-    setGroupClassScheduleExceptionsData
+    setGroupClassScheduleExceptionsData,
+    locations,
   } = useAppContext();
 
   const auth = useAuth();
@@ -1181,19 +1182,21 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
         (b) => b.scheduleId === scheduleId && b.classDate === classDate && (b.status === 'BOOKED' || b.status === 'CHECKED-IN' || b.status === 'WAITLISTED')
     );
 
-    if (bookingsToCancel.length === 0) {
+    const affectedParticipantIds = new Set<string>(bookingsToCancel.map(b => b.participantId));
+
+    if (affectedParticipantIds.size === 0) {
         addNotification({ type: 'SUCCESS', title: 'Pass Inställt', message: 'Passet har ställts in. Inga deltagare var bokade.' });
         return;
     }
 
-    const participantIdsToRefund = new Set<string>();
+    const participantIdsToRefundClips = new Set<string>();
     const updatedBookings = participantBookings.map(booking => {
         if (bookingsToCancel.some(b => b.id === booking.id)) {
             if (booking.status !== 'WAITLISTED') {
                 const participant = participantDirectory.find(p => p.id === booking.participantId);
                 const membership = memberships.find(m => m.id === participant?.membershipId);
                 if (membership?.type === 'clip_card') {
-                    participantIdsToRefund.add(booking.participantId);
+                    participantIdsToRefundClips.add(booking.participantId);
                 }
             }
             return { ...booking, status: 'CANCELLED' as const };
@@ -1202,7 +1205,7 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
     });
 
     const updatedParticipants = participantDirectory.map(p => {
-        if (participantIdsToRefund.has(p.id) && p.clipCardStatus) {
+        if (participantIdsToRefundClips.has(p.id) && p.clipCardStatus) {
             return { ...p, clipCardStatus: { ...p.clipCardStatus, remainingClips: (p.clipCardStatus.remainingClips || 0) + 1 } };
         }
         return p;
@@ -1213,10 +1216,31 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
 
     const schedule = groupClassSchedules.find(s => s.id === scheduleId);
     const classDef = definitions.find(d => d.id === schedule?.groupClassId);
+
+    // Create CoachEvent for affected users
+    if (affectedParticipantIds.size > 0 && classDef && schedule) {
+        const location = locations.find(l => l.id === schedule.locationId);
+        const studioTargetForEvent: 'salem' | 'karra' | 'all' = 
+            location?.name.toLowerCase().includes('salem') ? 'salem' :
+            location?.name.toLowerCase().includes('karra') ? 'karra' : 'all';
+
+        const date = new Date(classDate);
+        const dateString = `${date.getDate()} ${date.toLocaleString('sv-SE', { month: 'long' })}`;
+        
+        const cancelledEvent: Omit<CoachEvent, 'id' | 'createdDate'> = {
+            title: `INSTÄLLT: ${classDef.name}`,
+            description: `Passet ${classDef.name} (${location?.name}) den ${dateString} kl ${schedule.startTime} är tyvärr inställt.`,
+            type: 'news',
+            studioTarget: studioTargetForEvent,
+            targetParticipantIds: Array.from(affectedParticipantIds),
+        };
+        setCoachEventsData(prev => [...prev, { ...cancelledEvent, id: crypto.randomUUID(), createdDate: new Date().toISOString() }]);
+    }
+    
     addNotification({
         type: 'SUCCESS',
         title: 'Pass Inställt',
-        message: `Passet ${classDef?.name || ''} har ställts in. ${new Set(bookingsToCancel.map(b => b.participantId)).size} deltagare kommer att meddelas.`,
+        message: `Passet ${classDef?.name || ''} har ställts in. ${affectedParticipantIds.size} deltagare kommer att meddelas.`,
     });
 
     // Call the cloud function to perform backend actions & send notifications
@@ -1233,7 +1257,11 @@ const handleLocationCheckIn = useCallback((participantId: string, locationId: st
             });
         }
     }
-}, [participantBookings, setParticipantBookingsData, participantDirectory, setParticipantDirectoryData, memberships, addNotification, groupClassSchedules, definitions, auth.organizationId, groupClassScheduleExceptions, setGroupClassScheduleExceptionsData]);
+}, [
+    participantBookings, setParticipantBookingsData, participantDirectory, setParticipantDirectoryData, 
+    memberships, addNotification, groupClassSchedules, definitions, auth.organizationId, 
+    groupClassScheduleExceptions, setGroupClassScheduleExceptionsData, locations, setCoachEventsData
+]);
 
 
   const handleProfileModalOpened = useCallback(() => {
