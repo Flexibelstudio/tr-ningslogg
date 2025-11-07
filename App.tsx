@@ -40,6 +40,9 @@ import {
   addDoc,
   updateDoc,
   doc as fsDoc,
+  getFirestore,   // ⬅️ NY
+  setDoc,         // ⬅️ NY (används nedan för robust upsert)
+  doc,            // ⬅️ NY
 } from 'firebase/firestore';
 
 const CoachArea = lazy(() => import('./components/coach/CoachArea').then((m) => ({ default: m.CoachArea })));
@@ -70,12 +73,12 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 async function ensureWebPushSubscription(orgId: string, participantId: string) {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
     console.warn('[Push] Browser saknar SW/Push-stöd.');
     return;
   }
 
-  // 1) Registrera SW om det inte redan finns
+  // 1) Registrera SW
   const registration =
     (await navigator.serviceWorker.getRegistration()) ??
     (await navigator.serviceWorker.register('/sw.js'));
@@ -87,7 +90,7 @@ async function ensureWebPushSubscription(orgId: string, participantId: string) {
     return;
   }
 
-  // 3) Hämta/Skapa subscription (måste använda exakt samma VAPID public key som backend)
+  // 3) Skapa/hämta subscription
   const existing = await registration.pushManager.getSubscription();
   const subscription =
     existing ??
@@ -96,18 +99,25 @@ async function ensureWebPushSubscription(orgId: string, participantId: string) {
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
     }));
 
-  // 4) Spara/uppdatera i Firestore
+  // 4) Firestore-instans (fixen)
+  //  - Prova firebaseService.db
+  //  - Annars getFirestore(firebaseService.app) eller global getFirestore()
+  let db: any;
   try {
-    const db = firebaseService.db; // Firestore instans från din firebaseService
-    const subsCol = collection(db, 'organizations', orgId, 'userPushSubscriptions');
+    db =
+      (firebaseService as any).db ??
+      ((firebaseService as any).app ? getFirestore((firebaseService as any).app) : getFirestore());
+  } catch (e) {
+    db = getFirestore();
+  }
+  if (!db) {
+    console.error('[Push] Ingen Firestore-instans kunde skapas.');
+    return;
+  }
 
-    // matcha på participantId + endpoint
-    const q = query(
-      subsCol,
-      where('participantId', '==', participantId),
-      where('subscription.endpoint', '==', subscription.endpoint)
-    );
-    const snap = await getDocs(q);
+  // 5) Upsert i organizations/{orgId}/userPushSubscriptions
+  try {
+    const subsCol = collection(db, 'organizations', orgId, 'userPushSubscriptions');
 
     const json = subscription.toJSON() as any;
     const payload = {
@@ -120,8 +130,18 @@ async function ensureWebPushSubscription(orgId: string, participantId: string) {
       ua: navigator.userAgent,
     };
 
+    // Sök om exakt samma endpoint redan finns för denna participant
+    const q = query(
+      subsCol,
+      where('participantId', '==', participantId),
+      where('subscription.endpoint', '==', json.endpoint)
+    );
+    const snap = await getDocs(q);
+
     if (snap.empty) {
-      await addDoc(subsCol, payload);
+      // använd setDoc med egen id (stabilare än addDoc om du vill undvika dubletter)
+      const stableId = btoa(`${participantId}::${json.endpoint}`).replace(/=+$/,'');
+      await setDoc(doc(subsCol, stableId), payload);
       console.log('[Push] Ny prenumeration sparad.');
     } else {
       await updateDoc(fsDoc(db, snap.docs[0].ref.path), payload);
