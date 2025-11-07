@@ -17,8 +17,7 @@ import {
   UserStrengthStat,
   Location,
   ParticipantConditioningStat,
-  FlowItemLogType,
-  NotificationLog
+  FlowItemLogType
 } from '../../types';
 import { formatRelativeTime } from '../../utils/dateUtils';
 import { CLUB_DEFINITIONS, REACTION_EMOJIS, DEFAULT_COACH_EVENT_ICON } from '../../constants';
@@ -30,7 +29,7 @@ import { getHighestClubAchievements } from '../../services/gamificationService';
 import { Button } from '../Button';
 
 // --- NEW EXPANDED TYPES ---
-type FlowItemLog = WorkoutLog | GeneralActivityLog | CoachEvent | GoalCompletionLog | ParticipantClubMembership | UserStrengthStat | ParticipantPhysiqueStat | ParticipantGoalData | ParticipantConditioningStat | NotificationLog;
+type FlowItemLog = WorkoutLog | GeneralActivityLog | CoachEvent | GoalCompletionLog | ParticipantClubMembership | UserStrengthStat | ParticipantPhysiqueStat | ParticipantGoalData | ParticipantConditioningStat;
 
 interface FlowModalProps {
   isOpen: boolean;
@@ -60,7 +59,7 @@ interface FlowModalProps {
 interface FlowItem {
   id: string;
   date: Date;
-  type: 'COACH_EVENT' | 'NEW_PB' | 'CLUB_MEMBERSHIP' | 'WORKOUT_LOGGED' | 'FRIEND_WORKOUT_LOGGED' | 'GENERAL_ACTIVITY' | 'WEEKLY_CHALLENGE' | 'PHYSIQUE_UPDATE' | 'FSS_INCREASE' | 'GOAL_COMPLETED' | 'NEW_GOAL' | 'CONDITIONING_TEST' | 'NOTIFICATION_EVENT';
+  type: 'COACH_EVENT' | 'NEW_PB' | 'CLUB_MEMBERSHIP' | 'WORKOUT_LOGGED' | 'GENERAL_ACTIVITY' | 'WEEKLY_CHALLENGE' | 'PHYSIQUE_UPDATE' | 'FSS_INCREASE' | 'GOAL_COMPLETED' | 'NEW_GOAL' | 'CONDITIONING_TEST';
   icon: string;
   title: string;
   description: string;
@@ -247,8 +246,8 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
 FlowItemCard.displayName = 'FlowItemCard';
 
 const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, onToggleReaction, onAddComment, onDeleteComment, onToggleCommentReaction, locations, userConditioningStatsHistory }) => {
-    const { lastFlowViewTimestamp, notificationLogs } = useAppContext();
-    const data = { currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, locations, userConditioningStatsHistory, notificationLogs };
+    const data = { currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, locations, userConditioningStatsHistory };
+    const { lastFlowViewTimestamp } = useAppContext();
     const [visibleCount, setVisibleCount] = useState(15);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -317,15 +316,14 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
                 });
             }
             const hasAchievements = praiseItems.length > 0;
-            const isFriendPost = log.participantId !== data.currentUserId;
 
             items.push({
                 id: `log-${log.id}`,
                 date: new Date(log.completedDate),
-                type: isFriendPost ? 'FRIEND_WORKOUT_LOGGED' : (hasAchievements ? 'NEW_PB' : 'WORKOUT_LOGGED'),
-                icon: isFriendPost ? '👥' : (hasAchievements ? '⭐' : '🏋️'),
-                title: isFriendPost ? `har bokat ett pass!` : `loggade passet: ${workout?.title || 'Okänt pass'}`,
-                description: isFriendPost ? `${authorName} ska köra ${workout?.title || 'Okänt pass'}. Haka på?` : ``,
+                type: hasAchievements ? 'NEW_PB' : 'WORKOUT_LOGGED',
+                icon: hasAchievements ? '⭐' : '🏋️',
+                title: `loggade passet: ${workout?.title || 'Okänt pass'}`,
+                description: ``,
                 authorName,
                 log,
                 logType: 'workout',
@@ -526,28 +524,7 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
             }
         });
 
-        // 6. NEW: Notification Logs
-        (data.notificationLogs || []).forEach(log => {
-            if (log.participantId !== data.currentUserId) return; // Only show notifications to the recipient
-
-            let icon = 'ℹ️';
-            if (log.notificationType === 'WAITLIST_PROMOTION') icon = '🎟️';
-            if (log.notificationType === 'CLASS_CANCELLATION') icon = '⚠️';
-
-            items.push({
-                id: `notification-${log.id}`,
-                date: new Date(log.createdDate),
-                type: 'NOTIFICATION_EVENT',
-                icon: icon,
-                title: log.title,
-                description: log.message,
-                authorName: 'System',
-                log: log,
-                logType: 'notification_event',
-            });
-        });
-
-        // 7. Weekly Challenge (synthetic)
+        // 6. Weekly Challenge (synthetic)
         if (data.leaderboardSettings.weeklyPBChallengeEnabled || data.leaderboardSettings.weeklySessionChallengeEnabled) {
             const startOfWeek = dateUtils.getStartOfWeek(new Date());
             items.push({

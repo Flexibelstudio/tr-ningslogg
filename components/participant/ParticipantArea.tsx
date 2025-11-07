@@ -473,10 +473,15 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     );
 
     const myWorkoutLogs = useMemo(() => workoutLogs.filter(l => l.participantId === currentParticipantId).sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime()), [workoutLogs, currentParticipantId]);
+    const myStrengthStats = useMemo(() => userStrengthStats.filter(s => s.participantId === currentParticipantId), [userStrengthStats, currentParticipantId]);
+
     const latestStrengthStats = useMemo(() => {
-      const myStats = userStrengthStats.filter(s => s.participantId === currentParticipantId);
-      if (myStats.length === 0) return null;
-      return [...myStats].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
+      // FIX: Corrected logic to robustly find the latest strength stat entry specifically for the current user.
+      // This prevents data from other users from being displayed.
+      const participantStats = (userStrengthStats || []).filter(s => s.participantId === currentParticipantId);
+      if (participantStats.length === 0) return null;
+      // Sort the user's personal stats by date and return the most recent one.
+      return participantStats.sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
     }, [userStrengthStats, currentParticipantId]);
     
     // --- NEW: Waitlist Promotion Notification ---
@@ -721,7 +726,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     const myGeneralActivityLogs = useMemo(() => generalActivityLogs.filter(l => l.participantId === currentParticipantId), [generalActivityLogs, currentParticipantId]);
     const myGoalCompletionLogs = useMemo(() => goalCompletionLogs.filter(g => g.participantId === currentParticipantId), [goalCompletionLogs, currentParticipantId]);
     const myParticipantGoals = useMemo(() => participantGoals.filter(g => g.participantId === currentParticipantId), [participantGoals, currentParticipantId]);
-    const myStrengthStats = useMemo(() => userStrengthStats.filter(s => s.participantId === currentParticipantId), [userStrengthStats, currentParticipantId]);
+    
     const myConditioningStats = useMemo(() => userConditioningStatsHistory.filter(s => s.participantId === currentParticipantId), [userConditioningStatsHistory, currentParticipantId]);
     const myPhysiqueHistory = useMemo(() => participantPhysiqueHistory.filter(s => s.participantId === currentParticipantId), [participantPhysiqueHistory, currentParticipantId]);
     const myMentalWellbeing = useMemo(() => participantMentalWellbeing.find(w => w.id === currentParticipantId), [participantMentalWellbeing, currentParticipantId]);
