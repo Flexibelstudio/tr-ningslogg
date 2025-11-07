@@ -385,7 +385,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         integrationSettings = { enableQRCodeScanning: false, isBookingEnabled: false, isClientJourneyEnabled: true, isScheduleEnabled: true },
         groupClassSchedules = [],
         groupClassDefinitions = [],
-        groupClassScheduleExceptions = [],
+        groupClassScheduleExceptions,
         participantBookings: allParticipantBookings = [],
         userPushSubscriptions = [],
         setUserPushSubscriptionsData,
@@ -490,7 +490,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
 
     useEffect(() => {
         const prevBookings = prevBookingsRef.current;
-        if (!prevBookings) {
+        if (!prevBookings || !groupClassScheduleExceptions) {
             prevBookingsRef.current = myBookings;
             return;
         }
@@ -525,7 +525,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
 
             if (wasActive && isCancelledNow) {
                 // To confirm it was a coach cancellation, check if a general exception exists for this class instance.
-                const isInstanceCancelledByCoach = groupClassScheduleExceptions.some(
+                const isInstanceCancelledByCoach = groupClassScheduleExceptions && groupClassScheduleExceptions.some(
                     ex => ex.scheduleId === currentBooking.scheduleId && ex.date === currentBooking.classDate
                 );
 
@@ -1526,6 +1526,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                             currentParticipantId={currentParticipantId}
                             groupClassSchedules={groupClassSchedules}
                             groupClassDefinitions={groupClassDefinitions}
+                            groupClassScheduleExceptions={groupClassScheduleExceptions || []}
                             allParticipantBookings={allParticipantBookings}
                             locations={locations}
                             onCancelBooking={onCancelBooking}
@@ -1732,7 +1733,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 schedules={groupClassSchedules}
                 definitions={groupClassDefinitions}
                 bookings={allParticipantBookings}
-                groupClassScheduleExceptions={groupClassScheduleExceptions}
+                groupClassScheduleExceptions={groupClassScheduleExceptions || []}
                 staff={staffMembers}
                 onBookClass={onBookClass}
                 onCancelBooking={onCancelBooking}
