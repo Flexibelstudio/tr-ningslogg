@@ -385,7 +385,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         integrationSettings = { enableQRCodeScanning: false, isBookingEnabled: false, isClientJourneyEnabled: true, isScheduleEnabled: true },
         groupClassSchedules = [],
         groupClassDefinitions = [],
-        groupClassScheduleExceptions,
+        groupClassScheduleExceptions = [],
         participantBookings: allParticipantBookings = [],
         userPushSubscriptions = [],
         setUserPushSubscriptionsData,
@@ -490,7 +490,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
 
     useEffect(() => {
         const prevBookings = prevBookingsRef.current;
-        if (!prevBookings || !groupClassScheduleExceptions) {
+        if (!prevBookings) {
             prevBookingsRef.current = myBookings;
             return;
         }
@@ -523,24 +523,17 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             const wasActive = ['BOOKED', 'WAITLISTED', 'CHECKED-IN'].includes(prevBooking.status);
             const isCancelledNow = currentBooking.status === 'CANCELLED';
 
-            if (wasActive && isCancelledNow) {
-                // To confirm it was a coach cancellation, check if a general exception exists for this class instance.
-                const isInstanceCancelledByCoach = groupClassScheduleExceptions && groupClassScheduleExceptions.some(
-                    ex => ex.scheduleId === currentBooking.scheduleId && ex.date === currentBooking.classDate
-                );
-
-                if (isInstanceCancelledByCoach) {
-                     addNotification({
-                        type: 'WARNING',
-                        title: 'Pass Inställt!',
-                        message: `Ditt pass ${classDef.name}, ${dateString} kl ${timeString}, har tyvärr ställts in.`
-                    });
-                }
+            if (wasActive && isCancelledNow && currentBooking.cancelReason === 'coach_cancelled') {
+                 addNotification({
+                    type: 'WARNING',
+                    title: 'Pass Inställt!',
+                    message: `Ditt pass ${classDef.name}, ${dateString} kl ${timeString}, har tyvärr ställts in.`
+                });
             }
         });
         
         prevBookingsRef.current = myBookings;
-    }, [myBookings, addNotification, groupClassSchedules, groupClassDefinitions, groupClassScheduleExceptions]);
+    }, [myBookings, addNotification, groupClassSchedules, groupClassDefinitions]);
     // --- END: In-app Toast Notifications ---
 
     // --- NEW: Push Notification Logic ---
@@ -1526,7 +1519,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                             currentParticipantId={currentParticipantId}
                             groupClassSchedules={groupClassSchedules}
                             groupClassDefinitions={groupClassDefinitions}
-                            groupClassScheduleExceptions={groupClassScheduleExceptions || []}
+                            groupClassScheduleExceptions={groupClassScheduleExceptions}
                             allParticipantBookings={allParticipantBookings}
                             locations={locations}
                             onCancelBooking={onCancelBooking}
