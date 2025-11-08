@@ -114,67 +114,100 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* RIGHT SIDE CONTROLS */}
-        <div className="flex items-center gap-2 sm:gap-4">
+<div className="flex items-center gap-2 sm:gap-4">
+  {currentRole === UserRole.PARTICIPANT && (
+    <div className="flex items-center gap-1 sm:gap-2">
+      <button
+        onClick={onOpenGoalModal}
+        className="p-2 rounded-full text-flexibel hover:bg-flexibel/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel"
+        title="Mål & Plan"
+        aria-label="Mål & Plan"
+      >
+        <GoalIcon />
+      </button>
+
+      {aiRecept && (
+        <button
+          onClick={onOpenAiRecept}
+          className="p-2 rounded-full text-flexibel hover:bg-flexibel/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel"
+          title="AI Recept"
+          aria-label="AI Recept"
+        >
+          <AiReceptIcon />
+        </button>
+      )}
+
+      <button
+        onClick={onOpenFlowModal}
+        className="relative p-2 rounded-full text-flexibel hover:bg-flexibel/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel"
+        title="Flöde"
+        aria-label="Flöde"
+      >
+        <FlowIcon />
+        {newFlowItemsCount ? (
+          <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+            {newFlowItemsCount}
+          </span>
+        ) : null}
+      </button>
+
+      <button
+        onClick={onOpenCommunity}
+        className="relative p-2 rounded-full text-flexibel hover:bg-flexibel/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel"
+        title="Community"
+        aria-label="Community"
+      >
+        <CommunityIcon />
+        {pendingRequestsCount ? (
+          <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+            {pendingRequestsCount}
+          </span>
+        ) : null}
+      </button>
+    </div>
+  )}
+
+  {/* Aktivera notiser: synlig i topbaren på ≥sm (så den inte blockerar avatar-klick) */}
+  {currentRole === UserRole.PARTICIPANT && (
+    <div className="hidden sm:block">
+      <EnablePushButton small />
+    </div>
+  )}
+
+  {/* Avatar + meny (oförändrad) */}
+  <div className="relative" ref={menuRef}>
+    <button
+      onClick={() => setIsMenuOpen(prev => !prev)}
+      className="relative rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel transition-transform duration-200 hover:scale-105"
+      aria-haspopup="true"
+      aria-expanded={isMenuOpen}
+      aria-label="Öppna användarmeny"
+    >
+      <Avatar
+        name={currentUserProfile?.name || user.name}
+        photoURL={currentUserProfile?.photoURL}
+        className="h-9 w-9"
+      />
+      {hasUnreadUpdate && (
+        <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
+      )}
+    </button>
+
+    {isMenuOpen && (
+      <div
+        className="absolute right-0 mt-2 w-56 origin-top-right bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none animate-scale-in z-50"
+        role="menu"
+        aria-orientation="vertical"
+      >
+        <div className="py-1">
+          {/* ...din befintliga header + menyval... */}
+
+          {/* Lägg knappen även i menyn (bra för mobil) */}
           {currentRole === UserRole.PARTICIPANT && (
-            <div className="flex items-center gap-1 sm:gap-2">
-              <button onClick={onOpenGoalModal} className="p-2 rounded-full text-flexibel hover:bg-flexibel/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel" title="Mål & Plan" aria-label="Mål & Plan"><GoalIcon /></button>
-              {aiRecept && <button onClick={onOpenAiRecept} className="p-2 rounded-full text-flexibel hover:bg-flexibel/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel" title="AI Recept" aria-label="AI Recept"><AiReceptIcon /></button>}
-              <button onClick={onOpenFlowModal} className="relative p-2 rounded-full text-flexibel hover:bg-flexibel/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel" title="Flöde" aria-label="Flöde"><FlowIcon />
-                {newFlowItemsCount > 0 && (
-                  <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{newFlowItemsCount}</span>
-                )}
-              </button>
-              <button onClick={onOpenCommunity} className="relative p-2 rounded-full text-flexibel hover:bg-flexibel/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel" title="Community" aria-label="Community"><CommunityIcon />
-                {pendingRequestsCount > 0 && (
-                  <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{pendingRequestsCount}</span>
-                )}
-              </button>
+            <div className="px-4 py-2">
+              <EnablePushButton />
             </div>
           )}
-
-          {/* ⬅︎ ADD: a small always-visible “Aktivera notiser”-knapp (only for participants) */}
-          {currentRole === UserRole.PARTICIPANT && (
-            <div className="hidden sm:block"> 
-              <EnablePushButton small />
-            </div>
-          )}
-
-          {/* Avatar + menu */}
-          <div className="relative" ref={menuRef}>
-            <button
-              onClick={() => setIsMenuOpen(prev => !prev)}
-              className="relative rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel transition-transform duration-200 hover:scale-105"
-              aria-haspopup="true"
-              aria-expanded={isMenuOpen}
-              aria-label="Öppna användarmeny"
-            >
-              <Avatar 
-                name={currentUserProfile?.name || user.name} 
-                photoURL={currentUserProfile?.photoURL} 
-                className="h-9 w-9"
-              />
-              {hasUnreadUpdate && (
-                <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
-              )}
-            </button>
-
-            {isMenuOpen && (
-              <div
-                className="absolute right-0 mt-2 w-56 origin-top-right bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none animate-scale-in"
-                role="menu"
-                aria-orientation="vertical"
-              >
-                <div className="py-1">
-                  {/* header block as-is */}
-
-                  {/* ...other menu items... */}
-
-                  {/* ⬅︎ ADD: same action inside the menu (works on mobile too) */}
-                  {currentRole === UserRole.PARTICIPANT && (
-                    <div className="px-4 py-2">
-                      <EnablePushButton />
-                    </div>
-                  )}
 
                   {/* logout menu item as-is */}
                 </div>
