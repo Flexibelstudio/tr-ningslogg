@@ -26,6 +26,9 @@ import { logAnalyticsEvent } from './utils/analyticsLogger';
 import firebaseService from './services/firebaseService';
 import { cancelClassInstanceFn, notifyFriendsOnBookingFn } from './firebaseClient';
 
+// ✅ Ny import – ersätter inline push helpers
+import { ensureWebPushSubscription } from './utils/push';
+
 // Firestore v9
 import {
   collection, query, where, getDocs, updateDoc,
@@ -43,96 +46,6 @@ const LoadingSpinner = () => (
     <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-t-4 border-flexibel" />
   </div>
 );
-
-/* ───────────── Web Push helpers ───────────── */
-const VAPID_PUBLIC_KEY =
-  'BO21Yp3_p0o_5ce295-SC_pY9nZ8aGRi_SC2B5UF0jbl4M13nS2j52hce5C65a0gI55NUEM02eKYpOMYJ0pM5cE';
-
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = atob(base64);
-  const out = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; i++) out[i] = rawData.charCodeAt(i);
-  return out;
-}
-
-async function ensureWebPushSubscription(orgId: string, participantId: string) {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-    console.warn('[Push] SW/Push saknas i denna browser.');
-    return;
-  }
-
-  // 1) Registrera/återanvänd SW
-  const registration =
-    (await navigator.serviceWorker.getRegistration()) ??
-    (await navigator.serviceWorker.register('/sw.js'));
-
-  // 2) Be om permission (helst via user gesture – se ”Nästa steg”)
-  const permission = Notification.permission === 'default'
-    ? await Notification.requestPermission()
-    : Notification.permission;
-  if (permission !== 'granted') {
-    console.warn('[Push] Permission ej granted.');
-    return;
-  }
-
-  // 3) Skapa/hämta subscription
-  const existing = await registration.pushManager.getSubscription();
-  const subscription =
-    existing ??
-    (await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-    }));
-
-  // 4) Firestore-instans
-  let db: any;
-  try {
-    db = (firebaseService as any).db
-      ?? ((firebaseService as any).app ? getFirestore((firebaseService as any).app) : getFirestore());
-  } catch {
-    db = getFirestore();
-  }
-  if (!db) {
-    console.error('[Push] Ingen Firestore-instans.');
-    return;
-  }
-
-  // 5) Upsert i organizations/{orgId}/userPushSubscriptions
-  try {
-    const subsCol = collection(db, 'organizations', orgId, 'userPushSubscriptions');
-    const json = subscription.toJSON() as any;
-    const payload = {
-      participantId,
-      subscription: {
-        endpoint: json.endpoint,
-        keys: { p256dh: json.keys?.p256dh, auth: json.keys?.auth },
-      },
-      createdAt: new Date().toISOString(),
-      ua: navigator.userAgent,
-    };
-
-    const q = query(
-      subsCol,
-      where('participantId', '==', participantId),
-      where('subscription.endpoint', '==', json.endpoint),
-    );
-    const snap = await getDocs(q);
-
-    if (snap.empty) {
-      const stableId = btoa(`${participantId}::${json.endpoint}`).replace(/=+$/, '');
-      await setDoc(doc(subsCol, stableId), payload);
-      console.log('[Push] Ny prenumeration sparad.');
-    } else {
-      await updateDoc(fsDoc(db, snap.docs[0].ref.path), payload);
-      console.log('[Push] Prenumeration uppdaterad.');
-    }
-  } catch (err) {
-    console.error('[Push] Kunde inte spara prenumeration:', err);
-  }
-}
-/* ─────────────────────────────────────────── */
 
 const AppContent: React.FC = () => {
   // Publika routes
@@ -266,13 +179,12 @@ const AppContent: React.FC = () => {
     }
   }, [auth.organizationId, auth.isLoading]);
 
-  // Web push subscription när vi är deltagare
+  // ✅ Web push subscription när vi är deltagare (använder utils/push)
   useEffect(() => {
     if (auth.currentRole === 'participant' && auth.organizationId && auth.currentParticipantId) {
       const profile = participantDirectory.find(p => p.id === auth.currentParticipantId);
       const pushEnabled = profile?.notificationSettings?.pushEnabled ?? true;
       if (pushEnabled) {
-        // OBS: console-varning om detta inte triggas av user gesture är ofarlig – se ”Nästa steg”.
         ensureWebPushSubscription(auth.organizationId, auth.currentParticipantId);
       }
     }
@@ -432,6 +344,7 @@ const AppContent: React.FC = () => {
     if (!auth.organizationId) return;
     setParticipantBookingsData(prev => {
       const booking = prev.find(b => b.id === bookingId);
+      if (booking || true) {} // no-op to satisfy TS narrow below
       if (!booking || booking.status !== 'WAITLISTED') return prev;
       const schedule = groupClassSchedules.find(s => s.id === booking.scheduleId);
       if (!schedule) return prev;

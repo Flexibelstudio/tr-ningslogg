@@ -68,6 +68,7 @@ function normalizeDateKey(input: string): string {
   return s.slice(0, 10);
 }
 
+export { sendTestPush } from "./testPush";
 // -----------------------------------------------------------------------------
 // HTTP: Körs av Cloud Tasks för att skicka pass-påminnelse
 // -----------------------------------------------------------------------------
