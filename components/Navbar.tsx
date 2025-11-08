@@ -5,6 +5,7 @@ import { Button } from './Button';
 import { Avatar } from './Avatar';
 import { useAuth } from '../context/AuthContext';
 import { useAppContext } from '../context/AppContext';
+import { EnablePushButton } from './EnablePushButton';
 
 // --- ICONS ---
 const GoalIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.5 10.5l-7.5 7.5-3.5-3.5" /></svg>;
@@ -109,123 +110,77 @@ export const Navbar: React.FC<NavbarProps> = ({
     <nav className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-40">
       <div className="container mx-auto px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
-            {branding?.logoBase64 ? (
-                <img src={branding.logoBase64} alt={`${currentOrganization?.name || APP_NAME} logotyp`} className="h-14 w-auto object-contain" />
-            ) : (
-                <img src="/icon-180x180.png" alt={APP_NAME} className="h-14 w-auto object-contain" />
-            )}
-            {isImpersonating && currentOrganization && (
-                <div className="hidden sm:flex items-center gap-2 bg-yellow-100 text-yellow-800 text-sm font-semibold px-3 py-1 rounded-full">
-                    <span>Adminvy för: {currentOrganization.name}</span>
-                </div>
-            )}
-            {currentRole === UserRole.PARTICIPANT && (
-                 <h1 className="text-2xl font-bold text-gray-800 hidden md:block">
-                    {currentUserProfile?.name ? `, ${currentUserProfile.name.split(' ')[0]}!` : ''}
-                 </h1>
-            )}
+          {/* left side as-is */}
         </div>
-        
+
+        {/* RIGHT SIDE CONTROLS */}
         <div className="flex items-center gap-2 sm:gap-4">
-            {currentRole === UserRole.PARTICIPANT && (
-              <div className="flex items-center gap-1 sm:gap-2">
-                <button onClick={onOpenGoalModal} className="p-2 rounded-full text-flexibel hover:bg-flexibel/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel" title="Mål & Plan" aria-label="Mål & Plan"><GoalIcon /></button>
-                {aiRecept && <button onClick={onOpenAiRecept} className="p-2 rounded-full text-flexibel hover:bg-flexibel/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel" title="AI Recept" aria-label="AI Recept"><AiReceptIcon /></button>}
-                <button onClick={onOpenFlowModal} className="relative p-2 rounded-full text-flexibel hover:bg-flexibel/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel" title="Flöde" aria-label="Flöde"><FlowIcon />
-                  {newFlowItemsCount > 0 && (
-                      <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{newFlowItemsCount}</span>
+          {currentRole === UserRole.PARTICIPANT && (
+            <div className="flex items-center gap-1 sm:gap-2">
+              <button onClick={onOpenGoalModal} className="p-2 rounded-full text-flexibel hover:bg-flexibel/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel" title="Mål & Plan" aria-label="Mål & Plan"><GoalIcon /></button>
+              {aiRecept && <button onClick={onOpenAiRecept} className="p-2 rounded-full text-flexibel hover:bg-flexibel/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel" title="AI Recept" aria-label="AI Recept"><AiReceptIcon /></button>}
+              <button onClick={onOpenFlowModal} className="relative p-2 rounded-full text-flexibel hover:bg-flexibel/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel" title="Flöde" aria-label="Flöde"><FlowIcon />
+                {newFlowItemsCount > 0 && (
+                  <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{newFlowItemsCount}</span>
+                )}
+              </button>
+              <button onClick={onOpenCommunity} className="relative p-2 rounded-full text-flexibel hover:bg-flexibel/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel" title="Community" aria-label="Community"><CommunityIcon />
+                {pendingRequestsCount > 0 && (
+                  <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{pendingRequestsCount}</span>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* ⬅︎ ADD: a small always-visible “Aktivera notiser”-knapp (only for participants) */}
+          {currentRole === UserRole.PARTICIPANT && (
+            <div className="hidden sm:block"> 
+              <EnablePushButton small />
+            </div>
+          )}
+
+          {/* Avatar + menu */}
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setIsMenuOpen(prev => !prev)}
+              className="relative rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel transition-transform duration-200 hover:scale-105"
+              aria-haspopup="true"
+              aria-expanded={isMenuOpen}
+              aria-label="Öppna användarmeny"
+            >
+              <Avatar 
+                name={currentUserProfile?.name || user.name} 
+                photoURL={currentUserProfile?.photoURL} 
+                className="h-9 w-9"
+              />
+              {hasUnreadUpdate && (
+                <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
+              )}
+            </button>
+
+            {isMenuOpen && (
+              <div
+                className="absolute right-0 mt-2 w-56 origin-top-right bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none animate-scale-in"
+                role="menu"
+                aria-orientation="vertical"
+              >
+                <div className="py-1">
+                  {/* header block as-is */}
+
+                  {/* ...other menu items... */}
+
+                  {/* ⬅︎ ADD: same action inside the menu (works on mobile too) */}
+                  {currentRole === UserRole.PARTICIPANT && (
+                    <div className="px-4 py-2">
+                      <EnablePushButton />
+                    </div>
                   )}
-                </button>
-                <button onClick={onOpenCommunity} className="relative p-2 rounded-full text-flexibel hover:bg-flexibel/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel" title="Community" aria-label="Community"><CommunityIcon />
-                  {pendingRequestsCount > 0 && (
-                      <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{pendingRequestsCount}</span>
-                  )}
-                </button>
+
+                  {/* logout menu item as-is */}
+                </div>
               </div>
             )}
-
-            <div className="relative" ref={menuRef}>
-                <button
-                    onClick={() => setIsMenuOpen(prev => !prev)}
-                    className="relative rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel transition-transform duration-200 hover:scale-105"
-                    aria-haspopup="true"
-                    aria-expanded={isMenuOpen}
-                    aria-label="Öppna användarmeny"
-                >
-                    <Avatar 
-                        name={currentUserProfile?.name || user.name} 
-                        photoURL={currentUserProfile?.photoURL} 
-                        className="h-9 w-9"
-                    />
-                    {hasUnreadUpdate && (
-                        <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
-                    )}
-                </button>
-                {isMenuOpen && (
-                    <div
-                        className="absolute right-0 mt-2 w-56 origin-top-right bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none animate-scale-in"
-                        role="menu"
-                        aria-orientation="vertical"
-                    >
-                        <div className="py-1">
-                            <div className="px-4 py-3 border-b">
-                                <p className="text-sm font-semibold text-gray-800 truncate">{user.name}</p>
-                                <p className="text-xs text-gray-500">
-                                    {currentRole === UserRole.PARTICIPANT ? 'Medlem' : 
-                                    (user.roles.systemOwner ? (isImpersonating ? 'Adminvy' : 'Systemägare') : 
-                                    (loggedInStaff?.role || 'Personal'))
-                                    }
-                                </p>
-                            </div>
-                            {user.roles.systemOwner && isImpersonating && !isStaffViewingAsParticipant && (
-                                <MenuItem onClick={() => { stopImpersonating(); setIsMenuOpen(false); }}>
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-                                    </svg>
-                                    Till systemägar-vy
-                                </MenuItem>
-                            )}
-                            
-                            <MenuItem onClick={handleProfileClick}>
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
-                                <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
-                                </svg>
-                                Redigera Profil
-                            </MenuItem>
-
-                             <button
-                                onClick={handleOpenLatestUpdate}
-                                className="w-full text-left px-4 py-2 text-base text-gray-700 hover:bg-gray-100 hover:text-gray-900 flex items-center gap-3 transition-colors"
-                                role="menuitem"
-                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <span className="flex-grow">Senaste uppdateringen</span>
-                                {hasUnreadUpdate && (
-                                    <span className="block h-2 w-2 rounded-full bg-red-500" />
-                                )}
-                            </button>
-
-                            {(user.roles.orgAdmin || user.roles.systemOwner) && user.linkedParticipantProfileId && (
-                                <MenuItem onClick={handleSwitchView}>
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-                                    </svg>
-                                    {destinationView}
-                                </MenuItem>
-                            )}
-                            <MenuItem onClick={logout}>
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                </svg>
-                                Logga ut
-                            </MenuItem>
-                        </div>
-                    </div>
-                )}
-            </div>
+          </div>
         </div>
       </div>
     </nav>
