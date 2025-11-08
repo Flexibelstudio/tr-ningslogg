@@ -3,8 +3,8 @@ import React, { useState } from "react";
 import { httpsCallable, getFunctions } from "firebase/functions";
 import { getApp } from "firebase/app";
 import { useAuth } from "../context/AuthContext";
-import { ensureWebPushSubscription } from "./utils/push";
-import { Button } from "./Button";
+import { ensureWebPushSubscription } from "../utils/push";
+import { Button } from "../Button";
 
 export const AdminPushTestCard: React.FC = () => {
   const auth = useAuth();
