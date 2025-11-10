@@ -48,6 +48,12 @@ export async function ensureWebPushSubscription(orgId: string, participantId: st
       return;
     }
 
+    // utils/push.ts (tillfälligt debug)
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+console.log('[Push][DEBUG] VAPID_PUBLIC_KEY (first/last 10):',
+  VAPID_PUBLIC_KEY?.slice(0,10), '…', VAPID_PUBLIC_KEY?.slice(-10));
+
+
     // 3) Skapa/hämta subscription
     const existing = await registration.pushManager.getSubscription();
     const subscription =
