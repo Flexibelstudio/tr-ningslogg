@@ -3,11 +3,11 @@
 // SW uppdaterar sig själv (skipWaiting + clients.claim), rensar gamla caches,
 // stör inte API/Firebase och tål saknade precache-filer.
 
-const VERSION = '2025-11-07-1'; // bumpa när du vill tvinga alla att uppdatera
+const VERSION = '2025-11-11-1'; // bumpa när du vill tvinga alla att uppdatera
 
 // BUMPA dessa när du vill forcera ut ny version
-const STATIC_CACHE_NAME  = 'traningslogg-static-v21';
-const DYNAMIC_CACHE_NAME = 'traningslogg-dynamic-v16';
+const STATIC_CACHE_NAME  = 'traningslogg-static-v22';
+const DYNAMIC_CACHE_NAME = 'traningslogg-dynamic-v17';
 const MAX_DYNAMIC_ENTRIES = 80;
 
 const URLS_TO_CACHE = [
@@ -123,50 +123,45 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(fetch(req).catch(() => caches.match(req)));
 });
 
+/* ─────────────────────────────────────────────
+ * Push-notiser + klick-hantering
+ * ───────────────────────────────────────────*/
 self.addEventListener('push', (event) => {
-  console.log('[SW] Push Received.');
   let data = {};
-  try {
-    data = event.data.json();
-  } catch (e) {
-    console.error('[SW] Push event but no data');
-    data = { title: 'Ny notis', body: 'Du har fått en ny notis!' };
-  }
+  try { data = event.data?.json() || {}; } catch (_) {}
 
-  const title = data.title || 'Träningslogg';
-  const options = {
-    body: data.body || 'Ny händelse.',
-    icon: '/icon-192x192.png',
-    badge: '/favicon-32x32.png',
-    vibrate: [200, 100, 200],
-    tag: 'booking-notification', // Groups notifications
-    renotify: true,
-  };
-
-  event.waitUntil(self.registration.showNotification(title, options));
-});
-
-self.addEventListener('notificationclick', (event) => {
-  console.log('[SW] Notification click Received.');
-  event.notification.close();
+  const title = data.title || (data.notification?.title) || 'Flexibel Hälsostudio';
+  const body  = data.body  || (data.notification?.body)  || 'Ny notis';
+  const url   = data.url   || (data.notification?.click_action) || '/';
 
   event.waitUntil(
-    clients.matchAll({
-      type: "window",
-    }).then((clientList) => {
-      for (const client of clientList) {
-        // Just focus any open client for this app
-        if ('focus' in client) {
-          return client.focus();
-        }
-      }
-      if (clients.openWindow) {
-        return clients.openWindow('/');
-      }
+    self.registration.showNotification(title, {
+      body,
+      icon: '/icon-192x192.png',
+      badge: '/favicon-32x32.png',
+      vibrate: [200, 100, 200],
+      tag: 'booking-notification',
+      renotify: true,
+      data: { url },
     })
   );
 });
 
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification?.data?.url || '/';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientsArr) => {
+      const hadWindow = clientsArr.some((w) => {
+        if (w.url === url) { w.focus(); return true; }
+        return false;
+      });
+      if (!hadWindow) return clients.openWindow(url);
+    })
+  );
+});
+
+/* ───────────────────────────────────────────*/
 
 async function cacheFirst(request) {
   const cached = await caches.match(request);

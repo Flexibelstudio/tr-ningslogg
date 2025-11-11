@@ -114,6 +114,8 @@ export interface GroupClassScheduleException {
   id: string;
   scheduleId: string; // FK to GroupClassSchedule.id
   date: string; // YYYY-MM-DD of the cancelled instance
+  createdBy?: { uid: string; name: string };
+  createdAt: string; // ISO string
 }
 
 export interface ParticipantBooking {
@@ -124,6 +126,7 @@ export interface ParticipantBooking {
   bookingDate: string; // ISO string
   status: BookingStatus;
   reminderTaskId?: string;
+  cancelReason?: 'coach_cancelled' | 'participant_cancelled';
 }
 
 export interface OneOnOneSessionType {
@@ -643,6 +646,7 @@ export interface CoachEvent {
   eventDate?: string; // ISO string for the date, optional for news
   createdDate: string; // ISO string for when the item was created
   studioTarget: 'all' | 'salem' | 'karra';
+  targetParticipantIds?: string[];
   linkUrl?: string;
   linkButtonText?: string;
   reactions?: Reaction[];

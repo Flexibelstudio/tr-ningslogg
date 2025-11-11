@@ -316,7 +316,6 @@ interface ParticipantAreaProps {
     openGoalModal: () => void;
     openCommunityModal: () => void;
     openFlowModal: () => void;
-    openAiReceptModal: () => void;
   }) => void;
   newFlowItemsCount?: number;
   operationInProgress: string[];
@@ -409,7 +408,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     const [isLoadingAiFeedback, setIsLoadingAiFeedback] = useState(false);
     const [aiFeedbackError, setAiFeedbackError] = useState<string | null>(null);
     const [currentAiModalTitle, setCurrentAiModalTitle] = useState("Feedback");
-    const [isAiReceptModalOpen, setIsAiReceptModalOpen] = useState(false);
     const [isAICoachModalOpen, setIsAICoachModalOpen] = useState(false);
 
     const [isAIAssistantModalOpen, setIsAIAssistantModalOpen] = useState(false);
@@ -476,15 +474,11 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     const myStrengthStats = useMemo(() => userStrengthStats.filter(s => s.participantId === currentParticipantId), [userStrengthStats, currentParticipantId]);
 
     const latestStrengthStats = useMemo(() => {
-      // FIX: Corrected logic to robustly find the latest strength stat entry specifically for the current user.
-      // This prevents data from other users from being displayed.
-      const participantStats = (userStrengthStats || []).filter(s => s.participantId === currentParticipantId);
-      if (participantStats.length === 0) return null;
-      // Sort the user's personal stats by date and return the most recent one.
-      return participantStats.sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
-    }, [userStrengthStats, currentParticipantId]);
+        if (!myStrengthStats || myStrengthStats.length === 0) return null;
+        return myStrengthStats.sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
+    }, [myStrengthStats]);
     
-    // --- NEW: Waitlist Promotion Notification ---
+    // --- In-app Toast Notifications for booking changes ---
     const myBookings = useMemo(() => 
         allParticipantBookings.filter(b => b.participantId === currentParticipantId),
         [allParticipantBookings, currentParticipantId]
@@ -500,27 +494,44 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
 
         myBookings.forEach(currentBooking => {
             const prevBooking = prevBookings.find(b => b.id === currentBooking.id);
-            if (prevBooking && prevBooking.status === 'WAITLISTED' && currentBooking.status === 'BOOKED') {
-                const schedule = groupClassSchedules.find(s => s.id === currentBooking.scheduleId);
-                const classDef = groupClassDefinitions.find(d => d.id === schedule?.groupClassId);
-                
-                if (schedule && classDef) {
-                    const classDate = new Date(currentBooking.classDate);
-                    const dateString = classDate.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'short' });
-                    const timeString = schedule.startTime;
+            if (!prevBooking) return; // This is a new booking, not a status change.
+    
+            const schedule = groupClassSchedules.find(s => s.id === currentBooking.scheduleId);
+            const classDef = groupClassDefinitions.find(d => d.id === schedule?.groupClassId);
+            if (!schedule || !classDef) return;
+    
+            const classDate = new Date(currentBooking.classDate);
+            // Adjust for timezone offset before formatting to ensure correct date is displayed
+            const userTimezoneOffset = classDate.getTimezoneOffset() * 60000;
+            const localDate = new Date(classDate.getTime() + userTimezoneOffset);
+            const dateString = localDate.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'short' });
+            const timeString = schedule.startTime;
+    
+            // Case 1: Waitlist Promotion
+            if (prevBooking.status === 'WAITLISTED' && currentBooking.status === 'BOOKED') {
+                addNotification({
+                    type: 'SUCCESS',
+                    title: 'Du har fått en plats!',
+                    message: `Du har flyttats från kön och är nu bokad på ${classDef.name} ${dateString} kl ${timeString}.`
+                });
+            }
+            
+            // Case 2: Class Cancellation by Coach
+            const wasActive = ['BOOKED', 'WAITLISTED', 'CHECKED-IN'].includes(prevBooking.status);
+            const isCancelledNow = currentBooking.status === 'CANCELLED';
 
-                    addNotification({
-                        type: 'SUCCESS',
-                        title: 'Du har fått en plats!',
-                        message: `Du har flyttats från kön och har nu en bokad plats på ${classDef.name} ${dateString} kl ${timeString}.`
-                    });
-                }
+            if (wasActive && isCancelledNow && currentBooking.cancelReason === 'coach_cancelled') {
+                 addNotification({
+                    type: 'WARNING',
+                    title: 'Pass Inställt!',
+                    message: `Ditt pass ${classDef.name}, ${dateString} kl ${timeString}, har tyvärr ställts in.`
+                });
             }
         });
         
         prevBookingsRef.current = myBookings;
     }, [myBookings, addNotification, groupClassSchedules, groupClassDefinitions]);
-    // --- END: Waitlist Promotion Notification ---
+    // --- END: In-app Toast Notifications ---
 
     // --- NEW: Push Notification Logic ---
     useEffect(() => {
@@ -744,7 +755,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             openGoalModal: () => setIsGoalModalOpen(true),
             openCommunityModal: () => setIsCommunityModalOpen(true),
             openFlowModal: () => setIsFlowModalOpen(true),
-            openAiReceptModal: () => setIsAiReceptModalOpen(true),
         });
     }, [setParticipantModalOpeners]);
 
@@ -1547,7 +1557,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             message="Vill du ha personlig feedback från AI-coachen baserat på ditt senaste pass?"
         />
         <AIProgressFeedbackModal 
-            isOpen={isAiFeedbackModalOpen} 
+            isOpen={isAiFeedbackModalOpen}
             onClose={() => setIsAiFeedbackModalOpen(false)}
             isLoading={isLoadingAiFeedback}
             aiFeedback={aiFeedback}
@@ -1712,7 +1722,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 schedules={groupClassSchedules}
                 definitions={groupClassDefinitions}
                 bookings={allParticipantBookings}
-                groupClassScheduleExceptions={groupClassScheduleExceptions}
+                groupClassScheduleExceptions={groupClassScheduleExceptions || []}
                 staff={staffMembers}
                 onBookClass={onBookClass}
                 onCancelBooking={onCancelBooking}

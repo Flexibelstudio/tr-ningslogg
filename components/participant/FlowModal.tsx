@@ -277,16 +277,25 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
 
         // 1. Coach Events
         (data.coachEvents || []).forEach(event => {
-            if (event.studioTarget && event.studioTarget !== 'all') {
-                if (!currentUserLocation || !currentUserLocation.name.toLowerCase().includes(event.studioTarget)) {
-                    return; // Skip this event if location doesn't match
+            // Check for participant-specific targeting first
+            if (event.targetParticipantIds) {
+                if (!event.targetParticipantIds.includes(data.currentUserId)) {
+                    return; // It's a targeted event, but not for this user.
+                }
+            } else {
+                // Original logic for public events
+                if (event.studioTarget && event.studioTarget !== 'all') {
+                    if (!currentUserLocation || !currentUserLocation.name.toLowerCase().includes(event.studioTarget)) {
+                        return; // Skip event not for this user's studio
+                    }
                 }
             }
+            
             items.push({
                 id: `coach-${event.id}`,
                 date: new Date((event as any).createdDate || (event as any).date), // Handle old data
                 type: 'COACH_EVENT',
-                icon: DEFAULT_COACH_EVENT_ICON,
+                icon: event.title.includes("INSTÄLLT") ? '❗️' : DEFAULT_COACH_EVENT_ICON,
                 title: `${event.title}`,
                 description: (event.eventDate ? `Datum: ${new Date(event.eventDate).toLocaleDateString('sv-SE')}. ` : '') + (event.description || ''),
                 authorName: 'Coach',
