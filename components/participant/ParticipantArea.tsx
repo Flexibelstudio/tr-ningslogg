@@ -316,7 +316,6 @@ interface ParticipantAreaProps {
     openGoalModal: () => void;
     openCommunityModal: () => void;
     openFlowModal: () => void;
-    openAiReceptModal: () => void;
   }) => void;
   newFlowItemsCount?: number;
   operationInProgress: string[];
@@ -409,7 +408,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     const [isLoadingAiFeedback, setIsLoadingAiFeedback] = useState(false);
     const [aiFeedbackError, setAiFeedbackError] = useState<string | null>(null);
     const [currentAiModalTitle, setCurrentAiModalTitle] = useState("Feedback");
-    const [isAiReceptModalOpen, setIsAiReceptModalOpen] = useState(false);
     const [isAICoachModalOpen, setIsAICoachModalOpen] = useState(false);
 
     const [isAIAssistantModalOpen, setIsAIAssistantModalOpen] = useState(false);
@@ -757,7 +755,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             openGoalModal: () => setIsGoalModalOpen(true),
             openCommunityModal: () => setIsCommunityModalOpen(true),
             openFlowModal: () => setIsFlowModalOpen(true),
-            openAiReceptModal: () => setIsAiReceptModalOpen(true),
         });
     }, [setParticipantModalOpeners]);
 
@@ -1560,7 +1557,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             message="Vill du ha personlig feedback från AI-coachen baserat på ditt senaste pass?"
         />
         <AIProgressFeedbackModal 
-            isOpen={isAiFeedbackModalOpen} 
+            isOpen={isAiFeedbackModalOpen}
             onClose={() => setIsAiFeedbackModalOpen(false)}
             isLoading={isLoadingAiFeedback}
             aiFeedback={aiFeedback}

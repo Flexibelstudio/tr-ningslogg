@@ -25,30 +25,26 @@ import { useNotifications } from './context/NotificationsContext';
 import { logAnalyticsEvent } from './utils/analyticsLogger';
 import firebaseService from './services/firebaseService';
 import { cancelClassInstanceFn, notifyFriendsOnBookingFn } from './firebaseClient';
-
-// ✅ Ny import – ersätter inline push helpers
 import { ensureWebPushSubscription } from './utils/push';
+import { db } from './firebaseConfig';
 
-// Firestore v9
-import {
-  collection, query, where, getDocs, updateDoc,
-  getFirestore, setDoc, doc as fsDoc, doc,
-} from 'firebase/firestore';
-
+// --- Lazy Loaded Components ---
 const CoachArea = lazy(() => import('./components/coach/CoachArea').then(m => ({ default: m.CoachArea })));
 const ParticipantArea = lazy(() => import('./components/participant/ParticipantArea').then(m => ({ default: m.ParticipantArea })));
 const SystemOwnerArea = lazy(() => import('./components/SystemOwnerArea').then(m => ({ default: m.SystemOwnerArea })));
 const PublicLeadForm = lazy(() => import('./components/public/PublicLeadForm').then(m => ({ default: m.PublicLeadForm })));
 const ZapierWebhookHandler = lazy(() => import('./components/api/ZapierWebhookHandler').then(m => ({ default: m.ZapierWebhookHandler })));
 
+// --- Helper Components ---
 const LoadingSpinner = () => (
   <div className="fixed inset-0 flex items-center justify-center bg-gray-100 bg-opacity-75 z-50">
     <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-t-4 border-flexibel" />
   </div>
 );
 
+// --- Main App Content ---
 const AppContent: React.FC = () => {
-  // Publika routes
+  // --- Public Routes ---
   if (window.location.pathname.startsWith('/public/lead-form')) {
     return <Suspense fallback={<LoadingSpinner />}><PublicLeadForm /></Suspense>;
   }
@@ -56,23 +52,15 @@ const AppContent: React.FC = () => {
     return <Suspense fallback={<div>Processing...</div>}><ZapierWebhookHandler /></Suspense>;
   }
 
-  const {
-    participantDirectory, setParticipantDirectoryData, memberships, workoutLogs, generalActivityLogs,
-    coachEvents, oneOnOneSessions, participantBookings, setParticipantBookingsData, groupClassSchedules,
-    groupClassDefinitions: definitions, isOrgDataLoading, isGlobalDataLoading, branding, goalCompletionLogs,
-    clubMemberships, userStrengthStats, participantPhysiqueHistory, participantGoals, setParticipantGoalsData,
-    userConditioningStatsHistory, connections, lastFlowViewTimestamp, updateUser, setWorkoutLogsData,
-    setGeneralActivityLogsData, setGoalCompletionLogsData, setClubMembershipsData, setUserStrengthStatsData,
-    setParticipantPhysiqueHistoryData, setUserConditioningStatsHistoryData, setCoachEventsData,
-    setOneOnOneSessionsData, groupClassScheduleExceptions, setGroupClassScheduleExceptionsData,
-  } = useAppContext();
-
+  // --- Contexts ---
+  const appContext = useAppContext();
   const auth = useAuth();
   const { addNotification } = useNotifications();
+
+  // --- State ---
   const [view, setView] = useState<'login' | 'register'>('login');
   const [registrationPendingMessage, setRegistrationPendingMessage] = useState(false);
   const [operationInProgress, setOperationInProgress] = useState<string[]>([]);
-
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
   const [welcomeModalShown, setWelcomeModalShown] = useState(
     () => localStorage.getItem(LOCAL_STORAGE_KEYS.WELCOME_MESSAGE_SHOWN_PARTICIPANT) === 'true'
@@ -83,58 +71,21 @@ const AppContent: React.FC = () => {
     const lastOrgId = localStorage.getItem(LOCAL_STORAGE_KEYS.LAST_USED_ORG_ID);
     return lastOrgId ? localStorage.getItem(`flexibel_logo_${lastOrgId}`) : null;
   });
-
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [hasCheckedTerms, setHasCheckedTerms] = useState(false);
-
-  useEffect(() => {
-    if (auth.user && !auth.user.termsAcceptedTimestamp && !hasCheckedTerms) {
-      setShowTermsModal(true);
-      setHasCheckedTerms(true);
-    }
-  }, [auth.user, hasCheckedTerms]);
-
-  const handleAcceptTerms = useCallback(async () => {
-    if (!auth.user) return;
-    try {
-      await updateUser(auth.user.id, { termsAcceptedTimestamp: new Date().toISOString() });
-      setShowTermsModal(false);
-    } catch (e) {
-      console.error('Failed to accept terms:', e);
-      alert('Kunde inte spara ditt godkännande. Vänligen försök igen.');
-    }
-  }, [auth.user, updateUser]);
-
-  // Update notice
-  const UPDATE_NOTICE_KEY = 'updateNotice_v3_AICoach';
-  const LAST_SEEN_UPDATE_KEY = 'flexibel_lastSeenUpdateNotice';
   const [showLatestUpdateView, setShowLatestUpdateView] = useState(false);
   const [hasUnreadUpdate, setHasUnreadUpdate] = useState(false);
-  useEffect(() => {
-    if (auth.user && auth.currentRole === 'participant') {
-      if (localStorage.getItem(LAST_SEEN_UPDATE_KEY) !== UPDATE_NOTICE_KEY) setHasUnreadUpdate(true);
-    }
-  }, [auth.user, auth.currentRole]);
-  const handleOpenLatestUpdateView = useCallback(() => {
-    setShowLatestUpdateView(true);
-    localStorage.setItem(LAST_SEEN_UPDATE_KEY, UPDATE_NOTICE_KEY);
-    setHasUnreadUpdate(false);
-  }, []);
-
-  // Modal openers (Navbar ↔ ParticipantArea)
   const [participantModalOpeners, setParticipantModalOpeners] = useState({
-    openGoalModal: () => {}, openCommunityModal: () => {}, openFlowModal: () => {}, openAiReceptModal: () => {},
+    openGoalModal: () => {}, openCommunityModal: () => {}, openFlowModal: () => {},
   });
 
-  // Derived till Navbar
-  const { aiRecept, pendingRequestsCount, newFlowItemsCount } = useMemo(() => {
+  // --- Memos & Derived State ---
+  const { pendingRequestsCount, newFlowItemsCount } = useMemo(() => {
     if (auth.currentRole !== 'participant' || !auth.currentParticipantId) {
-      return { aiRecept: null, pendingRequestsCount: 0, newFlowItemsCount: 0 };
+      return { pendingRequestsCount: 0, newFlowItemsCount: 0 };
     }
-    const myGoals = participantGoals.filter(g => g.participantId === auth.currentParticipantId);
-    const sortedGoals = [...myGoals].sort((a, b) => +new Date(b.setDate) - +new Date(a.setDate));
-    const latestActiveGoal = sortedGoals.find(g => !g.isCompleted) || sortedGoals[0] || null;
-    const recept = latestActiveGoal?.aiPrognosis;
+    const { connections, lastFlowViewTimestamp, coachEvents, workoutLogs, generalActivityLogs, goalCompletionLogs, clubMemberships, userStrengthStats, participantPhysiqueHistory, participantGoals, userConditioningStatsHistory } = appContext;
+    
     const requests = connections.filter(c => c.receiverId === auth.currentParticipantId && c.status === 'pending').length;
 
     let count = 0;
@@ -164,12 +115,29 @@ const AppContent: React.FC = () => {
       });
       count = newItems.size;
     }
-    return { aiRecept: recept, pendingRequestsCount: requests, newFlowItemsCount: count };
+    return { pendingRequestsCount: requests, newFlowItemsCount: count };
   }, [
-    auth.currentRole, auth.currentParticipantId, participantGoals, connections, lastFlowViewTimestamp,
-    coachEvents, workoutLogs, generalActivityLogs, goalCompletionLogs, clubMemberships,
-    userStrengthStats, participantPhysiqueHistory, userConditioningStatsHistory,
+    auth.currentRole, auth.currentParticipantId, appContext.connections, appContext.lastFlowViewTimestamp, 
+    appContext.coachEvents, appContext.workoutLogs, appContext.generalActivityLogs, appContext.goalCompletionLogs, 
+    appContext.clubMemberships, appContext.userStrengthStats, appContext.participantPhysiqueHistory, 
+    appContext.participantGoals, appContext.userConditioningStatsHistory,
   ]);
+
+  // --- Effects ---
+  useEffect(() => {
+    if (auth.user && !auth.user.termsAcceptedTimestamp && !hasCheckedTerms) {
+      setShowTermsModal(true);
+      setHasCheckedTerms(true);
+    }
+  }, [auth.user, hasCheckedTerms]);
+
+  const UPDATE_NOTICE_KEY = 'updateNotice_v3_AICoach';
+  const LAST_SEEN_UPDATE_KEY = 'flexibel_lastSeenUpdateNotice';
+  useEffect(() => {
+    if (auth.user && auth.currentRole === 'participant') {
+      if (localStorage.getItem(LAST_SEEN_UPDATE_KEY) !== UPDATE_NOTICE_KEY) setHasUnreadUpdate(true);
+    }
+  }, [auth.user, auth.currentRole]);
 
   useEffect(() => {
     if (auth.organizationId) {
@@ -179,20 +147,53 @@ const AppContent: React.FC = () => {
     }
   }, [auth.organizationId, auth.isLoading]);
 
-  // ✅ Web push subscription när vi är deltagare (använder utils/push)
   useEffect(() => {
     if (auth.currentRole === 'participant' && auth.organizationId && auth.currentParticipantId) {
-      const profile = participantDirectory.find(p => p.id === auth.currentParticipantId);
+      const profile = appContext.participantDirectory.find(p => p.id === auth.currentParticipantId);
       const pushEnabled = profile?.notificationSettings?.pushEnabled ?? true;
       if (pushEnabled) {
         ensureWebPushSubscription(auth.organizationId, auth.currentParticipantId);
       }
     }
-  }, [auth.currentRole, auth.organizationId, auth.currentParticipantId, participantDirectory]);
+  }, [auth.currentRole, auth.organizationId, auth.currentParticipantId, appContext.participantDirectory]);
+  
+  const prospectModalShownKey = auth.currentParticipantId ? `flexibel_prospectProfileModalShown_${auth.currentParticipantId}` : null;
+  useEffect(() => {
+    if (auth.currentRole === 'participant' && auth.currentParticipantId && appContext.participantDirectory.length > 0) {
+      if (!welcomeModalShown) setIsWelcomeModalOpen(true);
+      const p = appContext.participantDirectory.find(pp => pp.id === auth.currentParticipantId);
+      const m = p ? appContext.memberships.find(mm => mm.id === p.membershipId) : null;
+      if (m?.name.toLowerCase() === 'startprogram') {
+        const ok = !!(p?.birthDate && p?.gender && p?.gender !== '-');
+        if (!ok) {
+          const shown = prospectModalShownKey ? localStorage.getItem(prospectModalShownKey) === 'true' : false;
+          if (!shown) setOpenProfileModalOnInit(true);
+        }
+      }
+    }
+  }, [auth.currentRole, auth.currentParticipantId, welcomeModalShown, appContext.participantDirectory, prospectModalShownKey, appContext.memberships]);
 
-  /* -------------- Bokningar/avbokningar/checkin (oförändrat API) -------------- */
+  // --- Callbacks ---
+  const handleAcceptTerms = useCallback(async () => {
+    if (!auth.user) return;
+    try {
+      await appContext.updateUser(auth.user.id, { termsAcceptedTimestamp: new Date().toISOString() });
+      setShowTermsModal(false);
+    } catch (e) {
+      console.error('Failed to accept terms:', e);
+      alert('Kunde inte spara ditt godkännande. Vänligen försök igen.');
+    }
+  }, [auth.user, appContext.updateUser]);
+
+  const handleOpenLatestUpdateView = useCallback(() => {
+    setShowLatestUpdateView(true);
+    localStorage.setItem(LAST_SEEN_UPDATE_KEY, UPDATE_NOTICE_KEY);
+    setHasUnreadUpdate(false);
+  }, []);
+
   const handleBookClass = useCallback((participantId: string, scheduleId: string, classDate: string) => {
     if (!auth.organizationId) return;
+    const { participantBookings, setParticipantBookingsData, groupClassSchedules, groupClassDefinitions: definitions, setParticipantDirectoryData, memberships, participantDirectory } = appContext;
     const instanceId = `${scheduleId}-${classDate}`;
     setOperationInProgress(prev => [...prev, instanceId]);
 
@@ -239,7 +240,6 @@ const AppContent: React.FC = () => {
 
     if (newStatus === 'BOOKED') {
       addNotification({ type: 'SUCCESS', title: 'Bokning Lyckades!', message: `Du är nu bokad på ${classDef?.name} den ${new Date(classDate).toLocaleDateString('sv-SE')}.` });
-      // klippkort – lokalt avdrag
       setParticipantDirectoryData(prev => prev.map(p => {
         if (p.id !== participantId) return p;
         const m = memberships.find(m => m.id === p.membershipId);
@@ -258,13 +258,11 @@ const AppContent: React.FC = () => {
       addNotification({ type: 'INFO', title: 'Du är på kölistan', message: `Passet är fullt. Du har placerats på kölistan.` });
     }
     setTimeout(() => setOperationInProgress(prev => prev.filter(id => id !== instanceId)), 1000);
-  }, [
-    groupClassSchedules, participantBookings, memberships, setParticipantBookingsData, setParticipantDirectoryData,
-    definitions, addNotification, auth.organizationId, auth.currentParticipantId, participantDirectory,
-  ]);
+  }, [auth.organizationId, auth.currentParticipantId, appContext, addNotification]);
 
   const handleCancelBooking = useCallback((bookingId: string) => {
     if (!auth.organizationId) return;
+    const { participantBookings, setParticipantBookingsData, groupClassSchedules, groupClassDefinitions: definitions, setParticipantDirectoryData, memberships, participantDirectory } = appContext;
     const booking = participantBookings.find(b => b.id === bookingId);
     if (!booking) return;
     const instanceId = `${booking.scheduleId}-${booking.classDate}`;
@@ -285,7 +283,6 @@ const AppContent: React.FC = () => {
     setParticipantBookingsData(prev => {
       let promoted: ParticipantProfile | null = null;
       let promotedBooking: typeof prev[number] | undefined;
-
       const wasBooked = booking.status === 'BOOKED' || booking.status === 'CHECKED-IN';
       if (wasBooked) {
         const waitlisters = prev
@@ -302,7 +299,6 @@ const AppContent: React.FC = () => {
         }
       }
 
-      // klipp åter / dra klipp för promoted
       if (wasBooked) {
         setParticipantDirectoryData(old => old.map(p => {
           if (p.id === booking.participantId) {
@@ -335,16 +331,13 @@ const AppContent: React.FC = () => {
 
     addNotification({ type: 'SUCCESS', title: 'Avbokning bekräftad', message: `Du har avbokat dig från ${classDef?.name || 'passet'}.` });
     setTimeout(() => setOperationInProgress(prev => prev.filter(id => id !== instanceId)), 1000);
-  }, [
-    participantDirectory, memberships, setParticipantBookingsData, definitions, participantBookings,
-    groupClassSchedules, addNotification, auth.organizationId, auth.currentParticipantId, setParticipantDirectoryData,
-  ]);
+  }, [appContext, auth.organizationId, auth.currentParticipantId, addNotification]);
 
   const handlePromoteFromWaitlist = useCallback((bookingId: string) => {
     if (!auth.organizationId) return;
+    const { setParticipantBookingsData, groupClassSchedules, participantDirectory, groupClassDefinitions: definitions, memberships, setParticipantDirectoryData } = appContext;
     setParticipantBookingsData(prev => {
       const booking = prev.find(b => b.id === bookingId);
-      if (booking || true) {} // no-op to satisfy TS narrow below
       if (!booking || booking.status !== 'WAITLISTED') return prev;
       const schedule = groupClassSchedules.find(s => s.id === booking.scheduleId);
       if (!schedule) return prev;
@@ -376,13 +369,13 @@ const AppContent: React.FC = () => {
             : p
         ));
       }
-
       return prev.map(b => (b.id === bookingId ? { ...b, status: 'BOOKED' as const } : b));
     });
-  }, [groupClassSchedules, participantDirectory, memberships, setParticipantBookingsData, definitions, addNotification, auth.organizationId, setParticipantDirectoryData]);
+  }, [appContext, auth.organizationId, addNotification]);
 
   const handleCheckInParticipant = useCallback((bookingId: string) => {
     if (!auth.organizationId) return;
+    const { setParticipantBookingsData, participantDirectory, groupClassSchedules, groupClassDefinitions: definitions } = appContext;
     setParticipantBookingsData(prev => {
       const booking = prev.find(b => b.id === bookingId);
       if (booking) {
@@ -399,14 +392,15 @@ const AppContent: React.FC = () => {
       }
       return prev.map(b => (b.id === bookingId ? { ...b, status: 'CHECKED-IN' as const } : b));
     });
-  }, [setParticipantBookingsData, participantDirectory, groupClassSchedules, definitions, addNotification, auth.organizationId]);
+  }, [appContext, auth.organizationId, addNotification]);
 
   const handleUnCheckInParticipant = useCallback((bookingId: string) => {
-    setParticipantBookingsData(prev => prev.map(b => (b.id === bookingId && b.status === 'CHECKED-IN' ? { ...b, status: 'BOOKED' as const } : b)));
-  }, [setParticipantBookingsData]);
+    appContext.setParticipantBookingsData(prev => prev.map(b => (b.id === bookingId && b.status === 'CHECKED-IN' ? { ...b, status: 'BOOKED' as const } : b)));
+  }, [appContext.setParticipantBookingsData]);
 
   const handleSelfCheckIn = useCallback((participantId: string, classInstanceId: string, checkinType: 'self_qr' | 'location_qr'): boolean => {
     if (!auth.organizationId) return false;
+    const { participantBookings, setParticipantBookingsData, groupClassSchedules, groupClassDefinitions: definitions, setGeneralActivityLogsData } = appContext;
     const parts = classInstanceId.split('-');
     if (parts.length < 4) {
       addNotification({ type: 'ERROR', title: 'Incheckning Misslyckades', message: 'QR-koden är ogiltig eller har fel format.' });
@@ -458,10 +452,11 @@ const AppContent: React.FC = () => {
     setGeneralActivityLogsData(prev => [...prev, attendanceRecord]);
     addNotification({ type: 'SUCCESS', title: 'Incheckad!', message: `Du är nu incheckad på ${classDef?.name || 'passet'}.` });
     return true;
-  }, [participantBookings, groupClassSchedules, definitions, setParticipantBookingsData, setGeneralActivityLogsData, addNotification, auth.organizationId]);
+  }, [appContext, auth.organizationId, addNotification]);
 
   const handleLocationCheckIn = useCallback((participantId: string, locationId: string): boolean => {
     if (!auth.organizationId) return false;
+    const { groupClassSchedules } = appContext;
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
     const day = now.getDay() === 0 ? 7 : now.getDay();
@@ -500,12 +495,20 @@ const AppContent: React.FC = () => {
     if (upcoming) { addNotification({ type: 'WARNING', title: 'För tidigt för incheckning', message: 'Du kan checka in tidigast 15 min före passet.' }); return false; }
     addNotification({ type: 'WARNING', title: 'För sent för incheckning', message: 'Passet har redan startat, eller så finns inga fler pass idag.' });
     return false;
-  }, [groupClassSchedules, handleSelfCheckIn, addNotification, auth.organizationId]);
-
-  // Reactions / comments (oförändrat)
+  }, [appContext.groupClassSchedules, handleSelfCheckIn, addNotification, auth.organizationId]);
+  
   const handleToggleReaction = useCallback((logId: string, logType: FlowItemLogType, emoji: string) => {
     if (!auth.currentParticipantId) return;
-    const updater = (logs: any[]) => logs.map(log => {
+    const updaters: any = {
+      workout: appContext.setWorkoutLogsData, general: appContext.setGeneralActivityLogsData,
+      coach_event: appContext.setCoachEventsData, goal_completion: appContext.setGoalCompletionLogsData,
+      participant_club_membership: appContext.setClubMembershipsData, user_strength_stat: appContext.setUserStrengthStatsData,
+      participant_physique_stat: appContext.setParticipantPhysiqueHistoryData, participant_goal_data: appContext.setParticipantGoalsData,
+      participant_conditioning_stat: appContext.setUserConditioningStatsHistoryData,
+    };
+    const setter = updaters[logType];
+    if (!setter) return;
+    setter((logs: any[]) => logs.map(log => {
       if (log.id !== logId) return log;
       const myReactions = (log.reactions || []).filter((r: { participantId: string }) => r.participantId === auth.currentParticipantId);
       let updated = [...(log.reactions || [])];
@@ -517,55 +520,57 @@ const AppContent: React.FC = () => {
         updated.push({ participantId: auth.currentParticipantId, emoji, createdDate: new Date().toISOString() });
       }
       return { ...log, reactions: updated };
-    });
-    ({
-      workout: setWorkoutLogsData,
-      general: setGeneralActivityLogsData,
-      coach_event: setCoachEventsData,
-      goal_completion: setGoalCompletionLogsData,
-      participant_club_membership: setClubMembershipsData,
-      user_strength_stat: setUserStrengthStatsData,
-      participant_physique_stat: setParticipantPhysiqueHistoryData,
-      participant_goal_data: setParticipantGoalsData,
-      participant_conditioning_stat: setUserConditioningStatsHistoryData,
-    } as any)[logType]?.(updater);
-  }, [auth.currentParticipantId, setWorkoutLogsData, setGeneralActivityLogsData, setCoachEventsData, setGoalCompletionLogsData, setClubMembershipsData, setUserStrengthStatsData, setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData]);
+    }));
+  }, [auth.currentParticipantId, appContext]);
 
   const handleAddComment = useCallback((logId: string, logType: FlowItemLogType, text: string) => {
     const authorId = auth.user?.id; if (!authorId) return;
     let authorName = auth.user.name;
     if (auth.isStaffViewingAsParticipant && auth.currentParticipantId) {
-      const p = participantDirectory.find(pp => pp.id === auth.currentParticipantId);
+      const p = appContext.participantDirectory.find(pp => pp.id === auth.currentParticipantId);
       if (p) authorName = p.name || authorName;
     }
     const newComment = { id: crypto.randomUUID(), authorId, authorName, text, createdDate: new Date().toISOString() };
-    const updater = (logs: any[]) => logs.map(log => log.id === logId ? { ...log, comments: [...(log.comments || []), newComment] } : log);
-    ({
-      workout: setWorkoutLogsData, general: setGeneralActivityLogsData, coach_event: setCoachEventsData,
-      one_on_one_session: setOneOnOneSessionsData, goal_completion: setGoalCompletionLogsData,
-      participant_club_membership: setClubMembershipsData, user_strength_stat: setUserStrengthStatsData,
-      participant_physique_stat: setParticipantPhysiqueHistoryData, participant_goal_data: setParticipantGoalsData,
-      participant_conditioning_stat: setUserConditioningStatsHistoryData,
-    } as any)[logType]?.(updater);
-  }, [auth.user, auth.isStaffViewingAsParticipant, auth.currentParticipantId, participantDirectory, setWorkoutLogsData, setGeneralActivityLogsData, setCoachEventsData, setOneOnOneSessionsData, setGoalCompletionLogsData, setClubMembershipsData, setUserStrengthStatsData, setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData]);
+    const updaters: any = {
+        workout: appContext.setWorkoutLogsData, general: appContext.setGeneralActivityLogsData, coach_event: appContext.setCoachEventsData,
+        one_on_one_session: appContext.setOneOnOneSessionsData, goal_completion: appContext.setGoalCompletionLogsData,
+        participant_club_membership: appContext.setClubMembershipsData, user_strength_stat: appContext.setUserStrengthStatsData,
+        participant_physique_stat: appContext.setParticipantPhysiqueHistoryData, participant_goal_data: appContext.setParticipantGoalsData,
+        participant_conditioning_stat: appContext.setUserConditioningStatsHistoryData,
+    };
+    const setter = updaters[logType];
+    if (!setter) return;
+    setter((logs: any[]) => logs.map(log => log.id === logId ? { ...log, comments: [...(log.comments || []), newComment] } : log));
+  }, [auth.user, auth.isStaffViewingAsParticipant, auth.currentParticipantId, appContext]);
 
   const handleDeleteComment = useCallback((logId: string, logType: FlowItemLogType, commentId: string) => {
-    const updater = (logs: any[]) => logs.map(log =>
+    const updaters: any = {
+        workout: appContext.setWorkoutLogsData, general: appContext.setGeneralActivityLogsData, coach_event: appContext.setCoachEventsData,
+        one_on_one_session: appContext.setOneOnOneSessionsData, goal_completion: appContext.setGoalCompletionLogsData,
+        participant_club_membership: appContext.setClubMembershipsData, user_strength_stat: appContext.setUserStrengthStatsData,
+        participant_physique_stat: appContext.setParticipantPhysiqueHistoryData, participant_goal_data: appContext.setParticipantGoalsData,
+        participant_conditioning_stat: appContext.setUserConditioningStatsHistoryData,
+    };
+    const setter = updaters[logType];
+    if (!setter) return;
+    setter((logs: any[]) => logs.map(log =>
       log.id === logId ? { ...log, comments: (log.comments || []).filter((c: { id: string }) => c.id !== commentId) } : log
-    );
-    ({
-      workout: setWorkoutLogsData, general: setGeneralActivityLogsData, coach_event: setCoachEventsData,
-      one_on_one_session: setOneOnOneSessionsData, goal_completion: setGoalCompletionLogsData,
-      participant_club_membership: setClubMembershipsData, user_strength_stat: setUserStrengthStatsData,
-      participant_physique_stat: setParticipantPhysiqueHistoryData, participant_goal_data: setParticipantGoalsData,
-      participant_conditioning_stat: setUserConditioningStatsHistoryData,
-    } as any)[logType]?.(updater);
-  }, [setWorkoutLogsData, setGeneralActivityLogsData, setCoachEventsData, setOneOnOneSessionsData, setGoalCompletionLogsData, setClubMembershipsData, setUserStrengthStatsData, setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData]);
+    ));
+  }, [appContext]);
 
   const handleToggleCommentReaction = useCallback((logId: string, logType: FlowItemLogType, commentId: string) => {
     if (!auth.currentParticipantId) return;
     const pid = auth.currentParticipantId;
-    const updater = (logs: any[]) => logs.map(log => {
+    const updaters: any = {
+        workout: appContext.setWorkoutLogsData, general: appContext.setGeneralActivityLogsData, coach_event: appContext.setCoachEventsData,
+        one_on_one_session: appContext.setOneOnOneSessionsData, goal_completion: appContext.setGoalCompletionLogsData,
+        participant_club_membership: appContext.setClubMembershipsData, user_strength_stat: appContext.setUserStrengthStatsData,
+        participant_physique_stat: appContext.setParticipantPhysiqueHistoryData, participant_goal_data: appContext.setParticipantGoalsData,
+        participant_conditioning_stat: appContext.setUserConditioningStatsHistoryData,
+    };
+    const setter = updaters[logType];
+    if (!setter) return;
+    setter((logs: any[]) => logs.map(log => {
       if (log.id !== logId) return log;
       const comments = (log.comments || []).map((c: any) => {
         if (c.id !== commentId) return c;
@@ -576,34 +581,11 @@ const AppContent: React.FC = () => {
           : { ...c, reactions: [...reactions, { participantId: pid, emoji: '❤️', createdDate: new Date().toISOString() }] };
       });
       return { ...log, comments };
-    });
-    ({
-      workout: setWorkoutLogsData, general: setGeneralActivityLogsData, coach_event: setCoachEventsData,
-      one_on_one_session: setOneOnOneSessionsData, goal_completion: setGoalCompletionLogsData,
-      participant_club_membership: setClubMembershipsData, user_strength_stat: setUserStrengthStatsData,
-      participant_physique_stat: setParticipantPhysiqueHistoryData, participant_goal_data: setParticipantGoalsData,
-      participant_conditioning_stat: setUserConditioningStatsHistoryData,
-    } as any)[logType]?.(updater);
-  }, [auth.currentParticipantId, setWorkoutLogsData, setGeneralActivityLogsData, setCoachEventsData, setOneOnOneSessionsData, setGoalCompletionLogsData, setClubMembershipsData, setUserStrengthStatsData, setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData]);
+    }));
+  }, [auth.currentParticipantId, appContext]);
 
-  const prospectModalShownKey = auth.currentParticipantId ? `flexibel_prospectProfileModalShown_${auth.currentParticipantId}` : null;
-  useEffect(() => {
-    if (auth.currentRole === 'participant' && auth.currentParticipantId && participantDirectory.length > 0) {
-      if (!welcomeModalShown) setIsWelcomeModalOpen(true);
-      const p = participantDirectory.find(pp => pp.id === auth.currentParticipantId);
-      const m = p ? memberships.find(mm => mm.id === p.membershipId) : null;
-      if (m?.name.toLowerCase() === 'startprogram') {
-        const ok = !!(p?.birthDate && p?.gender && p?.gender !== '-');
-        if (!ok) {
-          const shown = prospectModalShownKey ? localStorage.getItem(prospectModalShownKey) === 'true' : false;
-          if (!shown) setOpenProfileModalOnInit(true);
-        }
-      }
-    }
-  }, [auth.currentRole, auth.currentParticipantId, welcomeModalShown, participantDirectory, prospectModalShownKey, memberships]);
-
-  // EN enda async callback – ingen lös "await" någon annanstans
   const handleCancelClassInstance = useCallback(async (scheduleId: string, classDate: string) => {
+    const { groupClassScheduleExceptions, setGroupClassScheduleExceptionsData, participantBookings, addNotification, setParticipantBookingsData, setParticipantDirectoryData, participantDirectory, memberships, groupClassDefinitions: definitions, groupClassSchedules } = appContext;
     const already = groupClassScheduleExceptions.some(ex => ex.scheduleId === scheduleId && ex.date === classDate);
     if (already) { addNotification({ type: 'INFO', title: 'Redan inställt', message: 'Detta pass är redan markerat som inställt.' }); return; }
 
@@ -654,14 +636,15 @@ const AppContent: React.FC = () => {
 
     const classDef = definitions.find(d => d.id === groupClassSchedules.find(s => s.id === scheduleId)?.groupClassId);
     addNotification({ type: 'SUCCESS', title: 'Pass Inställt', message: `Passet ${classDef?.name || ''} har ställts in. ${affected.size} deltagare har meddelats.` });
-  }, [auth.user, auth.organizationId, groupClassScheduleExceptions, participantBookings, participantDirectory, memberships, definitions, groupClassSchedules, setGroupClassScheduleExceptionsData, setParticipantBookingsData, setParticipantDirectoryData, addNotification]);
+  }, [auth.user, auth.organizationId, appContext, addNotification]);
 
   const handleProfileModalOpened = useCallback(() => {
+    const { participantDirectory, memberships } = appContext;
     const p = participantDirectory.find(pp => pp.id === auth.currentParticipantId);
     const m = p ? memberships.find(mm => mm.id === p.membershipId) : null;
     if (m?.name.toLowerCase() === 'startprogram' && prospectModalShownKey) localStorage.setItem(prospectModalShownKey, 'true');
     setOpenProfileModalOnInit(false);
-  }, [auth.currentParticipantId, participantDirectory, memberships, prospectModalShownKey]);
+  }, [auth.currentParticipantId, appContext.participantDirectory, appContext.memberships, prospectModalShownKey]);
 
   const handleOpenProfile = useCallback(() => {
     if (auth.currentRole === 'participant' && profileOpener) profileOpener.open();
@@ -670,8 +653,9 @@ const AppContent: React.FC = () => {
     }
   }, [auth, profileOpener]);
 
+  // --- View Router ---
   const renderMainView = useCallback(() => {
-    if (auth.isLoading || (!auth.user && isGlobalDataLoading)) {
+    if (auth.isLoading || (!auth.user && appContext.isGlobalDataLoading)) {
       const logo = cachedLogo;
       return (
         <div className="fixed inset-0 flex items-center justify-center bg-gray-100 bg-dotted-pattern bg-dotted-size z-50">
@@ -698,8 +682,8 @@ const AppContent: React.FC = () => {
         : <Register onSwitchToLogin={() => setView('login')} onRegistrationSuccess={() => setRegistrationPendingMessage(true)} />;
     }
 
-    if (auth.user && isOrgDataLoading) {
-      const logo = cachedLogo || branding?.logoBase64;
+    if (auth.user && appContext.isOrgDataLoading) {
+      const logo = cachedLogo || appContext.branding?.logoBase64;
       return (
         <div className="fixed inset-0 flex items-center justify-center bg-gray-100 bg-dotted-pattern bg-dotted-size z-50">
           <div>{logo ? <img src={logo} alt="Logotyp" className="h-24 w-auto object-contain" /> : <img src="/icon-512x512.png" alt="Logotyp" className="h-24 w-auto object-contain" />}</div>
@@ -713,14 +697,9 @@ const AppContent: React.FC = () => {
       return (
         <div className="container mx-auto px-2 sm:px-6 py-6">
           <CoachArea
-            onAddComment={handleAddComment}
-            onDeleteComment={handleDeleteComment}
-            onToggleCommentReaction={handleToggleCommentReaction}
-            onCheckInParticipant={handleCheckInParticipant}
-            onUnCheckInParticipant={handleUnCheckInParticipant}
-            onBookClass={handleBookClass}
-            onCancelBooking={handleCancelBooking}
-            onPromoteFromWaitlist={handlePromoteFromWaitlist}
+            onAddComment={handleAddComment} onDeleteComment={handleDeleteComment} onToggleCommentReaction={handleToggleCommentReaction}
+            onCheckInParticipant={handleCheckInParticipant} onUnCheckInParticipant={handleUnCheckInParticipant}
+            onBookClass={handleBookClass} onCancelBooking={handleCancelBooking} onPromoteFromWaitlist={handlePromoteFromWaitlist}
             onCancelClassInstance={handleCancelClassInstance}
           />
         </div>
@@ -732,22 +711,13 @@ const AppContent: React.FC = () => {
         <>
           <ParticipantArea
             currentParticipantId={auth.currentParticipantId}
-            onToggleReaction={handleToggleReaction}
-            onAddComment={handleAddComment}
-            onDeleteComment={handleDeleteComment}
-            onToggleCommentReaction={handleToggleCommentReaction}
-            openProfileModalOnInit={openProfileModalOnInit}
-            onProfileModalOpened={handleProfileModalOpened}
-            isStaffViewingSelf={auth.isStaffViewingAsParticipant}
-            onSwitchToStaffView={auth.stopViewingAsParticipant}
-            onSelfCheckIn={handleSelfCheckIn}
-            onLocationCheckIn={handleLocationCheckIn}
-            onBookClass={handleBookClass}
-            onCancelBooking={handleCancelBooking}
-            setProfileOpener={setProfileOpener}
-            setParticipantModalOpeners={setParticipantModalOpeners}
-            newFlowItemsCount={newFlowItemsCount}
-            operationInProgress={operationInProgress}
+            onToggleReaction={handleToggleReaction} onAddComment={handleAddComment} onDeleteComment={handleDeleteComment}
+            onToggleCommentReaction={handleToggleCommentReaction} openProfileModalOnInit={openProfileModalOnInit}
+            onProfileModalOpened={handleProfileModalOpened} isStaffViewingSelf={auth.isStaffViewingAsParticipant}
+            onSwitchToStaffView={auth.stopViewingAsParticipant} onSelfCheckIn={handleSelfCheckIn}
+            onLocationCheckIn={handleLocationCheckIn} onBookClass={handleBookClass} onCancelBooking={handleCancelBooking}
+            setProfileOpener={setProfileOpener} setParticipantModalOpeners={setParticipantModalOpeners}
+            newFlowItemsCount={newFlowItemsCount} operationInProgress={operationInProgress}
           />
           <WelcomeModal
             isOpen={isWelcomeModalOpen}
@@ -763,15 +733,15 @@ const AppContent: React.FC = () => {
 
     return <Login onSwitchToRegister={() => setView('register')} />;
   }, [
-    auth.isLoading, auth.user, auth.currentRole, auth.currentParticipantId, auth.isStaffViewingAsParticipant,
-    auth.isImpersonating, auth.viewAsParticipant, auth.stopViewingAsParticipant, isGlobalDataLoading, isOrgDataLoading,
-    cachedLogo, branding, registrationPendingMessage, view, handleAddComment, handleDeleteComment, handleToggleCommentReaction,
-    handleCheckInParticipant, handleUnCheckInParticipant, handleBookClass, handleCancelBooking, handlePromoteFromWaitlist,
-    handleCancelClassInstance, handleSelfCheckIn, handleLocationCheckIn, openProfileModalOnInit, handleProfileModalOpened,
-    setProfileOpener, setParticipantModalOpeners, newFlowItemsCount, isWelcomeModalOpen, welcomeModalShown, setWelcomeModalShown,
-    operationInProgress,
+    auth, appContext, cachedLogo, registrationPendingMessage, view, handleAddComment, handleDeleteComment, 
+    handleToggleCommentReaction, handleCheckInParticipant, handleUnCheckInParticipant, handleBookClass, 
+    handleCancelBooking, handlePromoteFromWaitlist, handleCancelClassInstance, handleSelfCheckIn, 
+    handleLocationCheckIn, openProfileModalOnInit, handleProfileModalOpened, setProfileOpener, 
+    setParticipantModalOpeners, newFlowItemsCount, isWelcomeModalOpen, welcomeModalShown, 
+    setWelcomeModalShown, operationInProgress,
   ]);
 
+  // --- Render ---
   return (
     <div className="bg-gray-50 min-h-screen">
       <Navbar
@@ -780,8 +750,6 @@ const AppContent: React.FC = () => {
         onOpenGoalModal={participantModalOpeners.openGoalModal}
         onOpenCommunity={participantModalOpeners.openCommunityModal}
         onOpenFlowModal={participantModalOpeners.openFlowModal}
-        onOpenAiRecept={participantModalOpeners.openAiReceptModal}
-        aiRecept={aiRecept}
         pendingRequestsCount={pendingRequestsCount}
         newFlowItemsCount={newFlowItemsCount}
         hasUnreadUpdate={hasUnreadUpdate}
@@ -791,9 +759,7 @@ const AppContent: React.FC = () => {
         <Suspense fallback={<LoadingSpinner />}>{renderMainView()}</Suspense>
       </main>
       <DevToolbar />
-
       {showLatestUpdateView && <UpdateNoticeModal show={showLatestUpdateView} onClose={() => setShowLatestUpdateView(false)} />}
-
       {showTermsModal && <TermsModal isOpen={showTermsModal} onClose={() => {}} onAccept={handleAcceptTerms} isBlocking />}
     </div>
   );
