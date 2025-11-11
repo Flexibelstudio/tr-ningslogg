@@ -476,10 +476,9 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     const myStrengthStats = useMemo(() => userStrengthStats.filter(s => s.participantId === currentParticipantId), [userStrengthStats, currentParticipantId]);
 
     const latestStrengthStats = useMemo(() => {
-      const participantStats = (userStrengthStats || []).filter(s => s.participantId === currentParticipantId);
-      if (participantStats.length === 0) return null;
-      return participantStats.sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
-    }, [userStrengthStats, currentParticipantId]);
+        if (!myStrengthStats || myStrengthStats.length === 0) return null;
+        return myStrengthStats.sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
+    }, [myStrengthStats]);
     
     // --- In-app Toast Notifications for booking changes ---
     const myBookings = useMemo(() => 

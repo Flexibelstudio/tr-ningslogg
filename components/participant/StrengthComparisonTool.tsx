@@ -6,7 +6,6 @@ import { Button } from '../Button';
 import { calculateEstimated1RM } from '../../utils/workoutUtils';
 import { calculateAge } from '../../utils/dateUtils';
 import html2canvas from 'html2canvas';
-import { useAppContext } from '../../context/AppContext';
 
 export interface LiftScoreDetails {
   lift: LiftType;
@@ -283,8 +282,7 @@ const CalculatorIcon = () => (
 );
 
 export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, StrengthComparisonToolProps>(
-  ({ profile, onSaveStrengthStats, isEmbedded, onOpenPhysiqueModal }, ref) => {
-    const { userStrengthStats: strengthStatsHistory } = useAppContext();
+  ({ profile, strengthStatsHistory, onSaveStrengthStats, isEmbedded, onOpenPhysiqueModal }, ref) => {
     const latestStats = useMemo(
       () => (strengthStatsHistory.length > 0 ? [...strengthStatsHistory].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0] : null),
       [strengthStatsHistory]
