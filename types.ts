@@ -437,6 +437,19 @@ export interface CoachNote {
   noteType: 'check-in' | 'intro-session'; 
 }
 
+export type LeadStatus = 'new' | 'contacted' | 'intro_booked' | 'converted' | 'junk';
+export type ContactAttemptMethod = 'phone' | 'email' | 'sms';
+export type ContactAttemptOutcome = 'booked_intro' | 'not_interested' | 'no_answer' | 'left_voicemail' | 'follow_up';
+
+export interface ContactAttempt {
+  id: string;
+  timestamp: string; // ISO-datum
+  method: ContactAttemptMethod;
+  outcome: ContactAttemptOutcome;
+  notes?: string; // Fritext för coachen
+  coachId: string;
+}
+
 export interface Lead {
   id: string;
   firstName: string;
@@ -446,7 +459,8 @@ export interface Lead {
   locationId: string;
   source: 'Hemsida' | 'Meta' | 'Manuell' | 'Rekommendation';
   createdDate: string; // ISO string
-  status: 'new' | 'contacted' | 'converted' | 'junk';
+  status: LeadStatus;
+  contactHistory?: ContactAttempt[];
   // New fields for recommendation feature
   referredBy?: {
     participantId: string;
@@ -462,6 +476,7 @@ export interface ProspectIntroCall {
   prospectPhone?: string;
   createdDate: string; // ISO string
   coachId: string;
+  linkedLeadId?: string; // To link back to the originating lead
 
   // New fields from the form
   studioId?: string;

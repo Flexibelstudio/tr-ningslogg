@@ -1,4 +1,4 @@
-import { WeightComparisonItem, GenderOption, StrengthStandard, StrengthLevel, LiftType, AllUserProvidedStrengthMultipliers, StrengthStandardDetail, UserProvidedLiftMultipliers, WorkoutCategory, ClubDefinition, UserStrengthStat, StaffRole, Membership, OneOnOneSessionType, WorkoutCategoryDefinition, GroupClassDefinition, ConditioningMetric, WorkoutFocusTag } from './types'; // Updated import type from AnimalWeight
+import { WeightComparisonItem, GenderOption, StrengthStandard, StrengthLevel, LiftType, AllUserProvidedStrengthMultipliers, StrengthStandardDetail, UserProvidedLiftMultipliers, WorkoutCategory, ClubDefinition, UserStrengthStat, StaffRole, Membership, OneOnOneSessionType, WorkoutCategoryDefinition, GroupClassDefinition, ConditioningMetric, WorkoutFocusTag, ContactAttemptMethod, ContactAttemptOutcome } from './types'; // Updated import type from AnimalWeight
 
 export const FLEXIBEL_PRIMARY_COLOR = '#3bab5a'; // Updated color
 export const APP_NAME = 'Träningslogg';
@@ -122,6 +122,20 @@ export const INTRO_CALL_OUTCOME_OPTIONS: { value: 'bought_starter' | 'bought_oth
   { value: 'bought_other', label: 'Köpte annat medlemskap' },
   { value: 'thinking', label: 'Tänker på saken / Återkommer' },
   { value: 'not_interested', label: 'Ej intresserad' },
+];
+
+export const CONTACT_ATTEMPT_METHOD_OPTIONS: { value: ContactAttemptMethod; label: string }[] = [
+    { value: 'phone', label: 'Telefon' },
+    { value: 'email', label: 'E-post' },
+    { value: 'sms', label: 'SMS' },
+];
+
+export const CONTACT_ATTEMPT_OUTCOME_OPTIONS: { value: ContactAttemptOutcome; label: string }[] = [
+    { value: 'booked_intro', label: 'Bokade Intro' },
+    { value: 'follow_up', label: 'Behöver uppföljning' },
+    { value: 'no_answer', label: 'Svarade ej' },
+    { value: 'left_voicemail', label: 'Lämnade röstmeddelande' },
+    { value: 'not_interested', label: 'Ej intresserad' },
 ];
 
 export const ALL_LIFT_TYPES: LiftType[] = [

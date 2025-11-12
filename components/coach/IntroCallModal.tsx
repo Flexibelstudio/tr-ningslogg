@@ -14,9 +14,10 @@ interface IntroCallModalProps {
   introCallToEdit?: ProspectIntroCall | null;
   onUpdate?: (introCall: ProspectIntroCall) => void;
   initialData?: Partial<Omit<ProspectIntroCall, 'id' | 'createdDate' | 'status' | 'coachId'>>;
+  leadId?: string; // New prop to link to a lead
 }
 
-export const IntroCallModal: React.FC<IntroCallModalProps> = ({ isOpen, onClose, onSave, introCallToEdit, onUpdate, initialData }) => {
+export const IntroCallModal: React.FC<IntroCallModalProps> = ({ isOpen, onClose, onSave, introCallToEdit, onUpdate, initialData, leadId }) => {
   const { locations } = useAppContext();
 
   // State for all new form fields
@@ -154,6 +155,7 @@ export const IntroCallModal: React.FC<IntroCallModalProps> = ({ isOpen, onClose,
       coachSummary: coachSummary.trim() || undefined,
       outcome,
       tshirtHandedOut: outcome === 'bought_starter' ? tshirtHandedOut : undefined,
+      linkedLeadId: leadId || introCallToEdit?.linkedLeadId,
     };
 
     if (isEditing && onUpdate && introCallToEdit) {
