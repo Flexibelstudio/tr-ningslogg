@@ -292,8 +292,7 @@ Bäst:
 
 ---
 NY KUND? (GDPR!)
-"Känner du någon vän, kollega eller familjemedlem som du tror skulle uppskatta samma hjälp som du får? Be dem gärna om lov att jag får deras kontaktuppgifter, så kan jag höra av mig."
-`;
+"Känner du någon vän, kollega eller familjemedlem som du tror skulle uppskatta samma hjälp som du får? Be dem gärna om lov att jag får deras kontaktuppgifter, så kan jag höra av mig."`;
 
     setNewNote(prevNote => {
         if (prevNote.trim() === '') {
@@ -501,7 +500,6 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
                       <div className="space-y-2">
                         <div className="flex items-end justify-between">
                             <label className="text-lg font-semibold text-gray-800">{editingNote ? 'Redigera anteckning' : 'Ny anteckning'}</label>
-                            <Button onClick={() => setIsAddLeadModalOpen(true)} variant="outline" size="sm">➕ Lägg till lead</Button>
                         </div>
                         <Textarea
                           value={newNote}
@@ -526,7 +524,7 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
                         )}
 
                         <div className="flex justify-between items-center pt-2">
-                          <div>
+                          <div className="flex gap-2">
                             {!editingNote && (
                               <Button
                                 type="button"
@@ -537,6 +535,7 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
                                 Infoga Avstämningsmall
                               </Button>
                             )}
+                             <Button onClick={() => setIsAddLeadModalOpen(true)} variant="outline" size="sm">➕ Lägg till lead</Button>
                           </div>
                           <div className="flex justify-end gap-2">
                             {editingNote && (

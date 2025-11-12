@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { ParticipantProfile, OneOnOneSession, ActivityLog, StaffMember, CoachNote, ParticipantGoalData, WorkoutLog, Membership, ProspectIntroCall, Lead, Location } from '../../types';
-import { GoogleGenAI } from '@google/genai';
 import { Button } from '../Button';
 import { MemberNotesModal } from './MemberNotesModal';
 import * as dateUtils from '../../utils/dateUtils';
@@ -169,6 +168,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   const [leadBeingConverted, setLeadBeingConverted] = useState<Lead | null>(null);
   const [leadToMarkAsJunk, setLeadToMarkAsJunk] = useState<Lead | null>(null);
   const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
+  const [leadToConfirmConsent, setLeadToConfirmConsent] = useState<Lead | null>(null);
 
   const journeyData = useMemo<ClientJourneyEntry[]>(() => {
     return participants
@@ -406,6 +406,12 @@ ${callToLink.coachSummary || 'Ej angivet.'}
     };
     setLeadsData(prev => [...prev, newLead]);
   };
+  
+  const handleConfirmConsent = () => {
+    if (!leadToConfirmConsent) return;
+    setLeadsData(prev => prev.map(l => l.id === leadToConfirmConsent.id ? { ...l, consentGiven: true } : l));
+    setLeadToConfirmConsent(null);
+  };
 
   if (!loggedInStaff) return <div>Laddar...</div>;
 
@@ -474,21 +480,40 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             <div className="space-y-3">
                 {newLeads.map(lead => {
                     const location = locations.find(l => l.id === lead.locationId);
+                    const isRecommendation = lead.source === 'Rekommendation';
+                    const consentNeeded = isRecommendation && !lead.consentGiven;
+
                     return (
                         <div key={lead.id} className="p-4 bg-white rounded-lg border shadow-sm flex flex-col sm:flex-row justify-between items-start gap-3">
                             <div>
                                 <p className="font-bold text-lg text-gray-900">{lead.firstName} {lead.lastName}</p>
-                                <p className="text-sm text-gray-600">{lead.email}</p>
+                                <p className="text-sm text-gray-600">{lead.email || <i>E-post saknas</i>}</p>
                                 {lead.phone && <p className="text-sm text-gray-600">{lead.phone}</p>}
                                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                                     <span className="font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{lead.source}</span>
                                     {location && <span className="font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{location.name}</span>}
                                     <span className="text-gray-400">{new Date(lead.createdDate).toLocaleString('sv-SE')}</span>
                                 </div>
+                                {lead.referredBy && (
+                                    <p className="text-xs text-gray-500 mt-1 italic">Rekommenderad av: {lead.referredBy.participantName}</p>
+                                )}
                             </div>
-                            <div className="flex gap-2 self-start sm:self-center flex-shrink-0">
+                            <div className="flex gap-2 self-start sm:self-center flex-shrink-0 items-center">
+                                {isRecommendation && (
+                                    <button
+                                        onClick={() => consentNeeded && setLeadToConfirmConsent(lead)}
+                                        disabled={!consentNeeded}
+                                        className={`p-2 rounded-full text-2xl ${consentNeeded ? 'text-gray-400 hover:text-gray-700' : 'text-green-500 cursor-default'}`}
+                                        title={consentNeeded ? "Klicka för att bekräfta att samtycke har inhämtats" : "Samtycke har inhämtats"}
+                                        aria-label={consentNeeded ? "Bekräfta samtycke" : "Samtycke bekräftat"}
+                                    >
+                                        {consentNeeded ? '🔒' : '🔓'}
+                                    </button>
+                                )}
                                 <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => setLeadToMarkAsJunk(lead)}>Skräp</Button>
-                                <Button size="sm" variant="primary" onClick={() => handleCreateIntroCallFromLead(lead)}>Skapa Introsamtal</Button>
+                                <Button size="sm" variant="primary" onClick={() => handleCreateIntroCallFromLead(lead)} disabled={consentNeeded} title={consentNeeded ? "Samtycke krävs för att kontakta" : "Skapa introsamtal för detta lead"}>
+                                    Skapa Introsamtal
+                                </Button>
                             </div>
                         </div>
                     );
@@ -709,6 +734,14 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             onClose={() => setIsAddLeadModalOpen(false)}
             onSave={handleSaveLead}
             locations={locations}
+        />
+        <ConfirmationModal
+            isOpen={!!leadToConfirmConsent}
+            onClose={() => setLeadToConfirmConsent(null)}
+            onConfirm={handleConfirmConsent}
+            title="Bekräfta Samtycke"
+            message="Jag bekräftar att jag har fått ett godkännande från den som rekommenderade att vi får kontakta detta lead."
+            confirmButtonText="Ja, bekräfta"
         />
     </div>
   );
