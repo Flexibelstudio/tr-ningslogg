@@ -444,9 +444,15 @@ export interface Lead {
   email: string;
   phone?: string;
   locationId: string;
-  source: 'Hemsida' | 'Meta' | 'Manuell';
+  source: 'Hemsida' | 'Meta' | 'Manuell' | 'Rekommendation';
   createdDate: string; // ISO string
   status: 'new' | 'contacted' | 'converted' | 'junk';
+  // New fields for recommendation feature
+  referredBy?: {
+    participantId: string;
+    participantName: string;
+  };
+  consentGiven?: boolean;
 }
 
 export interface ProspectIntroCall {

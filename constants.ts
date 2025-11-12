@@ -1,13 +1,13 @@
 import { WeightComparisonItem, GenderOption, StrengthStandard, StrengthLevel, LiftType, AllUserProvidedStrengthMultipliers, StrengthStandardDetail, UserProvidedLiftMultipliers, WorkoutCategory, ClubDefinition, UserStrengthStat, StaffRole, Membership, OneOnOneSessionType, WorkoutCategoryDefinition, GroupClassDefinition, ConditioningMetric, WorkoutFocusTag } from './types'; // Updated import type from AnimalWeight
 
-export const FLEXIBEL_PRIMARY_COLOR = '#0aa5a1'; // Updated color
+export const FLEXIBEL_PRIMARY_COLOR = '#3bab5a'; // Updated color
 export const APP_NAME = 'Träningslogg';
 
 // A palette of distinct, accessible colors that harmonize with the primary Flexibel teal.
 export const COLOR_PALETTE: string[] = [
-  "#0aa5a1", // flexibel teal (primary)
+  "#3bab5a", // flexibel teal (primary)
   "#1e88e5", // blue
-  "#43a047", // green
+  "#3bab5a", // green
   "#8e24aa", // purple
   "#ffb300", // amber
   "#f4511e", // deep orange
