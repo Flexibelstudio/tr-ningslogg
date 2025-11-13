@@ -265,33 +265,33 @@ const handleConfirmDeleteProgram = () => {
 
   const handleInsertTemplate = () => {
     const today = new Date().toISOString().split('T')[0];
-    const template = `**Avstämning** [Datum: ${today}]
+    const template = `Avstämning [Datum: ${today}]
 
-**Hur går det med din träning?**
-
-
-**Vad är du mest stolt över att ha uppnått de senaste tre månaderna (eller sen senaste avstämningen)? (Bright spot)**
+Hur går det med din träning?
 
 
-**Vad har varit din största utmaning?**
+Vad är du mest stolt över att ha uppnått de senaste tre månaderna (eller sen senaste avstämningen)? (Bright spot)
 
 
-**Vilka är dina nuvarande mål?**
+Vad har varit din största utmaning?
 
 
-**Känner du att du är på väg mot målet?**
+Vilka är dina nuvarande mål?
 
 
-**Förnyat/justerat mål:**
+Känner du att du är på väg mot målet?
 
 
-**Hur tar vi oss dit?**
+Förnyat/justerat mål:
+
+
+Hur tar vi oss dit?
 Bra:
 Bättre:
 Bäst:
 
 ---
-**Ny kund? (GDPR!)**
+Ny kund? (GDPR!)
 "Känner du någon vän, kollega eller familjemedlem som du tror skulle uppskatta samma hjälp som du får? Be dem gärna om lov att jag får deras kontaktuppgifter, så kan jag höra av mig."`;
 
     setNewNote(prevNote => {
