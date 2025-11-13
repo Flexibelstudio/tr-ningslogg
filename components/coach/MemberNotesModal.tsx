@@ -265,33 +265,33 @@ const handleConfirmDeleteProgram = () => {
 
   const handleInsertTemplate = () => {
     const today = new Date().toISOString().split('T')[0];
-    const template = `**Avstämning** [Datum: ${today}]
+    const template = `Avstämning [Datum: ${today}]
 
-**Hur går det med din träning?**
-
-
-**Vad är du mest stolt över att ha uppnått de senaste tre månaderna (eller sen senaste avstämningen)? (Bright spot)**
+Hur går det med din träning?
 
 
-**Vad har varit din största utmaning?**
+Vad är du mest stolt över att ha uppnått de senaste tre månaderna (eller sen senaste avstämningen)? (Bright spot)
 
 
-**Vilka är dina nuvarande mål?**
+Vad har varit din största utmaning?
 
 
-**Känner du att du är på väg mot målet?**
+Vilka är dina nuvarande mål?
 
 
-**Förnyat/justerat mål:**
+Känner du att du är på väg mot målet?
 
 
-**Hur tar vi oss dit?**
+Förnyat/justerat mål:
+
+
+Hur tar vi oss dit?
 Bra:
 Bättre:
 Bäst:
 
 ---
-**Ny kund? (GDPR!)**
+Ny kund? (GDPR!)
 "Känner du någon vän, kollega eller familjemedlem som du tror skulle uppskatta samma hjälp som du får? Be dem gärna om lov att jag får deras kontaktuppgifter, så kan jag höra av mig."`;
 
     setNewNote(prevNote => {
@@ -560,7 +560,7 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
                           {notes.sort((a,b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime()).map(note => (
                               <div key={note.id} className="p-3 bg-white rounded-md shadow-sm border">
                                   <p className="text-sm text-gray-500">{new Date(note.createdDate).toLocaleString('sv-SE')}</p>
-                                  <div className="mt-1 text-base text-gray-700">{renderMarkdown(note.noteText)}</div>
+                                  <p className="mt-1 text-base text-gray-700 whitespace-pre-wrap">{note.noteText}</p>
                                   <div className="flex justify-end gap-2 mt-2">
                                       <Button variant="outline" size="sm" className="!text-xs" onClick={() => { setEditingNote(note); setNewNote(note.noteText); }}>Redigera</Button>
                                       <Button variant="danger" size="sm" className="!text-xs" onClick={() => onDeleteNote(note.id)}>Ta bort</Button>
