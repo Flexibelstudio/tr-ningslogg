@@ -39,14 +39,13 @@ import { MeetingDetailsModal } from '../participant/MeetingDetailsModal';
 import { EngagementOpportunities } from './EngagementOpportunities';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { CalendarView } from './CalendarView';
-import { ScheduleManagement } from './ScheduleManagement';
 import { ClassManagementModal } from './ClassManagementModal';
 import { useAppContext } from '../../context/AppContext';
 import { Button } from '../Button';
 import { useAuth } from '../../context/AuthContext';
 import { useNetworkStatus } from '../../context/NetworkStatusContext';
-import { TodaysClassesView } from './TodaysClassesView';
 import { CreateScheduleModal } from './CreateScheduleModal';
+import { ToggleSwitch } from '../ToggleSwitch';
 
 const AnalyticsDashboard = lazy(() => import('./AnalyticsDashboard'));
 
@@ -213,6 +212,12 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   const [initialDateForBooking, setInitialDateForBooking] = useState<string | null>(null);
   const [managedClassInfo, setManagedClassInfo] = useState<{ scheduleId: string; date: string } | null>(null);
   const [isCreateScheduleModalOpen, setIsCreateScheduleModalOpen] = useState(false);
+  const [calendarFilters, setCalendarFilters] = useState({
+    showMySessionsOnly: false,
+    showGroupClasses: true,
+    showOneOnOneSessions: true,
+  });
+
 
   // Filter all data based on logged-in staff's role and location
   const participantsForView = useMemo(() => {
@@ -344,6 +349,28 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     const staffIdsInLocation = new Set(staffMembers.filter((s) => s.locationId === selectedLocationTabId).map((s) => s.id));
     return oneOnOneSessionsForView.filter((session) => staffIdsInLocation.has(session.coachId));
   }, [oneOnOneSessionsForView, staffMembers, selectedLocationTabId, locations]);
+
+  const filteredSchedules = useMemo(() => {
+    let schedules = schedulesForLocationTab;
+    if (!calendarFilters.showGroupClasses) {
+        return [];
+    }
+    if (calendarFilters.showMySessionsOnly && loggedInStaff) {
+        schedules = schedules.filter(schedule => schedule.coachId === loggedInStaff.id);
+    }
+    return schedules;
+  }, [schedulesForLocationTab, calendarFilters, loggedInStaff]);
+
+  const filteredSessions = useMemo(() => {
+      let sessions = sessionsForLocationTab;
+      if (!calendarFilters.showOneOnOneSessions) {
+          return [];
+      }
+      if (calendarFilters.showMySessionsOnly && loggedInStaff) {
+          sessions = sessions.filter(session => session.coachId === loggedInStaff.id);
+      }
+      return sessions;
+  }, [sessionsForLocationTab, calendarFilters, loggedInStaff]);
 
   const getTabButtonStyle = (tabName: CoachTab) => {
     return activeTab === tabName ? 'border-flexibel text-flexibel' : 'border-transparent text-gray-500 active:text-gray-700 active:border-gray-300';
@@ -497,15 +524,44 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
                     Lägg ut nytt pass
                 </Button>
               </div>
+              <div className="p-4 bg-gray-50 rounded-lg border mb-4 space-y-4">
+                  <h4 className="text-lg font-semibold text-gray-700">Filter</h4>
+                  <ToggleSwitch
+                      id="show-my-sessions-only"
+                      label="Visa endast mina pass"
+                      checked={calendarFilters.showMySessionsOnly}
+                      onChange={(checked) => setCalendarFilters(prev => ({ ...prev, showMySessionsOnly: checked }))}
+                  />
+                  <div className="flex items-center gap-6 pt-2 border-t">
+                      <label className="flex items-center space-x-2 cursor-pointer">
+                          <input
+                              type="checkbox"
+                              checked={calendarFilters.showGroupClasses}
+                              onChange={(e) => setCalendarFilters(prev => ({ ...prev, showGroupClasses: e.target.checked }))}
+                              className="h-5 w-5 text-flexibel border-gray-300 rounded focus:ring-flexibel"
+                          />
+                          <span className="text-base font-medium text-gray-700">Visa Gruppass</span>
+                      </label>
+                      <label className="flex items-center space-x-2 cursor-pointer">
+                          <input
+                              type="checkbox"
+                              checked={calendarFilters.showOneOnOneSessions}
+                              onChange={(e) => setCalendarFilters(prev => ({ ...prev, showOneOnOneSessions: e.target.checked }))}
+                              className="h-5 w-5 text-flexibel border-gray-300 rounded focus:ring-flexibel"
+                          />
+                          <span className="text-base font-medium text-gray-700">Visa 1-on-1 Möten</span>
+                      </label>
+                  </div>
+              </div>
               <CalendarView
-                sessions={sessionsForLocationTab}
+                sessions={filteredSessions}
                 participants={participantDirectory}
                 coaches={staffMembers}
                 onSessionClick={handleOpenMeetingModal}
                 onDayClick={handleDayClick}
                 onSessionEdit={handleOpenEditModal}
                 onSessionDelete={setSessionToDelete}
-                groupClassSchedules={schedulesForLocationTab}
+                groupClassSchedules={filteredSchedules}
                 groupClassDefinitions={groupClassDefinitions}
                 groupClassScheduleExceptions={groupClassScheduleExceptions}
                 bookings={bookingsForLocationTab}
