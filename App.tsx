@@ -584,10 +584,10 @@ const AppContent: React.FC = () => {
     }));
   }, [auth.currentParticipantId, appContext]);
 
-  const handleCancelClassInstance = useCallback(async (scheduleId: string, classDate: string) => {
+  const handleCancelClassInstance = useCallback(async (scheduleId: string, classDate: string, status: 'CANCELLED' | 'DELETED' = 'DELETED') => {
     const { groupClassScheduleExceptions, setGroupClassScheduleExceptionsData, participantBookings, addNotification, setParticipantBookingsData, setParticipantDirectoryData, participantDirectory, memberships, groupClassDefinitions: definitions, groupClassSchedules } = appContext;
     const already = groupClassScheduleExceptions.some(ex => ex.scheduleId === scheduleId && ex.date === classDate);
-    if (already) { addNotification({ type: 'INFO', title: 'Redan inställt', message: 'Detta pass är redan markerat som inställt.' }); return; }
+    if (already) { addNotification({ type: 'INFO', title: 'Redan hanterat', message: 'Detta pass är redan markerat som inställt eller borttaget.' }); return; }
 
     const toCancel = participantBookings.filter(b =>
       b.scheduleId === scheduleId && b.classDate === classDate &&
@@ -606,7 +606,7 @@ const AppContent: React.FC = () => {
     }
 
     const ex: GroupClassScheduleException = {
-      id: crypto.randomUUID(), scheduleId, date: classDate,
+      id: crypto.randomUUID(), scheduleId, date: classDate, status,
       createdBy: { uid: auth.user!.id, name: auth.user!.name }, createdAt: new Date().toISOString(),
     };
     setGroupClassScheduleExceptionsData(prev => [...prev, ex]);
@@ -635,7 +635,8 @@ const AppContent: React.FC = () => {
     }
 
     const classDef = definitions.find(d => d.id === groupClassSchedules.find(s => s.id === scheduleId)?.groupClassId);
-    addNotification({ type: 'SUCCESS', title: 'Pass Inställt', message: `Passet ${classDef?.name || ''} har ställts in. ${affected.size} deltagare har meddelats.` });
+    const actionText = status === 'CANCELLED' ? 'Inställt' : 'Borttaget';
+    addNotification({ type: 'SUCCESS', title: `Pass ${actionText}`, message: `Passet ${classDef?.name || ''} har ${actionText.toLowerCase()}. ${affected.size} deltagare har meddelats.` });
   }, [auth.user, auth.organizationId, appContext, addNotification]);
 
   const handleProfileModalOpened = useCallback(() => {

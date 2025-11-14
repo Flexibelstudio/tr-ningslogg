@@ -84,7 +84,7 @@ interface CoachAreaProps {
   onBookClass: (participantId: string, scheduleId: string, classDate: string) => void;
   onCancelBooking: (bookingId: string) => void;
   onPromoteFromWaitlist: (bookingId: string) => void;
-  onCancelClassInstance: (scheduleId: string, classDate: string) => void;
+  onCancelClassInstance: (scheduleId: string, classDate: string, status: 'CANCELLED' | 'DELETED') => void;
 }
 
 export const CoachArea: React.FC<CoachAreaProps> = ({

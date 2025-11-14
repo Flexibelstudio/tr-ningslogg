@@ -114,6 +114,7 @@ export interface GroupClassScheduleException {
   id: string;
   scheduleId: string; // FK to GroupClassSchedule.id
   date: string; // YYYY-MM-DD of the cancelled instance
+  status?: 'CANCELLED' | 'DELETED';
   createdBy?: { uid: string; name: string };
   createdAt: string; // ISO string
 }

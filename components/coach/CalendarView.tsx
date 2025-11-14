@@ -20,6 +20,7 @@ interface EnrichedClassInstance {
     isFull: boolean;
     allBookingsForInstance: ParticipantBooking[];
     color: string;
+    isCancelled: boolean;
 }
 
 interface CalendarViewProps {
@@ -58,8 +59,10 @@ const CalendarViewFC: React.FC<CalendarViewProps> = ({
 
     return groupClassSchedules
       .filter(schedule => {
-        const isCancelled = groupClassScheduleExceptions.some(ex => ex.scheduleId === schedule.id && ex.date === dateStr);
-        if (isCancelled) return false;
+        const exception = groupClassScheduleExceptions.find(ex => ex.scheduleId === schedule.id && ex.date === dateStr);
+        if (exception && (exception.status === 'DELETED' || !exception.status)) {
+            return false;
+        }
 
         const [startYear, startMonth, startDay] = schedule.startDate.split('-').map(Number);
         const startDate = new Date(startYear, startMonth - 1, startDay);
@@ -74,6 +77,9 @@ const CalendarViewFC: React.FC<CalendarViewProps> = ({
         const classDef = groupClassDefinitions.find(d => d.id === schedule.groupClassId);
         const coach = coaches.find(c => c.id === schedule.coachId);
         if (!classDef || !coach) return null;
+
+        const exception = groupClassScheduleExceptions.find(ex => ex.scheduleId === schedule.id && ex.date === dateStr);
+        const isCancelled = !!(exception && exception.status === 'CANCELLED');
 
         const [hour, minute] = schedule.startTime.split(':').map(Number);
         const startDateTime = new Date(day);
@@ -99,6 +105,7 @@ const CalendarViewFC: React.FC<CalendarViewProps> = ({
           isFull: bookedUsers.length >= schedule.maxParticipants,
           allBookingsForInstance,
           color: classDef.color || getColorForCategory(classDef.name), // Use new property with fallback
+          isCancelled,
         };
       })
       .filter((i): i is EnrichedClassInstance => i !== null)
@@ -182,19 +189,20 @@ const CalendarViewFC: React.FC<CalendarViewProps> = ({
                 const categoryColor = instance.color;
                 const categoryBgColor = categoryColor + '1A'; // ~10% opacity
                 const startTime = event.time.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+                const isCancelled = instance.isCancelled;
                 return (
                      <button
                         key={instance.instanceId}
                         onClick={(e) => { e.stopPropagation(); onGroupClassClick(instance); }}
-                        className="w-full p-1 sm:p-1.5 text-left rounded-md border-l-4 cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 ease-in-out text-gray-800"
-                        style={{ borderColor: categoryColor, backgroundColor: categoryBgColor }}
+                        className={`w-full p-1 sm:p-1.5 text-left rounded-md border-l-4 cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 ease-in-out text-gray-800 ${isCancelled ? 'opacity-60' : ''}`}
+                        style={{ borderColor: isCancelled ? '#9ca3af' : categoryColor, backgroundColor: isCancelled ? '#f3f4f6' : categoryBgColor }}
                         title={instance.className}
                     >
-                        <p className="font-bold text-xs sm:text-sm truncate" style={{ color: categoryColor }}>
+                        <p className={`font-bold text-xs sm:text-sm truncate ${isCancelled ? 'line-through' : ''}`} style={{ color: isCancelled ? '#6b7280' : categoryColor }}>
                             {instance.coachId === loggedInCoachId && '⭐ '}
                             {startTime} - {instance.className}
                         </p>
-                        <p className="text-xs truncate">{instance.bookedCount}/{instance.maxParticipants} bokade</p>
+                        <p className={`text-xs truncate ${isCancelled ? 'line-through' : ''}`}>{isCancelled ? 'INSTÄLLT' : `${instance.bookedCount}/${instance.maxParticipants} bokade`}</p>
                     </button>
                 );
             }
