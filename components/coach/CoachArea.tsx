@@ -46,6 +46,7 @@ import { Button } from '../Button';
 import { useAuth } from '../../context/AuthContext';
 import { useNetworkStatus } from '../../context/NetworkStatusContext';
 import { TodaysClassesView } from './TodaysClassesView';
+import { CreateScheduleModal } from './CreateScheduleModal';
 
 const AnalyticsDashboard = lazy(() => import('./AnalyticsDashboard'));
 
@@ -211,6 +212,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   const [sessionToDelete, setSessionToDelete] = useState<OneOnOneSession | null>(null);
   const [initialDateForBooking, setInitialDateForBooking] = useState<string | null>(null);
   const [managedClassInfo, setManagedClassInfo] = useState<{ scheduleId: string; date: string } | null>(null);
+  const [isCreateScheduleModalOpen, setIsCreateScheduleModalOpen] = useState(false);
 
   // Filter all data based on logged-in staff's role and location
   const participantsForView = useMemo(() => {
@@ -360,6 +362,16 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     });
     setSessionToEdit(null);
   };
+  
+  const handleSaveSchedule = (schedule: GroupClassSchedule) => {
+    setGroupClassSchedulesData(prev => {
+        const exists = prev.some(s => s.id === schedule.id);
+        if (exists) {
+            return prev.map(s => s.id === schedule.id ? schedule : s);
+        }
+        return [...prev, schedule];
+    });
+};
 
   const handleOpenMeetingModal = useCallback((session: OneOnOneSession) => {
     setSelectedSessionForModal(session);
@@ -450,15 +462,6 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
       <div role="tabpanel" hidden={activeTab !== 'bookings'}>
         {activeTab === 'bookings' && loggedInStaff && (
           <div className="space-y-8">
-            <TodaysClassesView
-              schedules={groupClassSchedules}
-              definitions={groupClassDefinitions}
-              bookings={participantBookings}
-              coaches={staffMembers}
-              onManageClick={(instance) => setManagedClassInfo({ scheduleId: instance.scheduleId, date: instance.date })}
-              loggedInStaff={loggedInStaff}
-              groupClassScheduleExceptions={groupClassScheduleExceptions}
-            />
             <div className="border-b border-gray-200">
               <nav className="-mb-px flex space-x-4 overflow-x-auto" aria-label="Location Tabs">
                 <button
@@ -487,15 +490,13 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
               </nav>
             </div>
 
-            <ScheduleManagement
-              schedules={schedulesForLocationTab}
-              setSchedules={setGroupClassSchedulesData}
-              classDefinitions={groupClassDefinitions}
-              locations={locations}
-              coaches={staffMembers}
-            />
-            <div className="pt-8 border-t">
-              <h3 className="text-2xl font-bold text-gray-800 mb-4">Kalenderöversikt</h3>
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-2xl font-bold text-gray-800">Kalenderöversikt</h3>
+                <Button onClick={() => setIsCreateScheduleModalOpen(true)}>
+                    Lägg ut nytt pass
+                </Button>
+              </div>
               <CalendarView
                 sessions={sessionsForLocationTab}
                 participants={participantDirectory}
@@ -525,6 +526,15 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
                 loggedInCoachId={loggedInStaff.id}
                 initialDate={initialDateForBooking}
                 staffAvailability={staffAvailability}
+              />
+              <CreateScheduleModal
+                isOpen={isCreateScheduleModalOpen}
+                onClose={() => setIsCreateScheduleModalOpen(false)}
+                onSave={handleSaveSchedule}
+                scheduleToEdit={null} // Only for creating new schedules from this button
+                classDefinitions={groupClassDefinitions}
+                locations={locations}
+                coaches={staffMembers}
               />
               {selectedSessionForModal && user && (
                 <MeetingDetailsModal
