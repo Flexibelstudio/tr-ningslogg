@@ -603,45 +603,105 @@ const AppContent: React.FC = () => {
   const handleUpdateClassInstance = useCallback(async (
     scheduleId: string,
     classDate: string,
-    updates: Partial<Pick<GroupClassScheduleException, 'newStartTime' | 'newDurationMinutes' | 'newCoachId' | 'newMaxParticipants'>>,
+    updates: any, // Using any to accommodate the new 'date' field flexibly
     notify: boolean
   ) => {
-    const { groupClassScheduleExceptions, setGroupClassScheduleExceptionsData } = appContext;
-
-    const existingExceptionIndex = groupClassScheduleExceptions.findIndex(ex => ex.scheduleId === scheduleId && ex.date === classDate);
-
-    if (existingExceptionIndex > -1) {
-      const updatedException: GroupClassScheduleException = {
-        ...groupClassScheduleExceptions[existingExceptionIndex],
-        status: 'MODIFIED',
-        ...updates,
-        createdAt: new Date().toISOString(),
-      };
-      setGroupClassScheduleExceptionsData(prev => {
-        const newExceptions = [...prev];
-        newExceptions[existingExceptionIndex] = updatedException;
+    const { date: newDate, ...otherUpdates } = updates;
+  
+    if (newDate && newDate !== classDate) {
+      // --- MOVING A CLASS INSTANCE ---
+      const bookingsToMove = appContext.participantBookings.filter(
+        b => b.scheduleId === scheduleId && b.classDate === classDate && b.status !== 'CANCELLED'
+      );
+  
+      // Using functional updates to avoid stale state issues
+      appContext.setGroupClassScheduleExceptionsData(prev => {
+        const newExceptions: GroupClassScheduleException[] = [...prev];
+  
+        // 1. Mark old instance as deleted
+        const oldExcIndex = prev.findIndex(ex => ex.scheduleId === scheduleId && ex.date === classDate);
+        if (oldExcIndex > -1) {
+          // If it exists, update it to DELETED, preserving other info
+          newExceptions[oldExcIndex] = { ...newExceptions[oldExcIndex], status: 'DELETED' };
+        } else {
+          // Otherwise, create a new DELETED exception
+          newExceptions.push({
+            id: crypto.randomUUID(), scheduleId, date: classDate, status: 'DELETED',
+            createdBy: { uid: auth.user!.id, name: auth.user!.name }, createdAt: new Date().toISOString()
+          });
+        }
+  
+        // 2. Create/update new instance as modified
+        const newExcIndex = newExceptions.findIndex(ex => ex.scheduleId === scheduleId && ex.date === newDate);
+        const modificationData = {
+          status: 'MODIFIED' as const,
+          ...otherUpdates, // newStartTime, newCoachId, etc.
+        };
+  
+        if (newExcIndex > -1) {
+          // If an exception for the new date already exists, merge changes
+          newExceptions[newExcIndex] = { ...newExceptions[newExcIndex], ...modificationData };
+        } else {
+          newExceptions.push({
+            id: crypto.randomUUID(), scheduleId, date: newDate,
+            ...modificationData,
+            createdBy: { uid: auth.user!.id, name: auth.user!.name }, createdAt: new Date().toISOString()
+          });
+        }
         return newExceptions;
       });
+  
+      // 3. Move bookings to the new date
+      appContext.setParticipantBookingsData(prev => {
+        const bookingsToMoveIds = new Set(bookingsToMove.map(b => b.id));
+        return prev.map(b => {
+          if (bookingsToMoveIds.has(b.id)) {
+            return { ...b, classDate: newDate };
+          }
+          return b;
+        });
+      });
+  
+      if (notify) {
+        addNotification({
+          type: 'SUCCESS', title: 'Pass Flyttat!',
+          message: `Passet har flyttats till ${newDate}. Deltagare skulle ha meddelats.`
+        });
+      } else {
+        addNotification({ type: 'SUCCESS', title: 'Pass Flyttat!', message: `Passet har flyttats till ${newDate}.` });
+      }
+  
     } else {
-      const newException: GroupClassScheduleException = {
-        id: crypto.randomUUID(),
-        scheduleId,
-        date: classDate,
-        status: 'MODIFIED',
-        ...updates,
-        createdBy: { uid: auth.user!.id, name: auth.user!.name },
-        createdAt: new Date().toISOString(),
-      };
-      setGroupClassScheduleExceptionsData(prev => [...prev, newException]);
+      // --- UPDATING DETAILS OF AN EXISTING INSTANCE (NO DATE CHANGE) ---
+      appContext.setGroupClassScheduleExceptionsData(prev => {
+        const existingExceptionIndex = prev.findIndex(ex => ex.scheduleId === scheduleId && ex.date === classDate);
+        const newExceptions = [...prev];
+  
+        if (existingExceptionIndex > -1) {
+          const updatedException: GroupClassScheduleException = {
+            ...newExceptions[existingExceptionIndex],
+            status: 'MODIFIED',
+            ...otherUpdates,
+          };
+          newExceptions[existingExceptionIndex] = updatedException;
+        } else {
+          const newException: GroupClassScheduleException = {
+            id: crypto.randomUUID(), scheduleId, date: classDate, status: 'MODIFIED',
+            ...otherUpdates,
+            createdBy: { uid: auth.user!.id, name: auth.user!.name }, createdAt: new Date().toISOString(),
+          };
+          newExceptions.push(newException);
+        }
+        return newExceptions;
+      });
+  
+      if (notify) {
+        addNotification({ type: 'INFO', title: 'Pass uppdaterat!', message: 'Deltagare skulle ha meddelats om ändringen.' });
+      } else {
+        addNotification({ type: 'SUCCESS', title: 'Pass uppdaterat!', message: 'Ändringarna har sparats.' });
+      }
     }
-
-    addNotification({ type: 'SUCCESS', title: 'Pass uppdaterat!', message: 'Ändringarna har sparats.' });
-
-    if (notify) {
-      addNotification({ type: 'INFO', title: 'Meddelanden', message: 'Deltagare skulle ha meddelats om ändringen.' });
-      console.log("NOTIFY PARTICIPANTS:", { scheduleId, classDate, updates });
-    }
-  }, [appContext, auth.user]);
+  }, [auth.user, appContext, addNotification]);
 
   const handleProfileModalOpened = useCallback(() => {
     const { participantDirectory, memberships } = appContext;

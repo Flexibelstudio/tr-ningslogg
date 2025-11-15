@@ -86,7 +86,7 @@ interface CoachAreaProps {
   onCancelBooking: (bookingId: string) => void;
   onPromoteFromWaitlist: (bookingId: string) => void;
   onCancelClassInstance: (scheduleId: string, classDate: string, status: 'CANCELLED' | 'DELETED') => void;
-  onUpdateClassInstance: (scheduleId: string, classDate: string, updates: Partial<Pick<GroupClassScheduleException, 'newStartTime' | 'newDurationMinutes' | 'newCoachId' | 'newMaxParticipants'>>, notify: boolean) => void;
+  onUpdateClassInstance: (scheduleId: string, classDate: string, updates: any, notify: boolean) => void;
 }
 
 export const CoachArea: React.FC<CoachAreaProps> = ({
