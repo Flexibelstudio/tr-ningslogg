@@ -39,7 +39,7 @@ interface ClassManagementModalProps {
   onCancelBooking: (bookingId: string) => void;
   onPromoteFromWaitlist: (bookingId: string) => void;
   onCancelClassInstance: (scheduleId: string, classDate: string, status: 'CANCELLED' | 'DELETED') => void;
-  onUpdateClassInstance: (scheduleId: string, classDate: string, updates: Partial<EditedDetails>, notify: boolean) => void;
+  onUpdateClassInstance: (scheduleId: string, classDate: string, updates: Partial<EditedDetails & { newStartTime?: string, newDurationMinutes?: number, newMaxParticipants?: number, newCoachId?: string }>, notify: boolean) => void;
 }
 
 export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({ 
@@ -50,31 +50,30 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
     const [bookingToCancel, setBookingToCancel] = useState<ParticipantBooking | null>(null);
     
     const [isEditing, setIsEditing] = useState(false);
-    const [editedDetails, setEditedDetails] = useState<EditedDetails>({
-        date: '',
-        startTime: '',
-        durationMinutes: '',
-        maxParticipants: '',
-        coachId: '',
-    });
-    const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+    const [editedDetails, setEditedDetails] = useState<EditedDetails>({ date: '', startTime: '', durationMinutes: '', maxParticipants: '', coachId: '' });
+    const [initialDetails, setInitialDetails] = useState<EditedDetails>({ date: '', startTime: '', durationMinutes: '', maxParticipants: '', coachId: '' });
     
+    const [showSaveConfirm, setShowSaveConfirm] = useState(false);
     const [showCancelConfirm, setShowCancelConfirm] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
-            setIsEditing(false);
-            setEditedDetails({
+            const details = {
                 date: classInstance.date,
-                startTime: classInstance.startDateTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' }),
+                startTime: classInstance.startDateTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' }).replace(/\./g, ':'),
                 durationMinutes: classInstance.duration,
                 maxParticipants: classInstance.maxParticipants,
                 coachId: classInstance.coachId,
-            });
+            };
+            setIsEditing(false);
+            setEditedDetails(details);
+            setInitialDetails(details);
         }
     }, [isOpen, classInstance]);
-
+    
+    const hasChanges = useMemo(() => JSON.stringify(editedDetails) !== JSON.stringify(initialDetails), [editedDetails, initialDetails]);
 
     const { booked, waitlisted, availableSpots, checkedInCount } = useMemo(() => {
         const b = classInstance.allBookingsForInstance.filter(b => b.status === 'BOOKED' || b.status === 'CHECKED-IN');
@@ -117,7 +116,22 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
         onUpdateClassInstance(classInstance.scheduleId, classInstance.date, updates, notify);
         setShowSaveConfirm(false);
         setIsEditing(false);
+        // After saving, the new state is the initial state
+        setInitialDetails(editedDetails); 
     };
+    
+    const handleCloseRequest = () => {
+        if (isEditing && hasChanges) {
+            setShowCloseConfirm(true);
+        } else {
+            onClose();
+        }
+    };
+    
+    const handleCancelEditing = () => {
+        setIsEditing(false);
+        setEditedDetails(initialDetails);
+    }
 
     const availableParticipantsForDropdown = useMemo(() => {
         const currentlyInClassIds = new Set(classInstance.allBookingsForInstance.map(b => b.participantId));
@@ -142,21 +156,19 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
 
     return (
         <>
-            <Modal isOpen={isOpen} onClose={onClose} title={modalTitle} size="2xl">
+            <Modal isOpen={isOpen} onClose={handleCloseRequest} title={modalTitle} size="2xl">
                 <div className="space-y-4">
                     <div className="p-3 bg-gray-50 rounded-md border text-base">
                         {!isEditing ? (
-                            <>
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <p><strong>Datum & Tid:</strong> {formattedStartTime}</p>
-                                        <p><strong>Coach:</strong> {classInstance.coachName}</p>
-                                        <p><strong>Status:</strong> {booked.length} / {classInstance.maxParticipants} bokade ({availableSpots} lediga, {checkedInCount} incheckade)</p>
-                                        {waitlisted.length > 0 && <p><strong>Kölista:</strong> {waitlisted.length} pers.</p>}
-                                    </div>
-                                    <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>Redigera pass</Button>
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p><strong>Datum & Tid:</strong> {formattedStartTime}</p>
+                                    <p><strong>Coach:</strong> {classInstance.coachName}</p>
+                                    <p><strong>Status:</strong> {booked.length} / {classInstance.maxParticipants} bokade ({availableSpots} lediga, {checkedInCount} incheckade)</p>
+                                    {waitlisted.length > 0 && <p><strong>Kölista:</strong> {waitlisted.length} pers.</p>}
                                 </div>
-                            </>
+                                <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>Redigera pass</Button>
+                            </div>
                         ) : (
                             <div className="space-y-3 animate-fade-in">
                                 <h4 className="font-semibold text-lg">Redigera passinformation</h4>
@@ -170,8 +182,8 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                                 </div>
                                 <Select label="Coach" value={editedDetails.coachId} onChange={(e) => handleInputChange('coachId', e.target.value)} options={coachOptions} />
                                 <div className="flex justify-end gap-2 pt-3 border-t">
-                                    <Button variant="secondary" onClick={() => setIsEditing(false)}>Avbryt</Button>
-                                    <Button onClick={handleAttemptSave}>Spara ändringar</Button>
+                                    <Button variant="secondary" onClick={handleCancelEditing}>Avbryt</Button>
+                                    <Button onClick={handleAttemptSave} disabled={!hasChanges}>Spara ändringar</Button>
                                 </div>
                             </div>
                         )}
@@ -258,7 +270,7 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                                 variant="secondary"
                                 onClick={() => setShowDeleteConfirm(true)}
                                 disabled={isPast || isCancelledOrDeleted}
-                                className="flex-1"
+                                className="flex-1 !bg-slate-100 !text-slate-700 border-slate-300 hover:!bg-slate-200"
                                 title={isPast ? "Kan inte ta bort ett pass som redan har varit" : (isCancelledOrDeleted ? "Detta pass är redan hanterat" : "Ta bort detta enskilda pass från kalendern")}
                             >
                                 Ta bort enskilt pass (tyst)
@@ -295,9 +307,7 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                 message="Vill du skicka en notis till alla bokade deltagare och de på kölistan om ändringarna du har gjort?"
                 confirmButtonText="Spara och Meddela"
                 cancelButtonText="Spara utan att Meddela"
-                onConfirm={() => handleSave(true)}
             >
-                {/* Custom footer via children to handle the 'Save without notifying' case */}
                 <div className="flex justify-end space-x-3 pt-4 mt-6 border-t border-gray-200">
                     <Button onClick={() => { handleSave(false); setShowSaveConfirm(false); }} variant="secondary">
                         Spara utan att Meddela
@@ -307,6 +317,15 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                     </Button>
                 </div>
             </ConfirmationModal>
+
+            <ConfirmationModal
+                isOpen={showCloseConfirm}
+                onClose={() => setShowCloseConfirm(false)}
+                onConfirm={onClose}
+                title="Stänga utan att spara?"
+                message="Du har osparade ändringar. Är du säker på att du vill stänga? Dina ändringar kommer att förkastas."
+                confirmButtonText="Ja, stäng"
+            />
 
             <ConfirmationModal
                 isOpen={!!bookingToCancel}
