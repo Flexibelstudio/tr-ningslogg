@@ -14,9 +14,10 @@ interface IntroCallModalProps {
   introCallToEdit?: ProspectIntroCall | null;
   onUpdate?: (introCall: ProspectIntroCall) => void;
   initialData?: Partial<Omit<ProspectIntroCall, 'id' | 'createdDate' | 'status' | 'coachId'>>;
+  leadId?: string; // New prop to link to a lead
 }
 
-export const IntroCallModal: React.FC<IntroCallModalProps> = ({ isOpen, onClose, onSave, introCallToEdit, onUpdate, initialData }) => {
+export const IntroCallModal: React.FC<IntroCallModalProps> = ({ isOpen, onClose, onSave, introCallToEdit, onUpdate, initialData, leadId }) => {
   const { locations } = useAppContext();
 
   // State for all new form fields
@@ -127,8 +128,8 @@ export const IntroCallModal: React.FC<IntroCallModalProps> = ({ isOpen, onClose,
   }, [isOpen, introCallToEdit, initialData, locations]);
 
   const handleSave = () => {
-    if (!prospectName.trim() || !studioId) {
-      setError('Namn och studio är obligatoriska.');
+    if (!prospectName.trim() || !studioId || !outcome) {
+      setError('Namn, studio och resultat är obligatoriska.');
       return;
     }
     setError('');
@@ -154,6 +155,7 @@ export const IntroCallModal: React.FC<IntroCallModalProps> = ({ isOpen, onClose,
       coachSummary: coachSummary.trim() || undefined,
       outcome,
       tshirtHandedOut: outcome === 'bought_starter' ? tshirtHandedOut : undefined,
+      linkedLeadId: leadId || introCallToEdit?.linkedLeadId,
     };
 
     if (isEditing && onUpdate && introCallToEdit) {
@@ -273,7 +275,7 @@ export const IntroCallModal: React.FC<IntroCallModalProps> = ({ isOpen, onClose,
         <div className="p-4 border rounded-lg bg-violet-50/50 space-y-4">
             <h3 className="text-xl font-semibold text-gray-800">Resultat & Nästa Steg</h3>
             <div>
-                <p className="block text-base font-medium text-gray-700 mb-2">Vad blev resultatet av samtalet?</p>
+                <p className="block text-base font-medium text-gray-700 mb-2">Vad blev resultatet av samtalet? *</p>
                 <div className="space-y-2">
                     {INTRO_CALL_OUTCOME_OPTIONS.map(opt => (
                         <label key={opt.value} className="flex items-center gap-2 cursor-pointer p-2 rounded-md active:bg-violet-100">

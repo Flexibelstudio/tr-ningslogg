@@ -6,6 +6,8 @@ import { Button } from '../Button';
 import { calculateEstimated1RM } from '../../utils/workoutUtils';
 import { calculateAge } from '../../utils/dateUtils';
 import html2canvas from 'html2canvas';
+import { StrengthHistoryChart } from './StrengthHistoryChart';
+import { FssHistoryChart } from './FssHistoryChart';
 
 export interface LiftScoreDetails {
   lift: LiftType;
@@ -434,6 +436,20 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
 
     const fssInterpretation = getFssScoreInterpretation(fssData?.totalScore);
 
+    const fssHistoryData = useMemo(() => {
+      if (!profile) return [];
+      return strengthStatsHistory
+        .map(stat => {
+          const score = calculateFlexibelStrengthScoreInternal(stat, profile)?.totalScore;
+          if (score !== undefined && score !== null) {
+            return { date: stat.lastUpdated, score };
+          }
+          return null;
+        })
+        .filter((item): item is { date: string; score: number } => item !== null);
+    }, [strengthStatsHistory, profile]);
+
+
     if (!profile || !profile.gender || (!profile.birthDate && !profile.age)) {
       return <p className="text-center p-4 bg-yellow-100 text-yellow-800 rounded-md">Vänligen fyll i kön och födelsedatum i din profil för att kunna se och jämföra din styrka.</p>;
     }
@@ -467,6 +483,7 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
                   </p>
                 </div>
               )}
+               {fssHistoryData.length > 1 && <FssHistoryChart history={fssHistoryData} />}
             </div>
             <Button onClick={handleShare} fullWidth variant="secondary">
               Dela resultat
@@ -600,22 +617,16 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
           })}
         </div>
 
-        <details className="mt-8 pt-6 border-t">
-          <summary className="text-xl font-semibold text-gray-700 cursor-pointer list-none flex justify-between items-center py-2 group hover:text-flexibel transition-colors">
-            Historik
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5 text-gray-500 transition-transform duration-200 group-open:rotate-180"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </summary>
-          <div className="mt-2 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-            <p className="text-base text-gray-600">Här kan du se din historiska utveckling. Spara nya mätpunkter för att se grafen växa!</p>
-            {/* Future chart component would go here */}
-          </div>
+        <details className="mt-8 pt-6 border-t" open={strengthStatsHistory.length > 1}>
+            <summary className="text-xl font-semibold text-gray-700 cursor-pointer list-none flex justify-between items-center py-2 group hover:text-flexibel transition-colors">
+                Historik
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500 transition-transform duration-200 group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+            </summary>
+            <div className="mt-2 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <StrengthHistoryChart history={strengthStatsHistory} />
+            </div>
         </details>
 
         {!isEmbedded && (

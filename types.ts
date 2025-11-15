@@ -113,7 +113,15 @@ export interface GroupClassSchedule {
 export interface GroupClassScheduleException {
   id: string;
   scheduleId: string; // FK to GroupClassSchedule.id
-  date: string; // YYYY-MM-DD of the cancelled instance
+  date: string; // YYYY-MM-DD of the instance
+  status?: 'CANCELLED' | 'DELETED' | 'MODIFIED';
+
+  // Overrides for 'MODIFIED' status
+  newStartTime?: string; // "HH:MM"
+  newDurationMinutes?: number;
+  newCoachId?: string;
+  newMaxParticipants?: number;
+
   createdBy?: { uid: string; name: string };
   createdAt: string; // ISO string
 }
@@ -437,6 +445,19 @@ export interface CoachNote {
   noteType: 'check-in' | 'intro-session'; 
 }
 
+export type LeadStatus = 'new' | 'contacted' | 'intro_booked' | 'converted' | 'junk';
+export type ContactAttemptMethod = 'phone' | 'email' | 'sms';
+export type ContactAttemptOutcome = 'booked_intro' | 'not_interested' | 'no_answer' | 'left_voicemail' | 'follow_up';
+
+export interface ContactAttempt {
+  id: string;
+  timestamp: string; // ISO-datum
+  method: ContactAttemptMethod;
+  outcome: ContactAttemptOutcome;
+  notes?: string; // Fritext för coachen
+  coachId: string;
+}
+
 export interface Lead {
   id: string;
   firstName: string;
@@ -444,9 +465,16 @@ export interface Lead {
   email: string;
   phone?: string;
   locationId: string;
-  source: 'Hemsida' | 'Meta' | 'Manuell';
+  source: 'Hemsida' | 'Meta' | 'Manuell' | 'Rekommendation';
   createdDate: string; // ISO string
-  status: 'new' | 'contacted' | 'converted' | 'junk';
+  status: LeadStatus;
+  contactHistory?: ContactAttempt[];
+  // New fields for recommendation feature
+  referredBy?: {
+    participantId: string;
+    participantName: string;
+  };
+  consentGiven?: boolean;
 }
 
 export interface ProspectIntroCall {
@@ -456,6 +484,7 @@ export interface ProspectIntroCall {
   prospectPhone?: string;
   createdDate: string; // ISO string
   coachId: string;
+  linkedLeadId?: string; // To link back to the originating lead
 
   // New fields from the form
   studioId?: string;

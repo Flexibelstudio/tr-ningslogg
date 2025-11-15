@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
 import { Textarea } from '../Textarea';
-import { ParticipantProfile, ParticipantGoalData, ActivityLog, CoachNote, OneOnOneSession, StaffMember, GoalCompletionLog, Workout, WorkoutCategoryDefinition, StaffAvailability, UserStrengthStat, ParticipantConditioningStat, ParticipantPhysiqueStat, ParticipantClubMembership, WorkoutLog, GeneralActivityLog } from '../../types';
+import { ParticipantProfile, ParticipantGoalData, ActivityLog, CoachNote, OneOnOneSession, StaffMember, GoalCompletionLog, Workout, WorkoutCategoryDefinition, StaffAvailability, UserStrengthStat, ParticipantConditioningStat, ParticipantPhysiqueStat, ParticipantClubMembership, WorkoutLog, GeneralActivityLog, Lead, Location } from '../../types';
 import * as dateUtils from '../../utils/dateUtils';
 import { BookOneOnOneModal } from './BookOneOnOneModal';
 import { GoalForm, GoalFormRef } from '../participant/GoalForm';
@@ -13,7 +13,7 @@ import { useAppContext } from '../../context/AppContext';
 import { StrengthComparisonModal } from '../participant/StrengthComparisonModal';
 import { ConditioningStatsModal } from '../participant/ConditioningStatsModal';
 import { PhysiqueManagerModal } from '../participant/PhysiqueManagerModal';
-import { Select } from '../Input';
+import { Select, Input } from '../Input';
 import { callGeminiApiFn } from '../../firebaseClient';
 import { renderMarkdown } from '../../utils/textUtils';
 
@@ -45,6 +45,93 @@ interface MemberNotesModalProps {
 
 type MemberNotesTab = 'notes' | 'goals' | 'sessions' | 'program';
 
+interface AddLeadFromRecommendationModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (lead: Lead) => void;
+    referringParticipant: ParticipantProfile;
+    locations: Location[];
+}
+
+const AddLeadFromRecommendationModal: React.FC<AddLeadFromRecommendationModalProps> = ({ isOpen, onClose, onSave, referringParticipant, locations }) => {
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
+    const [phone, setPhone] = useState('');
+    const [consentGiven, setConsentGiven] = useState(false);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        if (isOpen) {
+            setFirstName('');
+            setLastName('');
+            setPhone('');
+            setConsentGiven(false);
+            setError('');
+        }
+    }, [isOpen]);
+
+    const handleSave = () => {
+        if (!firstName.trim() || !lastName.trim()) {
+            setError('För- och efternamn är obligatoriska.');
+            return;
+        }
+        
+        const newLead: Lead = {
+            id: crypto.randomUUID(),
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            email: '', // Email is not mandatory for this flow
+            phone: phone.trim() || undefined,
+            locationId: referringParticipant.locationId || locations[0]?.id,
+            source: 'Rekommendation',
+            createdDate: new Date().toISOString(),
+            status: 'new',
+            referredBy: {
+                participantId: referringParticipant.id,
+                participantName: referringParticipant.name || 'Okänd Medlem',
+            },
+            consentGiven,
+        };
+
+        onSave(newLead);
+        onClose();
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={`Nytt Lead via ${referringParticipant.name?.split(' ')[0]}`}>
+            <div className="space-y-4">
+                {error && <p className="text-red-600 bg-red-100 p-2 rounded-md">{error}</p>}
+                <div className="grid grid-cols-2 gap-4">
+                    <Input label="Förnamn *" value={firstName} onChange={e => setFirstName(e.target.value)} required />
+                    <Input label="Efternamn *" value={lastName} onChange={e => setLastName(e.target.value)} required />
+                </div>
+                <Input label="Telefonnummer" type="tel" value={phone} onChange={e => setPhone(e.target.value)} />
+                <div className="pt-2">
+                    <label className="flex items-start space-x-3 p-3 bg-yellow-50 rounded-md border border-yellow-200 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={consentGiven}
+                            onChange={(e) => setConsentGiven(e.target.checked)}
+                            className="h-6 w-6 mt-1 text-flexibel border-gray-300 rounded focus:ring-flexibel"
+                        />
+                        <div>
+                            <span className="text-base font-medium text-gray-800">
+                                Jag bekräftar att {referringParticipant.name} har fått ett godkännande från sin vän att vi får kontakta dem.
+                            </span>
+                            <p className="text-sm text-gray-600 mt-1">Lämna rutan tom om du behöver invänta samtycke. Du kan uppdatera detta senare från "Klientresan".</p>
+                        </div>
+                    </label>
+                </div>
+                <div className="flex justify-end gap-2 pt-4 border-t">
+                    <Button variant="secondary" onClick={onClose}>Avbryt</Button>
+                    <Button onClick={handleSave}>Spara Lead</Button>
+                </div>
+            </div>
+        </Modal>
+    );
+};
+
+
 export const MemberNotesModal: React.FC<MemberNotesModalProps> = ({
   isOpen,
   onClose,
@@ -75,7 +162,9 @@ export const MemberNotesModal: React.FC<MemberNotesModalProps> = ({
         userConditioningStatsHistory, setUserConditioningStatsHistoryData,
         participantPhysiqueHistory, setParticipantPhysiqueHistoryData,
         clubMemberships,
-        updateParticipantProfile
+        updateParticipantProfile,
+        locations,
+        setLeadsData,
     } = useAppContext();
 
   const [activeTab, setActiveTab] = useState<MemberNotesTab>('notes');
@@ -93,6 +182,7 @@ export const MemberNotesModal: React.FC<MemberNotesModalProps> = ({
   const [assignSuccessMessage, setAssignSuccessMessage] = useState('');
   const [programToEdit, setProgramToEdit] = useState<Workout | null>(null);
   const [programToDelete, setProgramToDelete] = useState<Workout | null>(null);
+  const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
 
   const goalFormRef = useRef<GoalFormRef>(null);
 
@@ -175,31 +265,34 @@ const handleConfirmDeleteProgram = () => {
 
   const handleInsertTemplate = () => {
     const today = new Date().toISOString().split('T')[0];
-    const template = `AVSTÄMNING [Datum: ${today}]
+    const template = `Avstämning [Datum: ${today}]
 
-HUR GÅR DET MED DIN TRÄNING?
-
-
-VAD ÄR DU MEST STOLT ÖVER ATT HA UPPNÅTT DE SENASTE TRE MÅNADERNA (eller sen senaste avstämningen)? (BRIGHT SPOT)
+Hur går det med din träning?
 
 
-VAD HAR VARIT DIN STÖRSTA UTMANING?
+Vad är du mest stolt över att ha uppnått de senaste tre månaderna (eller sen senaste avstämningen)? (Bright spot)
 
 
-VILKA ÄR DINA NUVARANDE MÅL?
+Vad har varit din största utmaning?
 
 
-KÄNNER DU ATT DU ÄR PÅ VÄG MOT MÅLET?
+Vilka är dina nuvarande mål?
 
 
-FÖRNYAT/JUSTERAT MÅL:
+Känner du att du är på väg mot målet?
 
 
-HUR TAR VI OSS DIT?
+Förnyat/justerat mål:
+
+
+Hur tar vi oss dit?
 Bra:
 Bättre:
 Bäst:
-`;
+
+---
+Ny kund? (GDPR!)
+"Känner du någon vän, kollega eller familjemedlem som du tror skulle uppskatta samma hjälp som du får? Be dem gärna om lov att jag får deras kontaktuppgifter, så kan jag höra av mig."`;
 
     setNewNote(prevNote => {
         if (prevNote.trim() === '') {
@@ -405,8 +498,10 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
                         </div>
                       
                       <div className="space-y-2">
+                        <div className="flex items-end justify-between">
+                            <label className="text-lg font-semibold text-gray-800">{editingNote ? 'Redigera anteckning' : 'Ny anteckning'}</label>
+                        </div>
                         <Textarea
-                          label={editingNote ? 'Redigera anteckning' : 'Ny anteckning'}
                           value={newNote}
                           onChange={(e) => setNewNote(e.target.value)}
                           rows={4}
@@ -429,7 +524,7 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
                         )}
 
                         <div className="flex justify-between items-center pt-2">
-                          <div>
+                          <div className="flex gap-2">
                             {!editingNote && (
                               <Button
                                 type="button"
@@ -440,6 +535,7 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
                                 Infoga Avstämningsmall
                               </Button>
                             )}
+                             <Button onClick={() => setIsAddLeadModalOpen(true)} variant="outline" size="sm">➕ Lägg till lead</Button>
                           </div>
                           <div className="flex justify-end gap-2">
                             {editingNote && (
@@ -614,6 +710,14 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
           </div>
         </div>
       </Modal>
+
+        <AddLeadFromRecommendationModal
+            isOpen={isAddLeadModalOpen}
+            onClose={() => setIsAddLeadModalOpen(false)}
+            onSave={(lead) => setLeadsData(prev => [...prev, lead])}
+            referringParticipant={participant}
+            locations={locations}
+        />
 
       <BookOneOnOneModal
         isOpen={isBookingModalOpen}

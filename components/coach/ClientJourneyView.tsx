@@ -1,16 +1,18 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ParticipantProfile, OneOnOneSession, ActivityLog, StaffMember, CoachNote, ParticipantGoalData, WorkoutLog, Membership, ProspectIntroCall, Lead, Location } from '../../types';
-import { GoogleGenAI } from '@google/genai';
+import { ParticipantProfile, OneOnOneSession, ActivityLog, StaffMember, CoachNote, ParticipantGoalData, WorkoutLog, Membership, ProspectIntroCall, Lead, Location, LeadStatus, ContactAttemptMethod, ContactAttemptOutcome, ContactAttempt } from '../../types';
 import { Button } from '../Button';
 import { MemberNotesModal } from './MemberNotesModal';
 import * as dateUtils from '../../utils/dateUtils';
 import { InfoModal } from '../participant/InfoModal';
 import { useAppContext } from '../../context/AppContext';
 import { IntroCallModal } from './IntroCallModal';
+// FIX: Added missing import for useAuth hook.
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../Modal';
 import { Select, Input } from '../Input';
 import { ConfirmationModal } from '../ConfirmationModal';
+import { CONTACT_ATTEMPT_METHOD_OPTIONS, CONTACT_ATTEMPT_OUTCOME_OPTIONS } from '../../constants';
+import { Textarea } from '../Textarea';
 
 interface ClientJourneyViewProps {
   participants: ParticipantProfile[];
@@ -44,12 +46,15 @@ interface ClientJourneyEntry extends ParticipantProfile {
 }
 
 type ClientJourneyTab = 'leads' | 'introCalls' | 'memberJourney';
+type LeadFilter = LeadStatus | 'all';
+type IntroCallFilter = 'actionable' | 'archived';
+
 
 interface AddLeadModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (newLeadData: Pick<Lead, 'firstName' | 'lastName' | 'email' | 'phone' | 'locationId'>) => void;
-  locations: Location[];
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (newLeadData: Pick<Lead, 'firstName' | 'lastName' | 'email' | 'phone' | 'locationId'>) => void;
+    locations: Location[];
 }
 
 const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onSave, locations }) => {
@@ -124,6 +129,73 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onSave, lo
     );
 };
 
+interface LogContactAttemptModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    lead: Lead;
+    onSave: (updatedLead: Lead) => void;
+    loggedInStaffId: string;
+}
+
+const LogContactAttemptModal: React.FC<LogContactAttemptModalProps> = ({ isOpen, onClose, lead, onSave, loggedInStaffId }) => {
+    const [method, setMethod] = useState<ContactAttemptMethod>('phone');
+    const [outcome, setOutcome] = useState<ContactAttemptOutcome>('no_answer');
+    const [notes, setNotes] = useState('');
+
+    useEffect(() => {
+        if (isOpen) {
+            setMethod('phone');
+            setOutcome('no_answer');
+            setNotes('');
+        }
+    }, [isOpen]);
+
+    const handleSave = () => {
+        const newAttempt: ContactAttempt = {
+            id: crypto.randomUUID(),
+            timestamp: new Date().toISOString(),
+            method,
+            outcome,
+            notes: notes.trim() || undefined,
+            coachId: loggedInStaffId,
+        };
+
+        let newStatus = lead.status;
+        if (lead.status === 'new') {
+            newStatus = 'contacted';
+        }
+        if (outcome === 'booked_intro') {
+            newStatus = 'intro_booked';
+        }
+        if (outcome === 'not_interested') {
+            newStatus = 'junk';
+        }
+
+        const updatedLead: Lead = {
+            ...lead,
+            status: newStatus,
+            contactHistory: [...(lead.contactHistory || []), newAttempt],
+        };
+
+        onSave(updatedLead);
+        onClose();
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={`Logga kontakt för ${lead.firstName}`}>
+            <div className="space-y-4">
+                <Select label="Metod" value={method} onChange={e => setMethod(e.target.value as ContactAttemptMethod)} options={CONTACT_ATTEMPT_METHOD_OPTIONS} />
+                <Select label="Resultat" value={outcome} onChange={e => setOutcome(e.target.value as ContactAttemptOutcome)} options={CONTACT_ATTEMPT_OUTCOME_OPTIONS} />
+                <Textarea label="Anteckningar" value={notes} onChange={e => setNotes(e.target.value)} placeholder="T.ex. 'Ringde, inget svar. Provar igen imorgon.'" rows={3} />
+                <div className="flex justify-end gap-2 pt-4 border-t">
+                    <Button variant="secondary" onClick={onClose}>Avbryt</Button>
+                    <Button onClick={handleSave}>Logga försök</Button>
+                </div>
+            </div>
+        </Modal>
+    );
+};
+
 
 export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   participants,
@@ -169,6 +241,13 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   const [leadBeingConverted, setLeadBeingConverted] = useState<Lead | null>(null);
   const [leadToMarkAsJunk, setLeadToMarkAsJunk] = useState<Lead | null>(null);
   const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
+  const [leadToConfirmConsent, setLeadToConfirmConsent] = useState<Lead | null>(null);
+
+  const [activeLeadFilter, setActiveLeadFilter] = useState<LeadFilter>('new');
+  const [leadToLogContactFor, setLeadToLogContactFor] = useState<Lead | null>(null);
+  const [expandedLeadId, setExpandedLeadId] = useState<string | null>(null);
+  const [introCallView, setIntroCallView] = useState<IntroCallFilter>('actionable');
+
 
   const journeyData = useMemo<ClientJourneyEntry[]>(() => {
     return participants
@@ -189,7 +268,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
 
         let engagementLevel: 'green' | 'yellow' | 'red' | 'neutral' = 'neutral';
         if (p.isProspect) {
-            // Prospects don't have an engagement level in the same way
             engagementLevel = 'neutral';
         } else if (p.isActive === false) {
             engagementLevel = 'red';
@@ -201,7 +279,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
 
         let finalEntry: Omit<ClientJourneyEntry, keyof ParticipantProfile>;
         
-        // 1. Riskzon (highest priority)
         if (!p.isProspect && logsLast21Days < 4 && daysSinceStart > 14) {
             finalEntry = {
                 phase: 'Riskzon',
@@ -213,7 +290,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                 engagementLevel,
             };
         }
-        // 2. Startprogram
         else if (p.isProspect) {
             const { startProgramCategoryId, startProgramSessionsRequired } = integrationSettings;
             const startProgramCategory = workoutCategories.find(c => c.id === startProgramCategoryId);
@@ -249,7 +325,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                 engagementLevel,
             };
         }
-        // 3. Medlem
         else {
             const membership = memberships.find(m => m.id === p.membershipId);
             const checkInSessions = oneOnOneSessions.filter(s => s.participantId === p.id && s.title === 'Avstämningssamtal' && s.status === 'completed').sort((a,b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
@@ -281,17 +356,33 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
       }).filter((p): p is ClientJourneyEntry => p !== null);
   }, [participants, oneOnOneSessions, allActivityLogs, memberships, integrationSettings, workoutLogs, workouts, workoutCategories]);
 
-  const newLeads = useMemo(() => {
-    return leads
-      .filter(l => l.status === 'new')
-      .sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
-  }, [leads]);
-
-  const unlinkedCalls = useMemo(() => {
-    return prospectIntroCalls
-        .filter(c => c.status === 'unlinked')
-        .sort((a,b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
+  const filteredLeads = useMemo(() => {
+    const sortedLeads = [...leads].sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
+    if (activeLeadFilter === 'all') {
+        return sortedLeads;
+    }
+    return sortedLeads.filter(l => l.status === activeLeadFilter);
+  }, [leads, activeLeadFilter]);
+  
+  const actionableIntroCalls = useMemo(() => {
+      return prospectIntroCalls
+          .filter(c => {
+              const isActionableUnlinked = c.status === 'unlinked' && (c.outcome === 'bought_starter' || c.outcome === 'bought_other');
+              const isFollowUp = c.outcome === 'thinking';
+              const isNew = c.status === 'unlinked' && c.outcome === undefined;
+              return isActionableUnlinked || isFollowUp || isNew;
+          })
+          .sort((a,b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
   }, [prospectIntroCalls]);
+
+  const archivedIntroCalls = useMemo(() => {
+      return prospectIntroCalls
+          .filter(c => c.outcome === 'not_interested' || c.status === 'linked')
+          .sort((a,b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
+  }, [prospectIntroCalls]);
+
+  const introCallsToShow = introCallView === 'actionable' ? actionableIntroCalls : archivedIntroCalls;
+
 
   const filteredAndSortedData = useMemo(() => {
     let data = journeyData;
@@ -333,8 +424,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
     setProspectIntroCallsData(prev => [...prev, newIntroCall]);
 
     if (leadBeingConverted) {
-        const updatedLead = { ...leadBeingConverted, status: 'converted' as const };
-        setLeadsData(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+        // This is now handled in handleCreateIntroCallFromLead to immediately move it
         setLeadBeingConverted(null);
     }
   };
@@ -346,11 +436,13 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   const handleConfirmLink = () => {
     if (!callToLink || !participantToLinkId) return;
     
-    // 1. Update the ProspectIntroCall
     const updatedCall = { ...callToLink, status: 'linked' as const, linkedParticipantId: participantToLinkId };
     setProspectIntroCallsData(prev => prev.map(c => c.id === callToLink.id ? updatedCall : c));
 
-    // 2. Create a CoachNote from the intro call data
+    if (callToLink.linkedLeadId) {
+        setLeadsData(prev => prev.map(l => l.id === callToLink.linkedLeadId ? { ...l, status: 'converted' } : l));
+    }
+
     const noteText = `
 --- INTROSAMTALSAMMANFATTNING ---
 Datum: ${new Date(callToLink.createdDate).toLocaleDateString('sv-SE')}
@@ -380,12 +472,12 @@ ${callToLink.coachSummary || 'Ej angivet.'}
     };
     setCoachNotesData(prev => [...prev, newNote]);
 
-    // 3. Reset state
     setCallToLink(null);
     setParticipantToLinkId('');
   };
   
   const handleCreateIntroCallFromLead = (lead: Lead) => {
+    setLeadsData(prev => prev.map(l => l.id === lead.id ? { ...l, status: 'intro_booked' } : l));
     setLeadBeingConverted(lead);
     setIsIntroCallModalOpen(true);
   };
@@ -406,6 +498,12 @@ ${callToLink.coachSummary || 'Ej angivet.'}
     };
     setLeadsData(prev => [...prev, newLead]);
   };
+  
+  const handleConfirmConsent = () => {
+    if (!leadToConfirmConsent) return;
+    setLeadsData(prev => prev.map(l => l.id === leadToConfirmConsent.id ? { ...l, consentGiven: true } : l));
+    setLeadToConfirmConsent(null);
+  };
 
   if (!loggedInStaff) return <div>Laddar...</div>;
 
@@ -413,6 +511,14 @@ ${callToLink.coachSummary || 'Ej angivet.'}
     high: 'border-red-500 bg-red-50 text-red-700',
     medium: 'border-yellow-500 bg-yellow-50 text-yellow-700',
     low: 'border-green-500 bg-green-50 text-green-700',
+  };
+
+  const statusConfig: Record<LeadStatus, { text: string; color: string }> = {
+      new: { text: 'Ny', color: 'bg-blue-100 text-blue-800' },
+      contacted: { text: 'Kontaktad', color: 'bg-yellow-100 text-yellow-800' },
+      intro_booked: { text: 'Intro Bokat', color: 'bg-purple-100 text-purple-800' },
+      converted: { text: 'Konverterad', color: 'bg-green-100 text-green-800' },
+      junk: { text: 'Skräp', color: 'bg-gray-100 text-gray-800' },
   };
 
   const StatCard: React.FC<{ title: string; value: number; icon: string; onClick: () => void; isActive: boolean }> = ({ title, value, icon, onClick, isActive }) => (
@@ -432,9 +538,18 @@ ${callToLink.coachSummary || 'Ej angivet.'}
   };
   
   const participantOptionsForLinking = participants
-    .filter(p => p.isActive || p.isProspect) // Link to active members or prospects
+    .filter(p => p.isActive || p.isProspect)
     .map(p => ({ value: p.id, label: p.name || 'Okänd' }))
     .sort((a,b) => a.label.localeCompare(b.label));
+
+  const leadFilterOptions: { label: string; value: LeadFilter }[] = [
+      { label: 'Nya', value: 'new' },
+      { label: 'Kontaktade', value: 'contacted' },
+      { label: 'Bokade Intro', value: 'intro_booked' },
+      { label: 'Konverterade', value: 'converted' },
+      { label: 'Skräp', value: 'junk' },
+      { label: 'Alla', value: 'all' },
+  ];
 
   return (
     <div className="space-y-6">
@@ -446,14 +561,14 @@ ${callToLink.coachSummary || 'Ej angivet.'}
       </div>
 
        <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-4" aria-label="Tabs">
+            <nav className="-mb-px flex space-x-4 overflow-x-auto" aria-label="Tabs">
                 <button onClick={() => setActiveTab('leads')} className={`relative whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('leads')}`}>
                     Leads
-                    {newLeads.length > 0 && <span className="ml-2 inline-block bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">{newLeads.length}</span>}
+                    {leads.filter(l => l.status === 'new').length > 0 && <span className="ml-2 inline-block bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">{leads.filter(l => l.status === 'new').length}</span>}
                 </button>
                 <button onClick={() => setActiveTab('introCalls')} className={`relative whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('introCalls')}`}>
                     Introsamtal
-                    {unlinkedCalls.length > 0 && <span className="ml-2 inline-block bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">{unlinkedCalls.length}</span>}
+                    {actionableIntroCalls.length > 0 && <span className="ml-2 inline-block bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">{actionableIntroCalls.length}</span>}
                 </button>
                 <button onClick={() => setActiveTab('memberJourney')} className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('memberJourney')}`}>
                     Medlemsresan
@@ -461,34 +576,67 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             </nav>
         </div>
       
-      {/* Leads Tab */}
       <div role="tabpanel" hidden={activeTab !== 'leads'} className="animate-fade-in space-y-6">
-        <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-bold text-gray-800">Leads ({newLeads.length})</h3>
-            <Button onClick={() => setIsAddLeadModalOpen(true)}>
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
+            <div className="flex flex-wrap gap-2">
+                {leadFilterOptions.map(opt => (
+                    <Button key={opt.value} variant={activeLeadFilter === opt.value ? 'primary' : 'outline'} size="sm" onClick={() => setActiveLeadFilter(opt.value)}>
+                        {opt.label} ({opt.value === 'all' ? leads.length : leads.filter(l => l.status === opt.value).length})
+                    </Button>
+                ))}
+            </div>
+            <Button onClick={() => setIsAddLeadModalOpen(true)} className="w-full sm:w-auto">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
                 Lägg till lead manuellt
             </Button>
         </div>
-        {newLeads.length > 0 ? (
+        {filteredLeads.length > 0 ? (
             <div className="space-y-3">
-                {newLeads.map(lead => {
+                {filteredLeads.map(lead => {
                     const location = locations.find(l => l.id === lead.locationId);
+                    const isRecommendation = lead.source === 'Rekommendation';
+                    const consentNeeded = isRecommendation && !lead.consentGiven;
+                    const lastContact = lead.contactHistory?.[lead.contactHistory.length - 1];
+
                     return (
                         <div key={lead.id} className="p-4 bg-white rounded-lg border shadow-sm flex flex-col sm:flex-row justify-between items-start gap-3">
-                            <div>
-                                <p className="font-bold text-lg text-gray-900">{lead.firstName} {lead.lastName}</p>
-                                <p className="text-sm text-gray-600">{lead.email}</p>
+                            <div className="flex-grow">
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                    <p className="font-bold text-lg text-gray-900">{lead.firstName} {lead.lastName}</p>
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig[lead.status].color}`}>
+                                        {statusConfig[lead.status].text}
+                                    </span>
+                                </div>
+
+                                <p className="text-sm text-gray-600">{lead.email || <i>E-post saknas</i>}</p>
                                 {lead.phone && <p className="text-sm text-gray-600">{lead.phone}</p>}
                                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                                     <span className="font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{lead.source}</span>
                                     {location && <span className="font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{location.name}</span>}
-                                    <span className="text-gray-400">{new Date(lead.createdDate).toLocaleString('sv-SE')}</span>
+                                    <span className="text-gray-400">Skapad: {new Date(lead.createdDate).toLocaleDateString('sv-SE')}</span>
                                 </div>
+                                {lastContact && <p className="text-xs text-gray-500 mt-1">Senast kontaktad: {new Date(lastContact.timestamp).toLocaleDateString('sv-SE')}</p>}
+                                {lead.referredBy && (
+                                    <p className="text-xs text-gray-500 mt-1 italic">Rekommenderad av: {lead.referredBy.participantName}</p>
+                                )}
                             </div>
-                            <div className="flex gap-2 self-start sm:self-center flex-shrink-0">
-                                <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => setLeadToMarkAsJunk(lead)}>Skräp</Button>
-                                <Button size="sm" variant="primary" onClick={() => handleCreateIntroCallFromLead(lead)}>Skapa Introsamtal</Button>
+                            <div className="flex flex-col sm:flex-row gap-2 self-start sm:self-center flex-shrink-0 items-center">
+                                {isRecommendation && (
+                                    <button
+                                        onClick={() => consentNeeded && setLeadToConfirmConsent(lead)}
+                                        disabled={!consentNeeded}
+                                        className={`p-2 rounded-full text-2xl ${consentNeeded ? 'text-gray-400 hover:text-gray-700' : 'text-green-500 cursor-default'}`}
+                                        title={consentNeeded ? "Klicka för att bekräfta att samtycke har inhämtats" : "Samtycke har inhämtats"}
+                                        aria-label={consentNeeded ? "Bekräfta samtycke" : "Samtycke bekräftat"}
+                                    >
+                                        {consentNeeded ? '🔒' : '🔓'}
+                                    </button>
+                                )}
+                                <Button size="sm" variant="ghost" onClick={() => setExpandedLeadId(expandedLeadId === lead.id ? null : lead.id)}>Historik</Button>
+                                <Button size="sm" variant="outline" onClick={() => setLeadToLogContactFor(lead)}>➕ Logga kontakt</Button>
+                                {lead.status === 'new' && (
+                                    <Button size="sm" variant="primary" onClick={() => handleCreateIntroCallFromLead(lead)} disabled={consentNeeded} title={consentNeeded ? "Samtycke krävs" : ""}>Skapa Introsamtal</Button>
+                                )}
                             </div>
                         </div>
                     );
@@ -496,30 +644,69 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             </div>
         ) : (
             <div className="text-center p-8 bg-gray-50 rounded-lg">
-                <p className="text-lg text-gray-500">Inga leads att hantera. Bra jobbat!</p>
+                <p className="text-lg text-gray-500">Inga leads matchar filtret.</p>
             </div>
         )}
       </div>
 
-      {/* Introsamtal Tab */}
       <div role="tabpanel" hidden={activeTab !== 'introCalls'} className="animate-fade-in space-y-6">
-        <div className="flex justify-end">
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
+            <div className="flex gap-2 p-1 bg-gray-200 rounded-lg">
+                <Button
+                    size="sm"
+                    onClick={() => setIntroCallView('actionable')}
+                    className={`transition-all ${introCallView === 'actionable' ? 'bg-white !text-gray-800 shadow' : 'bg-transparent !text-gray-600'}`}
+                >
+                    Att hantera ({actionableIntroCalls.length})
+                </Button>
+                <Button
+                    size="sm"
+                    onClick={() => setIntroCallView('archived')}
+                    className={`transition-all ${introCallView === 'archived' ? 'bg-white !text-gray-800 shadow' : 'bg-transparent !text-gray-600'}`}
+                >
+                    Avslutade ({archivedIntroCalls.length})
+                </Button>
+            </div>
             <Button onClick={() => { setLeadBeingConverted(null); setCallToEdit(null); setIsIntroCallModalOpen(true); }}>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
                 Lägg till nytt introsamtal
             </Button>
         </div>
-        {unlinkedCalls.length > 0 ? (
+        {introCallsToShow.length > 0 ? (
              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 space-y-4">
-                 <h3 className="text-xl font-bold text-gray-800">Okopplade Introsamtal ({unlinkedCalls.length})</h3>
-                 <div className="space-y-3 max-h-96 overflow-y-auto pr-2 -mr-2">
-                     {unlinkedCalls.map(call => {
+                 <h3 className="text-xl font-bold text-gray-800">{introCallView === 'actionable' ? 'Introsamtal att hantera' : 'Avslutade Introsamtal'}</h3>
+                 <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2 -mr-2">
+                     {introCallsToShow.map(call => {
                          const coach = staffMembers.find(s => s.id === call.coachId);
+                         const linkedParticipant = call.linkedParticipantId ? participants.find(p => p.id === call.linkedParticipantId) : null;
+                         let statusText = '';
+                         let statusColor = '';
+
+                         if (call.status === 'linked' && linkedParticipant) {
+                             statusText = `Länkad till ${linkedParticipant.name}`;
+                             statusColor = 'bg-green-100 text-green-800';
+                         } else if (call.outcome === 'not_interested') {
+                             statusText = 'Ej intresserad';
+                             statusColor = 'bg-gray-100 text-gray-700';
+                         } else if (call.outcome === 'thinking') {
+                             statusText = 'Följ upp';
+                             statusColor = 'bg-yellow-100 text-yellow-800';
+                         } else if (call.outcome === 'bought_starter' || call.outcome === 'bought_other') {
+                             statusText = 'Väntar på länkning';
+                             statusColor = 'bg-blue-100 text-blue-800';
+                         } else {
+                             statusText = 'Nytt / Inget resultat';
+                             statusColor = 'bg-gray-100 text-gray-700';
+                         }
+
                          return (
                              <div key={call.id} className="p-3 bg-white rounded-md border shadow-sm">
                                 <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
                                     <div>
-                                        <p className="font-bold text-lg text-gray-900">{call.prospectName}</p>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <p className="font-bold text-lg text-gray-900">{call.prospectName}</p>
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColor}`}>{statusText}</span>
+                                        </div>
                                         <p className="text-sm text-gray-600">{call.prospectEmail}</p>
                                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                                             <span className="text-gray-500">Coach: {coach?.name || 'Okänd'}</span>
@@ -528,7 +715,9 @@ ${callToLink.coachSummary || 'Ej angivet.'}
                                     </div>
                                     <div className="flex gap-2 self-start sm:self-center flex-shrink-0">
                                         <Button size="sm" variant="outline" onClick={() => { setCallToEdit(call); setIsIntroCallModalOpen(true); }}>Redigera</Button>
-                                        <Button size="sm" variant="primary" onClick={() => { setCallToLink(call); setParticipantToLinkId(''); }}>Länka</Button>
+                                        {call.status === 'unlinked' && (call.outcome === 'bought_starter' || call.outcome === 'bought_other') && (
+                                            <Button size="sm" variant="primary" onClick={() => { setCallToLink(call); setParticipantToLinkId(''); }}>Länka</Button>
+                                        )}
                                     </div>
                                 </div>
                              </div>
@@ -538,12 +727,13 @@ ${callToLink.coachSummary || 'Ej angivet.'}
              </div>
         ) : (
              <div className="text-center p-8 bg-gray-50 rounded-lg">
-                <p className="text-lg text-gray-500">Inga okopplade introsamtal.</p>
+                <p className="text-lg text-gray-500">
+                    {introCallView === 'actionable' ? 'Inga introsamtal att hantera just nu. Bra jobbat!' : 'Inga avslutade introsamtal än.'}
+                </p>
             </div>
         )}
       </div>
 
-      {/* Medlemsresa Tab */}
       <div role="tabpanel" hidden={activeTab !== 'memberJourney'} className="animate-fade-in space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4 bg-gray-50 rounded-lg border">
             <div>
@@ -633,7 +823,7 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             oneOnOneSessions={oneOnOneSessions}
             setOneOnOneSessions={setOneOnOneSessionsData}
             coaches={staffMembers}
-            loggedInCoachId={loggedInStaff!.id}
+            loggedInCoachId={loggedInStaff.id}
             workouts={workouts}
             addWorkout={addWorkout}
             updateWorkout={updateWorkout}

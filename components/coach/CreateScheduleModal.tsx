@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Modal } from '../Modal';
 import { Input, Select } from '../Input';
 import { Button } from '../Button';
 import { GroupClassSchedule, GroupClassDefinition, Location, StaffMember } from '../../types';
 import { ToggleSwitch } from '../ToggleSwitch';
+import { ConfirmationModal } from '../ConfirmationModal';
 
 interface CreateScheduleModalProps {
   isOpen: boolean;
@@ -40,24 +41,9 @@ const DayOfWeekSelector: React.FC<{ selectedDays: number[]; onToggleDay: (day: n
 };
 
 export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen, onClose, onSave, scheduleToEdit, classDefinitions, locations, coaches }) => {
-    const [formState, setFormState] = useState<Partial<Omit<GroupClassSchedule, 'id'>> & { maxParticipants: number | string, durationMinutes: number | string }>({
-        locationId: '',
-        groupClassId: '',
-        coachId: '',
-        daysOfWeek: [],
-        startTime: '',
-        durationMinutes: 0,
-        maxParticipants: 12,
-        startDate: '',
-        endDate: '',
-        hasWaitlist: true,
-    });
-    const [errors, setErrors] = useState<Record<string, string>>({});
-    const [saveAndCopySuccess, setSaveAndCopySuccess] = useState<string | null>(null);
-
-    const resetForm = useCallback(() => {
+    const getInitialState = useCallback(() => {
         const initialClassDef = classDefinitions[0];
-        setFormState({
+        return {
             locationId: locations[0]?.id || '',
             groupClassId: initialClassDef?.id || '',
             coachId: coaches.filter(c => c.isActive)[0]?.id || '',
@@ -68,28 +54,32 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen
             startDate: '',
             endDate: '',
             hasWaitlist: initialClassDef?.hasWaitlist ?? true,
-        });
-        setErrors({});
+        };
     }, [locations, classDefinitions, coaches]);
+
+    const [formState, setFormState] = useState(getInitialState());
+    const [initialFormState, setInitialFormState] = useState(getInitialState());
+    
+    const [errors, setErrors] = useState<Record<string, string>>({});
+    const [saveAndCopySuccess, setSaveAndCopySuccess] = useState<string | null>(null);
+    const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
-            if (scheduleToEdit) {
-                setFormState(scheduleToEdit);
-            } else {
-                resetForm();
-            }
+            const initialState = scheduleToEdit ? { ...scheduleToEdit } : getInitialState();
+            setFormState(initialState);
+            setInitialFormState(initialState);
             setErrors({});
             setSaveAndCopySuccess(null);
         }
-    }, [isOpen, scheduleToEdit, resetForm]);
+    }, [isOpen, scheduleToEdit, getInitialState]);
 
     const handleInputChange = (field: keyof typeof formState, value: any) => {
         setFormState(prev => ({ ...prev, [field]: value }));
     };
 
     useEffect(() => {
-        if (!scheduleToEdit) { // Only for new schedules, not when editing
+        if (!scheduleToEdit) { 
             const classDef = classDefinitions.find(c => c.id === formState.groupClassId);
             if (classDef) {
                 setFormState(prev => ({
@@ -103,12 +93,14 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen
 
     const handleDayToggle = (day: number) => {
         setFormState(prev => {
-            const newDays = prev.daysOfWeek.includes(day)
-                ? prev.daysOfWeek.filter(d => d !== day)
-                : [...prev.daysOfWeek, day];
+            const newDays = prev.daysOfWeek!.includes(day)
+                ? prev.daysOfWeek!.filter(d => d !== day)
+                : [...(prev.daysOfWeek || []), day];
             return { ...prev, daysOfWeek: newDays.sort() };
         });
     };
+    
+    const hasChanges = useMemo(() => JSON.stringify(formState) !== JSON.stringify(initialFormState), [formState, initialFormState]);
 
     const validate = () => {
         const newErrors: Record<string, string> = {};
@@ -125,6 +117,20 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
+    
+    const isFormValid = useMemo(() => {
+        return (
+            formState.locationId &&
+            formState.groupClassId &&
+            formState.coachId &&
+            formState.daysOfWeek && formState.daysOfWeek.length > 0 &&
+            formState.startTime &&
+            Number(formState.durationMinutes) > 0 &&
+            Number(formState.maxParticipants) > 0 &&
+            formState.startDate && formState.endDate &&
+            formState.startDate <= formState.endDate
+        );
+    }, [formState]);
 
     const handleSave = (shouldClose: boolean) => {
         if (!validate()) return;
@@ -150,11 +156,20 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen
         if (shouldClose) {
             onClose();
         } else {
-            // "Save and Copy" logic: Reset form for a new entry
             const savedStartTime = formState.startTime;
-            resetForm();
+            const initialState = getInitialState();
+            setFormState(initialState);
+            setInitialFormState(initialState);
             setSaveAndCopySuccess(`Passet kl ${savedStartTime} sparat!`);
             setTimeout(() => setSaveAndCopySuccess(null), 2500);
+        }
+    };
+
+    const handleCloseRequest = () => {
+        if (hasChanges) {
+            setShowCancelConfirm(true);
+        } else {
+            onClose();
         }
     };
 
@@ -163,7 +178,8 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen
     const coachOptions = coaches.filter(c => c.isActive).map(c => ({ value: c.id, label: c.name }));
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={scheduleToEdit ? 'Redigera Gruppass-schema' : 'Lägg ut Gruppass'} size="2xl">
+      <>
+        <Modal isOpen={isOpen} onClose={handleCloseRequest} title={scheduleToEdit ? 'Redigera Gruppass-schema' : 'Lägg ut Gruppass'} size="2xl">
             <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Select label="Ort *" value={formState.locationId} onChange={e => handleInputChange('locationId', e.target.value)} options={locationOptions} error={errors.locationId} />
@@ -204,12 +220,22 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen
                         {saveAndCopySuccess && <p className="text-green-600 font-semibold animate-fade-in-down">{saveAndCopySuccess}</p>}
                     </div>
                     <div className="flex gap-2">
-                        <Button onClick={onClose} variant="secondary">Avbryt</Button>
-                        {!scheduleToEdit && <Button onClick={() => handleSave(false)} variant="outline">Spara & Kopiera</Button>}
-                        <Button onClick={() => handleSave(true)} variant="primary">{scheduleToEdit ? 'Spara Ändringar' : 'Spara & Stäng'}</Button>
+                        <Button onClick={handleCloseRequest} variant="secondary">Avbryt</Button>
+                        {!scheduleToEdit && <Button onClick={() => handleSave(false)} variant="outline" disabled={!isFormValid || !hasChanges}>Spara & Kopiera</Button>}
+                        <Button onClick={() => handleSave(true)} variant="primary" disabled={!isFormValid || !hasChanges}>{scheduleToEdit ? 'Spara Ändringar' : 'Spara & Stäng'}</Button>
                     </div>
                 </div>
             </div>
         </Modal>
+        <ConfirmationModal
+            isOpen={showCancelConfirm}
+            onClose={() => setShowCancelConfirm(false)}
+            onConfirm={onClose}
+            title="Avbryta ändringar?"
+            message="Du har osparade ändringar. Är du säker på att du vill stänga? Dina ändringar kommer inte att sparas."
+            confirmButtonText="Ja, stäng"
+            cancelButtonText="Nej, fortsätt redigera"
+        />
+      </>
     );
 };

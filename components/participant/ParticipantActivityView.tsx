@@ -31,6 +31,7 @@ interface EnrichedClassInstance {
     isRestricted: boolean;
     hasWaitlist: boolean;
     color: string;
+    locationId: string;
 }
 
 interface ParticipantActivityViewProps {
@@ -153,8 +154,10 @@ const ParticipantActivityViewFC: React.FC<ParticipantActivityViewProps> = ({
     const dateStr = dateUtils.toYYYYMMDD(day);
 
     const schedulesToday = groupClassSchedules.filter(schedule => {
-        const isCancelled = groupClassScheduleExceptions.some(ex => ex.scheduleId === schedule.id && ex.date === dateStr);
-        if (isCancelled) return false;
+        const exception = groupClassScheduleExceptions.find(ex => ex.scheduleId === schedule.id && ex.date === dateStr);
+        if (exception && (exception.status === 'DELETED' || !exception.status)) {
+            return false;
+        }
 
         const [startYear, startMonth, startDay] = schedule.startDate.split('-').map(Number);
         const startDate = new Date(startYear, startMonth - 1, startDay);
@@ -170,15 +173,25 @@ const ParticipantActivityViewFC: React.FC<ParticipantActivityViewProps> = ({
 
         if (!myBooking && !isCoachedByMe) return;
 
-        const classDef = groupClassDefinitions.find(d => d.id === schedule.groupClassId);
-        const coach = staffMembers.find(s => s.id === schedule.coachId);
+        const exception = groupClassScheduleExceptions.find(ex => ex.scheduleId === schedule.id && ex.date === dateStr);
+
+        const overriddenSchedule = {
+            ...schedule,
+            startTime: exception?.newStartTime || schedule.startTime,
+            durationMinutes: exception?.newDurationMinutes || schedule.durationMinutes,
+            coachId: exception?.newCoachId || schedule.coachId,
+            maxParticipants: exception?.newMaxParticipants || schedule.maxParticipants,
+        };
+
+        const classDef = groupClassDefinitions.find(d => d.id === overriddenSchedule.groupClassId);
+        const coach = staffMembers.find(s => s.id === overriddenSchedule.coachId);
         if (!classDef || !coach) return;
 
-        const [hour, minute] = schedule.startTime.split(':').map(Number);
+        const [hour, minute] = overriddenSchedule.startTime.split(':').map(Number);
         const startDateTime = new Date(day);
         startDateTime.setHours(hour, minute, 0, 0);
 
-        const endDateTime = new Date(startDateTime.getTime() + schedule.durationMinutes * 60000);
+        const endDateTime = new Date(startDateTime.getTime() + overriddenSchedule.durationMinutes * 60000);
         if (dateUtils.isPast(endDateTime)) return;
         
         const allBookingsForInstance = allParticipantBookings.filter(b => b.scheduleId === schedule.id && b.classDate === dateStr && b.status !== 'CANCELLED');
@@ -196,18 +209,18 @@ const ParticipantActivityViewFC: React.FC<ParticipantActivityViewProps> = ({
             startDateTime,
             scheduleId: schedule.id,
             className: classDef.name,
-            duration: schedule.durationMinutes,
+            duration: overriddenSchedule.durationMinutes,
             coachName: coach.name,
             coachId: coach.id,
-            locationId: schedule.locationId,
-            maxParticipants: schedule.maxParticipants,
+            locationId: overriddenSchedule.locationId,
+            maxParticipants: overriddenSchedule.maxParticipants,
             bookedCount: bookedUsers.length,
             waitlistCount: waitlistedUsers.length,
             isBookedByMe: !!myBooking,
             isWaitlistedByMe: myBooking?.status === 'WAITLISTED',
             myWaitlistPosition: myPosition,
             bookingId: myBooking?.id,
-            isFull: bookedUsers.length >= schedule.maxParticipants,
+            isFull: bookedUsers.length >= overriddenSchedule.maxParticipants,
             cancellationCutoffHours: integrationSettings.cancellationCutoffHours ?? 2,
             myBookingStatus: myBooking?.status,
             isRestricted: false, 
@@ -247,7 +260,24 @@ const ParticipantActivityViewFC: React.FC<ParticipantActivityViewProps> = ({
         dayEvents.push({ type: 'NEW_GOAL', icon: '🏁', description: 'Nytt mål satt' });
     }
     
-    // Coach events logic... (omitted for brevity, assume it's same as before)
+    // Coach events logic
+    const coachEventsForDay = coachEvents.filter(e => {
+      if (e.type !== 'event' || !e.eventDate) return false;
+
+      if (e.studioTarget && e.studioTarget !== 'all') {
+        const participantLocation = locations.find(l => l.id === participantProfile?.locationId);
+        if (!participantLocation || !participantLocation.name.toLowerCase().includes(e.studioTarget)) {
+            return false;
+        }
+      }
+      const [year, month, dayNum] = e.eventDate.split('-').map(Number);
+      const eventDate = new Date(year, month - 1, dayNum);
+      return dateUtils.isSameDay(eventDate, day);
+    });
+
+    coachEventsForDay.forEach(event => {
+        dayEvents.push({ type: 'COACH_EVENT', icon: '📣', description: event.title });
+    });
     
     const currentGoalTargetDate = (activeGoal && activeGoal.targetDate) ? new Date(activeGoal.targetDate) : null;
     if (currentGoalTargetDate && dateUtils.isSameDay(day, currentGoalTargetDate)) {
@@ -255,7 +285,7 @@ const ParticipantActivityViewFC: React.FC<ParticipantActivityViewProps> = ({
     }
 
     return { activities: dayLogs, events: dayEvents, groupClasses };
-  }, [allActivityLogs, allParticipantBookings, participantProfile, groupClassSchedules, groupClassScheduleExceptions, groupClassDefinitions, staffMembers, oneOnOneSessions, clubMemberships, physiqueHistory, strengthStatsHistory, conditioningStatsHistory, allParticipantGoals, activeGoal, loggedInCoachId, getColorForCategory, integrationSettings.cancellationCutoffHours]);
+  }, [allActivityLogs, allParticipantBookings, participantProfile, groupClassSchedules, groupClassScheduleExceptions, groupClassDefinitions, staffMembers, oneOnOneSessions, clubMemberships, physiqueHistory, strengthStatsHistory, conditioningStatsHistory, allParticipantGoals, coachEvents, activeGoal, loggedInCoachId, getColorForCategory, integrationSettings.cancellationCutoffHours, locations]);
   
   const renderDayContent = useCallback((day: Date) => {
     const { activities, events, groupClasses } = getDayContent(day);
@@ -439,6 +469,7 @@ const ParticipantActivityViewFC: React.FC<ParticipantActivityViewProps> = ({
         integrationSettings={integrationSettings}
         loggedInCoachId={loggedInCoachId}
         onManageClassClick={onManageClassClick}
+        groupClassScheduleExceptions={groupClassScheduleExceptions}
       />
     </div>
   );

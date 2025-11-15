@@ -39,13 +39,14 @@ import { MeetingDetailsModal } from '../participant/MeetingDetailsModal';
 import { EngagementOpportunities } from './EngagementOpportunities';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { CalendarView } from './CalendarView';
-import { ScheduleManagement } from './ScheduleManagement';
-import { ClassManagementModal } from './ClassManagementModal';
+import { ClassManagementModal } from './ClassCheckinModal';
 import { useAppContext } from '../../context/AppContext';
 import { Button } from '../Button';
 import { useAuth } from '../../context/AuthContext';
 import { useNetworkStatus } from '../../context/NetworkStatusContext';
-import { TodaysClassesView } from './TodaysClassesView';
+import { CreateScheduleModal } from './CreateScheduleModal';
+import { ToggleSwitch } from '../ToggleSwitch';
+import { Select } from '../Input';
 
 const AnalyticsDashboard = lazy(() => import('./AnalyticsDashboard'));
 
@@ -84,7 +85,8 @@ interface CoachAreaProps {
   onBookClass: (participantId: string, scheduleId: string, classDate: string) => void;
   onCancelBooking: (bookingId: string) => void;
   onPromoteFromWaitlist: (bookingId: string) => void;
-  onCancelClassInstance: (scheduleId: string, classDate: string) => void;
+  onCancelClassInstance: (scheduleId: string, classDate: string, status: 'CANCELLED' | 'DELETED') => void;
+  onUpdateClassInstance: (scheduleId: string, classDate: string, updates: any, notify: boolean) => void;
 }
 
 export const CoachArea: React.FC<CoachAreaProps> = ({
@@ -97,6 +99,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   onCancelBooking,
   onPromoteFromWaitlist,
   onCancelClassInstance,
+  onUpdateClassInstance,
 }) => {
   const {
     participantDirectory,
@@ -211,6 +214,14 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   const [sessionToDelete, setSessionToDelete] = useState<OneOnOneSession | null>(null);
   const [initialDateForBooking, setInitialDateForBooking] = useState<string | null>(null);
   const [managedClassInfo, setManagedClassInfo] = useState<{ scheduleId: string; date: string } | null>(null);
+  const [isCreateScheduleModalOpen, setIsCreateScheduleModalOpen] = useState(false);
+  const [calendarFilters, setCalendarFilters] = useState({
+    showMySessionsOnly: false,
+    showGroupClasses: true,
+    showOneOnOneSessions: true,
+  });
+  const [selectedCoachFilter, setSelectedCoachFilter] = useState<string>('all');
+
 
   // Filter all data based on logged-in staff's role and location
   const participantsForView = useMemo(() => {
@@ -288,15 +299,29 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     const { scheduleId, date } = managedClassInfo;
     const schedule = groupClassSchedules.find((s) => s.id === scheduleId);
     if (!schedule) return null;
+  
+    const exception = groupClassScheduleExceptions.find(ex => ex.scheduleId === scheduleId && ex.date === date);
+  
+    if (exception && (exception.status === 'DELETED' || !exception.status)) {
+        return null;
+    }
 
-    const classDef = groupClassDefinitions.find((d) => d.id === schedule.groupClassId);
-    const coach = staffMembers.find((c) => c.id === schedule.coachId);
+    const overriddenSchedule = {
+      ...schedule,
+      startTime: exception?.newStartTime || schedule.startTime,
+      durationMinutes: exception?.newDurationMinutes || schedule.durationMinutes,
+      coachId: exception?.newCoachId || schedule.coachId,
+      maxParticipants: exception?.newMaxParticipants || schedule.maxParticipants,
+    };
+
+    const classDef = groupClassDefinitions.find((d) => d.id === overriddenSchedule.groupClassId);
+    const coach = staffMembers.find((c) => c.id === overriddenSchedule.coachId);
     if (!classDef || !coach) return null;
 
     const [year, month, day] = date.split('-').map(Number);
     const classDate = new Date(year, month - 1, day);
 
-    const [hour, minute] = schedule.startTime.split(':').map(Number);
+    const [hour, minute] = overriddenSchedule.startTime.split(':').map(Number);
     const startDateTime = new Date(classDate);
     startDateTime.setHours(hour, minute, 0, 0);
 
@@ -310,18 +335,18 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
       startDateTime,
       scheduleId,
       className: classDef.name,
-      duration: schedule.durationMinutes,
+      duration: overriddenSchedule.durationMinutes,
       coachName: coach.name,
       coachId: coach.id,
-      locationId: schedule.locationId,
-      maxParticipants: schedule.maxParticipants,
+      locationId: overriddenSchedule.locationId,
+      maxParticipants: overriddenSchedule.maxParticipants,
       bookedCount: bookedUsers.length,
       waitlistCount: waitlistedUsers.length,
-      isFull: bookedUsers.length >= schedule.maxParticipants,
+      isFull: bookedUsers.length >= overriddenSchedule.maxParticipants,
       allBookingsForInstance,
       color: classDef.color || getColorForCategory(classDef.name),
     };
-  }, [managedClassInfo, groupClassSchedules, groupClassDefinitions, staffMembers, participantBookings, getColorForCategory]);
+  }, [managedClassInfo, groupClassSchedules, groupClassDefinitions, staffMembers, participantBookings, getColorForCategory, groupClassScheduleExceptions]);
 
   // NEW: Memos for location filtering in the Bookings tab
   const schedulesForLocationTab = useMemo(() => {
@@ -343,6 +368,61 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     return oneOnOneSessionsForView.filter((session) => staffIdsInLocation.has(session.coachId));
   }, [oneOnOneSessionsForView, staffMembers, selectedLocationTabId, locations]);
 
+  const coachFilterOptions = useMemo(() => {
+    if (!loggedInStaff || loggedInStaff.role !== 'Admin') return [];
+    
+    const myPassOption = { value: loggedInStaff.id, label: 'Mina pass' };
+    
+    const coachOptions = staffMembers
+        .filter(s => s.isActive)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(s => ({ value: s.id, label: s.name }));
+
+    // Ensure "Mina pass" isn't duplicated if the admin is in the coach list
+    const uniqueCoachOptions = coachOptions.filter(c => c.value !== loggedInStaff.id);
+
+    return [
+        { value: 'all', label: 'Alla coacher' },
+        myPassOption,
+        ...uniqueCoachOptions
+    ];
+  }, [loggedInStaff, staffMembers]);
+
+  const filteredSchedules = useMemo(() => {
+    let schedules = schedulesForLocationTab;
+    if (!calendarFilters.showGroupClasses) {
+        return [];
+    }
+    if (loggedInStaff?.role === 'Admin') {
+        if (selectedCoachFilter !== 'all') {
+            schedules = schedules.filter(schedule => schedule.coachId === selectedCoachFilter);
+        }
+    } else if (loggedInStaff?.role === 'Coach') {
+        if (calendarFilters.showMySessionsOnly) {
+            schedules = schedules.filter(schedule => schedule.coachId === loggedInStaff.id);
+        }
+    }
+    
+    return schedules;
+  }, [schedulesForLocationTab, calendarFilters, loggedInStaff, selectedCoachFilter]);
+
+  const filteredSessions = useMemo(() => {
+      let sessions = sessionsForLocationTab;
+      if (!calendarFilters.showOneOnOneSessions) {
+          return [];
+      }
+      if (loggedInStaff?.role === 'Admin') {
+          if (selectedCoachFilter !== 'all') {
+              sessions = sessions.filter(session => session.coachId === selectedCoachFilter);
+          }
+      } else if (loggedInStaff?.role === 'Coach') {
+          if (calendarFilters.showMySessionsOnly) {
+              sessions = sessions.filter(session => session.coachId === loggedInStaff.id);
+          }
+      }
+      return sessions;
+  }, [sessionsForLocationTab, calendarFilters, loggedInStaff, selectedCoachFilter]);
+
   const getTabButtonStyle = (tabName: CoachTab) => {
     return activeTab === tabName ? 'border-flexibel text-flexibel' : 'border-transparent text-gray-500 active:text-gray-700 active:border-gray-300';
   };
@@ -360,6 +440,16 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     });
     setSessionToEdit(null);
   };
+  
+  const handleSaveSchedule = (schedule: GroupClassSchedule) => {
+    setGroupClassSchedulesData(prev => {
+        const exists = prev.some(s => s.id === schedule.id);
+        if (exists) {
+            return prev.map(s => s.id === schedule.id ? schedule : s);
+        }
+        return [...prev, schedule];
+    });
+};
 
   const handleOpenMeetingModal = useCallback((session: OneOnOneSession) => {
     setSelectedSessionForModal(session);
@@ -450,15 +540,6 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
       <div role="tabpanel" hidden={activeTab !== 'bookings'}>
         {activeTab === 'bookings' && loggedInStaff && (
           <div className="space-y-8">
-            <TodaysClassesView
-              schedules={groupClassSchedules}
-              definitions={groupClassDefinitions}
-              bookings={participantBookings}
-              coaches={staffMembers}
-              onManageClick={(instance) => setManagedClassInfo({ scheduleId: instance.scheduleId, date: instance.date })}
-              loggedInStaff={loggedInStaff}
-              groupClassScheduleExceptions={groupClassScheduleExceptions}
-            />
             <div className="border-b border-gray-200">
               <nav className="-mb-px flex space-x-4 overflow-x-auto" aria-label="Location Tabs">
                 <button
@@ -487,24 +568,62 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
               </nav>
             </div>
 
-            <ScheduleManagement
-              schedules={schedulesForLocationTab}
-              setSchedules={setGroupClassSchedulesData}
-              classDefinitions={groupClassDefinitions}
-              locations={locations}
-              coaches={staffMembers}
-            />
-            <div className="pt-8 border-t">
-              <h3 className="text-2xl font-bold text-gray-800 mb-4">Kalenderöversikt</h3>
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-2xl font-bold text-gray-800">Kalenderöversikt</h3>
+                <Button onClick={() => setIsCreateScheduleModalOpen(true)}>
+                    Lägg ut nytt pass
+                </Button>
+              </div>
+              <div className="p-4 bg-gray-50 rounded-lg border mb-4 space-y-4">
+                  <h4 className="text-lg font-semibold text-gray-700">Filter</h4>
+                  {loggedInStaff.role === 'Admin' ? (
+                      <Select
+                          label="Visa pass för"
+                          id="coach-filter"
+                          value={selectedCoachFilter}
+                          onChange={(e) => setSelectedCoachFilter(e.target.value)}
+                          options={coachFilterOptions}
+                          inputSize="sm"
+                      />
+                  ) : (
+                      <ToggleSwitch
+                          id="show-my-sessions-only"
+                          label="Visa endast mina pass"
+                          checked={calendarFilters.showMySessionsOnly}
+                          onChange={(checked) => setCalendarFilters(prev => ({ ...prev, showMySessionsOnly: checked }))}
+                      />
+                  )}
+                  <div className="flex items-center gap-6 pt-2 border-t">
+                      <label className="flex items-center space-x-2 cursor-pointer">
+                          <input
+                              type="checkbox"
+                              checked={calendarFilters.showGroupClasses}
+                              onChange={(e) => setCalendarFilters(prev => ({ ...prev, showGroupClasses: e.target.checked }))}
+                              className="h-5 w-5 text-flexibel border-gray-300 rounded focus:ring-flexibel"
+                          />
+                          <span className="text-base font-medium text-gray-700">Visa Gruppass</span>
+                      </label>
+                      <label className="flex items-center space-x-2 cursor-pointer">
+                          <input
+                              type="checkbox"
+                              checked={calendarFilters.showOneOnOneSessions}
+                              onChange={(e) => setCalendarFilters(prev => ({ ...prev, showOneOnOneSessions: e.target.checked }))}
+                              className="h-5 w-5 text-flexibel border-gray-300 rounded focus:ring-flexibel"
+                          />
+                          <span className="text-base font-medium text-gray-700">Visa 1-on-1 bokningar</span>
+                      </label>
+                  </div>
+              </div>
               <CalendarView
-                sessions={sessionsForLocationTab}
+                sessions={filteredSessions}
                 participants={participantDirectory}
                 coaches={staffMembers}
                 onSessionClick={handleOpenMeetingModal}
                 onDayClick={handleDayClick}
                 onSessionEdit={handleOpenEditModal}
                 onSessionDelete={setSessionToDelete}
-                groupClassSchedules={schedulesForLocationTab}
+                groupClassSchedules={filteredSchedules}
                 groupClassDefinitions={groupClassDefinitions}
                 groupClassScheduleExceptions={groupClassScheduleExceptions}
                 bookings={bookingsForLocationTab}
@@ -525,6 +644,15 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
                 loggedInCoachId={loggedInStaff.id}
                 initialDate={initialDateForBooking}
                 staffAvailability={staffAvailability}
+              />
+              <CreateScheduleModal
+                isOpen={isCreateScheduleModalOpen}
+                onClose={() => setIsCreateScheduleModalOpen(false)}
+                onSave={handleSaveSchedule}
+                scheduleToEdit={null} // Only for creating new schedules from this button
+                classDefinitions={groupClassDefinitions}
+                locations={locations}
+                coaches={staffMembers}
               />
               {selectedSessionForModal && user && (
                 <MeetingDetailsModal
@@ -644,6 +772,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
           onCancelBooking={onCancelBooking}
           onPromoteFromWaitlist={onPromoteFromWaitlist}
           onCancelClassInstance={onCancelClassInstance}
+          onUpdateClassInstance={onUpdateClassInstance}
         />
       )}
     </div>

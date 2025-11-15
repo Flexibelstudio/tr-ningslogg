@@ -95,6 +95,76 @@ export const createInitialOrgData = (orgId: string): OrganizationData => {
     
     orgData.staffMembers.push(s1, s2, s3_erik);
 
+    const schedules: GroupClassSchedule[] = [
+        {
+            id: 'schedule-1',
+            locationId: loc1Id, // Salem
+            groupClassId: 'class-pt-bas-seed',
+            coachId: 'staff-2-sanna', // Motsvarar "Kajsa"
+            daysOfWeek: [4], // Torsdag
+            startTime: '08:00',
+            durationMinutes: 40,
+            maxParticipants: 10,
+            startDate: '2025-11-05',
+            endDate: '2025-11-07',
+            hasWaitlist: true,
+        },
+        {
+            id: 'schedule-2',
+            locationId: loc1Id, // Salem
+            groupClassId: 'class-workout-seed',
+            coachId: 'staff-3-erik', // Motsvarar "Micke Sjösten"
+            daysOfWeek: [6], // Lördag
+            startTime: '09:00',
+            durationMinutes: 45,
+            maxParticipants: 12,
+            startDate: '2025-10-18',
+            endDate: '2025-12-20',
+            hasWaitlist: true,
+        },
+        {
+            id: 'schedule-3',
+            locationId: loc1Id, // Salem
+            groupClassId: 'class-pt-bas-seed',
+            coachId: 'staff-2-sanna', // Motsvarar "Kajsa"
+            daysOfWeek: [4], // Torsdag
+            startTime: '09:00',
+            durationMinutes: 40,
+            maxParticipants: 10,
+            startDate: '2025-11-05',
+            endDate: '2025-11-07',
+            hasWaitlist: true,
+        },
+        {
+            id: 'schedule-4',
+            locationId: loc1Id, // Salem
+            groupClassId: 'class-pt-grupp-seed',
+            coachId: 'staff-3-erik', // Motsvarar "Micke Sjösten"
+            daysOfWeek: [6], // Lördag
+            startTime: '10:00',
+            durationMinutes: 60,
+            maxParticipants: 8,
+            startDate: '2025-10-18',
+            endDate: '2025-12-21',
+            hasWaitlist: true,
+        },
+        {
+            id: 'schedule-5',
+            locationId: loc1Id, // Salem
+            groupClassId: 'class-pt-bas-seed',
+            coachId: 'staff-2-sanna', // Motsvarar "Kajsa"
+            daysOfWeek: [1, 2, 3, 4, 5, 6, 7], // Mån-Sön
+            startTime: '10:00',
+            durationMinutes: 40,
+            maxParticipants: 10,
+            startDate: '2025-11-07',
+            endDate: '2025-11-30',
+            hasWaitlist: true,
+        }
+    ];
+
+    orgData.groupClassSchedules.push(...schedules);
+
     return orgData;
 };
 
