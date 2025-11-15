@@ -97,8 +97,10 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
             const currentDateStr = dateUtils.toYYYYMMDD(currentDate);
     
             relevantSchedules.forEach(schedule => {
-                const isCancelled = groupClassScheduleExceptions.some(ex => ex.scheduleId === schedule.id && ex.date === currentDateStr);
-                if (isCancelled) return;
+                const exception = groupClassScheduleExceptions.find(ex => ex.scheduleId === schedule.id && ex.date === currentDateStr);
+                if (exception && (exception.status === 'DELETED' || exception.status === 'CANCELLED' || !exception.status)) {
+                    return;
+                }
 
                 const [startYear, startMonth, startDay] = schedule.startDate.split('-').map(Number);
                 const startDate = new Date(startYear, startMonth - 1, startDay);
@@ -112,11 +114,19 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                     currentDate >= startDate &&
                     currentDate <= endDate
                 ) {
-                    const classDef = definitions.find(d => d.id === schedule.groupClassId);
-                    const coach = staff.find(s => s.id === schedule.coachId);
+                    const overriddenSchedule = {
+                        ...schedule,
+                        startTime: exception?.newStartTime || schedule.startTime,
+                        durationMinutes: exception?.newDurationMinutes || schedule.durationMinutes,
+                        coachId: exception?.newCoachId || schedule.coachId,
+                        maxParticipants: exception?.newMaxParticipants || schedule.maxParticipants,
+                    };
+
+                    const classDef = definitions.find(d => d.id === overriddenSchedule.groupClassId);
+                    const coach = staff.find(s => s.id === overriddenSchedule.coachId);
                     
                     if (classDef && coach) {
-                        const [hour, minute] = schedule.startTime.split(':').map(Number);
+                        const [hour, minute] = overriddenSchedule.startTime.split(':').map(Number);
                         const startDateTime = new Date(currentDate);
                         startDateTime.setHours(hour, minute, 0, 0);
 
@@ -149,9 +159,9 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                             startDateTime: startDateTime,
                             scheduleId: schedule.id,
                             className: classDef.name,
-                            duration: schedule.durationMinutes,
+                            duration: overriddenSchedule.durationMinutes,
                             coachName: coach.name,
-                            maxParticipants: schedule.maxParticipants,
+                            maxParticipants: overriddenSchedule.maxParticipants,
                             bookedCount: bookedUsers.length,
                             waitlistCount: waitlistedUsers.length,
                             isBookedByMe: !!myBooking && (myBooking.status === 'BOOKED' || myBooking.status === 'CHECKED-IN'),
@@ -159,7 +169,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                             myBookingStatus: myBooking?.status,
                             myWaitlistPosition: myPosition,
                             bookingId: myBooking?.id,
-                            isFull: bookedUsers.length >= schedule.maxParticipants,
+                            isFull: bookedUsers.length >= overriddenSchedule.maxParticipants,
                             cancellationCutoffHours: integrationSettings.cancellationCutoffHours ?? 2,
                             isRestricted: isRestricted,
                             hasWaitlist: schedule.hasWaitlist ?? classDef.hasWaitlist ?? true,

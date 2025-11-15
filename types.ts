@@ -113,8 +113,15 @@ export interface GroupClassSchedule {
 export interface GroupClassScheduleException {
   id: string;
   scheduleId: string; // FK to GroupClassSchedule.id
-  date: string; // YYYY-MM-DD of the cancelled instance
-  status?: 'CANCELLED' | 'DELETED';
+  date: string; // YYYY-MM-DD of the instance
+  status?: 'CANCELLED' | 'DELETED' | 'MODIFIED';
+
+  // Overrides for 'MODIFIED' status
+  newStartTime?: string; // "HH:MM"
+  newDurationMinutes?: number;
+  newCoachId?: string;
+  newMaxParticipants?: number;
+
   createdBy?: { uid: string; name: string };
   createdAt: string; // ISO string
 }

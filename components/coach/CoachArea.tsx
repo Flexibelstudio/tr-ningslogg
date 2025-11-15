@@ -39,7 +39,7 @@ import { MeetingDetailsModal } from '../participant/MeetingDetailsModal';
 import { EngagementOpportunities } from './EngagementOpportunities';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { CalendarView } from './CalendarView';
-import { ClassManagementModal } from './ClassManagementModal';
+import { ClassManagementModal } from './ClassCheckinModal';
 import { useAppContext } from '../../context/AppContext';
 import { Button } from '../Button';
 import { useAuth } from '../../context/AuthContext';
@@ -86,6 +86,7 @@ interface CoachAreaProps {
   onCancelBooking: (bookingId: string) => void;
   onPromoteFromWaitlist: (bookingId: string) => void;
   onCancelClassInstance: (scheduleId: string, classDate: string, status: 'CANCELLED' | 'DELETED') => void;
+  onUpdateClassInstance: (scheduleId: string, classDate: string, updates: Partial<Pick<GroupClassScheduleException, 'newStartTime' | 'newDurationMinutes' | 'newCoachId' | 'newMaxParticipants'>>, notify: boolean) => void;
 }
 
 export const CoachArea: React.FC<CoachAreaProps> = ({
@@ -98,6 +99,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   onCancelBooking,
   onPromoteFromWaitlist,
   onCancelClassInstance,
+  onUpdateClassInstance,
 }) => {
   const {
     participantDirectory,
@@ -297,15 +299,29 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     const { scheduleId, date } = managedClassInfo;
     const schedule = groupClassSchedules.find((s) => s.id === scheduleId);
     if (!schedule) return null;
+  
+    const exception = groupClassScheduleExceptions.find(ex => ex.scheduleId === scheduleId && ex.date === date);
+  
+    if (exception && (exception.status === 'DELETED' || !exception.status)) {
+        return null;
+    }
 
-    const classDef = groupClassDefinitions.find((d) => d.id === schedule.groupClassId);
-    const coach = staffMembers.find((c) => c.id === schedule.coachId);
+    const overriddenSchedule = {
+      ...schedule,
+      startTime: exception?.newStartTime || schedule.startTime,
+      durationMinutes: exception?.newDurationMinutes || schedule.durationMinutes,
+      coachId: exception?.newCoachId || schedule.coachId,
+      maxParticipants: exception?.newMaxParticipants || schedule.maxParticipants,
+    };
+
+    const classDef = groupClassDefinitions.find((d) => d.id === overriddenSchedule.groupClassId);
+    const coach = staffMembers.find((c) => c.id === overriddenSchedule.coachId);
     if (!classDef || !coach) return null;
 
     const [year, month, day] = date.split('-').map(Number);
     const classDate = new Date(year, month - 1, day);
 
-    const [hour, minute] = schedule.startTime.split(':').map(Number);
+    const [hour, minute] = overriddenSchedule.startTime.split(':').map(Number);
     const startDateTime = new Date(classDate);
     startDateTime.setHours(hour, minute, 0, 0);
 
@@ -319,18 +335,18 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
       startDateTime,
       scheduleId,
       className: classDef.name,
-      duration: schedule.durationMinutes,
+      duration: overriddenSchedule.durationMinutes,
       coachName: coach.name,
       coachId: coach.id,
-      locationId: schedule.locationId,
-      maxParticipants: schedule.maxParticipants,
+      locationId: overriddenSchedule.locationId,
+      maxParticipants: overriddenSchedule.maxParticipants,
       bookedCount: bookedUsers.length,
       waitlistCount: waitlistedUsers.length,
-      isFull: bookedUsers.length >= schedule.maxParticipants,
+      isFull: bookedUsers.length >= overriddenSchedule.maxParticipants,
       allBookingsForInstance,
       color: classDef.color || getColorForCategory(classDef.name),
     };
-  }, [managedClassInfo, groupClassSchedules, groupClassDefinitions, staffMembers, participantBookings, getColorForCategory]);
+  }, [managedClassInfo, groupClassSchedules, groupClassDefinitions, staffMembers, participantBookings, getColorForCategory, groupClassScheduleExceptions]);
 
   // NEW: Memos for location filtering in the Bookings tab
   const schedulesForLocationTab = useMemo(() => {
@@ -756,6 +772,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
           onCancelBooking={onCancelBooking}
           onPromoteFromWaitlist={onPromoteFromWaitlist}
           onCancelClassInstance={onCancelClassInstance}
+          onUpdateClassInstance={onUpdateClassInstance}
         />
       )}
     </div>
