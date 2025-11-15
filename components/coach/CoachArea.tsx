@@ -46,6 +46,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNetworkStatus } from '../../context/NetworkStatusContext';
 import { CreateScheduleModal } from './CreateScheduleModal';
 import { ToggleSwitch } from '../ToggleSwitch';
+import { Select } from '../Input';
 
 const AnalyticsDashboard = lazy(() => import('./AnalyticsDashboard'));
 
@@ -217,6 +218,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     showGroupClasses: true,
     showOneOnOneSessions: true,
   });
+  const [selectedCoachFilter, setSelectedCoachFilter] = useState<string>('all');
 
 
   // Filter all data based on logged-in staff's role and location
@@ -350,27 +352,60 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     return oneOnOneSessionsForView.filter((session) => staffIdsInLocation.has(session.coachId));
   }, [oneOnOneSessionsForView, staffMembers, selectedLocationTabId, locations]);
 
+  const coachFilterOptions = useMemo(() => {
+    if (!loggedInStaff || loggedInStaff.role !== 'Admin') return [];
+    
+    const myPassOption = { value: loggedInStaff.id, label: 'Mina pass' };
+    
+    const coachOptions = staffMembers
+        .filter(s => s.isActive)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(s => ({ value: s.id, label: s.name }));
+
+    // Ensure "Mina pass" isn't duplicated if the admin is in the coach list
+    const uniqueCoachOptions = coachOptions.filter(c => c.value !== loggedInStaff.id);
+
+    return [
+        { value: 'all', label: 'Alla coacher' },
+        myPassOption,
+        ...uniqueCoachOptions
+    ];
+  }, [loggedInStaff, staffMembers]);
+
   const filteredSchedules = useMemo(() => {
     let schedules = schedulesForLocationTab;
     if (!calendarFilters.showGroupClasses) {
         return [];
     }
-    if (calendarFilters.showMySessionsOnly && loggedInStaff) {
-        schedules = schedules.filter(schedule => schedule.coachId === loggedInStaff.id);
+    if (loggedInStaff?.role === 'Admin') {
+        if (selectedCoachFilter !== 'all') {
+            schedules = schedules.filter(schedule => schedule.coachId === selectedCoachFilter);
+        }
+    } else if (loggedInStaff?.role === 'Coach') {
+        if (calendarFilters.showMySessionsOnly) {
+            schedules = schedules.filter(schedule => schedule.coachId === loggedInStaff.id);
+        }
     }
+    
     return schedules;
-  }, [schedulesForLocationTab, calendarFilters, loggedInStaff]);
+  }, [schedulesForLocationTab, calendarFilters, loggedInStaff, selectedCoachFilter]);
 
   const filteredSessions = useMemo(() => {
       let sessions = sessionsForLocationTab;
       if (!calendarFilters.showOneOnOneSessions) {
           return [];
       }
-      if (calendarFilters.showMySessionsOnly && loggedInStaff) {
-          sessions = sessions.filter(session => session.coachId === loggedInStaff.id);
+      if (loggedInStaff?.role === 'Admin') {
+          if (selectedCoachFilter !== 'all') {
+              sessions = sessions.filter(session => session.coachId === selectedCoachFilter);
+          }
+      } else if (loggedInStaff?.role === 'Coach') {
+          if (calendarFilters.showMySessionsOnly) {
+              sessions = sessions.filter(session => session.coachId === loggedInStaff.id);
+          }
       }
       return sessions;
-  }, [sessionsForLocationTab, calendarFilters, loggedInStaff]);
+  }, [sessionsForLocationTab, calendarFilters, loggedInStaff, selectedCoachFilter]);
 
   const getTabButtonStyle = (tabName: CoachTab) => {
     return activeTab === tabName ? 'border-flexibel text-flexibel' : 'border-transparent text-gray-500 active:text-gray-700 active:border-gray-300';
@@ -526,12 +561,23 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
               </div>
               <div className="p-4 bg-gray-50 rounded-lg border mb-4 space-y-4">
                   <h4 className="text-lg font-semibold text-gray-700">Filter</h4>
-                  <ToggleSwitch
-                      id="show-my-sessions-only"
-                      label="Visa endast mina pass"
-                      checked={calendarFilters.showMySessionsOnly}
-                      onChange={(checked) => setCalendarFilters(prev => ({ ...prev, showMySessionsOnly: checked }))}
-                  />
+                  {loggedInStaff.role === 'Admin' ? (
+                      <Select
+                          label="Visa pass för"
+                          id="coach-filter"
+                          value={selectedCoachFilter}
+                          onChange={(e) => setSelectedCoachFilter(e.target.value)}
+                          options={coachFilterOptions}
+                          inputSize="sm"
+                      />
+                  ) : (
+                      <ToggleSwitch
+                          id="show-my-sessions-only"
+                          label="Visa endast mina pass"
+                          checked={calendarFilters.showMySessionsOnly}
+                          onChange={(checked) => setCalendarFilters(prev => ({ ...prev, showMySessionsOnly: checked }))}
+                      />
+                  )}
                   <div className="flex items-center gap-6 pt-2 border-t">
                       <label className="flex items-center space-x-2 cursor-pointer">
                           <input
