@@ -123,28 +123,25 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
   const coachEventsForDay = useMemo(() => {
     if (!selectedDate) return [];
     return coachEvents.filter(e => {
+        // Only show items of type 'event' that have an explicit eventDate
+        if (e.type !== 'event' || !e.eventDate) {
+            return false;
+        }
+
+        // Check studio targeting
         if (e.studioTarget && e.studioTarget !== 'all') {
             const participantLocation = locations.find(l => l.id === participantProfile?.locationId);
             if (!participantLocation || !participantLocation.name.toLowerCase().includes(e.studioTarget)) {
                 return false;
             }
         }
-        // For events with a specific date, match that date.
-        if (e.type === 'event' && e.eventDate) {
-            const [year, month, day] = e.eventDate.split('-').map(Number);
-            const eventDate = new Date(year, month - 1, day);
-            return dateUtils.isSameDay(eventDate, selectedDate);
-        }
-        // For news, match the creation date.
-        if (e.type === 'news') {
-            return dateUtils.isSameDay(new Date(e.createdDate), selectedDate);
-        }
-        // Fallback for older data that might just be type 'event' without a date.
-        if (e.type === 'event' && !e.eventDate) {
-            return dateUtils.isSameDay(new Date(e.createdDate), selectedDate);
-        }
-        return false;
-    }).sort((a,b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
+        
+        // Check if the event date matches the selected date in the modal
+        const [year, month, day] = e.eventDate.split('-').map(Number);
+        const eventDate = new Date(year, month - 1, day);
+        return dateUtils.isSameDay(eventDate, selectedDate);
+
+    }).sort((a,b) => new Date(a.createdDate).getTime() - new Date(b.createdDate).getTime());
   }, [selectedDate, coachEvents, locations, participantProfile]);
 
   const oneOnOneSessionsForDay = useMemo(() => {
@@ -300,7 +297,7 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
         <div className="space-y-4">
           {coachEventsForDay.length > 0 && (
             <div className="p-3 bg-gray-100 rounded-lg space-y-2 border">
-              <h4 className="text-base font-semibold text-gray-600 uppercase">Händelser & Nyheter</h4>
+              <h4 className="text-base font-semibold text-gray-600 uppercase">Händelser</h4>
               <ul className="space-y-3">
                 {coachEventsForDay.map(event => (
                   <li key={event.id} className="text-lg">

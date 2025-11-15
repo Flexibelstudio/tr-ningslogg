@@ -260,7 +260,24 @@ const ParticipantActivityViewFC: React.FC<ParticipantActivityViewProps> = ({
         dayEvents.push({ type: 'NEW_GOAL', icon: '🏁', description: 'Nytt mål satt' });
     }
     
-    // Coach events logic... (omitted for brevity, assume it's same as before)
+    // Coach events logic
+    const coachEventsForDay = coachEvents.filter(e => {
+      if (e.type !== 'event' || !e.eventDate) return false;
+
+      if (e.studioTarget && e.studioTarget !== 'all') {
+        const participantLocation = locations.find(l => l.id === participantProfile?.locationId);
+        if (!participantLocation || !participantLocation.name.toLowerCase().includes(e.studioTarget)) {
+            return false;
+        }
+      }
+      const [year, month, dayNum] = e.eventDate.split('-').map(Number);
+      const eventDate = new Date(year, month - 1, dayNum);
+      return dateUtils.isSameDay(eventDate, day);
+    });
+
+    coachEventsForDay.forEach(event => {
+        dayEvents.push({ type: 'COACH_EVENT', icon: '📣', description: event.title });
+    });
     
     const currentGoalTargetDate = (activeGoal && activeGoal.targetDate) ? new Date(activeGoal.targetDate) : null;
     if (currentGoalTargetDate && dateUtils.isSameDay(day, currentGoalTargetDate)) {
@@ -268,7 +285,7 @@ const ParticipantActivityViewFC: React.FC<ParticipantActivityViewProps> = ({
     }
 
     return { activities: dayLogs, events: dayEvents, groupClasses };
-  }, [allActivityLogs, allParticipantBookings, participantProfile, groupClassSchedules, groupClassScheduleExceptions, groupClassDefinitions, staffMembers, oneOnOneSessions, clubMemberships, physiqueHistory, strengthStatsHistory, conditioningStatsHistory, allParticipantGoals, activeGoal, loggedInCoachId, getColorForCategory, integrationSettings.cancellationCutoffHours]);
+  }, [allActivityLogs, allParticipantBookings, participantProfile, groupClassSchedules, groupClassScheduleExceptions, groupClassDefinitions, staffMembers, oneOnOneSessions, clubMemberships, physiqueHistory, strengthStatsHistory, conditioningStatsHistory, allParticipantGoals, coachEvents, activeGoal, loggedInCoachId, getColorForCategory, integrationSettings.cancellationCutoffHours, locations]);
   
   const renderDayContent = useCallback((day: Date) => {
     const { activities, events, groupClasses } = getDayContent(day);
