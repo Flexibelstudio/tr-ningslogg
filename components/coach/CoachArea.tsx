@@ -611,7 +611,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
                               onChange={(e) => setCalendarFilters(prev => ({ ...prev, showOneOnOneSessions: e.target.checked }))}
                               className="h-5 w-5 text-flexibel border-gray-300 rounded focus:ring-flexibel"
                           />
-                          <span className="text-base font-medium text-gray-700">Visa 1-on-1 Möten</span>
+                          <span className="text-base font-medium text-gray-700">Visa 1-on-1 bokningar</span>
                       </label>
                   </div>
               </div>
