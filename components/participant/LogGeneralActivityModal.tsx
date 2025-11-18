@@ -7,8 +7,7 @@ import { Textarea } from '../Textarea';
 import { Button } from '../Button';
 import { GeneralActivityLog } from '../../types';
 import { MoodSelectorInput } from './MoodSelectorInput'; // Import MoodSelectorInput
-
-const EXISTING_GENERAL_ACTIVITIES = ["HIIT", "Workout", "Mindfulness", "Yin Yoga", "Postural Yoga", "Promenad", "Löpning", "Annan aktivitet", "Funktionell Träning"].sort((a, b) => a.localeCompare(b, 'sv'));
+import { useAppContext } from '../../context/AppContext';
 
 interface LogGeneralActivityModalProps {
   isOpen: boolean;
@@ -17,6 +16,7 @@ interface LogGeneralActivityModalProps {
 }
 
 export const LogGeneralActivityModal: React.FC<LogGeneralActivityModalProps> = ({ isOpen, onClose, onSaveActivity }) => {
+  const { generalActivityDefinitions } = useAppContext();
   const [activityName, setActivityName] = useState('');
   const [durationMinutes, setDurationMinutes] = useState<string>('');
   const [caloriesBurned, setCaloriesBurned] = useState<string>('');
@@ -29,14 +29,11 @@ export const LogGeneralActivityModal: React.FC<LogGeneralActivityModalProps> = (
   const [hasSaved, setHasSaved] = useState(false);
 
   const commonActivitiesForButtons = useMemo(() => {
-    const combined: string[] = [];
-    EXISTING_GENERAL_ACTIVITIES.forEach(activity => {
-        if (!combined.includes(activity)) {
-            combined.push(activity);
-        }
-    });
-    return combined;
-  }, []);
+    if (!generalActivityDefinitions) return [];
+    return [...generalActivityDefinitions]
+        .map(def => def.name)
+        .sort((a, b) => a.localeCompare(b, 'sv'));
+  }, [generalActivityDefinitions]);
 
 
   useEffect(() => {

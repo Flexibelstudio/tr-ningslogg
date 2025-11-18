@@ -1,4 +1,4 @@
-import { WeightComparisonItem, GenderOption, StrengthStandard, StrengthLevel, LiftType, AllUserProvidedStrengthMultipliers, StrengthStandardDetail, UserProvidedLiftMultipliers, WorkoutCategory, ClubDefinition, UserStrengthStat, StaffRole, Membership, OneOnOneSessionType, WorkoutCategoryDefinition, GroupClassDefinition, ConditioningMetric, WorkoutFocusTag, ContactAttemptMethod, ContactAttemptOutcome } from './types'; // Updated import type from AnimalWeight
+import { WeightComparisonItem, GenderOption, StrengthStandard, StrengthLevel, LiftType, AllUserProvidedStrengthMultipliers, StrengthStandardDetail, UserProvidedLiftMultipliers, WorkoutCategory, ClubDefinition, UserStrengthStat, StaffRole, Membership, OneOnOneSessionType, WorkoutCategoryDefinition, GroupClassDefinition, ConditioningMetric, WorkoutFocusTag, ContactAttemptMethod, ContactAttemptOutcome, GeneralActivityDefinition } from './types'; // Updated import type from AnimalWeight
 
 export const FLEXIBEL_PRIMARY_COLOR = '#3bab5a'; // Updated color
 export const APP_NAME = 'Träningslogg';
@@ -46,6 +46,18 @@ export const PREDEFINED_WORKOUT_CATEGORIES: WorkoutCategoryDefinition[] = [
     { id: 'cat-workout', name: 'Workout' },
     { id: 'cat-personal', name: 'Personligt program' },
     { id: 'cat-annat', name: 'Annat' },
+];
+
+export const PREDEFINED_GENERAL_ACTIVITIES: GeneralActivityDefinition[] = [
+    { id: 'gen-act-hiit', name: 'HIIT' },
+    { id: 'gen-act-workout', name: 'Workout' },
+    { id: 'gen-act-mindfulness', name: 'Mindfulness' },
+    { id: 'gen-act-yin-yoga', name: 'Yin Yoga' },
+    { id: 'gen-act-postural-yoga', name: 'Postural Yoga' },
+    { id: 'gen-act-promenad', name: 'Promenad' },
+    { id: 'gen-act-lopning', name: 'Löpning' },
+    { id: 'gen-act-annan', name: 'Annan aktivitet' },
+    { id: 'gen-act-funktionell', name: 'Funktionell Träning' },
 ];
 
 export const WORKOUT_FOCUS_TAGS: { id: WorkoutFocusTag, label: string }[] = [

@@ -770,6 +770,11 @@ export interface UserPushSubscription {
     subscription: PushSubscriptionJSON; // Store the JSON representation
 }
 
+export interface GeneralActivityDefinition {
+  id: string;
+  name: string;
+}
+
 export interface OrganizationData {
   participantDirectory: ParticipantProfile[];
   workouts: Workout[];
@@ -804,6 +809,7 @@ export interface OrganizationData {
   prospectIntroCalls: ProspectIntroCall[];
   userPushSubscriptions: UserPushSubscription[];
   branding?: BrandingSettings;
+  generalActivityDefinitions: GeneralActivityDefinition[];
 }
 
 export type AppData = OrganizationData;
