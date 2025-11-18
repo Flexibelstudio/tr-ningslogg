@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { StaffMember, IntegrationSettings, Location, Membership, WorkoutCategoryDefinition, GroupClassDefinition } from '../../types';
+import { StaffMember, IntegrationSettings, Location, Membership, WorkoutCategoryDefinition, GroupClassDefinition, GeneralActivityDefinition } from '../../types';
 import { Input, Select } from '../Input';
 import { useAppContext } from '../../context/AppContext';
 import { ToggleSwitch } from '../ToggleSwitch';
@@ -313,6 +313,66 @@ const WorkoutCategoryManager: React.FC = () => {
                 onConfirm={confirmDelete}
                 title={`Ta bort kategorin ${categoryToDelete?.name}?`}
                 message="Är du säker? Detta kan inte ångras."
+                confirmButtonText="Ja, ta bort"
+            />
+        </>
+    );
+};
+
+const GeneralActivityManager: React.FC = () => {
+    const { generalActivityDefinitions, setGeneralActivityDefinitionsData } = useAppContext();
+    const [newActivityName, setNewActivityName] = useState('');
+    const [activityToDelete, setActivityToDelete] = useState<GeneralActivityDefinition | null>(null);
+
+    const handleAdd = () => {
+        const trimmedName = newActivityName.trim();
+        if (trimmedName && !generalActivityDefinitions.some(def => def.name.toLowerCase() === trimmedName.toLowerCase())) {
+            const newActivity: GeneralActivityDefinition = { id: crypto.randomUUID(), name: trimmedName };
+            setGeneralActivityDefinitionsData(prev => [...prev, newActivity]);
+            setNewActivityName('');
+        }
+    };
+
+    const confirmDelete = () => {
+        if (activityToDelete) {
+            setGeneralActivityDefinitionsData(prev => prev.filter(def => def.id !== activityToDelete.id));
+        }
+        setActivityToDelete(null);
+    };
+
+    return (
+        <>
+            <Card title="Hantera Aktivitets-typer">
+                <p className="text-sm text-gray-500 -mt-2 mb-4">Här hanterar du de snabbval för "Annan aktivitet" som medlemmar kan logga.</p>
+                <div className="space-y-4">
+                    <div>
+                        <label htmlFor="new-general-activity" className="block text-base font-medium text-gray-700 mb-1">Ny aktivitet</label>
+                        <div className="flex gap-2">
+                            <Input id="new-general-activity" value={newActivityName} onChange={e => setNewActivityName(e.target.value)} placeholder="T.ex. Padel" />
+                            <Button onClick={handleAdd}>Lägg till</Button>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 className="text-base font-medium text-gray-700 mb-2">Befintliga Aktiviteter</h4>
+                        <div className="space-y-2 max-h-60 overflow-y-auto pr-2 -mr-2">
+                            {generalActivityDefinitions.map(def => (
+                                <div key={def.id} className="flex justify-between items-center p-2 bg-gray-100 rounded-md">
+                                    <span className="text-gray-800">{def.name}</span>
+                                    <Button variant="danger" size="sm" className="!p-1.5" onClick={() => setActivityToDelete(def)}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </Card>
+            <ConfirmationModal
+                isOpen={!!activityToDelete}
+                onClose={() => setActivityToDelete(null)}
+                onConfirm={confirmDelete}
+                title={`Ta bort aktiviteten "${activityToDelete?.name}"?`}
+                message="Är du säker? Detta tar bort snabbvalet för framtida loggningar, men påverkar inte redan loggade aktiviteter."
                 confirmButtonText="Ja, ta bort"
             />
         </>
@@ -687,6 +747,7 @@ export const SettingsManagement: React.FC<{ loggedInStaff: StaffMember | null }>
             <LocationManager />
             <MembershipManager />
             <WorkoutCategoryManager />
+            <GeneralActivityManager />
             <GroupClassDefinitionManager />
             <QRCodeManager />
         </div>
