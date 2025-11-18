@@ -1,178 +1,140 @@
 <!DOCTYPE html>
 <html lang="sv-SE">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0"
-    />
-    <title>Träningslogg</title>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Träningslogg</title>
 
-    <link rel="manifest" href="/manifest.json" />
-    <link
-      rel="icon"
-      href="/favicon-32x32.png"
-      type="image/png"
-      sizes="32x32"
-    />
-    <link rel="apple-touch-icon" href="/icon-180x180.png" />
-    <meta name="theme-color" content="#3bab5a" />
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/icon-180x180.png">
+  <meta name="theme-color" content="#3bab5a">
 
-    <!-- Sätt Tailwind-konfiguration på window.tailwind INNAN CDN-scriptet -->
-    <script>
-      window.tailwind = window.tailwind || {};
-      window.tailwind.config = {
-        theme: {
-          extend: {
-            backgroundImage: {
-              "dotted-pattern":
-                "radial-gradient(hsl(215 20% 85%) 1px, transparent 0)",
-            },
-            backgroundSize: {
-              "dotted-size": "25px 25px",
-            },
-            colors: {
-              flexibel: "#3bab5a",
-              "flexibel-orange": "#f97316",
-              slate: {
-                50: "#f8fafc",
-                100: "#f1f5f9",
-                200: "#e2e8f0",
-                300: "#cbd5e1",
-                400: "#94a3b8",
-                500: "#64748b",
-                600: "#475569",
-                700: "#334155",
-                800: "#1e293b",
-                900: "#0f172a",
-              },
-              blue: { 500: "#3b82f6" },
-            },
-            animation: {
-              "fade-in-down": "fadeInDown 0.5s ease-out",
-              "pulse-cta":
-                "pulse-cta 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-              "pulse-icon": "pulse-icon 1.5s ease-in-out infinite",
-              "fade-in": "fadeIn 0.3s ease-out",
-              "scale-in": "scaleIn 0.2s ease-out",
-              "highlight-new": "highlight-fade 3s ease-out",
-            },
-            keyframes: {
-              fadeInDown: {
-                "0%": {
-                  opacity: "0",
-                  transform: "translateY(-10px)",
-                },
-                "100%": {
-                  opacity: "1",
-                  transform: "translateY(0)",
-                },
-              },
-              "pulse-cta": {
-                "0%, 100%": { transform: "scale(1)" },
-                "50%": { transform: "scale(1.05)" },
-              },
-              "pulse-icon": {
-                "0%, 100%": {
-                  transform: "scale(1)",
-                  opacity: "1",
-                },
-                "50%": {
-                  transform: "scale(1.25)",
-                  opacity: "0.75",
-                },
-              },
-              fadeIn: {
-                "0%": { opacity: "0" },
-                "100%": { opacity: "1" },
-              },
-              scaleIn: {
-                "0%": {
-                  opacity: "0",
-                  transform: "scale(0.95)",
-                },
-                "100%": {
-                  opacity: "1",
-                  transform: "scale(1)",
-                },
-              },
-              "highlight-fade": {
-                "0%": { backgroundColor: "#dcfce7" },
-                "100%": { backgroundColor: "transparent" },
-              },
-            },
+  <!-- Tailwind-config före CDN, på window.tailwind -->
+  <script>
+    window.tailwind = window.tailwind || {};
+    window.tailwind.config = {
+      theme: {
+        extend: {
+          backgroundImage: {
+            'dotted-pattern': "radial-gradient(hsl(215 20% 85%) 1px, transparent 0)",
           },
-        },
-      };
-    </script>
-
-    <!-- Tailwind via CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-
-    <style>
-      @keyframes confetti-fall {
-        0% {
-          transform: translateY(0) rotateZ(0deg) rotateY(0deg);
-          opacity: 1;
-        }
-        100% {
-          transform: translateY(110vh) rotateZ(720deg) rotateY(360deg);
-          opacity: 0;
+          backgroundSize: {
+            'dotted-size': '25px 25px',
+          },
+          colors: {
+            flexibel: '#3bab5a',
+            'flexibel-orange': '#f97316',
+            slate: {
+              50: '#f8fafc',
+              100: '#f1f5f9',
+              200: '#e2e8f0',
+              300: '#cbd5e1',
+              400: '#94a3b8',
+              500: '#64748b',
+              600: '#475569',
+              700: '#334155',
+              800: '#1e293b',
+              900: '#0f172a',
+            },
+            blue: { 500: '#3b82f6' }
+          },
+          animation: {
+            'fade-in-down': 'fadeInDown 0.5s ease-out',
+            'pulse-cta': 'pulse-cta 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'pulse-icon': 'pulse-icon 1.5s ease-in-out infinite',
+            'fade-in': 'fadeIn 0.3s ease-out',
+            'scale-in': 'scaleIn 0.2s ease-out',
+            'highlight-new': 'highlight-fade 3s ease-out'
+          },
+          keyframes: {
+            fadeInDown: {
+              '0%': { opacity: '0', transform: 'translateY(-10px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
+            },
+            'pulse-cta': {
+              '0%, 100%': { transform: 'scale(1)' },
+              '50%': { transform: 'scale(1.05)' },
+            },
+            'pulse-icon': {
+              '0%, 100%': { transform: 'scale(1)', opacity: '1' },
+              '50%': { transform: 'scale(1.25)', opacity: '0.75' },
+            },
+            fadeIn: {
+              '0%': { opacity: '0' },
+              '100%': { opacity: '1' },
+            },
+            scaleIn: {
+              '0%': { opacity: '0', transform: 'scale(0.95)' },
+              '100%': { opacity: '1', transform: 'scale(1)' },
+            },
+            'highlight-fade': {
+              '0%': { backgroundColor: '#dcfce7' },
+              '100%': { backgroundColor: 'transparent' },
+            },
+          }
         }
       }
-      .confetti {
-        position: fixed;
-        top: -20px;
-        animation-name: confetti-fall;
-        animation-timing-function: linear;
-        animation-iteration-count: 1;
-        will-change: transform, opacity;
-      }
-    </style>
+    };
+  </script>
 
-    <!-- Import map för ESM-bibliotek -->
-    <script type="importmap">
-      {
-        "imports": {
-          "react/": "https://esm.sh/react@^19.1.0/",
-          "react": "https://esm.sh/react@^19.1.0",
-          "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
-          "@google/genai": "https://esm.sh/@google/genai",
-          "framer-motion": "https://esm.sh/framer-motion@^11.3.19",
-          "html2canvas": "https://esm.sh/html2canvas@^1.4.1",
-          "chart.js/auto": "https://esm.sh/chart.js@^4.4.3/auto",
-          "chartjs-adapter-date-fns": "https://esm.sh/chartjs-adapter-date-fns@^3.0.0",
-          "chart.js/": "https://esm.sh/chart.js@^4.5.0/",
-          "jsqr": "https://esm.sh/jsqr@^1.4.0",
-          "qrcode": "https://esm.sh/qrcode@^1.5.3",
-          "recharts": "https://esm.sh/recharts@2.12.7",
-          "firebase/compat/app": "https://esm.sh/firebase@9.23.0/compat/app",
-          "firebase/compat/auth": "https://esm.sh/firebase@9.23.0/compat/auth",
-          "firebase/compat/firestore": "https://esm.sh/firebase@9.23.0/compat/firestore",
-          "firebase/compat/functions": "https://esm.sh/firebase@9.23.0/compat/functions",
-          "firebase/": "https://aistudiocdn.com/firebase@^12.4.0/",
-          "firebase-functions/": "https://aistudiocdn.com/firebase-functions@^6.6.0/",
-          "firebase-admin/": "https://aistudiocdn.com/firebase-admin@^13.5.0/",
-          "dom": "https://aistudiocdn.com/dom@^0.0.3",
-          "es2015": "https://aistudiocdn.com/es2015@^0.0.0",
-          "web-push": "https://aistudiocdn.com/web-push@^3.6.7"
-        }
-      }
-    </script>
+  <!-- Tailwind via CDN (ok i dev; i prod rekommenderas PostCSS/CLI) -->
+  <script src="https://cdn.tailwindcss.com"></script>
 
-    <link rel="stylesheet" href="/index.css" />
-  </head>
+  <style>
+    @keyframes confetti-fall {
+      0%   { transform: translateY(0) rotateZ(0deg) rotateY(0deg); opacity: 1; }
+      100% { transform: translateY(110vh) rotateZ(720deg) rotateY(360deg); opacity: 0; }
+    }
+    .confetti {
+      position: fixed;
+      top: -20px;
+      animation-name: confetti-fall;
+      animation-timing-function: linear;
+      animation-iteration-count: 1;
+      will-change: transform, opacity;
+    }
+  </style>
 
-  <body
-    class="bg-gray-100 text-gray-800 antialiased"
-    style="background-color: #f3f4f6;"
-  >
-    <div id="root"></div>
+  <!-- Import map för ESM-bibliotek -->
+  <script type="importmap">
+  {
+    "imports": {
+      "react/": "https://esm.sh/react@^19.1.0/",
+      "react": "https://esm.sh/react@^19.1.0",
+      "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+      "@google/genai": "https://esm.sh/@google/genai",
+      "framer-motion": "https://esm.sh/framer-motion@^11.3.19",
+      "html2canvas": "https://esm.sh/html2canvas@^1.4.1",
+      "chart.js/auto": "https://esm.sh/chart.js@^4.4.3/auto",
+      "chartjs-adapter-date-fns": "https://esm.sh/chartjs-adapter-date-fns@^3.0.0",
+      "chart.js/": "https://esm.sh/chart.js@^4.5.0/",
+      "jsqr": "https://esm.sh/jsqr@^1.4.0",
+      "qrcode": "https://esm.sh/qrcode@^1.5.3",
+      "recharts": "https://esm.sh/recharts@2.12.7",
+      "firebase/compat/app": "https://esm.sh/firebase@9.23.0/compat/app",
+      "firebase/compat/auth": "https://esm.sh/firebase@9.23.0/compat/auth",
+      "firebase/compat/firestore": "https://esm.sh/firebase@9.23.0/compat/firestore",
+      "firebase/compat/functions": "https://esm.sh/firebase@9.23.0/compat/functions",
+      "firebase/": "https://aistudiocdn.com/firebase@^12.4.0/",
+      "firebase-functions/": "https://aistudiocdn.com/firebase-functions@^6.6.0/",
+      "firebase-admin/": "https://aistudiocdn.com/firebase-admin@^13.5.0/",
+      "dom": "https://aistudiocdn.com/dom@^0.0.3",
+      "es2015": "https://aistudiocdn.com/es2015@^0.0.0",
+      "web-push": "https://aistudiocdn.com/web-push@^3.6.7"
+    }
+  }
+  </script>
 
-    <!-- Vite entry -->
-    <script type="module" src="/index.tsx"></script>
+  <link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-gray-100 text-gray-800 antialiased">
+  <div id="root"></div>
 
-    <!-- OBS! Ingen SW-registrering här.
-         Service worker registreras endast i index.tsx när import.meta.env.PROD är true. -->
-  </body>
+  <!-- Vite entry -->
+  <script type="module" src="/index.tsx"></script>
+
+  <!-- OBS! Ingen SW-registrering här.
+       Service worker registreras endast i index.tsx när import.meta.env.PROD är true. -->
+</body>
 </html>
