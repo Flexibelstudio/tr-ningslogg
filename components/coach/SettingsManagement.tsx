@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { StaffMember, IntegrationSettings, Location, Membership, WorkoutCategoryDefinition, GroupClassDefinition } from '../../types';
 import { Input, Select } from '../Input';
 import { useAppContext } from '../../context/AppContext';
@@ -331,6 +331,10 @@ const GroupClassDefinitionManager: React.FC = () => {
     const [color, setColor] = useState('#3bab5a');
     const [hasWaitlist, setHasWaitlist] = useState(true);
 
+    const closeModal = useCallback(() => {
+        setEditingDefinition(null);
+    }, []);
+
     useEffect(() => {
         if (editingDefinition) {
             setName(editingDefinition.name || '');
@@ -374,7 +378,7 @@ const GroupClassDefinitionManager: React.FC = () => {
             }
             return [...prev, definitionToSave];
         });
-        setEditingDefinition(null);
+        closeModal();
     };
     
     const handleDelete = (definition: GroupClassDefinition) => {
@@ -424,7 +428,7 @@ const GroupClassDefinitionManager: React.FC = () => {
             </Card>
             
             {editingDefinition && (
-                <Modal isOpen={!!editingDefinition} onClose={() => setEditingDefinition(null)} title={editingDefinition.name ? 'Redigera Passtyp' : 'Ny Passtyp'}>
+                <Modal isOpen={!!editingDefinition} onClose={closeModal} title={editingDefinition.name ? 'Redigera Passtyp' : 'Ny Passtyp'}>
                     <div className="space-y-4">
                         <Input label="Namn" value={name} onChange={e => setName(e.target.value)} />
                         <Input label="Beskrivning" value={description} onChange={e => setDescription(e.target.value)} />
@@ -441,7 +445,7 @@ const GroupClassDefinitionManager: React.FC = () => {
                             onChange={setHasWaitlist}
                         />
                         <div className="flex justify-end gap-2 pt-4 border-t">
-                            <Button variant="secondary" onClick={() => setEditingDefinition(null)}>Avbryt</Button>
+                            <Button variant="secondary" onClick={closeModal}>Avbryt</Button>
                             <Button onClick={handleSave}>Spara</Button>
                         </div>
                     </div>
