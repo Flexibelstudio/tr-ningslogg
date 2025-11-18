@@ -10,10 +10,10 @@
   <link rel="apple-touch-icon" href="/icon-180x180.png">
   <meta name="theme-color" content="#3bab5a">
 
-  <!-- Tailwind-config före CDN, på window.tailwind -->
+  <!-- Tailwind via CDN (ok i dev; i prod rekommenderas PostCSS/CLI) -->
+  <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    window.tailwind = window.tailwind || {};
-    window.tailwind.config = {
+    tailwind.config = {
       theme: {
         extend: {
           backgroundImage: {
@@ -75,11 +75,8 @@
           }
         }
       }
-    };
+    }
   </script>
-
-  <!-- Tailwind via CDN (ok i dev; i prod rekommenderas PostCSS/CLI) -->
-  <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
     @keyframes confetti-fall {
@@ -98,37 +95,37 @@
 
   <!-- Import map för ESM-bibliotek -->
   <script type="importmap">
-  {
-    "imports": {
-      "react/": "https://esm.sh/react@^19.1.0/",
-      "react": "https://esm.sh/react@^19.1.0",
-      "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
-      "@google/genai": "https://esm.sh/@google/genai",
-      "framer-motion": "https://esm.sh/framer-motion@^11.3.19",
-      "html2canvas": "https://esm.sh/html2canvas@^1.4.1",
-      "chart.js/auto": "https://esm.sh/chart.js@^4.4.3/auto",
-      "chartjs-adapter-date-fns": "https://esm.sh/chartjs-adapter-date-fns@^3.0.0",
-      "chart.js/": "https://esm.sh/chart.js@^4.5.0/",
-      "jsqr": "https://esm.sh/jsqr@^1.4.0",
-      "qrcode": "https://esm.sh/qrcode@^1.5.3",
-      "recharts": "https://esm.sh/recharts@2.12.7",
-      "firebase/compat/app": "https://esm.sh/firebase@9.23.0/compat/app",
-      "firebase/compat/auth": "https://esm.sh/firebase@9.23.0/compat/auth",
-      "firebase/compat/firestore": "https://esm.sh/firebase@9.23.0/compat/firestore",
-      "firebase/compat/functions": "https://esm.sh/firebase@9.23.0/compat/functions",
-      "firebase/": "https://aistudiocdn.com/firebase@^12.4.0/",
-      "firebase-functions/": "https://aistudiocdn.com/firebase-functions@^6.6.0/",
-      "firebase-admin/": "https://aistudiocdn.com/firebase-admin@^13.5.0/",
-      "dom": "https://aistudiocdn.com/dom@^0.0.3",
-      "es2015": "https://aistudiocdn.com/es2015@^0.0.0",
-      "web-push": "https://aistudiocdn.com/web-push@^3.6.7"
-    }
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "@google/genai": "https://esm.sh/@google/genai",
+    "framer-motion": "https://esm.sh/framer-motion@^11.3.19",
+    "html2canvas": "https://esm.sh/html2canvas@^1.4.1",
+    "chart.js/auto": "https://esm.sh/chart.js@^4.4.3/auto",
+    "chartjs-adapter-date-fns": "https://esm.sh/chartjs-adapter-date-fns@^3.0.0",
+    "chart.js/": "https://esm.sh/chart.js@^4.5.0/",
+    "jsqr": "https://esm.sh/jsqr@^1.4.0",
+    "qrcode": "https://esm.sh/qrcode@^1.5.3",
+    "recharts": "https://esm.sh/recharts@2.12.7",
+    "firebase/compat/app": "https://esm.sh/firebase@9.23.0/compat/app",
+    "firebase/compat/auth": "https://esm.sh/firebase@9.23.0/compat/auth",
+    "firebase/compat/firestore": "https://esm.sh/firebase@9.23.0/compat/firestore",
+    "firebase/compat/functions": "https://esm.sh/firebase@9.23.0/compat/functions",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.4.0/",
+    "firebase-functions/": "https://aistudiocdn.com/firebase-functions@^6.6.0/",
+    "firebase-admin/": "https://aistudiocdn.com/firebase-admin@^13.5.0/",
+    "dom": "https://aistudiocdn.com/dom@^0.0.3",
+    "es2015": "https://aistudiocdn.com/es2015@^0.0.0",
+    "web-push": "https://aistudiocdn.com/web-push@^3.6.7"
   }
-  </script>
+}
+</script>
 
   <link rel="stylesheet" href="/index.css">
 </head>
-<body class="bg-gray-100 text-gray-800 antialiased">
+<body class="bg-gray-100 text-gray-800 antialiased" style="background-color: #f3f4f6;">
   <div id="root"></div>
 
   <!-- Vite entry -->
