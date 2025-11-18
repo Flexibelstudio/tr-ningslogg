@@ -3,7 +3,7 @@ import {
     StaffMember, GroupClassSchedule, Membership, WorkoutCategoryDefinition, GroupClassDefinition, User
 } from '../types';
 // FIX: COLOR_PALETTE was missing from this import
-import { LOCAL_STORAGE_KEYS, PREDEFINED_GROUP_CLASSES, PREDEFINED_MEMBERSHIPS, PREDEFINED_WORKOUT_CATEGORIES, COLOR_PALETTE, PREDEFINED_GENERAL_ACTIVITIES } from '../constants';
+import { LOCAL_STORAGE_KEYS, PREDEFINED_GROUP_CLASSES, PREDEFINED_MEMBERSHIPS, PREDEFINED_WORKOUT_CATEGORIES, COLOR_PALETTE } from '../constants';
 
 export const createInitialOrgData = (orgId: string): OrganizationData => {
     const loc1Id = 'loc-1-salem';
@@ -57,7 +57,6 @@ export const createInitialOrgData = (orgId: string): OrganizationData => {
         prospectIntroCalls: [],
         userPushSubscriptions: [],
         branding: { categoryColorMap: {} },
-        generalActivityDefinitions: PREDEFINED_GENERAL_ACTIVITIES,
     };
 
     // Add specific seeded data
