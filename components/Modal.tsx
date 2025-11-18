@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef } from "react";
 
 interface ModalProps {
@@ -23,6 +24,28 @@ export const Modal: React.FC<ModalProps> = ({
   const focusableElsRef = useRef<HTMLElement[]>([]);
   const titleId = React.useId();
 
+  // Effect 1: Set Initial Focus (Only runs when modal opens)
+  useEffect(() => {
+    if (isOpen && modalRef.current) {
+      const els = Array.from(
+        modalRef.current.querySelectorAll(
+          'a[href], button, input, textarea, select, details, [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => !(el as HTMLElement).hasAttribute("disabled")) as HTMLElement[];
+      
+      focusableElsRef.current = els;
+      
+      // Only set focus if we aren't already focusing something inside the modal
+      // This check prevents stealing focus if this effect runs unexpectedly, 
+      // though dividing the effects usually solves it.
+      if (!modalRef.current.contains(document.activeElement)) {
+          if (els.length) els[0].focus();
+          else modalRef.current.focus();
+      }
+    }
+  }, [isOpen]);
+
+  // Effect 2: Handle Keydown Events (Escape & Tab)
   useEffect(() => {
     if (!isOpen) return;
 
@@ -48,18 +71,6 @@ export const Modal: React.FC<ModalProps> = ({
     };
 
     document.addEventListener("keydown", handleKeyDown);
-
-    if (modalRef.current) {
-      const els = Array.from(
-        modalRef.current.querySelectorAll(
-          'a[href], button, input, textarea, select, details, [tabindex]:not([tabindex="-1"])'
-        )
-      ).filter((el) => !(el as HTMLElement).hasAttribute("disabled")) as HTMLElement[];
-      focusableElsRef.current = els;
-      if (els.length) els[0].focus();
-      else modalRef.current.focus();
-    }
-
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose, isClosable]);
 
