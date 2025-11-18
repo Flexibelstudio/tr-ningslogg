@@ -74,14 +74,22 @@ const CalendarViewFC: React.FC<CalendarViewProps> = ({
         return schedule.daysOfWeek.includes(dayOfWeek) && day >= startDate && day <= endDate;
       })
       .map(schedule => {
-        const classDef = groupClassDefinitions.find(d => d.id === schedule.groupClassId);
-        const coach = coaches.find(c => c.id === schedule.coachId);
-        if (!classDef || !coach) return null;
-
         const exception = groupClassScheduleExceptions.find(ex => ex.scheduleId === schedule.id && ex.date === dateStr);
         const isCancelled = !!(exception && exception.status === 'CANCELLED');
 
-        const [hour, minute] = schedule.startTime.split(':').map(Number);
+        const overriddenSchedule = {
+            ...schedule,
+            startTime: exception?.newStartTime || schedule.startTime,
+            durationMinutes: exception?.newDurationMinutes || schedule.durationMinutes,
+            coachId: exception?.newCoachId || schedule.coachId,
+            maxParticipants: exception?.newMaxParticipants || schedule.maxParticipants,
+        };
+
+        const classDef = groupClassDefinitions.find(d => d.id === overriddenSchedule.groupClassId);
+        const coach = coaches.find(c => c.id === overriddenSchedule.coachId);
+        if (!classDef || !coach) return null;
+
+        const [hour, minute] = overriddenSchedule.startTime.split(':').map(Number);
         const startDateTime = new Date(day);
         startDateTime.setHours(hour, minute, 0, 0);
 
@@ -95,16 +103,16 @@ const CalendarViewFC: React.FC<CalendarViewProps> = ({
           startDateTime,
           scheduleId: schedule.id,
           className: classDef.name,
-          duration: schedule.durationMinutes,
+          duration: overriddenSchedule.durationMinutes,
           coachName: coach.name,
           coachId: coach.id,
-          locationId: schedule.locationId,
-          maxParticipants: schedule.maxParticipants,
+          locationId: overriddenSchedule.locationId,
+          maxParticipants: overriddenSchedule.maxParticipants,
           bookedCount: bookedUsers.length,
           waitlistCount: waitlistedUsers.length,
-          isFull: bookedUsers.length >= schedule.maxParticipants,
+          isFull: bookedUsers.length >= overriddenSchedule.maxParticipants,
           allBookingsForInstance,
-          color: classDef.color || getColorForCategory(classDef.name), // Use new property with fallback
+          color: classDef.color || getColorForCategory(classDef.name),
           isCancelled,
         };
       })
