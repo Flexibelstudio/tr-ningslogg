@@ -1,8 +1,9 @@
+
 import React, { useState, useMemo, useCallback } from 'react';
-import { OneOnOneSession, ParticipantProfile, StaffMember, GroupClassSchedule, GroupClassDefinition, ParticipantBooking, GroupClassScheduleException } from '../../types';
-import { CalendarGrid } from '../CalendarGrid';
-import * as dateUtils from '../../utils/dateUtils';
-import { useAppContext } from '../../context/AppContext';
+import { OneOnOneSession, ParticipantProfile, StaffMember, GroupClassSchedule, GroupClassDefinition, ParticipantBooking, GroupClassScheduleException } from '../../../types';
+import { CalendarGrid } from '../../../components/CalendarGrid';
+import * as dateUtils from '../../../utils/dateUtils';
+import { useAppContext } from '../../../context/AppContext';
 
 interface EnrichedClassInstance {
     instanceId: string;

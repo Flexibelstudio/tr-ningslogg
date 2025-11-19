@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
     Workout, WorkoutLog, GeneralActivityLog, ActivityLog,
@@ -36,14 +37,14 @@ import { ConditioningStatsModal } from './ConditioningStatsModal';
 import { PhysiqueManagerModal } from './PhysiqueManagerModal';
 import { CommunityModal } from './CommunityModal';
 import { UpcomingMeetingCard } from './UpcomingMeetingCard';
-import { MeetingDetailsModal } from './MeetingDetailsModal';
+import { MeetingDetailsModal } from '../../features/booking/components/MeetingDetailsModal';
 import { UpgradeModal } from './UpgradeModal';
-import { BookingView } from './BookingView';
+import { BookingView } from '../../features/booking/components/BookingView';
 import { QrScannerModal } from './QrScannerModal';
 import { CheckinConfirmationModal } from './CheckinConfirmationModal';
 import { calculateUpdatedStreakAndGamification, checkAndAwardClubMemberships } from '../../services/gamificationService';
 import { calculatePostWorkoutSummary, findAndUpdateStrengthStats } from '../../services/workoutService';
-import { NextBookingCard } from './NextBookingCard';
+import { NextBookingCard } from '../../features/booking/components/NextBookingCard';
 import { AIAssistantModal, AiWorkoutTips } from './AIAssistantModal';
 import { useAppContext } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
@@ -1049,7 +1050,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   
     const latestPhysique = useMemo(() => {
         if (myPhysiqueHistory.length === 0) return null;
-        return [...myPhysiqueHistory].sort((a,b) => new Date(b.lastUpdated).getTime() - new Date(a.setDate).getTime())[0];
+        return [...myPhysiqueHistory].sort((a,b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
     }, [myPhysiqueHistory]);
 
     const flexibelStrengthScore = useMemo(() => {
@@ -1432,6 +1433,10 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                         />
                     )}
 
+                    {nextBooking && (
+                         <NextBookingCard nextBooking={nextBooking} />
+                    )}
+
                     {isNewUser && (
                         <div className="p-4 bg-white rounded-xl shadow-lg border text-center">
                             <h2 className="text-2xl font-bold text-gray-800">Välkommen!</h2>
@@ -1635,7 +1640,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             latestGoal={latestGoal}
             userStrengthStatsHistory={myStrengthStats}
             clubMemberships={myClubMemberships}
-            onSaveStrengthStats={(stats) => setUserStrengthStatsData(prev => [...(prev || []).filter(s => s.participantId !== currentParticipantId), stats])}
+            onSaveStrengthStats={(stats) => setUserStrengthStatsData(prev => [...prev.filter(s => s.participantId !== currentParticipantId), stats])}
             onOpenPhysiqueModal={handleOpenPhysiqueFromStrength}
         />
         <ConditioningStatsModal
@@ -1660,11 +1665,11 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             onSave={(physiqueData) => {
                 const newHistoryEntry: ParticipantPhysiqueStat = {
                     id: crypto.randomUUID(),
-                    participantId: currentParticipantId,
+                    participantId: participant.id,
                     lastUpdated: new Date().toISOString(),
                     ...physiqueData,
                 };
-                setParticipantPhysiqueHistoryData(prev => [...(prev || []), newHistoryEntry]);
+                setParticipantPhysiqueHistoryData(prev => [...prev, newHistoryEntry]);
                 updateParticipantProfile(currentParticipantId, physiqueData);
             }}
         />
@@ -1790,7 +1795,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 setShowDeleteConfirm(false);
             }}
             title="Ta bort utkast?"
-            message={`Är du säker på att du vill ta bort det pågående utkastet för "${inProgressWorkout?.title}"? Detta kan inte ångras.`}
+            message={`Är du säker på att du vill ta bort det pågående utkastet för "${inProgressWorkout?.workoutTitle}"? Detta kan inte ångras.`}
             confirmButtonText="Ja, ta bort"
             cancelButtonText="Avbryt"
         />

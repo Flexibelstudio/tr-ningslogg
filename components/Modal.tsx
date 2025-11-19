@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef } from "react";
 
 interface ModalProps {
@@ -21,13 +22,55 @@ export const Modal: React.FC<ModalProps> = ({
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const focusableElsRef = useRef<HTMLElement[]>([]);
+  const hasSetInitialFocus = useRef(false);
   const titleId = React.useId();
 
+  // Update the list of focusable elements whenever the component renders (in case children changed)
+  useEffect(() => {
+    if (isOpen && modalRef.current) {
+      const els = Array.from(
+        modalRef.current.querySelectorAll(
+          'a[href], button, input, textarea, select, details, [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => !(el as HTMLElement).hasAttribute("disabled")) as HTMLElement[];
+      
+      focusableElsRef.current = els;
+    }
+  });
+
+  // Effect 1: Set Initial Focus (Only runs when modal opens)
+  useEffect(() => {
+    if (isOpen) {
+      // Small timeout to ensure DOM is ready and to avoid conflict with the event that opened the modal
+      const timer = setTimeout(() => {
+        if (modalRef.current && !hasSetInitialFocus.current) {
+          // Only set focus if we aren't already focusing something inside the modal
+          if (!modalRef.current.contains(document.activeElement)) {
+              const els = focusableElsRef.current;
+              if (els.length > 0) {
+                els[0].focus();
+              } else {
+                modalRef.current.focus();
+              }
+          }
+          hasSetInitialFocus.current = true;
+        }
+      }, 10);
+      return () => clearTimeout(timer);
+    } else {
+      hasSetInitialFocus.current = false;
+    }
+  }, [isOpen]);
+
+  // Effect 2: Handle Keydown Events (Escape & Tab)
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isClosable) onClose();
+      if (e.key === "Escape" && isClosable) {
+          e.stopPropagation();
+          onClose();
+      }
       if (e.key === "Tab") {
         const els = focusableElsRef.current;
         if (!els.length) return;
@@ -48,18 +91,6 @@ export const Modal: React.FC<ModalProps> = ({
     };
 
     document.addEventListener("keydown", handleKeyDown);
-
-    if (modalRef.current) {
-      const els = Array.from(
-        modalRef.current.querySelectorAll(
-          'a[href], button, input, textarea, select, details, [tabindex]:not([tabindex="-1"])'
-        )
-      ).filter((el) => !(el as HTMLElement).hasAttribute("disabled")) as HTMLElement[];
-      focusableElsRef.current = els;
-      if (els.length) els[0].focus();
-      else modalRef.current.focus();
-    }
-
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose, isClosable]);
 

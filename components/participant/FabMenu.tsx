@@ -1,3 +1,4 @@
+
 import React, { useMemo, useRef } from 'react';
 import { Button } from '../Button';
 import { Workout, WorkoutCategory, Membership, IntegrationSettings, WorkoutCategoryDefinition, WorkoutLog } from '../../types';

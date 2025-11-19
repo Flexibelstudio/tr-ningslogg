@@ -321,19 +321,58 @@ const WorkoutCategoryManager: React.FC = () => {
 
 const GroupClassDefinitionManager: React.FC = () => {
     const { groupClassDefinitions, setGroupClassDefinitionsData, groupClassSchedules } = useAppContext();
-    const [newDefinitionName, setNewDefinitionName] = useState('');
     const [definitionToDelete, setDefinitionToDelete] = useState<GroupClassDefinition | null>(null);
     const [editingDefinition, setEditingDefinition] = useState<GroupClassDefinition | null>(null);
 
-    const handleSave = (def: GroupClassDefinition) => {
+    // Form state for the modal
+    const [name, setName] = useState('');
+    const [description, setDescription] = useState('');
+    const [duration, setDuration] = useState<number | string>('');
+    const [color, setColor] = useState('#3bab5a');
+    const [hasWaitlist, setHasWaitlist] = useState(true);
+
+    useEffect(() => {
+        if (editingDefinition) {
+            setName(editingDefinition.name || '');
+            setDescription(editingDefinition.description || '');
+            setDuration(editingDefinition.defaultDurationMinutes || '');
+            setColor(editingDefinition.color || '#3bab5a');
+            setHasWaitlist(editingDefinition.hasWaitlist ?? true);
+        }
+    }, [editingDefinition]);
+
+    const openAddModal = () => {
+        setEditingDefinition({
+            id: crypto.randomUUID(),
+            name: '',
+            hasWaitlist: true,
+            color: COLOR_PALETTE[groupClassDefinitions.length % COLOR_PALETTE.length],
+        });
+    };
+    
+    const handleSave = () => {
+        if (!editingDefinition || !name.trim()) {
+            // Optional: Add error handling for empty name
+            return;
+        }
+
+        const definitionToSave: GroupClassDefinition = {
+            ...editingDefinition,
+            name: name.trim(),
+            description: description.trim() || undefined,
+            defaultDurationMinutes: Number(duration) || undefined,
+            color: color,
+            hasWaitlist: hasWaitlist,
+        };
+
         setGroupClassDefinitionsData(prev => {
-            const index = prev.findIndex(d => d.id === def.id);
+            const index = prev.findIndex(d => d.id === definitionToSave.id);
             if (index > -1) {
                 const newDefs = [...prev];
-                newDefs[index] = def;
+                newDefs[index] = definitionToSave;
                 return newDefs;
             }
-            return [...prev, def];
+            return [...prev, definitionToSave];
         });
         setEditingDefinition(null);
     };
@@ -354,15 +393,6 @@ const GroupClassDefinitionManager: React.FC = () => {
         setDefinitionToDelete(null);
     }
     
-    const openAddModal = () => {
-        setEditingDefinition({
-            id: crypto.randomUUID(),
-            name: '',
-            hasWaitlist: true,
-            color: COLOR_PALETTE[groupClassDefinitions.length % COLOR_PALETTE.length],
-        });
-    };
-
     return (
         <>
             <Card title="Hantera Gruppass-typer">
@@ -396,23 +426,23 @@ const GroupClassDefinitionManager: React.FC = () => {
             {editingDefinition && (
                 <Modal isOpen={!!editingDefinition} onClose={() => setEditingDefinition(null)} title={editingDefinition.name ? 'Redigera Passtyp' : 'Ny Passtyp'}>
                     <div className="space-y-4">
-                        <Input label="Namn" value={editingDefinition.name} onChange={e => setEditingDefinition(p => p ? {...p, name: e.target.value} : null)} />
-                        <Input label="Beskrivning" value={editingDefinition.description || ''} onChange={e => setEditingDefinition(p => p ? {...p, description: e.target.value} : null)} />
-                        <Input label="Standardlängd (minuter)" type="number" value={String(editingDefinition.defaultDurationMinutes || '')} onChange={e => setEditingDefinition(p => p ? {...p, defaultDurationMinutes: Number(e.target.value)} : null)} />
+                        <Input label="Namn" value={name} onChange={e => setName(e.target.value)} />
+                        <Input label="Beskrivning" value={description} onChange={e => setDescription(e.target.value)} />
+                        <Input label="Standardlängd (minuter)" type="number" value={duration} onChange={e => setDuration(e.target.value)} />
                         <div className="flex items-center gap-3">
-                            <label htmlFor="class-color">Färg</label>
-                            <input id="class-color" type="color" value={editingDefinition.color || '#cccccc'} onChange={e => setEditingDefinition(p => p ? {...p, color: e.target.value} : null)} />
+                            <label htmlFor="class-color" className="text-sm font-medium text-gray-700">Färg</label>
+                            <input id="class-color" type="color" value={color} onChange={e => setColor(e.target.value)} className="w-10 h-10 p-1 border border-gray-300 rounded-md cursor-pointer"/>
                         </div>
                         <ToggleSwitch
                             id="class-waitlist"
                             label="Aktivera kölista"
                             description="Tillåt medlemmar att ställa sig i kö när passet är fullt."
-                            checked={editingDefinition.hasWaitlist ?? false}
-                            onChange={val => setEditingDefinition(p => p ? {...p, hasWaitlist: val} : null)}
+                            checked={hasWaitlist}
+                            onChange={setHasWaitlist}
                         />
                         <div className="flex justify-end gap-2 pt-4 border-t">
                             <Button variant="secondary" onClick={() => setEditingDefinition(null)}>Avbryt</Button>
-                            <Button onClick={() => handleSave(editingDefinition)}>Spara</Button>
+                            <Button onClick={handleSave}>Spara</Button>
                         </div>
                     </div>
                 </Modal>
