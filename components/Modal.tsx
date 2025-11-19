@@ -22,9 +22,10 @@ export const Modal: React.FC<ModalProps> = ({
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const focusableElsRef = useRef<HTMLElement[]>([]);
+  const hasSetInitialFocus = useRef(false);
   const titleId = React.useId();
 
-  // Effect 1: Set Initial Focus (Only runs when modal opens)
+  // Update the list of focusable elements whenever the component renders (in case children changed)
   useEffect(() => {
     if (isOpen && modalRef.current) {
       const els = Array.from(
@@ -34,14 +35,30 @@ export const Modal: React.FC<ModalProps> = ({
       ).filter((el) => !(el as HTMLElement).hasAttribute("disabled")) as HTMLElement[];
       
       focusableElsRef.current = els;
-      
-      // Only set focus if we aren't already focusing something inside the modal
-      // This check prevents stealing focus if this effect runs unexpectedly, 
-      // though dividing the effects usually solves it.
-      if (!modalRef.current.contains(document.activeElement)) {
-          if (els.length) els[0].focus();
-          else modalRef.current.focus();
-      }
+    }
+  });
+
+  // Effect 1: Set Initial Focus (Only runs when modal opens)
+  useEffect(() => {
+    if (isOpen) {
+      // Small timeout to ensure DOM is ready and to avoid conflict with the event that opened the modal
+      const timer = setTimeout(() => {
+        if (modalRef.current && !hasSetInitialFocus.current) {
+          // Only set focus if we aren't already focusing something inside the modal
+          if (!modalRef.current.contains(document.activeElement)) {
+              const els = focusableElsRef.current;
+              if (els.length > 0) {
+                els[0].focus();
+              } else {
+                modalRef.current.focus();
+              }
+          }
+          hasSetInitialFocus.current = true;
+        }
+      }, 10);
+      return () => clearTimeout(timer);
+    } else {
+      hasSetInitialFocus.current = false;
     }
   }, [isOpen]);
 
@@ -50,7 +67,10 @@ export const Modal: React.FC<ModalProps> = ({
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isClosable) onClose();
+      if (e.key === "Escape" && isClosable) {
+          e.stopPropagation();
+          onClose();
+      }
       if (e.key === "Tab") {
         const els = focusableElsRef.current;
         if (!els.length) return;
