@@ -1,12 +1,13 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
 import { Textarea } from '../Textarea';
 import { ParticipantProfile, ParticipantGoalData, ActivityLog, CoachNote, OneOnOneSession, StaffMember, GoalCompletionLog, Workout, WorkoutCategoryDefinition, StaffAvailability, UserStrengthStat, ParticipantConditioningStat, ParticipantPhysiqueStat, ParticipantClubMembership, WorkoutLog, GeneralActivityLog, Lead, Location } from '../../types';
 import * as dateUtils from '../../utils/dateUtils';
-import { BookOneOnOneModal } from './BookOneOnOneModal';
+import { BookOneOnOneModal } from '../../features/booking/components/BookOneOnOneModal';
 import { GoalForm, GoalFormRef } from '../participant/GoalForm';
-import { CreateWorkoutModal } from './CreateWorkoutModal';
+import { CreateWorkoutModal } from '../../features/workouts/components/CreateWorkoutModal';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { ParticipantDashboardView } from '../participant/ParticipantDashboardView';
 import { useAppContext } from '../../context/AppContext';
