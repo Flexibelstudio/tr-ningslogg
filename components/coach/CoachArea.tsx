@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import {
   WorkoutLog,
@@ -32,19 +33,19 @@ import { LeaderboardManagement } from './LeaderboardManagement';
 import { EventManagement } from './EventManagement';
 import { SettingsManagement } from './SettingsManagement';
 import { StaffManagement } from './StaffManagement';
-import { BookOneOnOneModal } from './BookOneOnOneModal';
+import { BookOneOnOneModal } from '../../features/booking/components/BookOneOnOneModal';
 import { AIBusinessInsights } from './AIBusinessInsights';
 import { ClientJourneyView } from './ClientJourneyView';
-import { MeetingDetailsModal } from '../participant/MeetingDetailsModal';
+import { MeetingDetailsModal } from '../../features/booking/components/MeetingDetailsModal';
 import { EngagementOpportunities } from './EngagementOpportunities';
 import { ConfirmationModal } from '../ConfirmationModal';
-import { CalendarView } from './CalendarView';
-import { ClassManagementModal } from './ClassCheckinModal';
+import { CalendarView } from '../../features/booking/components/CalendarView';
+import { ClassManagementModal } from '../../features/booking/components/ClassManagementModal';
 import { useAppContext } from '../../context/AppContext';
 import { Button } from '../Button';
 import { useAuth } from '../../context/AuthContext';
 import { useNetworkStatus } from '../../context/NetworkStatusContext';
-import { CreateScheduleModal } from './CreateScheduleModal';
+import { CreateScheduleModal } from '../../features/booking/components/CreateScheduleModal';
 import { ToggleSwitch } from '../ToggleSwitch';
 import { Select } from '../Input';
 
