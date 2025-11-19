@@ -1,33 +1,10 @@
 
 import React, { useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import {
-  WorkoutLog,
-  ParticipantProfile,
-  ParticipantGoalData,
-  GeneralActivityLog,
-  GoalCompletionLog,
-  CoachNote,
-  UserStrengthStat,
-  ParticipantClubMembership,
-  LeaderboardSettings,
-  CoachEvent,
-  Location,
-  StaffMember,
-  Membership,
-  WeeklyHighlightSettings,
   OneOnOneSession,
-  WorkoutCategoryDefinition,
-  StaffAvailability,
-  IntegrationSettings,
-  GroupClassDefinition,
-  GroupClassSchedule,
-  ParticipantBooking,
-  User,
-  ParticipantConditioningStat,
-  GroupClassScheduleException,
+  CoachEvent,
 } from '../../types';
 import { MemberManagement } from './MemberManagement';
-import { ParticipantActivityOverview } from './ParticipantActivityOverview';
 import { WorkoutManagement } from '../../features/workouts/components/WorkoutManagement';
 import { LeaderboardManagement } from './LeaderboardManagement';
 import { EventManagement } from './EventManagement';
@@ -41,13 +18,14 @@ import { EngagementOpportunities } from './EngagementOpportunities';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { CalendarView } from '../../features/booking/components/CalendarView';
 import { ClassManagementModal } from '../../features/booking/components/ClassManagementModal';
-import { useAppContext } from '../../context/AppContext';
 import { Button } from '../Button';
 import { useAuth } from '../../context/AuthContext';
 import { useNetworkStatus } from '../../context/NetworkStatusContext';
 import { CreateScheduleModal } from '../../features/booking/components/CreateScheduleModal';
 import { ToggleSwitch } from '../ToggleSwitch';
 import { Select } from '../Input';
+import { useCoachData } from '../../features/coach/hooks/useCoachData';
+import { useCoachOperations } from '../../features/coach/hooks/useCoachOperations';
 
 const AnalyticsDashboard = lazy(() => import('./AnalyticsDashboard'));
 
@@ -59,117 +37,75 @@ const LoadingSpinner = () => (
 
 type CoachTab = 'overview' | 'klientresan' | 'programs' | 'bookings' | 'analytics' | 'insights' | 'leaderboards' | 'events' | 'personal' | 'settings';
 
-interface EnrichedClassInstance {
-  instanceId: string;
-  date: string;
-  startDateTime: Date;
-  scheduleId: string;
-  className: string;
-  coachId: string;
-  locationId: string;
-  duration: number;
-  coachName: string;
-  maxParticipants: number;
-  bookedCount: number;
-  waitlistCount: number;
-  isFull: boolean;
-  allBookingsForInstance: ParticipantBooking[];
-  color: string;
-}
-
 interface CoachAreaProps {
   onAddComment: (logId: string, logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session', text: string) => void;
   onDeleteComment: (logId: string, logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session', commentId: string) => void;
   onToggleCommentReaction: (logId: string, logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session', commentId: string) => void;
-  onCheckInParticipant: (bookingId: string) => void;
-  onUnCheckInParticipant: (bookingId: string) => void;
-  onBookClass: (participantId: string, scheduleId: string, classDate: string) => void;
-  onCancelBooking: (bookingId: string) => void;
-  onPromoteFromWaitlist: (bookingId: string) => void;
-  onCancelClassInstance: (scheduleId: string, classDate: string, status: 'CANCELLED' | 'DELETED') => void;
-  onUpdateClassInstance: (scheduleId: string, classDate: string, updates: any, notify: boolean) => void;
+  // These props are now largely handled by useCoachOperations internally, but kept if passed from App.tsx for compatibility during transition or specific overrides
+  onCheckInParticipant?: (bookingId: string) => void;
+  onUnCheckInParticipant?: (bookingId: string) => void;
+  onBookClass?: (participantId: string, scheduleId: string, classDate: string) => void;
+  onCancelBooking?: (bookingId: string) => void;
+  onPromoteFromWaitlist?: (bookingId: string) => void;
+  onCancelClassInstance?: (scheduleId: string, classDate: string, status: 'CANCELLED' | 'DELETED') => void;
+  onUpdateClassInstance?: (scheduleId: string, classDate: string, updates: any, notify: boolean) => void;
 }
 
 export const CoachArea: React.FC<CoachAreaProps> = ({
   onAddComment,
   onDeleteComment,
   onToggleCommentReaction,
-  onCheckInParticipant,
-  onUnCheckInParticipant,
-  onBookClass,
-  onCancelBooking,
-  onPromoteFromWaitlist,
-  onCancelClassInstance,
-  onUpdateClassInstance,
+  // Optional overrides from props, otherwise use hook
+  onCheckInParticipant: propCheckIn,
+  onUnCheckInParticipant: propUnCheckIn,
+  onBookClass: propBookClass,
+  onCancelBooking: propCancelBooking,
+  onPromoteFromWaitlist: propPromote,
+  onCancelClassInstance: propCancelInstance,
+  onUpdateClassInstance: propUpdateInstance
 }) => {
+  // Hook 1: Data
   const {
-    participantDirectory,
-    staffMembers,
-    // ... all other app data from context
+    loggedInStaff,
+    participantsForView,
+    workoutLogsForView,
+    oneOnOneSessionsForView,
+    allActivityLogsForView,
+    participantGoalsForView,
+    coachNotesForView,
     workouts,
-    workoutLogs,
-    participantGoals,
-    generalActivityLogs,
-    goalCompletionLogs,
-    userStrengthStats,
-    userConditioningStatsHistory,
-    clubMemberships,
     leaderboardSettings,
+    userStrengthStatsForView,
+    userConditioningStatsForView,
+    clubMembershipsForView,
     coachEvents,
-    locations,
-    memberships,
-    coachNotes,
     weeklyHighlightSettings,
-    oneOnOneSessions,
+    staffMembers,
+    locations,
     staffAvailability,
     integrationSettings,
     groupClassDefinitions,
     groupClassSchedules,
     groupClassScheduleExceptions,
     participantBookings,
-    // ... all updater functions
-    setOneOnOneSessionsData,
-    setGroupClassSchedulesData,
-    setClubMembershipsData,
-    setLeaderboardSettingsData,
-    setCoachEventsData,
-    setWeeklyHighlightSettingsData,
-    setStaffMembersData,
-    setStaffAvailabilityData,
     orgDataError,
-    getColorForCategory,
-  } = useAppContext();
+    getClassInstanceDetails,
+  } = useCoachData();
 
-  const { user, isImpersonating } = useAuth();
+  // Hook 2: Operations
+  const ops = useCoachOperations();
+  
+  // Resolve operations (prefer props if passed, else hook)
+  const onCheckInParticipant = propCheckIn || ops.handleCheckInParticipant;
+  const onUnCheckInParticipant = propUnCheckIn || ops.handleUnCheckInParticipant;
+  const onBookClass = propBookClass || ops.handleBookClass;
+  const onCancelBooking = propCancelBooking || ops.handleCancelBooking;
+  const onPromoteFromWaitlist = propPromote || ops.handlePromoteFromWaitlist;
+  const onCancelClassInstance = propCancelInstance || ops.handleCancelClassInstance;
+  const onUpdateClassInstance = propUpdateInstance || ops.handleUpdateClassInstance;
+
+  const { user } = useAuth();
   const { isOnline } = useNetworkStatus();
-
-  const loggedInStaff = useMemo(() => {
-    if (!user) return null;
-    const actualStaffProfile = staffMembers.find((s) => s.email === user.email);
-
-    // If the user is a system owner AND is currently impersonating an organization,
-    // they should have full Admin rights for UI purposes.
-    if (user.roles.systemOwner && isImpersonating) {
-      // If we found their actual staff profile (e.g., they are also a coach),
-      // we use it but ensure the role is elevated to 'Admin' for this session.
-      if (actualStaffProfile) {
-        return { ...actualStaffProfile, role: 'Admin' as const };
-      }
-      // If they are not a staff member in this org, create a temporary, in-memory
-      // Admin profile. This allows the UI to render correctly (e.g., show all tabs),
-      // even if data lists might be empty due to underlying data permissions.
-      return {
-        id: 'system-owner-impersonating',
-        name: user.name,
-        email: user.email,
-        role: 'Admin' as const,
-        locationId: locations[0]?.id || 'all',
-        isActive: true,
-      };
-    }
-
-    return actualStaffProfile || null;
-  }, [user, staffMembers, isImpersonating, locations]);
 
   const allTabs: { id: CoachTab; label: string }[] = [
     { id: 'overview', label: 'Medlemmar' },
@@ -186,9 +122,8 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
 
   const visibleTabs = useMemo(() => {
     if (loggedInStaff?.role === 'Admin') {
-      return allTabs; // Admins and impersonating System Owners see all tabs
+      return allTabs;
     }
-    // For a regular coach, show a limited set
     return allTabs.filter((tab) => ['overview', 'klientresan', 'bookings', 'programs'].includes(tab.id));
   }, [loggedInStaff]);
 
@@ -223,141 +158,18 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   });
   const [selectedCoachFilter, setSelectedCoachFilter] = useState<string>('all');
 
-
-  // Filter all data based on logged-in staff's role and location
-  const participantsForView = useMemo(() => {
-    // Admins (including impersonating System Owners) see all participants.
-    if (loggedInStaff?.role === 'Admin') {
-      return participantDirectory;
-    }
-
-    // Coaches see participants in their location.
-    if (loggedInStaff?.role === 'Coach') {
-      return participantDirectory.filter((p) => p.locationId === loggedInStaff.locationId);
-    }
-
-    // Fallback for any other case
-    return [];
-  }, [participantDirectory, loggedInStaff]);
-
-  const visibleParticipantIds = useMemo(() => new Set(participantsForView.map((p) => p.id)), [participantsForView]);
-
-  const workoutLogsForView = useMemo(() => workoutLogs.filter((log) => visibleParticipantIds.has(log.participantId)), [workoutLogs, visibleParticipantIds]);
-  const generalActivityLogsForView = useMemo(() => generalActivityLogs.filter((log) => visibleParticipantIds.has(log.participantId)), [
-    generalActivityLogs,
-    visibleParticipantIds,
-  ]);
-  const goalCompletionLogsForView = useMemo(() => goalCompletionLogs.filter((log) => visibleParticipantIds.has(log.participantId)), [
-    goalCompletionLogs,
-    visibleParticipantIds,
-  ]);
-  const participantGoalsForView = useMemo(() => participantGoals.filter((goal) => visibleParticipantIds.has(goal.participantId)), [
-    participantGoals,
-    visibleParticipantIds,
-  ]);
-  const userStrengthStatsForView = useMemo(() => userStrengthStats.filter((stat) => visibleParticipantIds.has(stat.participantId)), [
-    userStrengthStats,
-    visibleParticipantIds,
-  ]);
-  const userConditioningStatsForView = useMemo(() => userConditioningStatsHistory.filter((stat) => visibleParticipantIds.has(stat.participantId)), [
-    userConditioningStatsHistory,
-    visibleParticipantIds,
-  ]);
-  const clubMembershipsForView = useMemo(() => clubMemberships.filter((membership) => visibleParticipantIds.has(membership.participantId)), [
-    clubMemberships,
-    visibleParticipantIds,
-  ]);
-
-  const oneOnOneSessionsForView = useMemo(() => {
-    if (!loggedInStaff) return [];
-
-    // Admins (including impersonating System Owners) see all sessions.
-    if (loggedInStaff.role === 'Admin') {
-      return oneOnOneSessions;
-    }
-
-    // Coaches see sessions linked to them or to members at their location.
-    if (loggedInStaff.role === 'Coach') {
-      const coachSessionIds = new Set(oneOnOneSessions.filter((s) => s.coachId === loggedInStaff.id).map((s) => s.id));
-      const memberSessionIds = new Set(oneOnOneSessions.filter((s) => visibleParticipantIds.has(s.participantId)).map((s) => s.id));
-      const allVisibleSessionIds = new Set([...coachSessionIds, ...memberSessionIds]);
-      return oneOnOneSessions.filter((s) => allVisibleSessionIds.has(s.id));
-    }
-
-    return [];
-  }, [oneOnOneSessions, loggedInStaff, visibleParticipantIds]);
-
-  const coachNotesForView = useMemo(() => coachNotes.filter((note) => visibleParticipantIds.has(note.participantId)), [coachNotes, visibleParticipantIds]);
-
-  const allActivityLogsForView = useMemo(
-    () => [...workoutLogsForView, ...generalActivityLogsForView, ...goalCompletionLogsForView],
-    [workoutLogsForView, generalActivityLogsForView, goalCompletionLogsForView]
-  );
-
   const classInstanceForManagement = useMemo(() => {
     if (!managedClassInfo) return null;
+    return getClassInstanceDetails(managedClassInfo.scheduleId, managedClassInfo.date);
+  }, [managedClassInfo, getClassInstanceDetails]);
 
-    const { scheduleId, date } = managedClassInfo;
-    const schedule = groupClassSchedules.find((s) => s.id === scheduleId);
-    if (!schedule) return null;
-  
-    const exception = groupClassScheduleExceptions.find(ex => ex.scheduleId === scheduleId && ex.date === date);
-  
-    if (exception && (exception.status === 'DELETED' || !exception.status)) {
-        return null;
-    }
-
-    const overriddenSchedule = {
-      ...schedule,
-      startTime: exception?.newStartTime || schedule.startTime,
-      durationMinutes: exception?.newDurationMinutes || schedule.durationMinutes,
-      coachId: exception?.newCoachId || schedule.coachId,
-      maxParticipants: exception?.newMaxParticipants || schedule.maxParticipants,
-    };
-
-    const classDef = groupClassDefinitions.find((d) => d.id === overriddenSchedule.groupClassId);
-    const coach = staffMembers.find((c) => c.id === overriddenSchedule.coachId);
-    if (!classDef || !coach) return null;
-
-    const [year, month, day] = date.split('-').map(Number);
-    const classDate = new Date(year, month - 1, day);
-
-    const [hour, minute] = overriddenSchedule.startTime.split(':').map(Number);
-    const startDateTime = new Date(classDate);
-    startDateTime.setHours(hour, minute, 0, 0);
-
-    const allBookingsForInstance = participantBookings.filter((b) => b.scheduleId === schedule.id && b.classDate === date && b.status !== 'CANCELLED');
-    const bookedUsers = allBookingsForInstance.filter((b) => b.status === 'BOOKED' || b.status === 'CHECKED-IN');
-    const waitlistedUsers = allBookingsForInstance.filter((b) => b.status === 'WAITLISTED');
-
-    return {
-      instanceId: `${schedule.id}-${date}`,
-      date,
-      startDateTime,
-      scheduleId,
-      className: classDef.name,
-      duration: overriddenSchedule.durationMinutes,
-      coachName: coach.name,
-      coachId: coach.id,
-      locationId: overriddenSchedule.locationId,
-      maxParticipants: overriddenSchedule.maxParticipants,
-      bookedCount: bookedUsers.length,
-      waitlistCount: waitlistedUsers.length,
-      isFull: bookedUsers.length >= overriddenSchedule.maxParticipants,
-      allBookingsForInstance,
-      color: classDef.color || getColorForCategory(classDef.name),
-    };
-  }, [managedClassInfo, groupClassSchedules, groupClassDefinitions, staffMembers, participantBookings, getColorForCategory, groupClassScheduleExceptions]);
-
-  // NEW: Memos for location filtering in the Bookings tab
+  // Filtering logic for Bookings tab
   const schedulesForLocationTab = useMemo(() => {
     if (selectedLocationTabId === 'all' || !locations.some((l) => l.id === selectedLocationTabId)) return groupClassSchedules;
     return groupClassSchedules.filter((s) => s.locationId === selectedLocationTabId);
   }, [groupClassSchedules, selectedLocationTabId, locations]);
 
-  const scheduleIdsInLocation = useMemo(() => {
-    return new Set(schedulesForLocationTab.map((s) => s.id));
-  }, [schedulesForLocationTab]);
+  const scheduleIdsInLocation = useMemo(() => new Set(schedulesForLocationTab.map((s) => s.id)), [schedulesForLocationTab]);
 
   const bookingsForLocationTab = useMemo(() => {
     return participantBookings.filter((b) => scheduleIdsInLocation.has(b.scheduleId));
@@ -371,17 +183,12 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
 
   const coachFilterOptions = useMemo(() => {
     if (!loggedInStaff || loggedInStaff.role !== 'Admin') return [];
-    
     const myPassOption = { value: loggedInStaff.id, label: 'Mina pass' };
-    
     const coachOptions = staffMembers
         .filter(s => s.isActive)
         .sort((a, b) => a.name.localeCompare(b.name))
         .map(s => ({ value: s.id, label: s.name }));
-
-    // Ensure "Mina pass" isn't duplicated if the admin is in the coach list
     const uniqueCoachOptions = coachOptions.filter(c => c.value !== loggedInStaff.id);
-
     return [
         { value: 'all', label: 'Alla coacher' },
         myPassOption,
@@ -391,9 +198,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
 
   const filteredSchedules = useMemo(() => {
     let schedules = schedulesForLocationTab;
-    if (!calendarFilters.showGroupClasses) {
-        return [];
-    }
+    if (!calendarFilters.showGroupClasses) return [];
     if (loggedInStaff?.role === 'Admin') {
         if (selectedCoachFilter !== 'all') {
             schedules = schedules.filter(schedule => schedule.coachId === selectedCoachFilter);
@@ -403,15 +208,12 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
             schedules = schedules.filter(schedule => schedule.coachId === loggedInStaff.id);
         }
     }
-    
     return schedules;
   }, [schedulesForLocationTab, calendarFilters, loggedInStaff, selectedCoachFilter]);
 
   const filteredSessions = useMemo(() => {
       let sessions = sessionsForLocationTab;
-      if (!calendarFilters.showOneOnOneSessions) {
-          return [];
-      }
+      if (!calendarFilters.showOneOnOneSessions) return [];
       if (loggedInStaff?.role === 'Admin') {
           if (selectedCoachFilter !== 'all') {
               sessions = sessions.filter(session => session.coachId === selectedCoachFilter);
@@ -427,30 +229,6 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   const getTabButtonStyle = (tabName: CoachTab) => {
     return activeTab === tabName ? 'border-flexibel text-flexibel' : 'border-transparent text-gray-500 active:text-gray-700 active:border-gray-300';
   };
-
-  const handleSaveOrUpdateSession = (session: OneOnOneSession) => {
-    setOneOnOneSessionsData((prev) => {
-      const index = prev.findIndex((s) => s.id === session.id);
-      if (index > -1) {
-        const newSessions = [...prev];
-        newSessions[index] = session;
-        return newSessions;
-      } else {
-        return [...prev, session];
-      }
-    });
-    setSessionToEdit(null);
-  };
-  
-  const handleSaveSchedule = (schedule: GroupClassSchedule) => {
-    setGroupClassSchedulesData(prev => {
-        const exists = prev.some(s => s.id === schedule.id);
-        if (exists) {
-            return prev.map(s => s.id === schedule.id ? schedule : s);
-        }
-        return [...prev, schedule];
-    });
-};
 
   const handleOpenMeetingModal = useCallback((session: OneOnOneSession) => {
     setSelectedSessionForModal(session);
@@ -468,12 +246,6 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     setInitialDateForBooking(date.toISOString().split('T')[0]);
     setIsBookingModalOpen(true);
   }, []);
-
-  const handleConfirmDeleteSession = () => {
-    if (!sessionToDelete) return;
-    setOneOnOneSessionsData((prev) => prev.filter((s) => s.id !== sessionToDelete.id));
-    setSessionToDelete(null);
-  };
 
   if (orgDataError) {
     return (
@@ -638,7 +410,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
                   setSessionToEdit(null);
                   setInitialDateForBooking(null);
                 }}
-                onSave={handleSaveOrUpdateSession}
+                onSave={(session) => { ops.handleSaveOrUpdateSession(session); setSessionToEdit(null); }}
                 sessionToEdit={sessionToEdit}
                 participants={participantsForView}
                 coaches={staffMembers}
@@ -649,8 +421,8 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
               <CreateScheduleModal
                 isOpen={isCreateScheduleModalOpen}
                 onClose={() => setIsCreateScheduleModalOpen(false)}
-                onSave={handleSaveSchedule}
-                scheduleToEdit={null} // Only for creating new schedules from this button
+                onSave={ops.handleSaveSchedule}
+                scheduleToEdit={null}
                 classDefinitions={groupClassDefinitions}
                 locations={locations}
                 coaches={staffMembers}
@@ -681,7 +453,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
               <ConfirmationModal
                 isOpen={!!sessionToDelete}
                 onClose={() => setSessionToDelete(null)}
-                onConfirm={handleConfirmDeleteSession}
+                onConfirm={() => { if(sessionToDelete) { ops.handleDeleteSession(sessionToDelete.id); setSessionToDelete(null); }}}
                 title="Ta bort 1-on-1 Session"
                 message={`Är du säker på att du vill ta bort sessionen "${sessionToDelete?.title}"? Detta kan inte ångras.`}
                 confirmButtonText="Ja, ta bort"
@@ -723,9 +495,9 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
             userConditioningStats={userConditioningStatsForView}
             workouts={workouts}
             clubMemberships={clubMembershipsForView}
-            setClubMemberships={setClubMembershipsData}
+            setClubMemberships={ops.setClubMemberships}
             leaderboardSettings={leaderboardSettings}
-            setLeaderboardSettings={setLeaderboardSettingsData}
+            setLeaderboardSettings={ops.setLeaderboardSettings}
           />
         )}
       </div>
@@ -734,11 +506,11 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
         {activeTab === 'events' && (
           <EventManagement
             events={coachEvents}
-            setEvents={setCoachEventsData}
+            setEvents={ops.setEvents}
             participants={participantsForView}
             workoutLogs={workoutLogsForView}
             weeklyHighlightSettings={weeklyHighlightSettings}
-            setWeeklyHighlightSettings={setWeeklyHighlightSettingsData}
+            setWeeklyHighlightSettings={ops.setWeeklyHighlightSettings}
           />
         )}
       </div>
@@ -747,10 +519,10 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
         {activeTab === 'personal' && loggedInStaff && (
           <StaffManagement
             staff={staffMembers}
-            setStaff={setStaffMembersData}
+            setStaff={ops.setStaff}
             locations={locations}
             availability={staffAvailability}
-            setAvailability={setStaffAvailabilityData}
+            setAvailability={ops.setAvailability}
             loggedInStaff={loggedInStaff}
           />
         )}
@@ -765,7 +537,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
           isOpen={!!classInstanceForManagement}
           onClose={() => setManagedClassInfo(null)}
           classInstance={classInstanceForManagement}
-          participants={participantDirectory}
+          participants={participantDirectory} // Use full directory for adding new people
           groupClassScheduleExceptions={groupClassScheduleExceptions}
           onCheckIn={onCheckInParticipant}
           onUnCheckIn={onUnCheckInParticipant}
