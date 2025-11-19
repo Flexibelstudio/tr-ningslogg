@@ -1,3 +1,4 @@
+
 // App.tsx
 import React, { useState, useEffect, useCallback, lazy, Suspense, useMemo } from 'react';
 
@@ -6,10 +7,10 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { NetworkStatusProvider } from './context/NetworkStatusContext';
 import { Button } from './components/Button';
 import { DevToolbar } from './components/DevToolbar';
-import { Login } from './components/Login';
+import { Login } from './features/auth/components/Login';
 import { Navbar } from './components/Navbar';
 import { OfflineBanner } from './components/OfflineBanner';
-import { Register } from './components/Register';
+import { Register } from './features/auth/components/Register';
 import { TermsModal } from './components/TermsModal';
 import { WelcomeModal } from './components/participant/WelcomeModal';
 import { UpdateNoticeModal } from './components/participant/UpdateNoticeModal';
@@ -20,6 +21,7 @@ import {
   GroupClassSchedule,
   GroupClassScheduleException,
   ParticipantProfile,
+  BookingStatus,
 } from './types';
 import { useNotifications } from './context/NotificationsContext';
 import { logAnalyticsEvent } from './utils/analyticsLogger';
@@ -216,7 +218,7 @@ const AppContent: React.FC = () => {
     const bookedCount = participantBookings.filter(
       b => b.scheduleId === scheduleId && b.classDate === classDate && (b.status === 'BOOKED' || b.status === 'CHECKED-IN')
     ).length;
-    const newStatus = bookedCount >= schedule.maxParticipants ? 'WAITLISTED' : 'BOOKED';
+    const newStatus: BookingStatus = bookedCount >= schedule.maxParticipants ? 'WAITLISTED' : 'BOOKED';
 
     const cancelled = participantBookings.find(
       b => b.participantId === participantId && b.scheduleId === scheduleId && b.classDate === classDate && b.status === 'CANCELLED'
@@ -763,7 +765,7 @@ const AppContent: React.FC = () => {
         <div className="container mx-auto px-2 sm:px-6 py-6">
           <CoachArea
             onAddComment={handleAddComment} onDeleteComment={handleDeleteComment} onToggleCommentReaction={handleToggleCommentReaction}
-            onCheckInParticipant={handleCheckInParticipant} onUnCheckInParticipant={handleUnCheckInParticipant}
+            onCheckInParticipant={handleCheckInParticipant} onUnCheckIn={handleUnCheckInParticipant}
             onBookClass={handleBookClass} onCancelBooking={handleCancelBooking} onPromoteFromWaitlist={handlePromoteFromWaitlist}
             onCancelClassInstance={handleCancelClassInstance}
             onUpdateClassInstance={handleUpdateClassInstance}

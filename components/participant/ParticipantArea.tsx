@@ -10,10 +10,10 @@ import {
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { Button } from '../Button';
 import { Modal } from '../Modal';
-import { WorkoutLogForm } from './WorkoutLogForm';
+import { WorkoutLogForm } from '../../features/workouts/components/WorkoutLogForm';
 import { AIProgressFeedbackModal } from './AIProgressFeedbackModal';
 import { ParticipantActivityView } from './ParticipantActivityView';
-import { PostWorkoutSummaryModal } from './PostWorkoutSummaryModal';
+import { PostWorkoutSummaryModal } from '../../features/workouts/components/PostWorkoutSummaryModal';
 import { LogGeneralActivityModal } from './LogGeneralActivityModal';
 import { GeneralActivitySummaryModal } from './GeneralActivitySummaryModal';
 import {
@@ -26,8 +26,8 @@ import { calculateFlexibelStrengthScoreInternal, getFssScoreInterpretation as ge
 import { FeedbackPromptToast } from './FeedbackPromptToast';
 import { InfoModal } from './InfoModal';
 import { FabMenu } from './FabMenu';
-import { SelectWorkoutModal } from './SelectWorkoutModal';
-import { ExerciseSelectionModal } from './ExerciseSelectionModal';
+import { SelectWorkoutModal } from '../../features/workouts/components/SelectWorkoutModal';
+import { ExerciseSelectionModal } from '../../features/workouts/components/ExerciseSelectionModal';
 import { MentalWellbeingModal } from './MentalWellbeingModal';
 import { ProfileModal } from './ProfileGoalModal';
 import { GoalModal } from './GoalModal';
@@ -45,7 +45,7 @@ import { CheckinConfirmationModal } from './CheckinConfirmationModal';
 import { calculateUpdatedStreakAndGamification, checkAndAwardClubMemberships } from '../../services/gamificationService';
 import { calculatePostWorkoutSummary, findAndUpdateStrengthStats } from '../../services/workoutService';
 import { NextBookingCard } from '../../features/booking/components/NextBookingCard';
-import { AIAssistantModal, AiWorkoutTips } from './AIAssistantModal';
+import { AIAssistantModal, AiWorkoutTips } from '../../features/workouts/components/AIAssistantModal';
 import { useAppContext } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { FlowModal } from './FlowModal';
@@ -1665,7 +1665,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             onSave={(physiqueData) => {
                 const newHistoryEntry: ParticipantPhysiqueStat = {
                     id: crypto.randomUUID(),
-                    participantId: participant.id,
+                    participantId: participantProfile.id,
                     lastUpdated: new Date().toISOString(),
                     ...physiqueData,
                 };
@@ -1748,6 +1748,8 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                     id: crypto.randomUUID(),
                     isPublished: false,
                     isModifiable: true,
+                    category: 'Annat',
+                    blocks: workoutData.blocks
                 };
                 handleStartWorkout(tempWorkout);
             }}

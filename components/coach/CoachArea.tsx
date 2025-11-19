@@ -28,7 +28,7 @@ import {
 } from '../../types';
 import { MemberManagement } from './MemberManagement';
 import { ParticipantActivityOverview } from './ParticipantActivityOverview';
-import { WorkoutManagement } from './WorkoutManagement';
+import { WorkoutManagement } from '../../features/workouts/components/WorkoutManagement';
 import { LeaderboardManagement } from './LeaderboardManagement';
 import { EventManagement } from './EventManagement';
 import { SettingsManagement } from './SettingsManagement';
