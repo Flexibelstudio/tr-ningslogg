@@ -1,12 +1,14 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { ParticipantProfile, OneOnOneSession, ActivityLog, StaffMember, CoachNote, ParticipantGoalData, WorkoutLog, Membership, ProspectIntroCall, Lead, Location, LeadStatus } from '../../types';
+import { GoogleGenAI } from '@google/genai';
 import { Button } from '../Button';
-import { MemberNotesModal } from './MemberNotesModal';
+import { MemberNotesModal } from '../coach/MemberNotesModal';
 import * as dateUtils from '../../utils/dateUtils';
 import { InfoModal } from '../participant/InfoModal';
 import { useAppContext } from '../../context/AppContext';
-import { IntroCallModal } from './IntroCallModal';
+import { IntroCallModal } from '../coach/IntroCallModal';
+// FIX: Corrected import path for useAuth
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../Modal';
 import { Select, Input } from '../Input';
@@ -281,6 +283,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
 
         let engagementLevel: 'green' | 'yellow' | 'red' | 'neutral' = 'neutral';
         if (p.isProspect) {
+            // Prospects don't have an engagement level in the same way
             engagementLevel = 'neutral';
         } else if (p.isActive === false) {
             engagementLevel = 'red';
@@ -292,6 +295,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
 
         let finalEntry: Omit<ClientJourneyEntry, keyof ParticipantProfile>;
         
+        // 1. Riskzon (highest priority)
         if (!p.isProspect && logsLast21Days < 4 && daysSinceStart > 14) {
             finalEntry = {
                 phase: 'Riskzon',
@@ -303,6 +307,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                 engagementLevel,
             };
         }
+        // 2. Startprogram
         else if (p.isProspect) {
             const { startProgramCategoryId, startProgramSessionsRequired } = integrationSettings;
             const startProgramCategory = workoutCategories.find(c => c.id === startProgramCategoryId);
@@ -338,6 +343,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                 engagementLevel,
             };
         }
+        // 3. Medlem
         else {
             const membership = memberships.find(m => m.id === p.membershipId);
             const checkInSessions = oneOnOneSessions.filter(s => s.participantId === p.id && s.title === 'Avstämningssamtal' && s.status === 'completed').sort((a,b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
@@ -368,6 +374,23 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         return { ...p, ...finalEntry };
       }).filter((p): p is ClientJourneyEntry => p !== null);
   }, [participants, oneOnOneSessions, allActivityLogs, memberships, integrationSettings, workoutLogs, workouts, workoutCategories]);
+
+  const leadCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+        new: 0,
+        contacted: 0,
+        intro_booked: 0,
+        converted: 0,
+        junk: 0,
+        all: leads.length
+    };
+    leads.forEach(l => {
+        if (counts[l.status] !== undefined) {
+            counts[l.status]++;
+        }
+    });
+    return counts;
+  }, [leads]);
 
   const filteredLeads = useMemo(() => {
     const sortedLeads = [...leads].sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
@@ -450,9 +473,11 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   const handleConfirmLink = () => {
     if (!callToLink || !participantToLinkId) return;
     
+    // 1. Update the ProspectIntroCall
     const updatedCall = { ...callToLink, status: 'linked' as const, linkedParticipantId: participantToLinkId };
     setProspectIntroCallsData(prev => prev.map(c => c.id === callToLink.id ? updatedCall : c));
 
+    // 2. Create a CoachNote from the intro call data
     const noteText = `
 --- INTROSAMTALSAMMANFATTNING ---
 Datum: ${new Date(callToLink.createdDate).toLocaleDateString('sv-SE')}
@@ -482,6 +507,7 @@ ${callToLink.coachSummary || 'Ej angivet.'}
     };
     setCoachNotesData(prev => [...prev, newNote]);
 
+    // 3. Reset state
     setCallToLink(null);
     setParticipantToLinkId('');
   };
@@ -524,14 +550,6 @@ ${callToLink.coachSummary || 'Ej angivet.'}
     high: 'border-red-500 bg-red-50 text-red-700',
     medium: 'border-yellow-500 bg-yellow-50 text-yellow-700',
     low: 'border-green-500 bg-green-50 text-green-700',
-  };
-
-  const statusConfig: Record<LeadStatus, { text: string; color: string }> = {
-      new: { text: 'Ny', color: 'bg-blue-100 text-blue-800' },
-      contacted: { text: 'Kontaktad', color: 'bg-yellow-100 text-yellow-800' },
-      intro_booked: { text: 'Intro Bokat', color: 'bg-purple-100 text-purple-800' },
-      converted: { text: 'Konverterad', color: 'bg-green-100 text-green-800' },
-      junk: { text: 'Skräp', color: 'bg-gray-100 text-gray-800' },
   };
 
   const StatCard: React.FC<{ title: string; value: number; icon: string; onClick: () => void; isActive: boolean }> = ({ title, value, icon, onClick, isActive }) => (
@@ -583,15 +601,39 @@ ${callToLink.coachSummary || 'Ej angivet.'}
       {/* Leads Tab */}
       <div role="tabpanel" hidden={activeTab !== 'leads'} className="animate-fade-in space-y-6">
         <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-bold text-gray-800">Leads ({newLeadsList.length})</h3>
+            <h3 className="text-xl font-bold text-gray-800">Leads</h3>
             <Button onClick={() => setIsAddLeadModalOpen(true)}>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
                 Lägg till lead manuellt
             </Button>
         </div>
-        {newLeadsList.length > 0 ? (
+
+        <div className="flex flex-wrap gap-2 mb-4">
+            {[
+                { key: 'new', label: 'Nya' },
+                { key: 'contacted', label: 'Kontaktade' },
+                { key: 'intro_booked', label: 'Bokade Intro' },
+                { key: 'converted', label: 'Konverterade' },
+                { key: 'junk', label: 'Skräp' },
+                { key: 'all', label: 'Alla' }
+            ].map(filter => (
+                 <button
+                    key={filter.key}
+                    onClick={() => setActiveLeadFilter(filter.key as any)}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors border ${
+                        activeLeadFilter === filter.key
+                            ? 'bg-flexibel text-white border-flexibel'
+                            : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                    }`}
+                >
+                    {filter.label} ({leadCounts[filter.key as keyof typeof leadCounts]})
+                </button>
+            ))}
+        </div>
+
+        {filteredLeads.length > 0 ? (
             <div className="space-y-3">
-                {newLeadsList.map(lead => {
+                {filteredLeads.map(lead => {
                     const location = locations.find(l => l.id === lead.locationId);
                     return (
                         <div key={lead.id} className="p-4 bg-white rounded-lg border shadow-sm flex flex-col sm:flex-row justify-between items-start gap-3">
