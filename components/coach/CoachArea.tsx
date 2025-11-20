@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useCallback, lazy, Suspense, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom'; // Router hooks
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   OneOnOneSession,
   CoachEvent,
@@ -64,7 +64,7 @@ interface CoachAreaProps {
     logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session',
     commentId: string
   ) => void;
-  // Optional overrides – annars används useCoachOperations
+  // Optional overrides
   onCheckInParticipant?: (bookingId: string) => void;
   onUnCheckInParticipant?: (bookingId: string) => void;
   onBookClass?: (participantId: string, scheduleId: string, classDate: string) => void;
@@ -78,7 +78,6 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   onAddComment,
   onDeleteComment,
   onToggleCommentReaction,
-  // Optional overrides from props, otherwise use hook
   onCheckInParticipant: propCheckIn,
   onUnCheckInParticipant: propUnCheckIn,
   onBookClass: propBookClass,
@@ -90,11 +89,9 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Parse active tab from URL, e.g. /coach/bookings -> bookings
   const currentPath = location.pathname.split('/').pop();
   const activeTab = (currentPath && currentPath !== 'coach' ? currentPath : 'overview') as CoachTab;
 
-  // Hook 1: Data
   const {
     loggedInStaff,
     participantsForView,
@@ -120,27 +117,39 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     participantBookings,
     orgDataError,
     getClassInstanceDetails,
+    // Ensure these are destructured:
     participantDirectory, 
+    leads,
+    prospectIntroCalls,
   } = useCoachData();
 
-  // Hook 2: Operations
   const ops = useCoachOperations();
 
-  // Resolve operations (prefer props if passed, else hook)
   const onCheckInParticipant = propCheckIn || ops.handleCheckInParticipant;
   const onUnCheckInParticipant = propUnCheckIn || ops.handleUnCheckInParticipant;
   const onBookClass = propBookClass || ops.handleBookClass;
   const onCancelBooking = propCancelBooking || ops.handleCancelBooking;
   const onPromoteFromWaitlist = propPromote || ops.handlePromoteFromWaitlist;
   const onCancelClassInstance = propCancelInstance || ops.handleCancelClassInstance;
-  const onUpdateClassInstance = propUpdateInstance || ops.handleUpdateClassInstance;
+  // const onUpdateClassInstance = propUpdateInstance || ops.handleUpdateClassInstance; // Not used by simple management modal
 
   const { user } = useAuth();
   const { isOnline } = useNetworkStatus();
+  
+  // Safe calculation of badges
+  const newLeadsCount = useMemo(() => {
+      return (leads || []).filter(l => l.status === 'new').length;
+  }, [leads]);
+
+  const unlinkedCallsCount = useMemo(() => {
+      return (prospectIntroCalls || []).filter(c => c.status === 'unlinked').length;
+  }, [prospectIntroCalls]);
+
+  const totalJourneyBadge = newLeadsCount + unlinkedCallsCount;
 
   const allTabs: { id: CoachTab; label: string }[] = [
     { id: 'overview', label: 'Medlemmar' },
-    { id: 'klientresan', label: 'Klientresan' },
+    { id: 'klientresan', label: `Klientresan${totalJourneyBadge > 0 ? ` (${totalJourneyBadge})` : ''}` },
     { id: 'bookings', label: 'Bokningar' },
     { id: 'programs', label: 'Program & Pass' },
     { id: 'events', label: 'Händelser' },
@@ -158,7 +167,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     return allTabs.filter((tab) =>
       ['overview', 'klientresan', 'bookings', 'programs'].includes(tab.id)
     );
-  }, [loggedInStaff]);
+  }, [loggedInStaff, totalJourneyBadge]);
 
   const tabsToShow = useMemo(
     () =>
@@ -195,7 +204,6 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     return getClassInstanceDetails(managedClassInfo.scheduleId, managedClassInfo.date);
   }, [managedClassInfo, getClassInstanceDetails]);
 
-  // Filtering logic for Bookings tab
   const schedulesForLocationTab = useMemo(() => {
     if (selectedLocationTabId === 'all' || !locations.some((l) => l.id === selectedLocationTabId))
       return groupClassSchedules;
@@ -454,7 +462,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
               </div>
               <CalendarView
                 sessions={filteredSessions}
-                participants={participantDirectory}
+                participants={participantDirectory || []} // Use optional chaining or default to [] if participantDirectory is undefined
                 coaches={staffMembers}
                 onSessionClick={handleOpenMeetingModal}
                 onDayClick={handleDayClick}
@@ -617,7 +625,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
           isOpen={!!classInstanceForManagement}
           onClose={() => setManagedClassInfo(null)}
           classInstance={classInstanceForManagement}
-          participants={participantDirectory} 
+          participants={participantDirectory || []}
           groupClassScheduleExceptions={groupClassScheduleExceptions}
           onCheckIn={onCheckInParticipant}
           onUnCheckIn={onUnCheckInParticipant}
@@ -625,7 +633,6 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
           onCancelBooking={onCancelBooking}
           onPromoteFromWaitlist={onPromoteFromWaitlist}
           onCancelClassInstance={onCancelClassInstance}
-          onUpdateClassInstance={onUpdateClassInstance}
         />
       )}
     </div>
