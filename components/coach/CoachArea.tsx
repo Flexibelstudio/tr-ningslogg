@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import {
   OneOnOneSession,
@@ -30,18 +29,40 @@ import { useCoachOperations } from '../../features/coach/hooks/useCoachOperation
 const AnalyticsDashboard = lazy(() => import('./AnalyticsDashboard'));
 
 const LoadingSpinner = () => (
-    <div className="flex items-center justify-center h-64">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-t-2 border-flexibel"></div>
-    </div>
+  <div className="flex items-center justify-center h-64">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-t-2 border-flexibel"></div>
+  </div>
 );
 
-type CoachTab = 'overview' | 'klientresan' | 'programs' | 'bookings' | 'analytics' | 'insights' | 'leaderboards' | 'events' | 'personal' | 'settings';
+type CoachTab =
+  | 'overview'
+  | 'klientresan'
+  | 'programs'
+  | 'bookings'
+  | 'analytics'
+  | 'insights'
+  | 'leaderboards'
+  | 'events'
+  | 'personal'
+  | 'settings';
 
 interface CoachAreaProps {
-  onAddComment: (logId: string, logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session', text: string) => void;
-  onDeleteComment: (logId: string, logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session', commentId: string) => void;
-  onToggleCommentReaction: (logId: string, logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session', commentId: string) => void;
-  // These props are now largely handled by useCoachOperations internally, but kept if passed from App.tsx for compatibility during transition or specific overrides
+  onAddComment: (
+    logId: string,
+    logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session',
+    text: string
+  ) => void;
+  onDeleteComment: (
+    logId: string,
+    logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session',
+    commentId: string
+  ) => void;
+  onToggleCommentReaction: (
+    logId: string,
+    logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session',
+    commentId: string
+  ) => void;
+  // Optional overrides – annars används useCoachOperations
   onCheckInParticipant?: (bookingId: string) => void;
   onUnCheckInParticipant?: (bookingId: string) => void;
   onBookClass?: (participantId: string, scheduleId: string, classDate: string) => void;
@@ -62,7 +83,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   onCancelBooking: propCancelBooking,
   onPromoteFromWaitlist: propPromote,
   onCancelClassInstance: propCancelInstance,
-  onUpdateClassInstance: propUpdateInstance
+  onUpdateClassInstance: propUpdateInstance,
 }) => {
   // Hook 1: Data
   const {
@@ -90,11 +111,12 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     participantBookings,
     orgDataError,
     getClassInstanceDetails,
+    participantDirectory, // 🔹 Viktigt: fullständiga medlemsregistret
   } = useCoachData();
 
   // Hook 2: Operations
   const ops = useCoachOperations();
-  
+
   // Resolve operations (prefer props if passed, else hook)
   const onCheckInParticipant = propCheckIn || ops.handleCheckInParticipant;
   const onUnCheckInParticipant = propUnCheckIn || ops.handleUnCheckInParticipant;
@@ -124,7 +146,9 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     if (loggedInStaff?.role === 'Admin') {
       return allTabs;
     }
-    return allTabs.filter((tab) => ['overview', 'klientresan', 'bookings', 'programs'].includes(tab.id));
+    return allTabs.filter((tab) =>
+      ['overview', 'klientresan', 'bookings', 'programs'].includes(tab.id)
+    );
   }, [loggedInStaff]);
 
   const tabsToShow = useMemo(
@@ -165,19 +189,26 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
 
   // Filtering logic for Bookings tab
   const schedulesForLocationTab = useMemo(() => {
-    if (selectedLocationTabId === 'all' || !locations.some((l) => l.id === selectedLocationTabId)) return groupClassSchedules;
+    if (selectedLocationTabId === 'all' || !locations.some((l) => l.id === selectedLocationTabId))
+      return groupClassSchedules;
     return groupClassSchedules.filter((s) => s.locationId === selectedLocationTabId);
   }, [groupClassSchedules, selectedLocationTabId, locations]);
 
-  const scheduleIdsInLocation = useMemo(() => new Set(schedulesForLocationTab.map((s) => s.id)), [schedulesForLocationTab]);
+  const scheduleIdsInLocation = useMemo(
+    () => new Set(schedulesForLocationTab.map((s) => s.id)),
+    [schedulesForLocationTab]
+  );
 
   const bookingsForLocationTab = useMemo(() => {
     return participantBookings.filter((b) => scheduleIdsInLocation.has(b.scheduleId));
   }, [participantBookings, scheduleIdsInLocation]);
 
   const sessionsForLocationTab = useMemo(() => {
-    if (selectedLocationTabId === 'all' || !locations.some((l) => l.id === selectedLocationTabId)) return oneOnOneSessionsForView;
-    const staffIdsInLocation = new Set(staffMembers.filter((s) => s.locationId === selectedLocationTabId).map((s) => s.id));
+    if (selectedLocationTabId === 'all' || !locations.some((l) => l.id === selectedLocationTabId))
+      return oneOnOneSessionsForView;
+    const staffIdsInLocation = new Set(
+      staffMembers.filter((s) => s.locationId === selectedLocationTabId).map((s) => s.id)
+    );
     return oneOnOneSessionsForView.filter((session) => staffIdsInLocation.has(session.coachId));
   }, [oneOnOneSessionsForView, staffMembers, selectedLocationTabId, locations]);
 
@@ -185,14 +216,14 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     if (!loggedInStaff || loggedInStaff.role !== 'Admin') return [];
     const myPassOption = { value: loggedInStaff.id, label: 'Mina pass' };
     const coachOptions = staffMembers
-        .filter(s => s.isActive)
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map(s => ({ value: s.id, label: s.name }));
-    const uniqueCoachOptions = coachOptions.filter(c => c.value !== loggedInStaff.id);
+      .filter((s) => s.isActive)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((s) => ({ value: s.id, label: s.name }));
+    const uniqueCoachOptions = coachOptions.filter((c) => c.value !== loggedInStaff.id);
     return [
-        { value: 'all', label: 'Alla coacher' },
-        myPassOption,
-        ...uniqueCoachOptions
+      { value: 'all', label: 'Alla coacher' },
+      myPassOption,
+      ...uniqueCoachOptions,
     ];
   }, [loggedInStaff, staffMembers]);
 
@@ -200,34 +231,36 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     let schedules = schedulesForLocationTab;
     if (!calendarFilters.showGroupClasses) return [];
     if (loggedInStaff?.role === 'Admin') {
-        if (selectedCoachFilter !== 'all') {
-            schedules = schedules.filter(schedule => schedule.coachId === selectedCoachFilter);
-        }
+      if (selectedCoachFilter !== 'all') {
+        schedules = schedules.filter((schedule) => schedule.coachId === selectedCoachFilter);
+      }
     } else if (loggedInStaff?.role === 'Coach') {
-        if (calendarFilters.showMySessionsOnly) {
-            schedules = schedules.filter(schedule => schedule.coachId === loggedInStaff.id);
-        }
+      if (calendarFilters.showMySessionsOnly) {
+        schedules = schedules.filter((schedule) => schedule.coachId === loggedInStaff.id);
+      }
     }
     return schedules;
   }, [schedulesForLocationTab, calendarFilters, loggedInStaff, selectedCoachFilter]);
 
   const filteredSessions = useMemo(() => {
-      let sessions = sessionsForLocationTab;
-      if (!calendarFilters.showOneOnOneSessions) return [];
-      if (loggedInStaff?.role === 'Admin') {
-          if (selectedCoachFilter !== 'all') {
-              sessions = sessions.filter(session => session.coachId === selectedCoachFilter);
-          }
-      } else if (loggedInStaff?.role === 'Coach') {
-          if (calendarFilters.showMySessionsOnly) {
-              sessions = sessions.filter(session => session.coachId === loggedInStaff.id);
-          }
+    let sessions = sessionsForLocationTab;
+    if (!calendarFilters.showOneOnOneSessions) return [];
+    if (loggedInStaff?.role === 'Admin') {
+      if (selectedCoachFilter !== 'all') {
+        sessions = sessions.filter((session) => session.coachId === selectedCoachFilter);
       }
-      return sessions;
+    } else if (loggedInStaff?.role === 'Coach') {
+      if (calendarFilters.showMySessionsOnly) {
+        sessions = sessions.filter((session) => session.coachId === loggedInStaff.id);
+      }
+    }
+    return sessions;
   }, [sessionsForLocationTab, calendarFilters, loggedInStaff, selectedCoachFilter]);
 
   const getTabButtonStyle = (tabName: CoachTab) => {
-    return activeTab === tabName ? 'border-flexibel text-flexibel' : 'border-transparent text-gray-500 active:text-gray-700 active:border-gray-300';
+    return activeTab === tabName
+      ? 'border-flexibel text-flexibel'
+      : 'border-transparent text-gray-500 active:text-gray-700 active:border-gray-300';
   };
 
   const handleOpenMeetingModal = useCallback((session: OneOnOneSession) => {
@@ -266,7 +299,9 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg ${getTabButtonStyle(tab.id)}`}
+              className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg ${getTabButtonStyle(
+                tab.id
+              )}`}
               aria-current={activeTab === tab.id ? 'page' : undefined}
             >
               {tab.label}
@@ -278,7 +313,12 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
       <div role="tabpanel" hidden={activeTab !== 'overview'}>
         {activeTab === 'overview' && (
           <>
-            <EngagementOpportunities participants={participantsForView} workoutLogs={workoutLogsForView} oneOnOneSessions={oneOnOneSessionsForView} isOnline={isOnline} />
+            <EngagementOpportunities
+              participants={participantsForView}
+              workoutLogs={workoutLogsForView}
+              oneOnOneSessions={oneOnOneSessionsForView}
+              isOnline={isOnline}
+            />
             <MemberManagement
               participants={participantsForView}
               allParticipantGoals={participantGoalsForView}
@@ -307,7 +347,9 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
       </div>
 
       <div role="tabpanel" hidden={activeTab !== 'programs'}>
-        {activeTab === 'programs' && <WorkoutManagement participants={participantsForView} isOnline={isOnline} />}
+        {activeTab === 'programs' && (
+          <WorkoutManagement participants={participantsForView} isOnline={isOnline} />
+        )}
       </div>
 
       <div role="tabpanel" hidden={activeTab !== 'bookings'}>
@@ -344,49 +386,63 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
             <div>
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-2xl font-bold text-gray-800">Kalenderöversikt</h3>
-                <Button onClick={() => setIsCreateScheduleModalOpen(true)}>
-                    Lägg ut nytt pass
-                </Button>
+                <Button onClick={() => setIsCreateScheduleModalOpen(true)}>Lägg ut nytt pass</Button>
               </div>
               <div className="p-4 bg-gray-50 rounded-lg border mb-4 space-y-4">
-                  <h4 className="text-lg font-semibold text-gray-700">Filter</h4>
-                  {loggedInStaff.role === 'Admin' ? (
-                      <Select
-                          label="Visa pass för"
-                          id="coach-filter"
-                          value={selectedCoachFilter}
-                          onChange={(e) => setSelectedCoachFilter(e.target.value)}
-                          options={coachFilterOptions}
-                          inputSize="sm"
-                      />
-                  ) : (
-                      <ToggleSwitch
-                          id="show-my-sessions-only"
-                          label="Visa endast mina pass"
-                          checked={calendarFilters.showMySessionsOnly}
-                          onChange={(checked) => setCalendarFilters(prev => ({ ...prev, showMySessionsOnly: checked }))}
-                      />
-                  )}
-                  <div className="flex items-center gap-6 pt-2 border-t">
-                      <label className="flex items-center space-x-2 cursor-pointer">
-                          <input
-                              type="checkbox"
-                              checked={calendarFilters.showGroupClasses}
-                              onChange={(e) => setCalendarFilters(prev => ({ ...prev, showGroupClasses: e.target.checked }))}
-                              className="h-5 w-5 text-flexibel border-gray-300 rounded focus:ring-flexibel"
-                          />
-                          <span className="text-base font-medium text-gray-700">Visa Gruppass</span>
-                      </label>
-                      <label className="flex items-center space-x-2 cursor-pointer">
-                          <input
-                              type="checkbox"
-                              checked={calendarFilters.showOneOnOneSessions}
-                              onChange={(e) => setCalendarFilters(prev => ({ ...prev, showOneOnOneSessions: e.target.checked }))}
-                              className="h-5 w-5 text-flexibel border-gray-300 rounded focus:ring-flexibel"
-                          />
-                          <span className="text-base font-medium text-gray-700">Visa 1-on-1 bokningar</span>
-                      </label>
-                  </div>
+                <h4 className="text-lg font-semibold text-gray-700">Filter</h4>
+                {loggedInStaff.role === 'Admin' ? (
+                  <Select
+                    label="Visa pass för"
+                    id="coach-filter"
+                    value={selectedCoachFilter}
+                    onChange={(e) => setSelectedCoachFilter(e.target.value)}
+                    options={coachFilterOptions}
+                    inputSize="sm"
+                  />
+                ) : (
+                  <ToggleSwitch
+                    id="show-my-sessions-only"
+                    label="Visa endast mina pass"
+                    checked={calendarFilters.showMySessionsOnly}
+                    onChange={(checked) =>
+                      setCalendarFilters((prev) => ({ ...prev, showMySessionsOnly: checked }))
+                    }
+                  />
+                )}
+                <div className="flex items-center gap-6 pt-2 border-t">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={calendarFilters.showGroupClasses}
+                      onChange={(e) =>
+                        setCalendarFilters((prev) => ({
+                          ...prev,
+                          showGroupClasses: e.target.checked,
+                        }))
+                      }
+                      className="h-5 w-5 text-flexibel border-gray-300 rounded focus:ring-flexibel"
+                    />
+                    <span className="text-base font-medium text-gray-700">
+                      Visa Gruppass
+                    </span>
+                  </label>
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={calendarFilters.showOneOnOneSessions}
+                      onChange={(e) =>
+                        setCalendarFilters((prev) => ({
+                          ...prev,
+                          showOneOnOneSessions: e.target.checked,
+                        }))
+                      }
+                      className="h-5 w-5 text-flexibel border-gray-300 rounded focus:ring-flexibel"
+                    />
+                    <span className="text-base font-medium text-gray-700">
+                      Visa 1-on-1 bokningar
+                    </span>
+                  </label>
+                </div>
               </div>
               <CalendarView
                 sessions={filteredSessions}
@@ -400,7 +456,12 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
                 groupClassDefinitions={groupClassDefinitions}
                 groupClassScheduleExceptions={groupClassScheduleExceptions}
                 bookings={bookingsForLocationTab}
-                onGroupClassClick={(instance) => setManagedClassInfo({ scheduleId: instance.scheduleId, date: instance.date })}
+                onGroupClassClick={(instance) =>
+                  setManagedClassInfo({
+                    scheduleId: instance.scheduleId,
+                    date: instance.date,
+                  })
+                }
                 loggedInCoachId={loggedInStaff.id}
               />
               <BookOneOnOneModal
@@ -410,7 +471,10 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
                   setSessionToEdit(null);
                   setInitialDateForBooking(null);
                 }}
-                onSave={(session) => { ops.handleSaveOrUpdateSession(session); setSessionToEdit(null); }}
+                onSave={(session) => {
+                  ops.handleSaveOrUpdateSession(session);
+                  setSessionToEdit(null);
+                }}
                 sessionToEdit={sessionToEdit}
                 participants={participantsForView}
                 coaches={staffMembers}
@@ -432,7 +496,10 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
                   isOpen={isMeetingModalOpen}
                   onClose={() => setIsMeetingModalOpen(false)}
                   session={selectedSessionForModal}
-                  coach={staffMembers.find((s) => s.id === selectedSessionForModal.coachId) || null}
+                  coach={
+                    staffMembers.find((s) => s.id === selectedSessionForModal.coachId) ||
+                    null
+                  }
                   currentUserId={user.id}
                   onAddComment={onAddComment}
                   onDeleteComment={onDeleteComment}
@@ -453,7 +520,12 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
               <ConfirmationModal
                 isOpen={!!sessionToDelete}
                 onClose={() => setSessionToDelete(null)}
-                onConfirm={() => { if(sessionToDelete) { ops.handleDeleteSession(sessionToDelete.id); setSessionToDelete(null); }}}
+                onConfirm={() => {
+                  if (sessionToDelete) {
+                    ops.handleDeleteSession(sessionToDelete.id);
+                    setSessionToDelete(null);
+                  }
+                }}
                 title="Ta bort 1-on-1 Session"
                 message={`Är du säker på att du vill ta bort sessionen "${sessionToDelete?.title}"? Detta kan inte ångras.`}
                 confirmButtonText="Ja, ta bort"
@@ -470,7 +542,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
           </Suspense>
         )}
       </div>
-      
+
       <div role="tabpanel" hidden={activeTab !== 'insights'}>
         {activeTab === 'insights' && (
           <AIBusinessInsights
@@ -537,7 +609,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
           isOpen={!!classInstanceForManagement}
           onClose={() => setManagedClassInfo(null)}
           classInstance={classInstanceForManagement}
-          participants={participantDirectory} // Use full directory for adding new people
+          participants={participantDirectory} // fulla medlemsregistret för att boka vem som helst
           groupClassScheduleExceptions={groupClassScheduleExceptions}
           onCheckIn={onCheckInParticipant}
           onUnCheckIn={onUnCheckInParticipant}
