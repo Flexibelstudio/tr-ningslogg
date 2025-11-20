@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { ParticipantProfile, OneOnOneSession, ActivityLog, StaffMember, CoachNote, ParticipantGoalData, WorkoutLog, Membership, ProspectIntroCall, Lead, Location, LeadStatus, ContactAttemptMethod, ContactAttemptOutcome, ContactAttempt } from '../../types';
 import { Button } from '../Button';
@@ -505,6 +506,10 @@ ${callToLink.coachSummary || 'Ej angivet.'}
     setLeadToConfirmConsent(null);
   };
 
+  const handleSaveContactAttempt = (updatedLead: Lead) => {
+      setLeadsData(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+  };
+
   if (!loggedInStaff) return <div>Laddar...</div>;
 
   const priorityClasses: Record<'high' | 'medium' | 'low', string> = {
@@ -564,11 +569,11 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             <nav className="-mb-px flex space-x-4 overflow-x-auto" aria-label="Tabs">
                 <button onClick={() => setActiveTab('leads')} className={`relative whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('leads')}`}>
                     Leads
-                    {leads.filter(l => l.status === 'new').length > 0 && <span className="ml-2 inline-block bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">{leads.filter(l => l.status === 'new').length}</span>}
+                    {newLeads.length > 0 && <span className="ml-2 inline-block bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">{newLeads.length}</span>}
                 </button>
                 <button onClick={() => setActiveTab('introCalls')} className={`relative whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('introCalls')}`}>
                     Introsamtal
-                    {actionableIntroCalls.length > 0 && <span className="ml-2 inline-block bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">{actionableIntroCalls.length}</span>}
+                    {unlinkedCalls.length > 0 && <span className="ml-2 inline-block bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">{unlinkedCalls.length}</span>}
                 </button>
                 <button onClick={() => setActiveTab('memberJourney')} className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('memberJourney')}`}>
                     Medlemsresan
@@ -597,47 +602,69 @@ ${callToLink.coachSummary || 'Ej angivet.'}
                     const isRecommendation = lead.source === 'Rekommendation';
                     const consentNeeded = isRecommendation && !lead.consentGiven;
                     const lastContact = lead.contactHistory?.[lead.contactHistory.length - 1];
+                    const isExpanded = expandedLeadId === lead.id;
 
                     return (
-                        <div key={lead.id} className="p-4 bg-white rounded-lg border shadow-sm flex flex-col sm:flex-row justify-between items-start gap-3">
-                            <div className="flex-grow">
-                                <div className="flex flex-wrap items-center gap-2 mb-1">
-                                    <p className="font-bold text-lg text-gray-900">{lead.firstName} {lead.lastName}</p>
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig[lead.status].color}`}>
-                                        {statusConfig[lead.status].text}
-                                    </span>
-                                </div>
+                        <div key={lead.id} className="p-4 bg-white rounded-lg border shadow-sm flex flex-col gap-3">
+                            <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
+                                <div className="flex-grow">
+                                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                                        <p className="font-bold text-lg text-gray-900">{lead.firstName} {lead.lastName}</p>
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig[lead.status].color}`}>
+                                            {statusConfig[lead.status].text}
+                                        </span>
+                                    </div>
 
-                                <p className="text-sm text-gray-600">{lead.email || <i>E-post saknas</i>}</p>
-                                {lead.phone && <p className="text-sm text-gray-600">{lead.phone}</p>}
-                                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                                    <span className="font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{lead.source}</span>
-                                    {location && <span className="font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{location.name}</span>}
-                                    <span className="text-gray-400">Skapad: {new Date(lead.createdDate).toLocaleDateString('sv-SE')}</span>
+                                    <p className="text-sm text-gray-600">{lead.email || <i>E-post saknas</i>}</p>
+                                    {lead.phone && <p className="text-sm text-gray-600">{lead.phone}</p>}
+                                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                                        <span className="font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{lead.source}</span>
+                                        {location && <span className="font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{location.name}</span>}
+                                        <span className="text-gray-400">Skapad: {new Date(lead.createdDate).toLocaleDateString('sv-SE')}</span>
+                                    </div>
+                                    {lastContact && <p className="text-xs text-gray-500 mt-1">Senast kontaktad: {new Date(lastContact.timestamp).toLocaleDateString('sv-SE')}</p>}
+                                    {lead.referredBy && (
+                                        <p className="text-xs text-gray-500 mt-1 italic">Rekommenderad av: {lead.referredBy.participantName}</p>
+                                    )}
                                 </div>
-                                {lastContact && <p className="text-xs text-gray-500 mt-1">Senast kontaktad: {new Date(lastContact.timestamp).toLocaleDateString('sv-SE')}</p>}
-                                {lead.referredBy && (
-                                    <p className="text-xs text-gray-500 mt-1 italic">Rekommenderad av: {lead.referredBy.participantName}</p>
-                                )}
+                                <div className="flex flex-col sm:flex-row gap-2 self-start sm:self-center flex-shrink-0 items-center">
+                                    {isRecommendation && (
+                                        <button
+                                            onClick={() => consentNeeded && setLeadToConfirmConsent(lead)}
+                                            disabled={!consentNeeded}
+                                            className={`p-2 rounded-full text-2xl ${consentNeeded ? 'text-gray-400 hover:text-gray-700' : 'text-green-500 cursor-default'}`}
+                                            title={consentNeeded ? "Klicka för att bekräfta att samtycke har inhämtats" : "Samtycke har inhämtats"}
+                                            aria-label={consentNeeded ? "Bekräfta samtycke" : "Samtycke bekräftat"}
+                                        >
+                                            {consentNeeded ? '🔒' : '🔓'}
+                                        </button>
+                                    )}
+                                    <Button size="sm" variant="ghost" onClick={() => setExpandedLeadId(isExpanded ? null : lead.id)}>Historik</Button>
+                                    <Button size="sm" variant="outline" onClick={() => setLeadToLogContactFor(lead)}>➕ Logga kontakt</Button>
+                                    {lead.status === 'new' && (
+                                        <Button size="sm" variant="primary" onClick={() => handleCreateIntroCallFromLead(lead)} disabled={consentNeeded} title={consentNeeded ? "Samtycke krävs" : ""}>Skapa Introsamtal</Button>
+                                    )}
+                                    <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => setLeadToMarkAsJunk(lead)}>Skräp</Button>
+                                </div>
                             </div>
-                            <div className="flex flex-col sm:flex-row gap-2 self-start sm:self-center flex-shrink-0 items-center">
-                                {isRecommendation && (
-                                    <button
-                                        onClick={() => consentNeeded && setLeadToConfirmConsent(lead)}
-                                        disabled={!consentNeeded}
-                                        className={`p-2 rounded-full text-2xl ${consentNeeded ? 'text-gray-400 hover:text-gray-700' : 'text-green-500 cursor-default'}`}
-                                        title={consentNeeded ? "Klicka för att bekräfta att samtycke har inhämtats" : "Samtycke har inhämtats"}
-                                        aria-label={consentNeeded ? "Bekräfta samtycke" : "Samtycke bekräftat"}
-                                    >
-                                        {consentNeeded ? '🔒' : '🔓'}
-                                    </button>
-                                )}
-                                <Button size="sm" variant="ghost" onClick={() => setExpandedLeadId(expandedLeadId === lead.id ? null : lead.id)}>Historik</Button>
-                                <Button size="sm" variant="outline" onClick={() => setLeadToLogContactFor(lead)}>➕ Logga kontakt</Button>
-                                {lead.status === 'new' && (
-                                    <Button size="sm" variant="primary" onClick={() => handleCreateIntroCallFromLead(lead)} disabled={consentNeeded} title={consentNeeded ? "Samtycke krävs" : ""}>Skapa Introsamtal</Button>
-                                )}
-                            </div>
+                            
+                            {isExpanded && lead.contactHistory && lead.contactHistory.length > 0 && (
+                                <div className="mt-2 pt-2 border-t border-gray-100 animate-fade-in">
+                                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Kontakthistorik</h4>
+                                    <ul className="space-y-2">
+                                        {lead.contactHistory.slice().reverse().map(attempt => (
+                                            <li key={attempt.id} className="text-sm bg-gray-50 p-2 rounded">
+                                                <div className="flex justify-between">
+                                                    <span className="font-medium">{new Date(attempt.timestamp).toLocaleString('sv-SE')}</span>
+                                                    <span className="text-gray-500 uppercase text-xs">{attempt.method}</span>
+                                                </div>
+                                                <p className="text-gray-600 mt-1">Resultat: {CONTACT_ATTEMPT_OUTCOME_OPTIONS.find(o => o.value === attempt.outcome)?.label}</p>
+                                                {attempt.notes && <p className="text-gray-500 italic mt-1">"{attempt.notes}"</p>}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
                         </div>
                     );
                 })}
@@ -900,6 +927,27 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             onSave={handleSaveLead}
             locations={locations}
         />
+        
+        {/* Render the Contact Attempt Modal if a lead is selected */}
+        {leadToLogContactFor && loggedInStaff && (
+            <LogContactAttemptModal
+                isOpen={!!leadToLogContactFor}
+                onClose={() => setLeadToLogContactFor(null)}
+                lead={leadToLogContactFor}
+                onSave={handleSaveContactAttempt}
+                loggedInStaffId={loggedInStaff.id}
+            />
+        )}
+        
+        <ConfirmationModal
+            isOpen={!!leadToConfirmConsent}
+            onClose={() => setLeadToConfirmConsent(null)}
+            onConfirm={handleConfirmConsent}
+            title="Bekräfta samtycke"
+            message={`Jag bekräftar att jag har fått godkännande att kontakta ${leadToConfirmConsent?.firstName} ${leadToConfirmConsent?.lastName}.`}
+            confirmButtonText="Ja, bekräfta"
+        />
+
     </div>
   );
 };
