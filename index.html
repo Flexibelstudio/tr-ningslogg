@@ -10,7 +10,21 @@
   <link rel="apple-touch-icon" href="/icon-180x180.png">
   <meta name="theme-color" content="#3bab5a">
 
-  <!-- Tailwind via CDN (ok i dev; i prod rekommenderas PostCSS/CLI) -->
+  <!-- CRITICAL FIX: Immediate Service Worker Unregistration -->
+  <script>
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          console.log('Force unregistering SW to fix preview crash:', registration);
+          registration.unregister();
+        }
+      }).catch(function(err) {
+        console.warn('SW cleanup warning (safe to ignore):', err);
+      });
+    }
+  </script>
+
+  <!-- Tailwind via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -93,32 +107,29 @@
     }
   </style>
 
-  <!-- Import map för ESM-bibliotek -->
+  <!-- Import map med PINNADE versioner för att undvika dubbla React-instanser -->
   <script type="importmap">
 {
   "imports": {
-    "react/": "https://esm.sh/react@^19.1.0/",
-    "react": "https://esm.sh/react@^19.1.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
-    "react-router-dom": "https://esm.sh/react-router-dom@6.22.3",
+    "react": "https://esm.sh/react@18.3.1",
+    "react/": "https://esm.sh/react@18.3.1/",
+    "react-dom": "https://esm.sh/react-dom@18.3.1",
+    "react-dom/": "https://esm.sh/react-dom@18.3.1/",
+    "react-router-dom": "https://esm.sh/react-router-dom@6.22.3?deps=react@18.3.1,react-dom@18.3.1",
+    "framer-motion": "https://esm.sh/framer-motion@10.16.4?deps=react@18.3.1,react-dom@18.3.1",
+    "recharts": "https://esm.sh/recharts@2.12.3?deps=react@18.3.1,react-dom@18.3.1",
     "@google/genai": "https://esm.sh/@google/genai",
-    "framer-motion": "https://esm.sh/framer-motion@^11.3.19",
     "html2canvas": "https://esm.sh/html2canvas@^1.4.1",
     "chart.js/auto": "https://esm.sh/chart.js@^4.4.3/auto",
     "chartjs-adapter-date-fns": "https://esm.sh/chartjs-adapter-date-fns@^3.0.0",
     "chart.js/": "https://esm.sh/chart.js@^4.5.0/",
     "jsqr": "https://esm.sh/jsqr@^1.4.0",
     "qrcode": "https://esm.sh/qrcode@^1.5.3",
-    "recharts": "https://esm.sh/recharts@2.12.7",
     "firebase/compat/app": "https://esm.sh/firebase@9.23.0/compat/app",
     "firebase/compat/auth": "https://esm.sh/firebase@9.23.0/compat/auth",
     "firebase/compat/firestore": "https://esm.sh/firebase@9.23.0/compat/firestore",
     "firebase/compat/functions": "https://esm.sh/firebase@9.23.0/compat/functions",
     "firebase/": "https://aistudiocdn.com/firebase@^12.4.0/",
-    "firebase-functions/": "https://aistudiocdn.com/firebase-functions@^6.6.0/",
-    "firebase-admin/": "https://aistudiocdn.com/firebase-admin@^13.5.0/",
-    "dom": "https://aistudiocdn.com/dom@^0.0.3",
-    "es2015": "https://aistudiocdn.com/es2015@^0.0.0",
     "web-push": "https://aistudiocdn.com/web-push@^3.6.7"
   }
 }
@@ -131,8 +142,5 @@
 
   <!-- Vite entry -->
   <script type="module" src="/index.tsx"></script>
-
-  <!-- OBS! Ingen SW-registrering här.
-       Service worker registreras endast i index.tsx när import.meta.env.PROD är true. -->
 </body>
 </html>

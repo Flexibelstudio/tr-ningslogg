@@ -1,4 +1,6 @@
-import React, { useState, useMemo, useCallback, lazy, Suspense } from 'react';
+
+import React, { useState, useMemo, useCallback, lazy, Suspense, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom'; // Router hooks
 import {
   OneOnOneSession,
   CoachEvent,
@@ -85,6 +87,13 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   onCancelClassInstance: propCancelInstance,
   onUpdateClassInstance: propUpdateInstance,
 }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Parse active tab from URL, e.g. /coach/bookings -> bookings
+  const currentPath = location.pathname.split('/').pop();
+  const activeTab = (currentPath && currentPath !== 'coach' ? currentPath : 'overview') as CoachTab;
+
   // Hook 1: Data
   const {
     loggedInStaff,
@@ -111,7 +120,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     participantBookings,
     orgDataError,
     getClassInstanceDetails,
-    participantDirectory, // 🔹 Viktigt: fullständiga medlemsregistret
+    participantDirectory, 
   } = useCoachData();
 
   // Hook 2: Operations
@@ -165,7 +174,6 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     [visibleTabs, integrationSettings]
   );
 
-  const [activeTab, setActiveTab] = useState<CoachTab>(tabsToShow[0]?.id || 'overview');
   const [selectedLocationTabId, setSelectedLocationTabId] = useState<string>('all');
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
@@ -298,7 +306,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
           {tabsToShow.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => navigate(`/coach/${tab.id}`)}
               className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg ${getTabButtonStyle(
                 tab.id
               )}`}
@@ -609,7 +617,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
           isOpen={!!classInstanceForManagement}
           onClose={() => setManagedClassInfo(null)}
           classInstance={classInstanceForManagement}
-          participants={participantDirectory} // fulla medlemsregistret för att boka vem som helst
+          participants={participantDirectory} 
           groupClassScheduleExceptions={groupClassScheduleExceptions}
           onCheckIn={onCheckInParticipant}
           onUnCheckIn={onUnCheckInParticipant}
