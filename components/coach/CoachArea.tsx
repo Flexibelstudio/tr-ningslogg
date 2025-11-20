@@ -136,17 +136,17 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   const { user } = useAuth();
   const { isOnline } = useNetworkStatus();
   
-  // Explicitly define variables to prevent ReferenceErrors if they are accessed elsewhere in the component or cached renders
-  const newLeads = useMemo(() => {
+  // RENAMED VARIABLES TO FORCE CACHE BUSTING
+  const newLeadsList = useMemo(() => {
       return (leads || []).filter(l => l.status === 'new');
   }, [leads]);
 
-  const unlinkedCalls = useMemo(() => {
+  const unlinkedCallsList = useMemo(() => {
       return (prospectIntroCalls || []).filter(c => c.status === 'unlinked');
   }, [prospectIntroCalls]);
 
-  const newLeadsCount = newLeads.length;
-  const unlinkedCallsCount = unlinkedCalls.length;
+  const newLeadsCount = newLeadsList.length;
+  const unlinkedCallsCount = unlinkedCallsList.length;
   const totalJourneyBadge = newLeadsCount + unlinkedCallsCount;
 
   const allTabs: { id: CoachTab; label: string }[] = [

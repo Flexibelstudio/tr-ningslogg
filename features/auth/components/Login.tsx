@@ -8,7 +8,11 @@ import { useNetworkStatus } from '../../../context/NetworkStatusContext';
 import { auth } from '../../../firebaseConfig';
 import { Link } from 'react-router-dom';
 
-export const Login: React.FC = () => {
+interface LoginProps {
+  // Removed prop: onSwitchToRegister
+}
+
+export const Login: React.FC<LoginProps> = () => {
   const { login } = useAuth();
   const { isOnline } = useNetworkStatus();
   const [email, setEmail] = useState('');
@@ -100,7 +104,7 @@ export const Login: React.FC = () => {
             }} className="text-sm text-flexibel active:underline">
               Glömt lösenord?
             </button>
-            <p>
+            <p className="text-gray-600">
               <Link to="/register" className="text-flexibel active:underline font-semibold">
                 Inget konto? Skapa ett här
               </Link>
