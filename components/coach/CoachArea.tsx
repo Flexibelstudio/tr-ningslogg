@@ -136,15 +136,17 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   const { user } = useAuth();
   const { isOnline } = useNetworkStatus();
   
-  // Safe calculation of badges
-  const newLeadsCount = useMemo(() => {
-      return (leads || []).filter(l => l.status === 'new').length;
+  // Explicitly define variables to prevent ReferenceErrors if they are accessed elsewhere in the component or cached renders
+  const newLeads = useMemo(() => {
+      return (leads || []).filter(l => l.status === 'new');
   }, [leads]);
 
-  const unlinkedCallsCount = useMemo(() => {
-      return (prospectIntroCalls || []).filter(c => c.status === 'unlinked').length;
+  const unlinkedCalls = useMemo(() => {
+      return (prospectIntroCalls || []).filter(c => c.status === 'unlinked');
   }, [prospectIntroCalls]);
 
+  const newLeadsCount = newLeads.length;
+  const unlinkedCallsCount = unlinkedCalls.length;
   const totalJourneyBadge = newLeadsCount + unlinkedCallsCount;
 
   const allTabs: { id: CoachTab; label: string }[] = [
