@@ -155,7 +155,6 @@ export const useCoachData = () => {
   return {
     loggedInStaff,
     participantsForView,
-    participantDirectory, // Added this
     workoutLogsForView,
     generalActivityLogsForView,
     goalCompletionLogsForView,

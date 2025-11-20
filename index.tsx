@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client';
 import { App } from './App';
 import { NotificationsProvider } from './context/NotificationsContext';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
+import { BrowserRouter } from 'react-router-dom';
 
 
 const rootElement = document.getElementById('root');
@@ -13,10 +14,12 @@ if (!rootElement) {
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
-    <NotificationsProvider>
-      <App />
-      <NotificationCenter />
-    </NotificationsProvider>
+    <BrowserRouter>
+      <NotificationsProvider>
+        <App />
+        <NotificationCenter />
+      </NotificationsProvider>
+    </BrowserRouter>
   </React.StrictMode>
 );
 

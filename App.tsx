@@ -1,6 +1,7 @@
 
 // App.tsx
 import React, { useState, useEffect, useCallback, lazy, Suspense, useMemo } from 'react';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 import { AppProvider, useAppContext } from './context/AppContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -22,6 +23,7 @@ import {
   GroupClassScheduleException,
   ParticipantProfile,
   BookingStatus,
+  UserRole
 } from './types';
 import { useNotifications } from './context/NotificationsContext';
 import { logAnalyticsEvent } from './utils/analyticsLogger';
@@ -44,23 +46,41 @@ const LoadingSpinner = () => (
   </div>
 );
 
+// --- Protected Route Wrapper ---
+const ProtectedRoute = ({ children, allowedRoles }: { children: JSX.Element, allowedRoles?: UserRole[] }) => {
+    const { user, isLoading, currentRole } = useAuth();
+    const location = useLocation();
+
+    if (isLoading) {
+        return <LoadingSpinner />;
+    }
+
+    if (!user) {
+        return <Navigate to="/login" state={{ from: location }} replace />;
+    }
+
+    if (allowedRoles && currentRole && !allowedRoles.includes(currentRole)) {
+        // Redirect based on role if trying to access unauthorized page
+        if (currentRole === UserRole.PARTICIPANT) return <Navigate to="/participant" replace />;
+        if (currentRole === UserRole.COACH) return <Navigate to="/coach" replace />;
+        if (currentRole === UserRole.SYSTEM_OWNER) return <Navigate to="/system-owner" replace />;
+        return <Navigate to="/" replace />;
+    }
+
+    return children;
+};
+
+
 // --- Main App Content ---
 const AppContent: React.FC = () => {
-  // --- Public Routes ---
-  if (window.location.pathname.startsWith('/public/lead-form')) {
-    return <Suspense fallback={<LoadingSpinner />}><PublicLeadForm /></Suspense>;
-  }
-  if (window.location.pathname.startsWith('/api/zapier-lead-webhook')) {
-    return <Suspense fallback={<div>Processing...</div>}><ZapierWebhookHandler /></Suspense>;
-  }
-
   // --- Contexts ---
   const appContext = useAppContext();
   const auth = useAuth();
   const { addNotification } = useNotifications();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // --- State ---
-  const [view, setView] = useState<'login' | 'register'>('login');
   const [registrationPendingMessage, setRegistrationPendingMessage] = useState(false);
   const [operationInProgress, setOperationInProgress] = useState<string[]>([]);
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
@@ -175,6 +195,19 @@ const AppContent: React.FC = () => {
     }
   }, [auth.currentRole, auth.currentParticipantId, welcomeModalShown, appContext.participantDirectory, prospectModalShownKey, appContext.memberships]);
 
+  // Handle role-based redirects
+  useEffect(() => {
+    if (!auth.isLoading && auth.user) {
+        if (auth.currentRole === UserRole.PARTICIPANT && !location.pathname.startsWith('/participant')) {
+             navigate('/participant');
+        } else if (auth.currentRole === UserRole.COACH && !location.pathname.startsWith('/coach')) {
+             navigate('/coach');
+        } else if (auth.currentRole === UserRole.SYSTEM_OWNER && !location.pathname.startsWith('/system-owner')) {
+             navigate('/system-owner');
+        }
+    }
+  }, [auth.currentRole, auth.isLoading, auth.user, navigate, location.pathname]);
+
   // --- Callbacks ---
   const handleAcceptTerms = useCallback(async () => {
     if (!auth.user) return;
@@ -245,7 +278,7 @@ const AppContent: React.FC = () => {
       setParticipantDirectoryData(prev => prev.map(p => {
         if (p.id !== participantId) return p;
         const m = memberships.find(m => m.id === p.membershipId);
-        if (m?.type === 'clip_card' && p.clipCardStatus?.remainingClips > 0) {
+        if (m?.type === 'clip_card' && p.clipCardStatus && p.clipCardStatus.remainingClips > 0) {
           return { ...p, clipCardStatus: { ...p.clipCardStatus, remainingClips: p.clipCardStatus.remainingClips - 1 }, lastUpdated: new Date().toISOString() };
         }
         return p;
@@ -605,7 +638,7 @@ const AppContent: React.FC = () => {
   const handleUpdateClassInstance = useCallback(async (
     scheduleId: string,
     classDate: string,
-    updates: any, // Using any to accommodate the new 'date' field flexibly
+    updates: any,
     notify: boolean
   ) => {
     const { date: newDate, ...otherUpdates } = updates;
@@ -616,17 +649,14 @@ const AppContent: React.FC = () => {
         b => b.scheduleId === scheduleId && b.classDate === classDate && b.status !== 'CANCELLED'
       );
   
-      // Using functional updates to avoid stale state issues
       appContext.setGroupClassScheduleExceptionsData(prev => {
         const newExceptions: GroupClassScheduleException[] = [...prev];
   
         // 1. Mark old instance as deleted
         const oldExcIndex = prev.findIndex(ex => ex.scheduleId === scheduleId && ex.date === classDate);
         if (oldExcIndex > -1) {
-          // If it exists, update it to DELETED, preserving other info
           newExceptions[oldExcIndex] = { ...newExceptions[oldExcIndex], status: 'DELETED' };
         } else {
-          // Otherwise, create a new DELETED exception
           newExceptions.push({
             id: crypto.randomUUID(), scheduleId, date: classDate, status: 'DELETED',
             createdBy: { uid: auth.user!.id, name: auth.user!.name }, createdAt: new Date().toISOString()
@@ -637,11 +667,10 @@ const AppContent: React.FC = () => {
         const newExcIndex = newExceptions.findIndex(ex => ex.scheduleId === scheduleId && ex.date === newDate);
         const modificationData = {
           status: 'MODIFIED' as const,
-          ...otherUpdates, // newStartTime, newCoachId, etc.
+          ...otherUpdates,
         };
   
         if (newExcIndex > -1) {
-          // If an exception for the new date already exists, merge changes
           newExceptions[newExcIndex] = { ...newExceptions[newExcIndex], ...modificationData };
         } else {
           newExceptions.push({
@@ -720,95 +749,6 @@ const AppContent: React.FC = () => {
     }
   }, [auth, profileOpener]);
 
-  // --- View Router ---
-  const renderMainView = useCallback(() => {
-    if (auth.isLoading || (!auth.user && appContext.isGlobalDataLoading)) {
-      const logo = cachedLogo;
-      return (
-        <div className="fixed inset-0 flex items-center justify-center bg-gray-100 bg-dotted-pattern bg-dotted-size z-50">
-          <div>{logo ? <img src={logo} alt="Logotyp" className="h-24 w-auto object-contain" /> : <img src="/icon-512x512.png" alt="Logotyp" className="h-24 w-auto object-contain" />}</div>
-        </div>
-      );
-    }
-
-    if (registrationPendingMessage) {
-      return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-dotted-pattern bg-dotted-size bg-gray-100 p-4">
-          <div className="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-md space-y-4 text-center">
-            <h2 className="text-3xl font-semibold text-green-700">Tack för din registrering!</h2>
-            <p className="text-lg text-gray-600">Ditt konto väntar på godkännande av en coach. Godkännande sker vanligtvis inom 2 timmar. Du kommer inte kunna logga in förrän det är godkänt.</p>
-            <Button onClick={() => { setRegistrationPendingMessage(false); setView('login'); }} fullWidth size="lg">Tillbaka till inloggning</Button>
-          </div>
-        </div>
-      );
-    }
-
-    if (!auth.user) {
-      return view === 'login'
-        ? <Login onSwitchToRegister={() => setView('register')} />
-        : <Register onSwitchToLogin={() => setView('login')} onRegistrationSuccess={() => setRegistrationPendingMessage(true)} />;
-    }
-
-    if (auth.user && appContext.isOrgDataLoading) {
-      const logo = cachedLogo || appContext.branding?.logoBase64;
-      return (
-        <div className="fixed inset-0 flex items-center justify-center bg-gray-100 bg-dotted-pattern bg-dotted-size z-50">
-          <div>{logo ? <img src={logo} alt="Logotyp" className="h-24 w-auto object-contain" /> : <img src="/icon-512x512.png" alt="Logotyp" className="h-24 w-auto object-contain" />}</div>
-        </div>
-      );
-    }
-
-    if (auth.user?.roles.systemOwner && !auth.isImpersonating) return <SystemOwnerArea />;
-
-    if (auth.currentRole === 'coach') {
-      return (
-        <div className="container mx-auto px-2 sm:px-6 py-6">
-          <CoachArea
-            onAddComment={handleAddComment} onDeleteComment={handleDeleteComment} onToggleCommentReaction={handleToggleCommentReaction}
-            onCheckInParticipant={handleCheckInParticipant} onUnCheckIn={handleUnCheckInParticipant}
-            onBookClass={handleBookClass} onCancelBooking={handleCancelBooking} onPromoteFromWaitlist={handlePromoteFromWaitlist}
-            onCancelClassInstance={handleCancelClassInstance}
-            onUpdateClassInstance={handleUpdateClassInstance}
-          />
-        </div>
-      );
-    }
-
-    if (auth.currentRole === 'participant' && auth.currentParticipantId) {
-      return (
-        <>
-          <ParticipantArea
-            currentParticipantId={auth.currentParticipantId}
-            onToggleReaction={handleToggleReaction} onAddComment={handleAddComment} onDeleteComment={handleDeleteComment}
-            onToggleCommentReaction={handleToggleCommentReaction} openProfileModalOnInit={openProfileModalOnInit}
-            onProfileModalOpened={handleProfileModalOpened} isStaffViewingSelf={auth.isStaffViewingAsParticipant}
-            onSwitchToStaffView={auth.stopViewingAsParticipant} onSelfCheckIn={handleSelfCheckIn}
-            onLocationCheckIn={handleLocationCheckIn} onBookClass={handleBookClass} onCancelBooking={handleCancelBooking}
-            setProfileOpener={setProfileOpener} setParticipantModalOpeners={setParticipantModalOpeners}
-            newFlowItemsCount={newFlowItemsCount} operationInProgress={operationInProgress}
-          />
-          <WelcomeModal
-            isOpen={isWelcomeModalOpen}
-            onClose={() => {
-              setIsWelcomeModalOpen(false);
-              localStorage.setItem(LOCAL_STORAGE_KEYS.WELCOME_MESSAGE_SHOWN_PARTICIPANT, 'true');
-              setWelcomeModalShown(true);
-            }}
-          />
-        </>
-      );
-    }
-
-    return <Login onSwitchToRegister={() => setView('register')} />;
-  }, [
-    auth, appContext, cachedLogo, registrationPendingMessage, view, handleAddComment, handleDeleteComment, 
-    handleToggleCommentReaction, handleCheckInParticipant, handleUnCheckInParticipant, handleBookClass, 
-    handleCancelBooking, handlePromoteFromWaitlist, handleCancelClassInstance, handleUpdateClassInstance, 
-    handleSelfCheckIn, handleLocationCheckIn, openProfileModalOnInit, handleProfileModalOpened, 
-    setProfileOpener, setParticipantModalOpeners, newFlowItemsCount, isWelcomeModalOpen, welcomeModalShown, 
-    setWelcomeModalShown, operationInProgress,
-  ]);
-
   // --- Render ---
   return (
     <div className="bg-gray-50 min-h-screen">
@@ -824,11 +764,97 @@ const AppContent: React.FC = () => {
       />
       <OfflineBanner />
       <main>
-        <Suspense fallback={<LoadingSpinner />}>{renderMainView()}</Suspense>
+        <Suspense fallback={<LoadingSpinner />}>
+           <Routes>
+             {/* Public/Special Routes */}
+             <Route path="/public/lead-form" element={<PublicLeadForm />} />
+             <Route path="/api/zapier-lead-webhook" element={<ZapierWebhookHandler />} />
+             
+             {/* Auth Routes */}
+             <Route path="/login" element={auth.user ? <Navigate to="/" /> : <Login />} />
+             <Route path="/register" element={auth.user ? <Navigate to="/" /> : <Register onRegistrationSuccess={() => setRegistrationPendingMessage(true)} />} />
+
+             {/* Role-Based Routes */}
+             <Route path="/coach/*" element={
+                 <ProtectedRoute allowedRoles={[UserRole.COACH, UserRole.SYSTEM_OWNER]}>
+                    <div className="container mx-auto px-2 sm:px-6 py-6">
+                        <CoachArea
+                            onAddComment={handleAddComment} onDeleteComment={handleDeleteComment} onToggleCommentReaction={handleToggleCommentReaction}
+                            onCheckInParticipant={handleCheckInParticipant} onUnCheckIn={handleUnCheckInParticipant}
+                            onBookClass={handleBookClass} onCancelBooking={handleCancelBooking} onPromoteFromWaitlist={handlePromoteFromWaitlist}
+                            onCancelClassInstance={handleCancelClassInstance}
+                            onUpdateClassInstance={handleUpdateClassInstance}
+                        />
+                    </div>
+                 </ProtectedRoute>
+             } />
+
+             <Route path="/participant/*" element={
+                 <ProtectedRoute allowedRoles={[UserRole.PARTICIPANT, UserRole.COACH, UserRole.SYSTEM_OWNER]}>
+                    {auth.currentParticipantId ? (
+                         <>
+                             <ParticipantArea
+                                currentParticipantId={auth.currentParticipantId}
+                                onToggleReaction={handleToggleReaction} onAddComment={handleAddComment} onDeleteComment={handleDeleteComment}
+                                onToggleCommentReaction={handleToggleCommentReaction} openProfileModalOnInit={openProfileModalOnInit}
+                                onProfileModalOpened={handleProfileModalOpened} isStaffViewingSelf={auth.isStaffViewingAsParticipant}
+                                onSwitchToStaffView={auth.stopViewingAsParticipant} onSelfCheckIn={handleSelfCheckIn}
+                                onLocationCheckIn={handleLocationCheckIn} onBookClass={handleBookClass} onCancelBooking={handleCancelBooking}
+                                setProfileOpener={setProfileOpener} setParticipantModalOpeners={setParticipantModalOpeners}
+                                newFlowItemsCount={newFlowItemsCount} operationInProgress={operationInProgress}
+                             />
+                            <WelcomeModal
+                                isOpen={isWelcomeModalOpen}
+                                onClose={() => {
+                                setIsWelcomeModalOpen(false);
+                                localStorage.setItem(LOCAL_STORAGE_KEYS.WELCOME_MESSAGE_SHOWN_PARTICIPANT, 'true');
+                                setWelcomeModalShown(true);
+                                }}
+                            />
+                        </>
+                    ) : (
+                        <Navigate to="/" />
+                    )}
+                 </ProtectedRoute>
+             } />
+
+            <Route path="/system-owner/*" element={
+                <ProtectedRoute allowedRoles={[UserRole.SYSTEM_OWNER]}>
+                     <SystemOwnerArea />
+                </ProtectedRoute>
+            } />
+
+             {/* Default Redirect */}
+             <Route path="/" element={
+                 auth.user ? (
+                    auth.currentRole === UserRole.PARTICIPANT ? <Navigate to="/participant" /> :
+                    auth.currentRole === UserRole.COACH ? <Navigate to="/coach" /> :
+                    auth.currentRole === UserRole.SYSTEM_OWNER ? <Navigate to="/system-owner" /> :
+                    <LoadingSpinner />
+                 ) : (
+                    <Navigate to="/login" />
+                 )
+             } />
+             
+             {/* Catch-all for unknown routes */}
+             <Route path="*" element={<Navigate to="/" />} />
+           </Routes>
+        </Suspense>
       </main>
       <DevToolbar />
       {showLatestUpdateView && <UpdateNoticeModal show={showLatestUpdateView} onClose={() => setShowLatestUpdateView(false)} />}
       {showTermsModal && <TermsModal isOpen={showTermsModal} onClose={() => {}} onAccept={handleAcceptTerms} isBlocking />}
+      
+       {/* Registration Success View (Rendered conditionally to override router if needed, or handle as a route) */}
+       {registrationPendingMessage && (
+        <div className="fixed inset-0 z-[100] min-h-screen flex flex-col items-center justify-center bg-dotted-pattern bg-dotted-size bg-gray-100 p-4">
+          <div className="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-md space-y-4 text-center">
+            <h2 className="text-3xl font-semibold text-green-700">Tack för din registrering!</h2>
+            <p className="text-lg text-gray-600">Ditt konto väntar på godkännande av en coach. Godkännande sker vanligtvis inom 2 timmar. Du kommer inte kunna logga in förrän det är godkänt.</p>
+            <Button onClick={() => { setRegistrationPendingMessage(false); navigate('/login'); }} fullWidth size="lg">Tillbaka till inloggning</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -6,12 +6,9 @@ import { Input } from '../../../components/Input';
 import { Modal } from '../../../components/Modal';
 import { useNetworkStatus } from '../../../context/NetworkStatusContext';
 import { auth } from '../../../firebaseConfig';
+import { Link } from 'react-router-dom';
 
-interface LoginProps {
-  onSwitchToRegister: () => void;
-}
-
-export const Login: React.FC<LoginProps> = ({ onSwitchToRegister }) => {
+export const Login: React.FC = () => {
   const { login } = useAuth();
   const { isOnline } = useNetworkStatus();
   const [email, setEmail] = useState('');
@@ -104,9 +101,9 @@ export const Login: React.FC<LoginProps> = ({ onSwitchToRegister }) => {
               Glömt lösenord?
             </button>
             <p>
-              <button onClick={onSwitchToRegister} className="text-flexibel active:underline font-semibold">
+              <Link to="/register" className="text-flexibel active:underline font-semibold">
                 Inget konto? Skapa ett här
-              </button>
+              </Link>
             </p>
           </div>
         </div>

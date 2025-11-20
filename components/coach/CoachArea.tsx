@@ -68,7 +68,6 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
   const {
     loggedInStaff,
     participantsForView,
-    participantDirectory, // Destructure this
     workoutLogsForView,
     oneOnOneSessionsForView,
     allActivityLogsForView,
@@ -391,7 +390,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
               </div>
               <CalendarView
                 sessions={filteredSessions}
-                participants={participantDirectory} // Use full directory here
+                participants={participantDirectory}
                 coaches={staffMembers}
                 onSessionClick={handleOpenMeetingModal}
                 onDayClick={handleDayClick}
@@ -538,7 +537,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
           isOpen={!!classInstanceForManagement}
           onClose={() => setManagedClassInfo(null)}
           classInstance={classInstanceForManagement}
-          participants={participantDirectory} // Use full directory
+          participants={participantDirectory} // Use full directory for adding new people
           groupClassScheduleExceptions={groupClassScheduleExceptions}
           onCheckIn={onCheckInParticipant}
           onUnCheckIn={onUnCheckInParticipant}

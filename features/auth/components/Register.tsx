@@ -8,13 +8,13 @@ import { Location } from '../../../types';
 import dataService from '../../../services/dataService';
 import { TermsModal } from '../../../components/TermsModal';
 import { useNetworkStatus } from '../../../context/NetworkStatusContext';
+import { Link } from 'react-router-dom';
 
 interface RegisterProps {
-  onSwitchToLogin: () => void;
   onRegistrationSuccess: () => void;
 }
 
-export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrationSuccess }) => {
+export const Register: React.FC<RegisterProps> = ({ onRegistrationSuccess }) => {
   const { register } = useAuth();
   const { allOrganizations } = useAppContext();
   const { isOnline } = useNetworkStatus();
@@ -246,9 +246,9 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin, onRegistrat
             </form>
 
             <div className="text-center mt-4">
-              <button onClick={onSwitchToLogin} className="text-flexibel active:underline font-semibold">
+              <Link to="/login" className="text-flexibel active:underline font-semibold">
                 Har du redan ett konto? Logga in
-              </button>
+              </Link>
             </div>
           </div>
         </main>
