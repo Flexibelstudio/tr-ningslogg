@@ -49,22 +49,7 @@ type CoachTab =
   | 'settings';
 
 interface CoachAreaProps {
-  onAddComment: (
-    logId: string,
-    logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session',
-    text: string
-  ) => void;
-  onDeleteComment: (
-    logId: string,
-    logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session',
-    commentId: string
-  ) => void;
-  onToggleCommentReaction: (
-    logId: string,
-    logType: 'workout' | 'general' | 'coach_event' | 'one_on_one_session',
-    commentId: string
-  ) => void;
-  // Optional overrides
+  // Optional overrides for testing or specific parent control, but mostly handled by hooks now
   onCheckInParticipant?: (bookingId: string) => void;
   onUnCheckInParticipant?: (bookingId: string) => void;
   onBookClass?: (participantId: string, scheduleId: string, classDate: string) => void;
@@ -75,9 +60,6 @@ interface CoachAreaProps {
 }
 
 export const CoachArea: React.FC<CoachAreaProps> = ({
-  onAddComment,
-  onDeleteComment,
-  onToggleCommentReaction,
   onCheckInParticipant: propCheckIn,
   onUnCheckInParticipant: propUnCheckIn,
   onBookClass: propBookClass,
@@ -117,7 +99,6 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
     participantBookings,
     orgDataError,
     getClassInstanceDetails,
-    // Ensure these are destructured:
     participantDirectory, 
     leads,
     prospectIntroCalls,
@@ -125,13 +106,16 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
 
   const ops = useCoachOperations();
 
+  // Use hook operations unless overridden by props (for future flexibility/testing)
   const onCheckInParticipant = propCheckIn || ops.handleCheckInParticipant;
   const onUnCheckInParticipant = propUnCheckIn || ops.handleUnCheckInParticipant;
   const onBookClass = propBookClass || ops.handleBookClass;
   const onCancelBooking = propCancelBooking || ops.handleCancelBooking;
   const onPromoteFromWaitlist = propPromote || ops.handlePromoteFromWaitlist;
   const onCancelClassInstance = propCancelInstance || ops.handleCancelClassInstance;
-  // const onUpdateClassInstance = propUpdateInstance || ops.handleUpdateClassInstance; // Not used by simple management modal
+  
+  // Destructure comment ops from the hook
+  const { handleAddComment, handleDeleteComment, handleToggleCommentReaction } = ops;
 
   const { user } = useAuth();
   const { isOnline } = useNetworkStatus();
@@ -464,7 +448,7 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
               </div>
               <CalendarView
                 sessions={filteredSessions}
-                participants={participantDirectory || []} // Use optional chaining or default to [] if participantDirectory is undefined
+                participants={participantDirectory || []}
                 coaches={staffMembers}
                 onSessionClick={handleOpenMeetingModal}
                 onDayClick={handleDayClick}
@@ -519,9 +503,9 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
                     null
                   }
                   currentUserId={user.id}
-                  onAddComment={onAddComment}
-                  onDeleteComment={onDeleteComment}
-                  onToggleCommentReaction={onToggleCommentReaction}
+                  onAddComment={handleAddComment}
+                  onDeleteComment={handleDeleteComment}
+                  onToggleCommentReaction={handleToggleCommentReaction}
                   onEdit={() => {
                     if (!selectedSessionForModal) return;
                     setIsMeetingModalOpen(false);

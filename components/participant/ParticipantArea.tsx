@@ -115,18 +115,11 @@ function urlBase64ToUint8Array(base64String: string) {
 
 interface ParticipantAreaProps {
   currentParticipantId: string;
-  onToggleReaction: (logId: string, logType: any, emoji: string) => void;
-  onAddComment: (logId: string, logType: any, text: string) => void;
-  onDeleteComment: (logId: string, logType: any, commentId: string) => void;
-  onToggleCommentReaction: (logId: string, logType: any, commentId: string) => void;
+  // Removed old props as they are now handled internally via hooks
   openProfileModalOnInit: boolean;
   onProfileModalOpened: () => void;
   isStaffViewingSelf?: boolean;
   onSwitchToStaffView?: () => void;
-  onBookClass: (participantId: string, scheduleId: string, classDate: string) => void;
-  onCancelBooking: (bookingId: string) => void;
-  onSelfCheckIn: (participantId: string, classInstanceId: string, checkinType: 'self_qr' | 'location_qr') => boolean;
-  onLocationCheckIn: (participantId: string, locationId: string) => boolean;
   setProfileOpener: (opener: { open: () => void } | null) => void;
   setParticipantModalOpeners: (openers: {
     openGoalModal: () => void;
@@ -197,7 +190,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     } = useParticipantOperations(currentParticipantId);
 
     const {
-        participantDirectory, // Added destructuring
+        participantDirectory, 
         updateParticipantProfile,
         workouts = [],
         workoutLogs = [], setWorkoutLogsData,
@@ -302,9 +295,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         return myMembership?.type === 'subscription';
     }, [myMembership]);
 
-    // --- In-app Toast Notifications logic removed from here to avoid duplication as it was in original file, but could be moved to hook if needed. ---
-    // Keeping concise for this refactor step.
-    
     // --- NEW: Push Notification Logic ---
     useEffect(() => {
         if ('Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window) {
@@ -1244,7 +1234,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                     participantId: currentParticipantId,
                     ...statsData,
                 };
-                setUserConditioningStatsHistoryData(prev => [...(prev || []), newStat]);
+                setUserConditioningStatsHistoryData(prev => [...prev, newStat]);
             }}
         />
         <PhysiqueManagerModal
@@ -1252,14 +1242,14 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             onClose={() => setIsPhysiqueModalOpen(false)}
             currentProfile={participantProfile}
             onSave={(physiqueData) => {
-                const newHistoryEntry: any = {
+                const newHistoryEntry: ParticipantPhysiqueStat = {
                     id: crypto.randomUUID(),
-                    participantId: participantProfile?.id,
+                    participantId: participant.id,
                     lastUpdated: new Date().toISOString(),
                     ...physiqueData,
                 };
                 setParticipantPhysiqueHistoryData(prev => [...prev, newHistoryEntry]);
-                if (participantProfile) updateParticipantProfile(participantProfile.id, physiqueData);
+                updateParticipantProfile(participant.id, physiqueData);
             }}
         />
         <CommunityModal
@@ -1359,9 +1349,9 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 session={selectedSessionForModal}
                 coach={staffMembers.find(s => s.id === selectedSessionForModal?.coachId) || null}
                 currentUserId={currentParticipantId}
-                onAddComment={(id, type, text) => handleAddComment(id, type, text)}
-                onDeleteComment={(id, type, cId) => handleDeleteComment(id, type, cId)}
-                onToggleCommentReaction={(id, type, cId) => handleToggleCommentReaction(id, type, cId)}
+                onAddComment={handleAddComment}
+                onDeleteComment={handleDeleteComment}
+                onToggleCommentReaction={handleToggleCommentReaction}
             />
         )}
         <ConfirmationModal

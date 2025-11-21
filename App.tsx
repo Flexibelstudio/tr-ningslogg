@@ -196,10 +196,6 @@ const AppContent: React.FC = () => {
     setHasUnreadUpdate(false);
   }, []);
 
-  // Note: These handlers are still passed to ParticipantArea, but redundant logic in CoachArea 
-  // has been moved to hooks. We keep them here for ParticipantArea as it hasn't been fully refactored to consume hooks directly yet.
-  // ... (booking/checkin handlers omitted for brevity, they are same as before, just passed down)
-
   const handleProfileModalOpened = useCallback(() => {
     const { participantDirectory, memberships } = appContext;
     const p = participantDirectory.find(pp => pp.id === auth.currentParticipantId);
@@ -275,11 +271,7 @@ const AppContent: React.FC = () => {
                 <Route path="/coach/*" element={
                     <ProtectedRoute allowedRoles={['coach']}>
                         <div className="container mx-auto px-2 sm:px-6 py-6">
-                            <CoachArea
-                                onAddComment={() => {}} // Handled internally by CoachArea hooks now, can clean up props later
-                                onDeleteComment={() => {}}
-                                onToggleCommentReaction={() => {}}
-                            />
+                            <CoachArea />
                         </div>
                     </ProtectedRoute>
                 } />
@@ -291,19 +283,10 @@ const AppContent: React.FC = () => {
                             <>
                                 <ParticipantArea
                                     currentParticipantId={auth.currentParticipantId}
-                                    // Prop drilling for now, TODO: Move ParticipantArea logic to hooks fully
-                                    onToggleReaction={() => {}} 
-                                    onAddComment={() => {}}
-                                    onDeleteComment={() => {}}
-                                    onToggleCommentReaction={() => {}}
                                     openProfileModalOnInit={openProfileModalOnInit}
                                     onProfileModalOpened={handleProfileModalOpened}
                                     isStaffViewingSelf={auth.isStaffViewingAsParticipant}
                                     onSwitchToStaffView={auth.stopViewingAsParticipant}
-                                    onSelfCheckIn={() => false} // Handled inside ParticipantArea for now via hook if refactored
-                                    onLocationCheckIn={() => false}
-                                    onBookClass={() => {}}
-                                    onCancelBooking={() => {}}
                                     setProfileOpener={setProfileOpener}
                                     setParticipantModalOpeners={setParticipantModalOpeners}
                                     newFlowItemsCount={newFlowItemsCount}
