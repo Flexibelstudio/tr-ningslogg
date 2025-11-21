@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { ActivityLog, Workout, WorkoutLog, GeneralActivityLog, ParticipantGoalData, UserStrengthStat, ParticipantConditioningStat, ParticipantClubMembership, ParticipantProfile, CoachEvent, ParticipantPhysiqueStat, OneOnOneSession, StaffMember, GroupClassSchedule, GroupClassDefinition, ParticipantBooking, Location, IntegrationSettings, GroupClassScheduleException, LeaderboardSettings } from '../../types';
 import * as dateUtils from '../../utils/dateUtils';
 import { DayActivitiesModal } from './DayActivitiesModal'; 
@@ -186,86 +186,110 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
   }, [renderDayContent]);
 
   return (
-    <div className="space-y-4">
-       <div className="p-2 bg-white rounded-lg shadow-sm flex justify-center gap-2 flex-wrap border border-gray-100">
-          <button onClick={() => setActiveTab('calendar')} className={`py-2 px-4 rounded-md text-sm font-medium transition-colors ${activeTab === 'calendar' ? 'bg-flexibel text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}>Kalender</button>
-          <button onClick={() => setActiveTab('klubbar')} className={`py-2 px-4 rounded-md text-sm font-medium transition-colors ${activeTab === 'klubbar' ? 'bg-flexibel text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}>Klubbar</button>
+    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+       {/* Unified Header with Tabs */}
+       <div className="p-3 border-b border-gray-100 bg-white flex justify-center gap-2 flex-wrap">
+          <button 
+            onClick={() => setActiveTab('calendar')} 
+            className={`py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 ${activeTab === 'calendar' ? 'bg-green-50 text-flexibel ring-1 ring-flexibel/20' : 'text-gray-500 hover:bg-gray-50'}`}
+          >
+            🗓️ Kalender
+          </button>
+          <button 
+            onClick={() => setActiveTab('klubbar')} 
+            className={`py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 ${activeTab === 'klubbar' ? 'bg-blue-50 text-blue-600 ring-1 ring-blue-200' : 'text-gray-500 hover:bg-gray-50'}`}
+          >
+            🥇 Klubbar
+          </button>
           {leaderboardSettings.leaderboardsEnabled && (
-            <button onClick={() => setActiveTab('leaderboards')} className={`py-2 px-4 rounded-md text-sm font-medium transition-colors ${activeTab === 'leaderboards' ? 'bg-flexibel text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}>Topplistor</button>
+            <button 
+                onClick={() => setActiveTab('leaderboards')} 
+                className={`py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 ${activeTab === 'leaderboards' ? 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200' : 'text-gray-500 hover:bg-gray-50'}`}
+            >
+                🏆 Topplistor
+            </button>
           )}
        </div>
 
-       {activeTab === 'calendar' && (
-          <div>
-            <CalendarGrid
-                currentDate={currentDate}
-                setCurrentDate={setCurrentDate}
-                onDayClick={handleCalendarDayClick}
-                renderDayContent={renderDayContent}
-                getDayProps={getDayProps}
-                getHolidayForDay={getHolidayForDay}
-            />
-            {isDayActivitiesModalOpen && (
-                <DayActivitiesModal
-                    isOpen={isDayActivitiesModalOpen}
-                    onClose={() => setIsDayActivitiesModalOpen(false)}
-                    selectedDate={selectedDateForModal}
-                    activitiesForDay={activitiesForSelectedDay}
-                    workouts={workouts}
-                    onViewLogSummary={onViewLogSummary}
-                    onDeleteActivity={onDeleteActivity}
-                    activeGoal={activeGoal}
-                    strengthStatsHistory={strengthStatsHistory}
-                    conditioningStatsHistory={conditioningStatsHistory}
-                    physiqueHistory={physiqueHistory}
-                    clubMemberships={clubMemberships}
-                    participantProfile={participantProfile}
-                    allParticipantGoals={allParticipantGoals}
-                    coachEvents={coachEvents}
-                    oneOnOneSessions={oneOnOneSessions}
-                    staffMembers={staffMembers}
-                    groupClassSchedules={groupClassSchedules}
-                    groupClassDefinitions={groupClassDefinitions}
-                    allParticipantBookings={allParticipantBookings}
-                    locations={locations}
-                    onCancelBooking={onCancelBooking}
-                    integrationSettings={integrationSettings}
-                    loggedInCoachId={loggedInCoachId}
-                    onManageClassClick={onManageClassClick}
-                    groupClassScheduleExceptions={groupClassScheduleExceptions}
-                />
+       {/* Content Area */}
+       <div className="p-0"> {/* Padding handled inside components or selectively */}
+            {activeTab === 'calendar' && (
+                <>
+                    <CalendarGrid
+                        currentDate={currentDate}
+                        setCurrentDate={setCurrentDate}
+                        onDayClick={handleCalendarDayClick}
+                        renderDayContent={renderDayContent}
+                        getDayProps={getDayProps}
+                        getHolidayForDay={getHolidayForDay}
+                        className="!shadow-none !rounded-none !border-none" // Remove cards own shadow to blend in
+                    />
+                    {isDayActivitiesModalOpen && (
+                        <DayActivitiesModal
+                            isOpen={isDayActivitiesModalOpen}
+                            onClose={() => setIsDayActivitiesModalOpen(false)}
+                            selectedDate={selectedDateForModal}
+                            activitiesForDay={activitiesForSelectedDay}
+                            workouts={workouts}
+                            onViewLogSummary={onViewLogSummary}
+                            onDeleteActivity={onDeleteActivity}
+                            activeGoal={activeGoal}
+                            strengthStatsHistory={strengthStatsHistory}
+                            conditioningStatsHistory={conditioningStatsHistory}
+                            physiqueHistory={physiqueHistory}
+                            clubMemberships={clubMemberships}
+                            participantProfile={participantProfile}
+                            allParticipantGoals={allParticipantGoals}
+                            coachEvents={coachEvents}
+                            oneOnOneSessions={oneOnOneSessions}
+                            staffMembers={staffMembers}
+                            groupClassSchedules={groupClassSchedules}
+                            groupClassDefinitions={groupClassDefinitions}
+                            allParticipantBookings={allParticipantBookings}
+                            locations={locations}
+                            onCancelBooking={onCancelBooking}
+                            integrationSettings={integrationSettings}
+                            loggedInCoachId={loggedInCoachId}
+                            onManageClassClick={onManageClassClick}
+                            groupClassScheduleExceptions={groupClassScheduleExceptions}
+                        />
+                    )}
+                </>
             )}
-          </div>
-       )}
 
-       {activeTab === 'klubbar' && participantProfile && (
-           <ClubsView
-                participantProfile={participantProfile}
-                allActivityLogs={allActivityLogs}
-                strengthStatsHistory={strengthStatsHistory}
-                conditioningStatsHistory={conditioningStatsHistory}
-                clubMemberships={clubMemberships}
-                allClubMemberships={allClubMemberships}
-                workouts={workouts}
-                allParticipants={allParticipants}
-           />
-       )}
+            {activeTab === 'klubbar' && participantProfile && (
+                <div className="p-4 bg-gray-50 min-h-[400px]">
+                    <ClubsView
+                        participantProfile={participantProfile}
+                        allActivityLogs={allActivityLogs}
+                        strengthStatsHistory={strengthStatsHistory}
+                        conditioningStatsHistory={conditioningStatsHistory}
+                        clubMemberships={clubMemberships}
+                        allClubMemberships={allClubMemberships}
+                        workouts={workouts}
+                        allParticipants={allParticipants}
+                    />
+                </div>
+            )}
 
-       {activeTab === 'leaderboards' && participantProfile && (
-           <LeaderboardView
-                currentParticipantId={currentParticipantId}
-                participants={allParticipants}
-                allActivityLogs={allLogsForLeaderboards}
-                userStrengthStats={allStrengthStatsForLeaderboards}
-                clubMemberships={allClubMemberships}
-                leaderboardSettings={leaderboardSettings}
-                isProspect={participantProfile.isProspect}
-                locations={locations}
-                participantProfile={participantProfile}
-                workouts={workouts}
-                conditioningStatsHistory={conditioningStatsHistory}
-           />
-       )}
+            {activeTab === 'leaderboards' && participantProfile && (
+                <div className="p-4 bg-gray-50 min-h-[400px]">
+                    <LeaderboardView
+                        currentParticipantId={currentParticipantId}
+                        participants={allParticipants}
+                        allActivityLogs={allLogsForLeaderboards}
+                        userStrengthStats={allStrengthStatsForLeaderboards}
+                        clubMemberships={allClubMemberships}
+                        leaderboardSettings={leaderboardSettings}
+                        isProspect={participantProfile.isProspect}
+                        locations={locations}
+                        participantProfile={participantProfile}
+                        workouts={workouts}
+                        conditioningStatsHistory={conditioningStatsHistory}
+                    />
+                </div>
+            )}
+       </div>
     </div>
   );
 };

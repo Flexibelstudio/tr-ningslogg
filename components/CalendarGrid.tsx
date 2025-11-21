@@ -1,3 +1,4 @@
+
 import React, { useMemo, useCallback } from 'react';
 import { Button } from './Button';
 import * as dateUtils from '../utils/dateUtils';
@@ -10,6 +11,7 @@ interface CalendarGridProps {
   renderDayContent: (day: Date) => React.ReactNode;
   getDayProps: (day: Date) => { hasContent: boolean };
   getHolidayForDay?: (date: Date) => Holiday | null;
+  className?: string; // New prop
 }
 
 const CalendarGridFC: React.FC<CalendarGridProps> = ({
@@ -19,6 +21,7 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
   renderDayContent,
   getDayProps,
   getHolidayForDay,
+  className,
 }) => {
   const handleNavigate = useCallback((offset: number) => {
     setCurrentDate(date => dateUtils.addMonths(date, offset));
@@ -44,7 +47,7 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
   const today = useMemo(() => new Date(), []);
 
   return (
-    <div className="bg-white p-2 sm:p-4 rounded-2xl shadow-lg">
+    <div className={`bg-white p-2 sm:p-4 rounded-2xl shadow-lg ${className || ''}`}>
       <header className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-bold text-gray-800 capitalize">
           {currentDate.toLocaleString('sv-SE', { month: 'long', year: 'numeric' })}
