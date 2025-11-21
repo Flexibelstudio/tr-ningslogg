@@ -1,10 +1,7 @@
 
 import React, { useState, useMemo, useCallback, lazy, Suspense, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import {
-  OneOnOneSession,
-  CoachEvent,
-} from '../../types';
+import { OneOnOneSession } from '../../types';
 import { MemberManagement } from './MemberManagement';
 import { WorkoutManagement } from '../../features/workouts/components/WorkoutManagement';
 import { LeaderboardManagement } from './LeaderboardManagement';
@@ -48,26 +45,7 @@ type CoachTab =
   | 'personal'
   | 'settings';
 
-interface CoachAreaProps {
-  // Optional overrides for testing or specific parent control, but mostly handled by hooks now
-  onCheckInParticipant?: (bookingId: string) => void;
-  onUnCheckInParticipant?: (bookingId: string) => void;
-  onBookClass?: (participantId: string, scheduleId: string, classDate: string) => void;
-  onCancelBooking?: (bookingId: string) => void;
-  onPromoteFromWaitlist?: (bookingId: string) => void;
-  onCancelClassInstance?: (scheduleId: string, classDate: string, status: 'CANCELLED' | 'DELETED') => void;
-  onUpdateClassInstance?: (scheduleId: string, classDate: string, updates: any, notify: boolean) => void;
-}
-
-export const CoachArea: React.FC<CoachAreaProps> = ({
-  onCheckInParticipant: propCheckIn,
-  onUnCheckInParticipant: propUnCheckIn,
-  onBookClass: propBookClass,
-  onCancelBooking: propCancelBooking,
-  onPromoteFromWaitlist: propPromote,
-  onCancelClassInstance: propCancelInstance,
-  onUpdateClassInstance: propUpdateInstance,
-}) => {
+export const CoachArea: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -106,21 +84,18 @@ export const CoachArea: React.FC<CoachAreaProps> = ({
 
   const ops = useCoachOperations();
 
-  // Use hook operations unless overridden by props (for future flexibility/testing)
-  const onCheckInParticipant = propCheckIn || ops.handleCheckInParticipant;
-  const onUnCheckInParticipant = propUnCheckIn || ops.handleUnCheckInParticipant;
-  const onBookClass = propBookClass || ops.handleBookClass;
-  const onCancelBooking = propCancelBooking || ops.handleCancelBooking;
-  const onPromoteFromWaitlist = propPromote || ops.handlePromoteFromWaitlist;
-  const onCancelClassInstance = propCancelInstance || ops.handleCancelClassInstance;
-  
-  // Destructure comment ops from the hook
+  const onCheckInParticipant = ops.handleCheckInParticipant;
+  const onUnCheckInParticipant = ops.handleUnCheckInParticipant;
+  const onBookClass = ops.handleBookClass;
+  const onCancelBooking = ops.handleCancelBooking;
+  const onPromoteFromWaitlist = ops.handlePromoteFromWaitlist;
+  const onCancelClassInstance = ops.handleCancelClassInstance;
+  const onUpdateClassInstance = ops.handleUpdateClassInstance;
   const { handleAddComment, handleDeleteComment, handleToggleCommentReaction } = ops;
 
   const { user } = useAuth();
   const { isOnline } = useNetworkStatus();
   
-  // RENAMED VARIABLES TO FORCE CACHE BUSTING
   const newLeadsList = useMemo(() => {
       return (leads || []).filter(l => l.status === 'new');
   }, [leads]);

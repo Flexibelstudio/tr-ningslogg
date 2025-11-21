@@ -10,9 +10,9 @@ import {
     InProgressWorkout, AchievementDefinition, 
     UserPushSubscription,
     ActivityLog,
-    Exercise
+    Exercise,
+    ParticipantPhysiqueStat
 } from '../../types';
-import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { Button } from '../Button';
 import { Modal } from '../Modal';
 import { WorkoutLogForm } from '../../features/workouts/components/WorkoutLogForm';
@@ -60,7 +60,7 @@ import { useNotifications } from '../../context/NotificationsContext';
 import { sanitizeDataForFirebase } from '../../utils/firestoreUtils';
 import { useParticipantData } from '../../features/participant/hooks/useParticipantData';
 import { useParticipantOperations } from '../../features/participant/hooks/useParticipantOperations';
-import { ParticipantDashboardView } from './ParticipantDashboardView'; // Import this explicitly
+import { ParticipantDashboardView } from './ParticipantDashboardView';
 
 // --- REUSABLE CARD COMPONENTS ---
 function ToolCard({ title, description, icon, onClick }: { title: string; description: string; icon: React.ReactNode; onClick: () => void; }) {
@@ -115,7 +115,6 @@ function urlBase64ToUint8Array(base64String: string) {
 
 interface ParticipantAreaProps {
   currentParticipantId: string;
-  // Removed old props as they are now handled internally via hooks
   openProfileModalOnInit: boolean;
   onProfileModalOpened: () => void;
   isStaffViewingSelf?: boolean;
@@ -1244,12 +1243,12 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             onSave={(physiqueData) => {
                 const newHistoryEntry: ParticipantPhysiqueStat = {
                     id: crypto.randomUUID(),
-                    participantId: participant.id,
+                    participantId: participantProfile?.id || '',
                     lastUpdated: new Date().toISOString(),
                     ...physiqueData,
                 };
                 setParticipantPhysiqueHistoryData(prev => [...prev, newHistoryEntry]);
-                updateParticipantProfile(participant.id, physiqueData);
+                updateParticipantProfile(participantProfile?.id || '', physiqueData);
             }}
         />
         <CommunityModal

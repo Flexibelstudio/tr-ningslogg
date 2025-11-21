@@ -6,7 +6,6 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-
 import { AppProvider, useAppContext } from './context/AppContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NetworkStatusProvider } from './context/NetworkStatusContext';
-import { Button } from './components/Button';
 import { DevToolbar } from './components/DevToolbar';
 import { Login } from './features/auth/components/Login';
 import { Navbar } from './components/Navbar';
@@ -18,6 +17,7 @@ import { UpdateNoticeModal } from './components/participant/UpdateNoticeModal';
 import { LOCAL_STORAGE_KEYS } from './constants';
 import { useNotifications } from './context/NotificationsContext';
 import { ensureWebPushSubscription } from './utils/push';
+import { Button } from './components/Button'; // Keep Button import as it might be used in fallback UI
 
 // --- Lazy Loaded Components ---
 const CoachArea = lazy(() => import('./components/coach/CoachArea').then(m => ({ default: m.CoachArea })));
@@ -59,13 +59,12 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode,
 const AppContent: React.FC = () => {
   const appContext = useAppContext();
   const auth = useAuth();
-  const { addNotification } = useNotifications();
   const navigate = useNavigate();
   const location = useLocation();
 
   // --- State ---
   const [registrationPendingMessage, setRegistrationPendingMessage] = useState(false);
-  const [operationInProgress, setOperationInProgress] = useState<string[]>([]);
+  const [operationInProgress] = useState<string[]>([]); // Kept for now if needed by context, but usage reduced
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
   const [welcomeModalShown, setWelcomeModalShown] = useState(
     () => localStorage.getItem(LOCAL_STORAGE_KEYS.WELCOME_MESSAGE_SHOWN_PARTICIPANT) === 'true'

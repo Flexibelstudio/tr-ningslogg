@@ -2,7 +2,7 @@
 import { useCallback } from 'react';
 import { useAppContext } from '../../../context/AppContext';
 import { useAuth } from '../../../context/AuthContext';
-import { CoachNote, OneOnOneSession, GroupClassSchedule, CoachEvent, WeeklyHighlightSettings, StaffMember, StaffAvailability, ParticipantProfile, GoalCompletionLog, ParticipantGoalData, Workout } from '../../../types';
+import { CoachNote, OneOnOneSession, GroupClassSchedule, CoachEvent, WeeklyHighlightSettings, StaffMember, StaffAvailability, ParticipantProfile, GoalCompletionLog, ParticipantGoalData, Workout, FlowItemLogType } from '../../../types';
 import { useNotifications } from '../../../context/NotificationsContext';
 
 export const useCoachOperations = () => {
@@ -25,6 +25,11 @@ export const useCoachOperations = () => {
     setClubMembershipsData,
     setLeaderboardSettingsData,
     setIntegrationSettingsData,
+    setWorkoutLogsData,
+    setGeneralActivityLogsData,
+    setUserStrengthStatsData,
+    setParticipantPhysiqueHistoryData,
+    setUserConditioningStatsHistoryData
   } = useAppContext();
   
   const { addNotification } = useNotifications();
@@ -95,7 +100,6 @@ export const useCoachOperations = () => {
   }, [setParticipantBookingsData]);
   
   const handleBookClass = useCallback((participantId: string, scheduleId: string, classDate: string) => {
-      // Simplified version for coach, assuming validation is done in UI or backend/hooks logic
       setParticipantBookingsData(prev => [...prev, {
           id: crypto.randomUUID(), participantId, scheduleId, classDate, bookingDate: new Date().toISOString(), status: 'BOOKED'
       }]);
@@ -129,22 +133,18 @@ export const useCoachOperations = () => {
   }, [setGroupClassScheduleExceptionsData, user, addNotification]);
 
   const handleUpdateClassInstance = useCallback((scheduleId: string, classDate: string, updates: any, notify: boolean) => {
-    // Logic similar to App.tsx but encapsulated here
     const { date: newDate, ...otherUpdates } = updates;
     
     if (newDate && newDate !== classDate) {
          setGroupClassScheduleExceptionsData(prev => {
             const newExceptions = [...prev];
-             // 1. Mark old deleted
             const oldExcIndex = prev.findIndex(ex => ex.scheduleId === scheduleId && ex.date === classDate);
             if (oldExcIndex > -1) newExceptions[oldExcIndex] = { ...newExceptions[oldExcIndex], status: 'DELETED' };
             else newExceptions.push({ id: crypto.randomUUID(), scheduleId, date: classDate, status: 'DELETED', createdAt: new Date().toISOString() });
             
-            // 2. Create new modified
             newExceptions.push({ id: crypto.randomUUID(), scheduleId, date: newDate, status: 'MODIFIED', ...otherUpdates, createdAt: new Date().toISOString() });
             return newExceptions;
          });
-         // 3. Move bookings
          setParticipantBookingsData(prev => prev.map(b => (b.scheduleId === scheduleId && b.classDate === classDate && b.status !== 'CANCELLED') ? { ...b, classDate: newDate } : b));
     } else {
         setGroupClassScheduleExceptionsData(prev => {
@@ -159,6 +159,68 @@ export const useCoachOperations = () => {
     }
     addNotification({ type: 'SUCCESS', title: 'Pass uppdaterat', message: notify ? 'Ändringar sparade och deltagare meddelas.' : 'Ändringar sparade.' });
   }, [setGroupClassScheduleExceptionsData, setParticipantBookingsData, addNotification]);
+
+  // --- Comment & Reaction Operations ---
+  const handleAddComment = useCallback((logId: string, logType: FlowItemLogType, text: string) => {
+    const authorId = user?.id;
+    const authorName = user?.name || 'Coach';
+    if (!authorId) return;
+
+    const newComment = { id: crypto.randomUUID(), authorId, authorName, text, createdDate: new Date().toISOString() };
+    const updaters: any = {
+        workout: setWorkoutLogsData, general: setGeneralActivityLogsData, coach_event: setCoachEventsData,
+        one_on_one_session: setOneOnOneSessionsData, goal_completion: setGoalCompletionLogsData,
+        participant_club_membership: setClubMembershipsData, user_strength_stat: setUserStrengthStatsData,
+        participant_physique_stat: setParticipantPhysiqueHistoryData, participant_goal_data: setParticipantGoalsData,
+        participant_conditioning_stat: setUserConditioningStatsHistoryData,
+    };
+    const setter = updaters[logType];
+    if (!setter) return;
+    
+    setter((logs: any[]) => logs.map(log => log.id === logId ? { ...log, comments: [...(log.comments || []), newComment] } : log));
+  }, [user, setWorkoutLogsData, setGeneralActivityLogsData, setCoachEventsData, setOneOnOneSessionsData, setGoalCompletionLogsData, setClubMembershipsData, setUserStrengthStatsData, setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData]);
+
+  const handleDeleteComment = useCallback((logId: string, logType: FlowItemLogType, commentId: string) => {
+    const updaters: any = {
+        workout: setWorkoutLogsData, general: setGeneralActivityLogsData, coach_event: setCoachEventsData,
+        one_on_one_session: setOneOnOneSessionsData, goal_completion: setGoalCompletionLogsData,
+        participant_club_membership: setClubMembershipsData, user_strength_stat: setUserStrengthStatsData,
+        participant_physique_stat: setParticipantPhysiqueHistoryData, participant_goal_data: setParticipantGoalsData,
+        participant_conditioning_stat: setUserConditioningStatsHistoryData,
+    };
+    const setter = updaters[logType];
+    if (!setter) return;
+    setter((logs: any[]) => logs.map(log =>
+        log.id === logId ? { ...log, comments: (log.comments || []).filter((c: { id: string }) => c.id !== commentId) } : log
+    ));
+  }, [setWorkoutLogsData, setGeneralActivityLogsData, setCoachEventsData, setOneOnOneSessionsData, setGoalCompletionLogsData, setClubMembershipsData, setUserStrengthStatsData, setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData]);
+
+  const handleToggleCommentReaction = useCallback((logId: string, logType: FlowItemLogType, commentId: string) => {
+    if (!user?.id) return;
+    const pid = user.id;
+    const updaters: any = {
+        workout: setWorkoutLogsData, general: setGeneralActivityLogsData, coach_event: setCoachEventsData,
+        one_on_one_session: setOneOnOneSessionsData, goal_completion: setGoalCompletionLogsData,
+        participant_club_membership: setClubMembershipsData, user_strength_stat: setUserStrengthStatsData,
+        participant_physique_stat: setParticipantPhysiqueHistoryData, participant_goal_data: setParticipantGoalsData,
+        participant_conditioning_stat: setUserConditioningStatsHistoryData,
+    };
+    const setter = updaters[logType];
+    if (!setter) return;
+    
+    setter((logs: any[]) => logs.map(log => {
+        if (log.id !== logId) return log;
+        const comments = (log.comments || []).map((c: any) => {
+            if (c.id !== commentId) return c;
+            const reactions = c.reactions || [];
+            const mine = reactions.findIndex((r: { participantId: string }) => r.participantId === pid);
+            return (mine > -1)
+                ? { ...c, reactions: reactions.filter((_: any, i: number) => i !== mine) }
+                : { ...c, reactions: [...reactions, { participantId: pid, emoji: '❤️', createdDate: new Date().toISOString() }] };
+        });
+        return { ...log, comments };
+    }));
+  }, [user, setWorkoutLogsData, setGeneralActivityLogsData, setCoachEventsData, setOneOnOneSessionsData, setGoalCompletionLogsData, setClubMembershipsData, setUserStrengthStatsData, setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData]);
 
   return {
     handleAddNote,
@@ -175,6 +237,11 @@ export const useCoachOperations = () => {
     handlePromoteFromWaitlist,
     handleCancelClassInstance,
     handleUpdateClassInstance,
+    
+    // Comment/Reaction operations
+    handleAddComment,
+    handleDeleteComment,
+    handleToggleCommentReaction,
     
     // Pass through other updaters needed by sub-components
     setEvents: setCoachEventsData,
