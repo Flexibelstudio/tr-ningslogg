@@ -39,6 +39,7 @@ interface CalendarEvent {
     type: 'PB' | 'GOAL_COMPLETED' | 'CLUB' | 'INBODY' | 'STRENGTH_TEST' | 'CONDITIONING_TEST' | 'NEW_GOAL' | 'COACH_EVENT' | 'ONE_ON_ONE' | 'GOAL_TARGET' | 'WORKOUT_LOGGED';
     icon: string;
     description: string;
+    node?: React.ReactNode;
 }
 
 interface ParticipantActivityViewProps {
@@ -140,6 +141,8 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
   const renderDayContent = useCallback((day: Date) => {
     const dayLogs = allActivityLogs.filter(log => dateUtils.isSameDay(new Date(log.completedDate), day));
     const dayEvents: CalendarEvent[] = [];
+    const dayStr = dateUtils.toYYYYMMDD(day);
+    const now = new Date();
     
     // Add logs to events
     if (dayLogs.some(log => log.type === 'workout' && (log as WorkoutLog).postWorkoutSummary?.newPBs?.length > 0)) {
@@ -153,7 +156,6 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
     }
     
     // Coach events
-    const dayStr = dateUtils.toYYYYMMDD(day);
     const eventsToday = coachEvents.filter(e => e.type === 'event' && e.eventDate && dateUtils.isSameDay(new Date(e.eventDate), day));
     eventsToday.forEach(() => dayEvents.push({ type: 'COACH_EVENT', icon: DEFAULT_COACH_EVENT_ICON, description: '' }));
 
@@ -161,27 +163,78 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
     const sessionsToday = oneOnOneSessions.filter(s => s.participantId === currentParticipantId && s.status === 'scheduled' && dateUtils.isSameDay(new Date(s.startTime), day));
     sessionsToday.forEach(() => dayEvents.push({ type: 'ONE_ON_ONE', icon: '🗣️', description: '' }));
     
-    // Booked classes
-    const bookingsToday = allParticipantBookings.filter(b => b.participantId === currentParticipantId && b.classDate === dayStr && b.status !== 'CANCELLED');
-    bookingsToday.forEach(() => dayEvents.push({ type: 'COACH_EVENT', icon: '🎟️', description: '' }));
-
     // Goal target
     if (activeGoal?.targetDate && dateUtils.isSameDay(new Date(activeGoal.targetDate), day)) {
         dayEvents.push({ type: 'GOAL_TARGET', icon: '🎯', description: '' });
     }
 
+    // --- BOOKINGS (Rendered as bars) ---
+    const bookingsToday = allParticipantBookings.filter(b => b.participantId === currentParticipantId && b.classDate === dayStr && b.status !== 'CANCELLED');
+    
+    const visibleBookings = bookingsToday.map(booking => {
+        const schedule = groupClassSchedules.find(s => s.id === booking.scheduleId);
+        if (!schedule) return null;
+
+        const exception = groupClassScheduleExceptions.find(ex => ex.scheduleId === schedule.id && ex.date === dayStr);
+        if (exception && (exception.status === 'CANCELLED' || exception.status === 'DELETED')) return null;
+
+        const startTime = exception?.newStartTime || schedule.startTime;
+        const duration = exception?.newDurationMinutes || schedule.durationMinutes;
+        
+        const [h, m] = startTime.split(':').map(Number);
+        const startDateTime = new Date(day);
+        startDateTime.setHours(h, m, 0, 0);
+        const endDateTime = new Date(startDateTime.getTime() + duration * 60000);
+        
+        // Filter out past bookings
+        if (endDateTime < now) return null;
+
+        const classDef = groupClassDefinitions.find(d => d.id === schedule.groupClassId);
+        if (!classDef) return null;
+
+        return {
+            id: booking.id,
+            time: startTime,
+            name: classDef.name,
+            color: classDef.color || getColorForCategory(classDef.name),
+            isWaitlisted: booking.status === 'WAITLISTED'
+        };
+    }).filter((b): b is NonNullable<typeof b> => b !== null).sort((a, b) => a.time.localeCompare(b.time));
+
     return (
-        <div className="flex flex-wrap gap-0.5 justify-center">
-            {dayEvents.slice(0, 4).map((e, i) => (
-                <span key={i} className="text-xs">{e.icon}</span>
+        <div className="w-full flex flex-col gap-0.5">
+            {/* Render Bookings as Bars */}
+            {visibleBookings.map(b => (
+                <div 
+                    key={b.id}
+                    className="text-[10px] truncate px-1 py-0.5 border-l-2 rounded-r leading-tight"
+                    style={{ 
+                        borderLeftColor: b.isWaitlisted ? '#d97706' : b.color, 
+                        backgroundColor: b.isWaitlisted ? '#fffbeb' : (b.color + '20'), // 20% opacity
+                        color: '#1f2937' 
+                    }}
+                    title={`${b.time} - ${b.name}${b.isWaitlisted ? ' (Kö)' : ''}`}
+                >
+                    <span className="font-bold">{b.time}</span> {b.name}
+                </div>
             ))}
-            {dayEvents.length > 4 && <span className="text-[10px] leading-none text-gray-500 self-center">...</span>}
+
+            {/* Render Icons for other events */}
+            <div className="flex flex-wrap gap-0.5 justify-center">
+                {dayEvents.slice(0, 4).map((e, i) => (
+                    <span key={i} className="text-xs">{e.icon}</span>
+                ))}
+                {dayEvents.length > 4 && <span className="text-[10px] leading-none text-gray-500 self-center">...</span>}
+            </div>
         </div>
     );
-  }, [allActivityLogs, coachEvents, oneOnOneSessions, currentParticipantId, allParticipantBookings, activeGoal]);
+  }, [allActivityLogs, coachEvents, oneOnOneSessions, currentParticipantId, allParticipantBookings, activeGoal, groupClassSchedules, groupClassDefinitions, groupClassScheduleExceptions, getColorForCategory]);
 
   const getDayProps = useCallback((day: Date) => {
-      const hasContent = renderDayContent(day).props.children[0].length > 0; // Check if any icons generated
+      const dayStr = dateUtils.toYYYYMMDD(day);
+      // Check for any content to enable clicking
+      const hasContent = renderDayContent(day).props.children.some((child: any) => child && child.length !== 0);
+      // Or simpler: check if logs or bookings exist for this day manually if renderDayContent is expensive
       return { hasContent };
   }, [renderDayContent]);
 
@@ -212,7 +265,7 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
        </div>
 
        {/* Content Area */}
-       <div className="p-0"> {/* Padding handled inside components or selectively */}
+       <div className="p-0"> 
             {activeTab === 'calendar' && (
                 <>
                     <CalendarGrid
