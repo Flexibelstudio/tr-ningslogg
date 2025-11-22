@@ -34,15 +34,14 @@ export const PhysiqueManagerModal: React.FC<PhysiqueManagerModalProps> = ({ isOp
     const [isSaving, setIsSaving] = useState(false);
     const [hasSaved, setHasSaved] = useState(false);
 
+    // Effect 1: Reset internal state ONLY when modal opens.
+    // We specifically do NOT include currentProfile in the dependency array here.
+    // If we did, the component would reset 'isSaving' to false as soon as the parent component
+    // updates the profile data (which happens mid-save), causing the UI to glitch.
     useEffect(() => {
         if (isOpen) {
             setIsSaving(false);
             setHasSaved(false);
-        }
-    }, [isOpen]);
-
-    useEffect(() => {
-        if (isOpen) {
             setBodyweight(currentProfile?.bodyweightKg?.toString() || '');
             setMuscleMass(currentProfile?.muscleMassKg?.toString() || '');
             setFatMass(currentProfile?.fatMassKg?.toString() || '');
@@ -52,7 +51,8 @@ export const PhysiqueManagerModal: React.FC<PhysiqueManagerModalProps> = ({ isOp
             setFatMassError('');
             setInbodyScoreError('');
         }
-    }, [isOpen, currentProfile]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen]); 
 
     const validateWeightField = (value: string, errorSetter: React.Dispatch<React.SetStateAction<string>>) => {
         if (value === '') {
