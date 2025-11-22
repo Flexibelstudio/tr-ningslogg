@@ -1240,7 +1240,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             isOpen={isPhysiqueModalOpen}
             onClose={() => setIsPhysiqueModalOpen(false)}
             currentProfile={participantProfile}
-            onSave={(physiqueData) => {
+            onSave={async (physiqueData) => {
                 const newHistoryEntry: ParticipantPhysiqueStat = {
                     id: crypto.randomUUID(),
                     participantId: participantProfile?.id || '',
@@ -1248,7 +1248,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                     ...physiqueData,
                 };
                 setParticipantPhysiqueHistoryData(prev => [...prev, newHistoryEntry]);
-                updateParticipantProfile(participantProfile?.id || '', physiqueData);
+                await updateParticipantProfile(participantProfile?.id || '', physiqueData);
             }}
         />
         <CommunityModal
