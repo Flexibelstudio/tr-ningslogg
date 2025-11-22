@@ -21,6 +21,9 @@ export interface Membership {
   
   // Unified blacklist for all membership types
   restrictedCategories?: WorkoutCategory[];
+
+  // New setting for visibility behavior specific to this membership
+  restrictedContentBehavior?: 'show_lock' | 'hide';
 }
 
 export interface IntegrationSettings {
@@ -35,9 +38,6 @@ export interface IntegrationSettings {
   startProgramSessionsRequired?: number;
   enableSessionReminders?: boolean;
   sessionReminderHoursBefore?: number;
-  
-  // New setting for visibility behavior
-  restrictedContentBehavior?: 'show_lock' | 'hide';
 }
 
 export interface StaffAvailability {

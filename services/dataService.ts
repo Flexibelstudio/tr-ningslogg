@@ -49,7 +49,6 @@ export const createInitialOrgData = (orgId: string): OrganizationData => {
             startProgramSessionsRequired: 4,
             enableSessionReminders: false,
             sessionReminderHoursBefore: 2,
-            restrictedContentBehavior: 'show_lock', // Default to showing lock
         },
         groupClassDefinitions: PREDEFINED_GROUP_CLASSES,
         groupClassSchedules: [],

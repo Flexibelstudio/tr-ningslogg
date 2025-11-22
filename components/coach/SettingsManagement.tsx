@@ -74,11 +74,6 @@ const ModuleSettingsManager: React.FC = () => {
         ...workoutCategories.map(c => ({ value: c.id, label: c.name }))
       ], [workoutCategories]);
       
-    const restrictedBehaviorOptions = [
-        { value: 'show_lock', label: 'Visa pass med hänglås (Teaser)' },
-        { value: 'hide', label: 'Dölj begränsade pass helt' },
-    ];
-
     return (
         <Card title="Modulinställningar">
             <div className="space-y-4">
@@ -129,17 +124,6 @@ const ModuleSettingsManager: React.FC = () => {
                     description="Visar schemaläggningskalendern inuti 'Personal & Schema'-vyn."
                 />
                 
-                <div className="pt-6 border-t">
-                    <h4 className="text-xl font-bold text-gray-700 mb-2">Behörigheter & Innehåll</h4>
-                    <Select
-                        label="Hantering av begränsade pass/kategorier"
-                        value={integrationSettings.restrictedContentBehavior || 'show_lock'}
-                        onChange={(e) => handleSettingChange('restrictedContentBehavior', e.target.value)}
-                        options={restrictedBehaviorOptions}
-                        description="Styr hur pass som inte ingår i en medlems medlemskap ska visas. 'Visa med hänglås' visar att passet finns men kräver uppgradering. 'Dölj helt' tar bort passet från listan."
-                    />
-                </div>
-
                 <div className="pt-6 border-t">
                     <h4 className="text-xl font-bold text-gray-700 mb-2">Startprogram</h4>
                     <p className="text-base text-gray-600 mb-4">
@@ -635,7 +619,8 @@ const MembershipModal: React.FC<{
     const [formState, setFormState] = useState<Partial<Membership>>({});
 
     useEffect(() => {
-        setFormState(membershipToEdit || { type: 'subscription' });
+        // Default new memberships to 'show_lock' if not specified
+        setFormState(membershipToEdit || { type: 'subscription', restrictedContentBehavior: 'show_lock' });
     }, [membershipToEdit, isOpen]);
 
     const handleChange = (field: keyof Membership, value: any) => {
@@ -665,9 +650,15 @@ const MembershipModal: React.FC<{
             restrictedCategories: finalRestrictedCategories,
             clipCardClips: formState.type === 'clip_card' ? Number(formState.clipCardClips) || undefined : undefined,
             clipCardValidityDays: formState.type === 'clip_card' ? Number(formState.clipCardValidityDays) || undefined : undefined,
+            restrictedContentBehavior: formState.restrictedContentBehavior || 'show_lock',
         });
         onClose();
     };
+
+    const restrictedBehaviorOptions = [
+        { value: 'show_lock', label: 'Visa låsta pass med hänglås (Teaser)' },
+        { value: 'hide', label: 'Dölj låsta pass helt' },
+    ];
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={membershipToEdit ? 'Redigera Medlemskap' : 'Nytt Medlemskap'}>
@@ -684,7 +675,18 @@ const MembershipModal: React.FC<{
                 )}
 
                 <div className="p-2 border rounded-md">
-                    <label className="font-medium">Begränsa från passkategorier (dessa pass ingår ej):</label>
+                    <label className="font-medium block mb-1">Hantering av låsta pass</label>
+                     <Select
+                        value={formState.restrictedContentBehavior || 'show_lock'}
+                        onChange={(e) => handleChange('restrictedContentBehavior', e.target.value)}
+                        options={restrictedBehaviorOptions}
+                        inputSize="sm"
+                    />
+                    <p className="text-sm text-gray-500 mt-1">
+                        Styr om pass utanför medlemskapet ska visas som låsta eller döljas helt.
+                    </p>
+
+                    <label className="font-medium mt-4 block">Begränsa från passkategorier (dessa pass ingår ej):</label>
                     <div className="grid grid-cols-2 gap-2 mt-2">
                        {workoutCategories.map(cat => (
                            <label key={cat.id} className="flex items-center gap-2"><input type="checkbox" checked={formState.restrictedCategories?.includes(cat.name)} onChange={() => handleCategoryToggle(cat.name)} /> {cat.name}</label>

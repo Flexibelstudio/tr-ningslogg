@@ -70,7 +70,8 @@ export const FabMenu: React.FC<FabMenuProps> = ({ isOpen, onToggle, onClose, wor
       finalMenuItems = finalMenuItems.filter(item => item.value !== 'Personligt program');
     }
 
-    const shouldHideRestricted = integrationSettings.restrictedContentBehavior === 'hide';
+    // Use membership setting for hiding behavior, default to 'show_lock'
+    const shouldHideRestricted = membership?.restrictedContentBehavior === 'hide';
 
     finalMenuItems.forEach(category => {
         let isRestricted = false;
