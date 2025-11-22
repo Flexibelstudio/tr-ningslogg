@@ -36,6 +36,7 @@ export interface IntegrationSettings {
   startProgramSessionsRequired?: number;
   enableSessionReminders?: boolean;
   sessionReminderHoursBefore?: number;
+  commonGeneralActivities?: string[];
 }
 
 export interface StaffAvailability {

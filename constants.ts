@@ -61,7 +61,7 @@ export const WORKOUT_FOCUS_TAGS: { id: WorkoutFocusTag, label: string }[] = [
 
 export const PREDEFINED_MEMBERSHIPS: Membership[] = [
     { id: 'membership-standard-seed', name: 'Medlemskap', type: 'subscription' },
-    { id: 'membership-mini-seed', name: 'Mini' , type: 'subscription', restrictedCategories: ['PT-bas', 'PT-grupp'] },
+    { id: 'membership-mini-seed', name: 'Mini' , type: 'subscription', restrictedCategories: { 'PT-bas': 'show_lock', 'PT-grupp': 'show_lock' } },
     { id: 'membership-clip10-seed', name: 'Klippkort 10', type: 'clip_card', clipCardClips: 10, clipCardValidityDays: 90 },
 ];
 
@@ -69,6 +69,17 @@ export const PREDEFINED_GROUP_CLASSES: GroupClassDefinition[] = [
     { id: 'class-pt-bas-seed', name: 'PT-bas', description: 'Styrketräning med fokus på basövningar.', defaultDurationMinutes: 40, hasWaitlist: true, color: COLOR_PALETTE[1] },
     { id: 'class-pt-grupp-seed', name: 'PT-grupp', description: 'Personlig träning i grupp.', defaultDurationMinutes: 60, hasWaitlist: true, color: COLOR_PALETTE[2] },
     { id: 'class-workout-seed', name: 'Workout', description: 'Funktionell styrka och uthållighet.', defaultDurationMinutes: 50, hasWaitlist: true, color: COLOR_PALETTE[3] },
+];
+
+export const DEFAULT_GENERAL_ACTIVITIES: string[] = [
+    "HIIT", 
+    "Workout", 
+    "Yoga", 
+    "Pilates",
+    "Promenad",
+    "Löpning", 
+    "Funktionell Träning",
+    "Annan aktivitet"
 ];
 
 export const REACTION_EMOJIS: string[] = ['👍', '💪', '🔥', '🎉', '❤️'];

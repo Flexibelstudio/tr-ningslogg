@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Modal } from '../Modal';
 import { Input } from '../Input';
@@ -7,8 +6,8 @@ import { Textarea } from '../Textarea';
 import { Button } from '../Button';
 import { GeneralActivityLog } from '../../types';
 import { MoodSelectorInput } from './MoodSelectorInput'; // Import MoodSelectorInput
-
-const EXISTING_GENERAL_ACTIVITIES = ["HIIT", "Workout", "Mindfulness", "Yin Yoga", "Postural Yoga", "Promenad", "Löpning", "Annan aktivitet", "Funktionell Träning"].sort((a, b) => a.localeCompare(b, 'sv'));
+import { useAppContext } from '../../context/AppContext';
+import { DEFAULT_GENERAL_ACTIVITIES } from '../../constants';
 
 interface LogGeneralActivityModalProps {
   isOpen: boolean;
@@ -17,6 +16,7 @@ interface LogGeneralActivityModalProps {
 }
 
 export const LogGeneralActivityModal: React.FC<LogGeneralActivityModalProps> = ({ isOpen, onClose, onSaveActivity }) => {
+  const { integrationSettings } = useAppContext();
   const [activityName, setActivityName] = useState('');
   const [durationMinutes, setDurationMinutes] = useState<string>('');
   const [caloriesBurned, setCaloriesBurned] = useState<string>('');
@@ -28,15 +28,14 @@ export const LogGeneralActivityModal: React.FC<LogGeneralActivityModalProps> = (
   const [isSaving, setIsSaving] = useState(false);
   const [hasSaved, setHasSaved] = useState(false);
 
+  // Use configured activities or fallback to defaults if empty
   const commonActivitiesForButtons = useMemo(() => {
-    const combined: string[] = [];
-    EXISTING_GENERAL_ACTIVITIES.forEach(activity => {
-        if (!combined.includes(activity)) {
-            combined.push(activity);
-        }
-    });
-    return combined;
-  }, []);
+    const configured = integrationSettings.commonGeneralActivities;
+    if (configured && configured.length > 0) {
+        return configured;
+    }
+    return DEFAULT_GENERAL_ACTIVITIES;
+  }, [integrationSettings.commonGeneralActivities]);
 
 
   useEffect(() => {
