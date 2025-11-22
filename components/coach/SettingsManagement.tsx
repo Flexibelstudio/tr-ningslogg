@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { StaffMember, IntegrationSettings, Location, Membership, WorkoutCategoryDefinition, GroupClassDefinition } from '../../types';
 import { Input, Select } from '../Input';
 import { useAppContext } from '../../context/AppContext';
@@ -254,7 +255,7 @@ const LocationManager: React.FC = () => {
 };
 
 const WorkoutCategoryManager: React.FC = () => {
-    const { workoutCategories, setWorkoutCategoriesData, workouts, memberships } = useAppContext();
+    const { workoutCategories, setWorkoutCategoriesData, workouts, memberships, integrationSettings } = useAppContext();
     const [newCategory, setNewCategory] = useState('');
     const [categoryToDelete, setCategoryToDelete] = useState<WorkoutCategoryDefinition | null>(null);
 
@@ -266,10 +267,29 @@ const WorkoutCategoryManager: React.FC = () => {
     };
     
     const handleDelete = (category: WorkoutCategoryDefinition) => {
-        const isUsedInWorkouts = workouts.some(w => w.category === category.name);
-        const isUsedInMemberships = memberships.some(m => m.restrictedCategories?.includes(category.name));
-        if (isUsedInWorkouts || isUsedInMemberships) {
-            alert(`Kan inte ta bort kategorin "${category.name}" eftersom den används av pass eller medlemskap.`);
+        // Check Workouts (using name)
+        const workoutsUsingCategory = workouts.filter(w => w.category === category.name);
+        
+        // Check Memberships (using name in restrictedCategories array)
+        const membershipsUsingCategory = memberships.filter(m => m.restrictedCategories?.includes(category.name));
+        
+        // Check Integration Settings (using ID for start program)
+        const isStartProgramCategory = integrationSettings.startProgramCategoryId === category.id;
+
+        if (workoutsUsingCategory.length > 0 || membershipsUsingCategory.length > 0 || isStartProgramCategory) {
+            let message = `Kan inte ta bort "${category.name}" eftersom den används:\n`;
+            
+            if (workoutsUsingCategory.length > 0) {
+                message += `- I ${workoutsUsingCategory.length} passmall(ar)\n`;
+            }
+            if (membershipsUsingCategory.length > 0) {
+                message += `- Som begränsning i ${membershipsUsingCategory.length} medlemskap\n`;
+            }
+            if (isStartProgramCategory) {
+                message += `- Som kategori för Startprogrammet (se Modulinställningar)\n`;
+            }
+            
+            alert(message);
         } else {
             setCategoryToDelete(category);
         }
@@ -285,7 +305,15 @@ const WorkoutCategoryManager: React.FC = () => {
     return (
         <>
             <Card title="Hantera Programkategorier">
-                 <p className="text-sm text-gray-500 -mt-2 mb-4">Dessa kategorier används för att sortera träningsprogram och mallar.</p>
+                 <div className="bg-blue-50 border border-blue-200 p-3 rounded-md mb-4 text-sm text-blue-800 space-y-1">
+                    <p className="font-semibold">Vad används kategorier till?</p>
+                    <ul className="list-disc pl-5">
+                        <li><strong>Sortera pass:</strong> Medlemmar hittar pass enklare (t.ex. "PT-grupp" vs "Workout").</li>
+                        <li><strong>"Plus"-menyn:</strong> Kategorier dyker upp som alternativ när en medlem klickar på (+) för att logga.</li>
+                        <li><strong>Medlemskap:</strong> Du kan låsa vissa kategorier för specifika medlemskap (t.ex. "Mini").</li>
+                        <li><strong>Startprogram:</strong> Du väljer en kategori som utgör startprogrammet för nya medlemmar.</li>
+                    </ul>
+                 </div>
                  <div className="space-y-4">
                     <div>
                         <label htmlFor="new-category" className="block text-base font-medium text-gray-700 mb-1">Ny Kategori</label>
@@ -331,6 +359,10 @@ const GroupClassDefinitionManager: React.FC = () => {
     const [color, setColor] = useState('#3bab5a');
     const [hasWaitlist, setHasWaitlist] = useState(true);
 
+    const closeModal = useCallback(() => {
+        setEditingDefinition(null);
+    }, []);
+
     useEffect(() => {
         if (editingDefinition) {
             setName(editingDefinition.name || '');
@@ -374,7 +406,7 @@ const GroupClassDefinitionManager: React.FC = () => {
             }
             return [...prev, definitionToSave];
         });
-        setEditingDefinition(null);
+        closeModal();
     };
     
     const handleDelete = (definition: GroupClassDefinition) => {
@@ -424,7 +456,7 @@ const GroupClassDefinitionManager: React.FC = () => {
             </Card>
             
             {editingDefinition && (
-                <Modal isOpen={!!editingDefinition} onClose={() => setEditingDefinition(null)} title={editingDefinition.name ? 'Redigera Passtyp' : 'Ny Passtyp'}>
+                <Modal isOpen={!!editingDefinition} onClose={closeModal} title={editingDefinition.name ? 'Redigera Passtyp' : 'Ny Passtyp'}>
                     <div className="space-y-4">
                         <Input label="Namn" value={name} onChange={e => setName(e.target.value)} />
                         <Input label="Beskrivning" value={description} onChange={e => setDescription(e.target.value)} />
@@ -441,7 +473,7 @@ const GroupClassDefinitionManager: React.FC = () => {
                             onChange={setHasWaitlist}
                         />
                         <div className="flex justify-end gap-2 pt-4 border-t">
-                            <Button variant="secondary" onClick={() => setEditingDefinition(null)}>Avbryt</Button>
+                            <Button variant="secondary" onClick={closeModal}>Avbryt</Button>
                             <Button onClick={handleSave}>Spara</Button>
                         </div>
                     </div>
