@@ -1,3 +1,4 @@
+
 import { WeightComparisonItem, GenderOption, StrengthStandard, StrengthLevel, LiftType, AllUserProvidedStrengthMultipliers, StrengthStandardDetail, UserProvidedLiftMultipliers, WorkoutCategory, ClubDefinition, UserStrengthStat, StaffRole, Membership, OneOnOneSessionType, WorkoutCategoryDefinition, GroupClassDefinition, ConditioningMetric, WorkoutFocusTag, ContactAttemptMethod, ContactAttemptOutcome } from './types'; // Updated import type from AnimalWeight
 
 export const FLEXIBEL_PRIMARY_COLOR = '#3bab5a'; // Updated color
@@ -7,7 +8,7 @@ export const APP_NAME = 'Träningslogg';
 export const COLOR_PALETTE: string[] = [
   "#3bab5a", // flexibel teal (primary)
   "#1e88e5", // blue
-  "#3bab5a", // green
+  "#22c55e", // green - Fixed duplicate (was #3bab5a)
   "#8e24aa", // purple
   "#ffb300", // amber
   "#f4511e", // deep orange
@@ -382,7 +383,7 @@ export const CLUB_DEFINITIONS: ClubDefinition[] = [
   { id: 'ohp-50kg', name: '50kg Axelpressklubben', description: 'Du har lyft 50 kg i axelpress!', icon: '🔥', type: 'LIFT', liftType: 'Axelpress', threshold: 50, comparison: 'GREATER_OR_EQUAL' },
   { id: 'ohp-60kg', name: '60kg Axelpressklubben', description: 'Du har lyft 60 kg i axelpress!', icon: '🚀', type: 'LIFT', liftType: 'Axelpress', threshold: 60, comparison: 'GREATER_OR_EQUAL' },
   
-  // --- BODYWEIGHT LIFT CLUBS ---
+  // --- a LIFT CLUBS ---
   { id: 'bw-bench-1x', name: '1.0x Kroppsvikt Bänkpress', description: 'Du har bänkpressat din egen kroppsvikt!', icon: '🌟', type: 'BODYWEIGHT_LIFT', liftType: 'Bänkpress', multiplier: 1, comparison: 'GREATER_OR_EQUAL' },
   { id: 'bw-squat-1.5x', name: '1.5x Kroppsvikt Knäböj', description: 'Du har knäböjt 1.5 gånger din kroppsvikt!', icon: '🌟', type: 'BODYWEIGHT_LIFT', liftType: 'Knäböj', multiplier: 1.5, comparison: 'GREATER_OR_EQUAL' },
   { id: 'bw-deadlift-2x', name: '2.0x Kroppsvikt Marklyft', description: 'Du har marklyft dubbla din kroppsvikt!', icon: '🌟', type: 'BODYWEIGHT_LIFT', liftType: 'Marklyft', multiplier: 2, comparison: 'GREATER_OR_EQUAL' },
