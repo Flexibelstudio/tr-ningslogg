@@ -273,8 +273,8 @@ const WorkoutCategoryManager: React.FC = () => {
         // Check Workouts (using name)
         const workoutsUsingCategory = workouts.filter(w => w.category === category.name);
         
-        // Check Memberships (using name in restrictedCategories array)
-        const membershipsUsingCategory = memberships.filter(m => m.restrictedCategories?.includes(category.name));
+        // Check Memberships (using name in restrictedCategories map)
+        const membershipsUsingCategory = memberships.filter(m => m.restrictedCategories && m.restrictedCategories[category.name]);
         
         // Check Integration Settings (using ID for start program)
         const isStartProgramCategory = integrationSettings.startProgramCategoryId === category.id;
@@ -319,12 +319,16 @@ const WorkoutCategoryManager: React.FC = () => {
         // 2. Update Workouts
         setWorkoutsData(prev => prev.map(w => w.category === oldName ? { ...w, category: newName } : w));
         
-        // 3. Update Memberships
+        // 3. Update Memberships (handle object keys)
         setMembershipsData(prev => prev.map(m => {
-             if (m.restrictedCategories && m.restrictedCategories.includes(oldName)) {
+             if (m.restrictedCategories && m.restrictedCategories[oldName]) {
+                 const { [oldName]: behavior, ...rest } = m.restrictedCategories;
                  return {
                      ...m,
-                     restrictedCategories: m.restrictedCategories.map(cat => cat === oldName ? newName : cat)
+                     restrictedCategories: {
+                         ...rest,
+                         [newName]: behavior
+                     }
                  };
              }
              return m;
@@ -619,26 +623,30 @@ const MembershipModal: React.FC<{
     const [formState, setFormState] = useState<Partial<Membership>>({});
 
     useEffect(() => {
-        // Default new memberships to 'show_lock' if not specified
-        setFormState(membershipToEdit || { type: 'subscription', restrictedContentBehavior: 'show_lock' });
+        // Default new memberships to empty restrictions
+        setFormState(membershipToEdit || { type: 'subscription', restrictedCategories: {} });
     }, [membershipToEdit, isOpen]);
 
     const handleChange = (field: keyof Membership, value: any) => {
         setFormState(p => ({ ...p, [field]: value }));
     };
 
-    const handleCategoryToggle = (categoryName: string) => {
-        const currentCategories = formState.restrictedCategories || [];
-        const newCategories = currentCategories.includes(categoryName)
-            ? currentCategories.filter(c => c !== categoryName)
-            : [...currentCategories, categoryName];
-        handleChange('restrictedCategories', newCategories);
+    const handleRestrictionChange = (categoryName: string, value: string) => {
+        const currentRestrictions = { ...(formState.restrictedCategories || {}) };
+        
+        if (value === 'allowed') {
+            delete currentRestrictions[categoryName];
+        } else {
+            currentRestrictions[categoryName] = value as 'show_lock' | 'hide';
+        }
+        
+        handleChange('restrictedCategories', currentRestrictions);
     };
 
     const handleSave = () => {
         if (!formState.name) return;
 
-        const finalRestrictedCategories = (formState.restrictedCategories && formState.restrictedCategories.length > 0)
+        const finalRestrictedCategories = (formState.restrictedCategories && Object.keys(formState.restrictedCategories).length > 0)
             ? formState.restrictedCategories
             : undefined;
 
@@ -650,15 +658,9 @@ const MembershipModal: React.FC<{
             restrictedCategories: finalRestrictedCategories,
             clipCardClips: formState.type === 'clip_card' ? Number(formState.clipCardClips) || undefined : undefined,
             clipCardValidityDays: formState.type === 'clip_card' ? Number(formState.clipCardValidityDays) || undefined : undefined,
-            restrictedContentBehavior: formState.restrictedContentBehavior || 'show_lock',
         });
         onClose();
     };
-
-    const restrictedBehaviorOptions = [
-        { value: 'show_lock', label: 'Visa låsta pass med hänglås (Teaser)' },
-        { value: 'hide', label: 'Dölj låsta pass helt' },
-    ];
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={membershipToEdit ? 'Redigera Medlemskap' : 'Nytt Medlemskap'}>
@@ -674,23 +676,30 @@ const MembershipModal: React.FC<{
                     </div>
                 )}
 
-                <div className="p-2 border rounded-md">
-                    <label className="font-medium block mb-1">Hantering av låsta pass</label>
-                     <Select
-                        value={formState.restrictedContentBehavior || 'show_lock'}
-                        onChange={(e) => handleChange('restrictedContentBehavior', e.target.value)}
-                        options={restrictedBehaviorOptions}
-                        inputSize="sm"
-                    />
-                    <p className="text-sm text-gray-500 mt-1">
-                        Styr om pass utanför medlemskapet ska visas som låsta eller döljas helt.
+                <div className="p-3 bg-gray-50 rounded-md border">
+                    <label className="font-semibold text-gray-700 block mb-2">Hantering av Passkategorier</label>
+                    <p className="text-sm text-gray-500 mb-3">
+                        Bestäm vilka pass som ingår i medlemskapet och hur de som inte ingår ska visas.
                     </p>
-
-                    <label className="font-medium mt-4 block">Begränsa från passkategorier (dessa pass ingår ej):</label>
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                       {workoutCategories.map(cat => (
-                           <label key={cat.id} className="flex items-center gap-2"><input type="checkbox" checked={formState.restrictedCategories?.includes(cat.name)} onChange={() => handleCategoryToggle(cat.name)} /> {cat.name}</label>
-                       ))}
+                    
+                    <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
+                       {workoutCategories.map(cat => {
+                           const currentValue = formState.restrictedCategories?.[cat.name] || 'allowed';
+                           return (
+                               <div key={cat.id} className="flex items-center justify-between gap-4 p-2 bg-white rounded border">
+                                   <label className="font-medium text-gray-800 flex-grow">{cat.name}</label>
+                                   <select
+                                        className="block w-40 pl-2 pr-8 py-1 text-sm border-gray-300 focus:outline-none focus:ring-flexibel focus:border-flexibel rounded-md"
+                                        value={currentValue}
+                                        onChange={(e) => handleRestrictionChange(cat.name, e.target.value)}
+                                   >
+                                       <option value="allowed">Ingår (Öppet)</option>
+                                       <option value="show_lock">Visa med hänglås</option>
+                                       <option value="hide">Dölj helt</option>
+                                   </select>
+                               </div>
+                           );
+                       })}
                     </div>
                 </div>
 
@@ -741,10 +750,17 @@ const MembershipManager: React.FC = () => {
                 </div>
                 <div className="space-y-3">
                     {memberships.map(mem => {
+                        const restrictedList = mem.restrictedCategories ? Object.entries(mem.restrictedCategories) : [];
                         const descriptionParts: string[] = [];
-                        if(mem.restrictedCategories && mem.restrictedCategories.length > 0) {
-                            descriptionParts.push(`Begränsad från: ${mem.restrictedCategories.join(', ')}`);
+                        
+                        if(restrictedList.length > 0) {
+                            const shown = restrictedList.filter(([_, val]) => val === 'show_lock').map(([name]) => name);
+                            const hidden = restrictedList.filter(([_, val]) => val === 'hide').map(([name]) => name);
+                            
+                            if (shown.length > 0) descriptionParts.push(`Låsta (visas): ${shown.join(', ')}`);
+                            if (hidden.length > 0) descriptionParts.push(`Dolda: ${hidden.join(', ')}`);
                         }
+                        
                         if(mem.type === 'clip_card') {
                             descriptionParts.push(`${mem.clipCardClips || 0} klipp, giltigt ${mem.clipCardValidityDays || 'obegränsad tid'} dagar.`);
                         }
@@ -755,7 +771,7 @@ const MembershipManager: React.FC = () => {
                                     <div>
                                         <h4 className="text-lg font-bold text-gray-800">{mem.name}</h4>
                                         <p className="text-sm text-gray-600">{mem.description || 'Ingen beskrivning.'}</p>
-                                        {descriptionParts.map((part, i) => <p key={i} className={`text-sm ${part.toLowerCase().includes('begränsad') ? 'text-red-600' : 'text-gray-600'}`}>{part}</p>)}
+                                        {descriptionParts.map((part, i) => <p key={i} className={`text-sm ${part.toLowerCase().includes('dolda') || part.toLowerCase().includes('låsta') ? 'text-red-600' : 'text-gray-600'}`}>{part}</p>)}
                                     </div>
                                     <div className="flex gap-2 flex-shrink-0">
                                         <Button variant="outline" size="sm" onClick={() => {setEditingMembership(mem); setIsModalOpen(true);}}>Redigera</Button>

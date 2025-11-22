@@ -20,10 +20,8 @@ export interface Membership {
   clipCardValidityDays?: number; // e.g., 90. If null/undefined, it's unlimited.
   
   // Unified blacklist for all membership types
-  restrictedCategories?: WorkoutCategory[];
-
-  // New setting for visibility behavior specific to this membership
-  restrictedContentBehavior?: 'show_lock' | 'hide';
+  // Maps category name to behavior: 'show_lock' (visible but locked) or 'hide' (completely hidden)
+  restrictedCategories?: Record<WorkoutCategory, 'show_lock' | 'hide'>;
 }
 
 export interface IntegrationSettings {

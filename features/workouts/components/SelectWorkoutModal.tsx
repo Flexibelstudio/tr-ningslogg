@@ -127,8 +127,6 @@ const WorkoutCard: React.FC<{
 };
 
 export const SelectWorkoutModal: React.FC<SelectWorkoutModalProps> = ({ isOpen, onClose, workouts, onStartWorkout, categoryFilter, membership, onOpenUpgradeModal, currentParticipantId }) => {
-  // We don't need integrationSettings anymore for restrictedContentBehavior, we use membership.
-  // const { integrationSettings } = useAppContext(); 
   if (!isOpen) return null;
 
   let personalWorkouts: Workout[] = [];
@@ -144,19 +142,24 @@ export const SelectWorkoutModal: React.FC<SelectWorkoutModalProps> = ({ isOpen, 
     generalWorkouts = workouts.filter((w) => w.isPublished && !w.assignedToParticipantId && w.category === categoryFilter);
   }
 
-  // Handle membership restrictions and visibility setting based on membership
-  const shouldHideRestricted = membership?.restrictedContentBehavior === 'hide';
-
   const workoutsWithRestriction = generalWorkouts.map((w) => {
     let isRestricted = false;
+    let isHidden = false;
+    
     if (membership?.restrictedCategories && w.category !== 'Personligt program') {
-      isRestricted = membership.restrictedCategories.includes(w.category);
+        const behavior = membership.restrictedCategories[w.category];
+        if (behavior === 'hide') {
+            isHidden = true;
+        } else if (behavior === 'show_lock') {
+            isRestricted = true;
+        }
     }
     return {
       ...w,
       isRestricted,
+      isHidden
     };
-  }).filter(w => !w.isRestricted || !shouldHideRestricted); // Filter out if restricted and setting is 'hide'
+  }).filter(w => !w.isHidden);
 
   let modalTitleText = 'Välj Pass att Starta';
   if (categoryFilter) {

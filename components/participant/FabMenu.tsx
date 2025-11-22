@@ -70,20 +70,21 @@ export const FabMenu: React.FC<FabMenuProps> = ({ isOpen, onToggle, onClose, wor
       finalMenuItems = finalMenuItems.filter(item => item.value !== 'Personligt program');
     }
 
-    // Use membership setting for hiding behavior, default to 'show_lock'
-    const shouldHideRestricted = membership?.restrictedContentBehavior === 'hide';
-
     finalMenuItems.forEach(category => {
         let isRestricted = false;
-        // Don't apply restrictions to 'Personligt program'
+        let isHidden = false;
+
+        // Check restrictions
         if (membership?.restrictedCategories && category.value !== 'Personligt program') {
-            isRestricted = membership.restrictedCategories.includes(category.value);
+            const restrictionBehavior = membership.restrictedCategories[category.value];
+            if (restrictionBehavior === 'hide') {
+                isHidden = true;
+            } else if (restrictionBehavior === 'show_lock') {
+                isRestricted = true;
+            }
         }
         
-        // If restricted and setting is 'hide', skip adding this button
-        if (isRestricted && shouldHideRestricted) {
-            return;
-        }
+        if (isHidden) return;
         
         actions.push({
             key: category.value, label: `Logga ${category.label}`, icon: categoryIcons[category.value] || <span className="text-lg">🤸‍♀️</span>,
