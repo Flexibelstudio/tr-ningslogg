@@ -4,6 +4,7 @@ import { Modal } from '../../../components/Modal';
 import { Button } from '../../../components/Button';
 import { Workout, WorkoutCategory, Membership, Exercise } from '../../../types';
 import { INTENSITY_LEVELS } from '../../../constants';
+import { useAppContext } from '../../../context/AppContext';
 
 const formatPlan = (exercise: Exercise): string => {
   const parts: string[] = [];
@@ -126,6 +127,7 @@ const WorkoutCard: React.FC<{
 };
 
 export const SelectWorkoutModal: React.FC<SelectWorkoutModalProps> = ({ isOpen, onClose, workouts, onStartWorkout, categoryFilter, membership, onOpenUpgradeModal, currentParticipantId }) => {
+  const { integrationSettings } = useAppContext();
   if (!isOpen) return null;
 
   let personalWorkouts: Workout[] = [];
@@ -141,7 +143,9 @@ export const SelectWorkoutModal: React.FC<SelectWorkoutModalProps> = ({ isOpen, 
     generalWorkouts = workouts.filter((w) => w.isPublished && !w.assignedToParticipantId && w.category === categoryFilter);
   }
 
-  // Handle membership restrictions
+  // Handle membership restrictions and visibility setting
+  const shouldHideRestricted = integrationSettings.restrictedContentBehavior === 'hide';
+
   const workoutsWithRestriction = generalWorkouts.map((w) => {
     let isRestricted = false;
     if (membership?.restrictedCategories && w.category !== 'Personligt program') {
@@ -151,7 +155,7 @@ export const SelectWorkoutModal: React.FC<SelectWorkoutModalProps> = ({ isOpen, 
       ...w,
       isRestricted,
     };
-  });
+  }).filter(w => !w.isRestricted || !shouldHideRestricted); // Filter out if restricted and setting is 'hide'
 
   let modalTitleText = 'Välj Pass att Starta';
   if (categoryFilter) {
