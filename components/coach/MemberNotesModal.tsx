@@ -1,12 +1,13 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
 import { Textarea } from '../Textarea';
 import { ParticipantProfile, ParticipantGoalData, ActivityLog, CoachNote, OneOnOneSession, StaffMember, GoalCompletionLog, Workout, WorkoutCategoryDefinition, StaffAvailability, UserStrengthStat, ParticipantConditioningStat, ParticipantPhysiqueStat, ParticipantClubMembership, WorkoutLog, GeneralActivityLog, Lead, Location } from '../../types';
 import * as dateUtils from '../../utils/dateUtils';
-import { BookOneOnOneModal } from './BookOneOnOneModal';
+import { BookOneOnOneModal } from '../../features/booking/components/BookOneOnOneModal';
 import { GoalForm, GoalFormRef } from '../participant/GoalForm';
-import { CreateWorkoutModal } from './CreateWorkoutModal';
+import { CreateWorkoutModal } from '../../features/workouts/components/CreateWorkoutModal';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { ParticipantDashboardView } from '../participant/ParticipantDashboardView';
 import { useAppContext } from '../../context/AppContext';
@@ -23,9 +24,7 @@ interface MemberNotesModalProps {
   participant: ParticipantProfile;
   notes: CoachNote[];
   allParticipantGoals: ParticipantGoalData[];
-  setParticipantGoals: (goals: ParticipantGoalData[] | ((prev: ParticipantGoalData[]) => ParticipantGoalData[])) => void;
-  allActivityLogs: ActivityLog[];
-  setGoalCompletionLogs: (logs: GoalCompletionLog[] | ((prev: GoalCompletionLog[]) => GoalCompletionLog[])) => void;
+  // simplified props as many actions come from hooks or context now
   onAddNote: (noteText: string) => void;
   onUpdateNote: (noteId: string, newText: string) => void;
   onDeleteNote: (noteId: string) => void;
@@ -41,6 +40,8 @@ interface MemberNotesModalProps {
   participants: ParticipantProfile[];
   staffAvailability: StaffAvailability[];
   isOnline: boolean;
+  // activity logs passed to calculate stats
+  allActivityLogs: ActivityLog[];
 }
 
 type MemberNotesTab = 'notes' | 'goals' | 'sessions' | 'program';
@@ -138,9 +139,7 @@ export const MemberNotesModal: React.FC<MemberNotesModalProps> = ({
   participant,
   notes,
   allParticipantGoals,
-  setParticipantGoals,
   allActivityLogs,
-  setGoalCompletionLogs,
   onAddNote,
   onUpdateNote,
   onDeleteNote,
@@ -152,7 +151,6 @@ export const MemberNotesModal: React.FC<MemberNotesModalProps> = ({
   addWorkout,
   updateWorkout,
   deleteWorkout,
-  workoutCategories,
   participants,
   staffAvailability,
   isOnline,
@@ -165,6 +163,8 @@ export const MemberNotesModal: React.FC<MemberNotesModalProps> = ({
         updateParticipantProfile,
         locations,
         setLeadsData,
+        setParticipantGoalsData,
+        setGoalCompletionLogsData
     } = useAppContext();
 
   const [activeTab, setActiveTab] = useState<MemberNotesTab>('notes');
@@ -380,7 +380,6 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
     markLatestGoalAsCompleted: boolean,
     noGoalAdviseOptOut: boolean,
   ) => {
-    // This function now just calls the parent updater, as AI prognosis is handled within GoalForm for coaches
     const myOldGoals = allParticipantGoals.filter(g => g.participantId !== participant.id);
     let myNewGoals = allParticipantGoals.filter(g => g.participantId === participant.id);
     
@@ -388,7 +387,7 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
     const latestExistingGoal = nonCompletedGoals[0] || null;
     
     if (markLatestGoalAsCompleted && latestExistingGoal) {
-        setGoalCompletionLogs(prev => [...prev, {
+        setGoalCompletionLogsData(prev => [...prev, {
             type: 'goal_completion', id: crypto.randomUUID(), participantId: participant.id,
             goalId: latestExistingGoal.id, goalDescription: latestExistingGoal.fitnessGoals,
             completedDate: new Date().toISOString()
@@ -406,7 +405,7 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
         isCompleted: false,
     };
     
-    setParticipantGoals([...myOldGoals, ...myNewGoals, newGoal]);
+    setParticipantGoalsData([...myOldGoals, ...myNewGoals, newGoal]);
   };
   
   const handleSaveOrUpdateSession = (session: OneOnOneSession) => {

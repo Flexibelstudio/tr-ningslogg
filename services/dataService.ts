@@ -1,3 +1,4 @@
+
 import { 
     MockDB, OrganizationData, ParticipantProfile, WorkoutLog, GeneralActivityLog, Connection, Location, 
     StaffMember, GroupClassSchedule, Membership, WorkoutCategoryDefinition, GroupClassDefinition, User
@@ -32,7 +33,11 @@ export const createInitialOrgData = (orgId: string): OrganizationData => {
             { id: loc2Id, name: 'Kärra' },
         ],
         staffMembers: [],
-        memberships: PREDEFINED_MEMBERSHIPS,
+        memberships: [
+            { id: 'membership-standard-seed', name: 'Medlemskap', type: 'subscription' },
+            { id: 'membership-mini-seed', name: 'Mini' , type: 'subscription', restrictedCategories: { 'PT-bas': 'show_lock', 'PT-grupp': 'show_lock' } },
+            { id: 'membership-clip10-seed', name: 'Klippkort 10', type: 'clip_card', clipCardClips: 10, clipCardValidityDays: 90 },
+        ],
         weeklyHighlightSettings: { isEnabled: false, dayOfWeek: 1, time: '09:00', studioTarget: 'separate' },
         oneOnOneSessions: [],
         workoutCategories: PREDEFINED_WORKOUT_CATEGORIES,

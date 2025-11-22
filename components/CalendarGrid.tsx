@@ -1,3 +1,4 @@
+
 import React, { useMemo, useCallback } from 'react';
 import { Button } from './Button';
 import * as dateUtils from '../utils/dateUtils';
@@ -10,6 +11,7 @@ interface CalendarGridProps {
   renderDayContent: (day: Date) => React.ReactNode;
   getDayProps: (day: Date) => { hasContent: boolean };
   getHolidayForDay?: (date: Date) => Holiday | null;
+  className?: string; // New prop
 }
 
 const CalendarGridFC: React.FC<CalendarGridProps> = ({
@@ -19,6 +21,7 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
   renderDayContent,
   getDayProps,
   getHolidayForDay,
+  className,
 }) => {
   const handleNavigate = useCallback((offset: number) => {
     setCurrentDate(date => dateUtils.addMonths(date, offset));
@@ -44,7 +47,7 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
   const today = useMemo(() => new Date(), []);
 
   return (
-    <div className="bg-white p-2 sm:p-4 rounded-2xl shadow-lg">
+    <div className={`bg-white p-2 sm:p-4 rounded-2xl shadow-lg ${className || ''}`}>
       <header className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-bold text-gray-800 capitalize">
           {currentDate.toLocaleString('sv-SE', { month: 'long', year: 'numeric' })}
@@ -71,8 +74,8 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
 
           // --- Button Classes ---
           const buttonClasses = [
-            'p-1 sm:p-2',
-            'min-h-[7rem] sm:min-h-[8rem] lg:min-h-[9rem]',
+            'p-1 sm:p-1.5',
+            'min-h-[5rem] sm:min-h-[6rem] lg:min-h-[7.5rem]', // Reduced height for more compact view
             'text-left align-top relative flex flex-col',
             'rounded-md',
             'transition-colors duration-150',
@@ -105,8 +108,8 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
           // FIX: Changed timeClasses from a string to an array for correct conditional class application.
           const timeClasses: string[] = [
             'flex items-center justify-center',
-            'h-7 w-7 sm:h-8 sm:w-8',
-            'text-base',
+            'h-6 w-6 sm:h-7 sm:w-7',
+            'text-sm',
             'rounded-full',
           ];
 
@@ -143,7 +146,7 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
               {holiday && (
                 <div
                   title={holiday.name}
-                  className={`text-xs text-center mt-1 rounded px-1 truncate block ${
+                  className={`text-[10px] text-center mt-0.5 rounded px-1 truncate block ${
                     holiday.type === 'holiday'
                       ? 'text-red-600 bg-red-50'
                       : 'text-yellow-700 bg-yellow-50'
@@ -153,7 +156,7 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
                   {holiday.name}
                 </div>
               )}
-              <div className="mt-1 space-y-0.5 sm:space-y-1 overflow-hidden flex-grow">
+              <div className="mt-0.5 space-y-0.5 overflow-hidden flex-grow w-full">
                 {renderDayContent(day)}
               </div>
             </button>

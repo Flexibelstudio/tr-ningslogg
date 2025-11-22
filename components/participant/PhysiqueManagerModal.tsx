@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
 import { Input } from '../Input';
@@ -16,7 +17,7 @@ interface PhysiqueManagerModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentProfile: ParticipantProfile | null;
-  onSave: (physiqueData: Partial<Pick<ParticipantProfile, 'bodyweightKg' | 'muscleMassKg' | 'fatMassKg' | 'inbodyScore'>>) => void;
+  onSave: (physiqueData: Partial<Pick<ParticipantProfile, 'bodyweightKg' | 'muscleMassKg' | 'fatMassKg' | 'inbodyScore'>>) => Promise<void> | void;
 }
 
 export const PhysiqueManagerModal: React.FC<PhysiqueManagerModalProps> = ({ isOpen, onClose, currentProfile, onSave }) => {
@@ -37,6 +38,11 @@ export const PhysiqueManagerModal: React.FC<PhysiqueManagerModalProps> = ({ isOp
         if (isOpen) {
             setIsSaving(false);
             setHasSaved(false);
+        }
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (isOpen) {
             setBodyweight(currentProfile?.bodyweightKg?.toString() || '');
             setMuscleMass(currentProfile?.muscleMassKg?.toString() || '');
             setFatMass(currentProfile?.fatMassKg?.toString() || '');
@@ -92,7 +98,7 @@ export const PhysiqueManagerModal: React.FC<PhysiqueManagerModalProps> = ({ isOp
         }
     };
   
-    const handleSave = () => {
+    const handleSave = async () => {
         const isBwValid = validateWeightField(bodyweight, setBodyweightError);
         const isMmValid = validateWeightField(muscleMass, setMuscleMassError);
         const isFmValid = validateWeightField(fatMass, setFatMassError);
@@ -122,11 +128,16 @@ export const PhysiqueManagerModal: React.FC<PhysiqueManagerModalProps> = ({ isOp
             inbodyScore: inbodyScore.trim() ? parseInt(inbodyScore, 10) : undefined,
         };
 
-        onSave(physiqueData);
-        setHasSaved(true);
-        setTimeout(() => {
-            onClose();
-        }, 800);
+        try {
+            await onSave(physiqueData);
+            setHasSaved(true);
+            setTimeout(() => {
+                onClose();
+            }, 800);
+        } catch (error) {
+            console.error("Failed to save physique data:", error);
+            setIsSaving(false);
+        }
     };
 
     let saveButtonText = "Spara Kroppsdata";

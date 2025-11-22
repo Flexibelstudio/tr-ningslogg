@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { StaffMember, IntegrationSettings, Location, Membership, WorkoutCategoryDefinition, GroupClassDefinition } from '../../types';
 import { Input, Select } from '../Input';
 import { useAppContext } from '../../context/AppContext';
@@ -72,7 +73,7 @@ const ModuleSettingsManager: React.FC = () => {
         { value: '', label: 'Välj en kategori...' },
         ...workoutCategories.map(c => ({ value: c.id, label: c.name }))
       ], [workoutCategories]);
-
+      
     return (
         <Card title="Modulinställningar">
             <div className="space-y-4">
@@ -122,7 +123,7 @@ const ModuleSettingsManager: React.FC = () => {
                     label="Aktivera Schema"
                     description="Visar schemaläggningskalendern inuti 'Personal & Schema'-vyn."
                 />
-
+                
                 <div className="pt-6 border-t">
                     <h4 className="text-xl font-bold text-gray-700 mb-2">Startprogram</h4>
                     <p className="text-base text-gray-600 mb-4">
@@ -254,9 +255,12 @@ const LocationManager: React.FC = () => {
 };
 
 const WorkoutCategoryManager: React.FC = () => {
-    const { workoutCategories, setWorkoutCategoriesData, workouts, memberships } = useAppContext();
+    const { workoutCategories, setWorkoutCategoriesData, workouts, memberships, integrationSettings, setWorkoutsData, setMembershipsData } = useAppContext();
     const [newCategory, setNewCategory] = useState('');
     const [categoryToDelete, setCategoryToDelete] = useState<WorkoutCategoryDefinition | null>(null);
+    
+    const [editingCategory, setEditingCategory] = useState<WorkoutCategoryDefinition | null>(null);
+    const [editName, setEditName] = useState('');
 
     const handleAdd = () => {
         if (newCategory.trim() && !workoutCategories.some(c => c.name.toLowerCase() === newCategory.trim().toLowerCase())) {
@@ -266,13 +270,72 @@ const WorkoutCategoryManager: React.FC = () => {
     };
     
     const handleDelete = (category: WorkoutCategoryDefinition) => {
-        const isUsedInWorkouts = workouts.some(w => w.category === category.name);
-        const isUsedInMemberships = memberships.some(m => m.restrictedCategories?.includes(category.name));
-        if (isUsedInWorkouts || isUsedInMemberships) {
-            alert(`Kan inte ta bort kategorin "${category.name}" eftersom den används av pass eller medlemskap.`);
+        // Check Workouts (using name)
+        const workoutsUsingCategory = workouts.filter(w => w.category === category.name);
+        
+        // Check Memberships (using name in restrictedCategories map)
+        const membershipsUsingCategory = memberships.filter(m => m.restrictedCategories && m.restrictedCategories[category.name]);
+        
+        // Check Integration Settings (using ID for start program)
+        const isStartProgramCategory = integrationSettings.startProgramCategoryId === category.id;
+
+        if (workoutsUsingCategory.length > 0 || membershipsUsingCategory.length > 0 || isStartProgramCategory) {
+            let message = `Kan inte ta bort "${category.name}" eftersom den används:\n`;
+            
+            if (workoutsUsingCategory.length > 0) {
+                message += `- I ${workoutsUsingCategory.length} passmall(ar)\n`;
+            }
+            if (membershipsUsingCategory.length > 0) {
+                message += `- Som begränsning i ${membershipsUsingCategory.length} medlemskap\n`;
+            }
+            if (isStartProgramCategory) {
+                message += `- Som kategori för Startprogrammet (se Modulinställningar)\n`;
+            }
+            
+            alert(message);
         } else {
             setCategoryToDelete(category);
         }
+    };
+    
+    const handleEdit = (category: WorkoutCategoryDefinition) => {
+        setEditingCategory(category);
+        setEditName(category.name);
+    };
+    
+    const handleSaveEdit = () => {
+        if (!editingCategory || !editName.trim()) return;
+        const oldName = editingCategory.name;
+        const newName = editName.trim();
+        
+        if (newName === oldName) {
+            setEditingCategory(null);
+            return;
+        }
+        
+        // 1. Update definition
+        setWorkoutCategoriesData(prev => prev.map(c => c.id === editingCategory.id ? { ...c, name: newName } : c));
+        
+        // 2. Update Workouts
+        setWorkoutsData(prev => prev.map(w => w.category === oldName ? { ...w, category: newName } : w));
+        
+        // 3. Update Memberships (handle object keys)
+        setMembershipsData(prev => prev.map(m => {
+             if (m.restrictedCategories && m.restrictedCategories[oldName]) {
+                 const { [oldName]: behavior, ...rest } = m.restrictedCategories;
+                 return {
+                     ...m,
+                     restrictedCategories: {
+                         ...rest,
+                         [newName]: behavior
+                     }
+                 };
+             }
+             return m;
+        }));
+
+        setEditingCategory(null);
+        setEditName('');
     };
 
     const confirmDelete = () => {
@@ -285,7 +348,15 @@ const WorkoutCategoryManager: React.FC = () => {
     return (
         <>
             <Card title="Hantera Programkategorier">
-                 <p className="text-sm text-gray-500 -mt-2 mb-4">Dessa kategorier används för att sortera träningsprogram och mallar.</p>
+                 <div className="bg-blue-50 border border-blue-200 p-3 rounded-md mb-4 text-sm text-blue-800 space-y-1">
+                    <p className="font-semibold">Vad används kategorier till?</p>
+                    <ul className="list-disc pl-5">
+                        <li><strong>Sortera pass:</strong> Medlemmar hittar pass enklare (t.ex. "PT-grupp" vs "Workout").</li>
+                        <li><strong>"Plus"-menyn:</strong> Kategorier dyker upp som alternativ när en medlem klickar på (+) för att logga.</li>
+                        <li><strong>Medlemskap:</strong> Du kan låsa vissa kategorier för specifika medlemskap (t.ex. "Mini").</li>
+                        <li><strong>Startprogram:</strong> Du väljer en kategori som utgör startprogrammet för nya medlemmar.</li>
+                    </ul>
+                 </div>
                  <div className="space-y-4">
                     <div>
                         <label htmlFor="new-category" className="block text-base font-medium text-gray-700 mb-1">Ny Kategori</label>
@@ -299,14 +370,35 @@ const WorkoutCategoryManager: React.FC = () => {
                         <div className="space-y-2">
                             {workoutCategories.map(cat => (
                                 <div key={cat.id} className="flex justify-between items-center p-2 bg-gray-100 rounded-md">
-                                    <span className="text-gray-800">{cat.name}</span>
-                                    <Button variant="danger" size="sm" className="!p-1.5" onClick={() => handleDelete(cat)}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg></Button>
+                                    <span className="text-gray-800 font-medium">{cat.name}</span>
+                                    <div className="flex gap-2">
+                                        <Button variant="outline" size="sm" className="!p-1.5" onClick={() => handleEdit(cat)}>Redigera</Button>
+                                        <Button variant="danger" size="sm" className="!p-1.5" onClick={() => handleDelete(cat)}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg></Button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
                     </div>
                 </div>
             </Card>
+            
+            {editingCategory && (
+                <Modal isOpen={!!editingCategory} onClose={() => setEditingCategory(null)} title="Redigera Kategori" size="sm">
+                    <div className="space-y-4">
+                        <p className="text-sm text-gray-600">Om du byter namn på denna kategori kommer alla pass och medlemskapsregler som använder namnet "{editingCategory.name}" automatiskt att uppdateras.</p>
+                        <Input 
+                            label="Namn"
+                            value={editName}
+                            onChange={e => setEditName(e.target.value)}
+                        />
+                        <div className="flex justify-end gap-2">
+                            <Button variant="secondary" onClick={() => setEditingCategory(null)}>Avbryt</Button>
+                            <Button onClick={handleSaveEdit}>Spara</Button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+
             <ConfirmationModal 
                 isOpen={!!categoryToDelete}
                 onClose={() => setCategoryToDelete(null)}
@@ -330,6 +422,10 @@ const GroupClassDefinitionManager: React.FC = () => {
     const [duration, setDuration] = useState<number | string>('');
     const [color, setColor] = useState('#3bab5a');
     const [hasWaitlist, setHasWaitlist] = useState(true);
+
+    const closeModal = useCallback(() => {
+        setEditingDefinition(null);
+    }, []);
 
     useEffect(() => {
         if (editingDefinition) {
@@ -374,7 +470,7 @@ const GroupClassDefinitionManager: React.FC = () => {
             }
             return [...prev, definitionToSave];
         });
-        setEditingDefinition(null);
+        closeModal();
     };
     
     const handleDelete = (definition: GroupClassDefinition) => {
@@ -424,7 +520,7 @@ const GroupClassDefinitionManager: React.FC = () => {
             </Card>
             
             {editingDefinition && (
-                <Modal isOpen={!!editingDefinition} onClose={() => setEditingDefinition(null)} title={editingDefinition.name ? 'Redigera Passtyp' : 'Ny Passtyp'}>
+                <Modal isOpen={!!editingDefinition} onClose={closeModal} title={editingDefinition.name ? 'Redigera Passtyp' : 'Ny Passtyp'}>
                     <div className="space-y-4">
                         <Input label="Namn" value={name} onChange={e => setName(e.target.value)} />
                         <Input label="Beskrivning" value={description} onChange={e => setDescription(e.target.value)} />
@@ -441,7 +537,7 @@ const GroupClassDefinitionManager: React.FC = () => {
                             onChange={setHasWaitlist}
                         />
                         <div className="flex justify-end gap-2 pt-4 border-t">
-                            <Button variant="secondary" onClick={() => setEditingDefinition(null)}>Avbryt</Button>
+                            <Button variant="secondary" onClick={closeModal}>Avbryt</Button>
                             <Button onClick={handleSave}>Spara</Button>
                         </div>
                     </div>
@@ -527,25 +623,30 @@ const MembershipModal: React.FC<{
     const [formState, setFormState] = useState<Partial<Membership>>({});
 
     useEffect(() => {
-        setFormState(membershipToEdit || { type: 'subscription' });
+        // Default new memberships to empty restrictions
+        setFormState(membershipToEdit || { type: 'subscription', restrictedCategories: {} });
     }, [membershipToEdit, isOpen]);
 
     const handleChange = (field: keyof Membership, value: any) => {
         setFormState(p => ({ ...p, [field]: value }));
     };
 
-    const handleCategoryToggle = (categoryName: string) => {
-        const currentCategories = formState.restrictedCategories || [];
-        const newCategories = currentCategories.includes(categoryName)
-            ? currentCategories.filter(c => c !== categoryName)
-            : [...currentCategories, categoryName];
-        handleChange('restrictedCategories', newCategories);
+    const handleRestrictionChange = (categoryName: string, value: string) => {
+        const currentRestrictions = { ...(formState.restrictedCategories || {}) };
+        
+        if (value === 'allowed') {
+            delete currentRestrictions[categoryName];
+        } else {
+            currentRestrictions[categoryName] = value as 'show_lock' | 'hide';
+        }
+        
+        handleChange('restrictedCategories', currentRestrictions);
     };
 
     const handleSave = () => {
         if (!formState.name) return;
 
-        const finalRestrictedCategories = (formState.restrictedCategories && formState.restrictedCategories.length > 0)
+        const finalRestrictedCategories = (formState.restrictedCategories && Object.keys(formState.restrictedCategories).length > 0)
             ? formState.restrictedCategories
             : undefined;
 
@@ -575,12 +676,30 @@ const MembershipModal: React.FC<{
                     </div>
                 )}
 
-                <div className="p-2 border rounded-md">
-                    <label className="font-medium">Begränsa från passkategorier (dessa pass ingår ej):</label>
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                       {workoutCategories.map(cat => (
-                           <label key={cat.id} className="flex items-center gap-2"><input type="checkbox" checked={formState.restrictedCategories?.includes(cat.name)} onChange={() => handleCategoryToggle(cat.name)} /> {cat.name}</label>
-                       ))}
+                <div className="p-3 bg-gray-50 rounded-md border">
+                    <label className="font-semibold text-gray-700 block mb-2">Hantering av Passkategorier</label>
+                    <p className="text-sm text-gray-500 mb-3">
+                        Bestäm vilka pass som ingår i medlemskapet och hur de som inte ingår ska visas.
+                    </p>
+                    
+                    <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
+                       {workoutCategories.map(cat => {
+                           const currentValue = formState.restrictedCategories?.[cat.name] || 'allowed';
+                           return (
+                               <div key={cat.id} className="flex items-center justify-between gap-4 p-2 bg-white rounded border">
+                                   <label className="font-medium text-gray-800 flex-grow">{cat.name}</label>
+                                   <select
+                                        className="block w-40 pl-2 pr-8 py-1 text-sm border-gray-300 focus:outline-none focus:ring-flexibel focus:border-flexibel rounded-md"
+                                        value={currentValue}
+                                        onChange={(e) => handleRestrictionChange(cat.name, e.target.value)}
+                                   >
+                                       <option value="allowed">Ingår (Öppet)</option>
+                                       <option value="show_lock">Visa med hänglås</option>
+                                       <option value="hide">Dölj helt</option>
+                                   </select>
+                               </div>
+                           );
+                       })}
                     </div>
                 </div>
 
@@ -631,10 +750,17 @@ const MembershipManager: React.FC = () => {
                 </div>
                 <div className="space-y-3">
                     {memberships.map(mem => {
+                        const restrictedList = mem.restrictedCategories ? Object.entries(mem.restrictedCategories) : [];
                         const descriptionParts: string[] = [];
-                        if(mem.restrictedCategories && mem.restrictedCategories.length > 0) {
-                            descriptionParts.push(`Begränsad från: ${mem.restrictedCategories.join(', ')}`);
+                        
+                        if(restrictedList.length > 0) {
+                            const shown = restrictedList.filter(([_, val]) => val === 'show_lock').map(([name]) => name);
+                            const hidden = restrictedList.filter(([_, val]) => val === 'hide').map(([name]) => name);
+                            
+                            if (shown.length > 0) descriptionParts.push(`Låsta (visas): ${shown.join(', ')}`);
+                            if (hidden.length > 0) descriptionParts.push(`Dolda: ${hidden.join(', ')}`);
                         }
+                        
                         if(mem.type === 'clip_card') {
                             descriptionParts.push(`${mem.clipCardClips || 0} klipp, giltigt ${mem.clipCardValidityDays || 'obegränsad tid'} dagar.`);
                         }
@@ -645,7 +771,7 @@ const MembershipManager: React.FC = () => {
                                     <div>
                                         <h4 className="text-lg font-bold text-gray-800">{mem.name}</h4>
                                         <p className="text-sm text-gray-600">{mem.description || 'Ingen beskrivning.'}</p>
-                                        {descriptionParts.map((part, i) => <p key={i} className={`text-sm ${part.toLowerCase().includes('begränsad') ? 'text-red-600' : 'text-gray-600'}`}>{part}</p>)}
+                                        {descriptionParts.map((part, i) => <p key={i} className={`text-sm ${part.toLowerCase().includes('dolda') || part.toLowerCase().includes('låsta') ? 'text-red-600' : 'text-gray-600'}`}>{part}</p>)}
                                     </div>
                                     <div className="flex gap-2 flex-shrink-0">
                                         <Button variant="outline" size="sm" onClick={() => {setEditingMembership(mem); setIsModalOpen(true);}}>Redigera</Button>

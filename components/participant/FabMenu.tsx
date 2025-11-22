@@ -72,10 +72,19 @@ export const FabMenu: React.FC<FabMenuProps> = ({ isOpen, onToggle, onClose, wor
 
     finalMenuItems.forEach(category => {
         let isRestricted = false;
-        // Don't apply restrictions to 'Personligt program'
+        let isHidden = false;
+
+        // Check restrictions
         if (membership?.restrictedCategories && category.value !== 'Personligt program') {
-            isRestricted = membership.restrictedCategories.includes(category.value);
+            const restrictionBehavior = membership.restrictedCategories[category.value];
+            if (restrictionBehavior === 'hide') {
+                isHidden = true;
+            } else if (restrictionBehavior === 'show_lock') {
+                isRestricted = true;
+            }
         }
+        
+        if (isHidden) return;
         
         actions.push({
             key: category.value, label: `Logga ${category.label}`, icon: categoryIcons[category.value] || <span className="text-lg">🤸‍♀️</span>,
