@@ -36,7 +36,7 @@ interface EnrichedClassInstance {
 }
 
 interface CalendarEvent {
-    type: 'PB' | 'GOAL_COMPLETED' | 'CLUB' | 'INBODY' | 'STRENGTH_TEST' | 'CONDITIONING_TEST' | 'NEW_GOAL' | 'COACH_EVENT' | 'ONE_ON_ONE' | 'GOAL_TARGET' | 'WORKOUT_LOGGED';
+    type: 'PB' | 'GOAL_COMPLETED' | 'CLUB' | 'INBODY' | 'STRENGTH_TEST' | 'CONDITIONING_TEST' | 'NEW_GOAL' | 'COACH_EVENT' | 'ONE_ON_ONE' | 'GOAL_TARGET' | 'WORKOUT_LOGGED' | 'GENERAL_ACTIVITY';
     icon: string;
     description: string;
     node?: React.ReactNode;
@@ -153,6 +153,9 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
     }
     if (dayLogs.some(log => log.type === 'workout')) {
        dayEvents.push({ type: 'WORKOUT_LOGGED', icon: '💪', description: '' });
+    }
+    if (dayLogs.some(log => log.type === 'general')) {
+       dayEvents.push({ type: 'GENERAL_ACTIVITY', icon: '🤸', description: '' });
     }
     
     // Coach events
