@@ -11,8 +11,7 @@ import {
     UserPushSubscription,
     ActivityLog,
     Exercise,
-    ParticipantPhysiqueStat,
-    ParticipantProfile
+    ParticipantPhysiqueStat
 } from '../../types';
 import { Button } from '../Button';
 import { Modal } from '../Modal';
@@ -947,20 +946,6 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         }, 150);
     };
 
-    // --- NEW: Handle Physique Save Async ---
-    const handleSavePhysique = async (physiqueData: Partial<Pick<ParticipantProfile, 'bodyweightKg' | 'muscleMassKg' | 'fatMassKg' | 'inbodyScore'>>) => {
-        if (!participantProfile) return;
-
-        const newHistoryEntry: ParticipantPhysiqueStat = {
-            id: crypto.randomUUID(),
-            participantId: participantProfile.id,
-            lastUpdated: new Date().toISOString(),
-            ...physiqueData,
-        };
-        setParticipantPhysiqueHistoryData(prev => [...prev, newHistoryEntry]);
-        await updateParticipantProfile(participantProfile.id, physiqueData);
-    };
-
     useEffect(() => {
         if (!participantProfile || isNewUser) return;
 
@@ -1255,7 +1240,16 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             isOpen={isPhysiqueModalOpen}
             onClose={() => setIsPhysiqueModalOpen(false)}
             currentProfile={participantProfile}
-            onSave={handleSavePhysique}
+            onSave={async (physiqueData) => {
+                const newHistoryEntry: ParticipantPhysiqueStat = {
+                    id: crypto.randomUUID(),
+                    participantId: participantProfile?.id || '',
+                    lastUpdated: new Date().toISOString(),
+                    ...physiqueData,
+                };
+                setParticipantPhysiqueHistoryData(prev => [...prev, newHistoryEntry]);
+                await updateParticipantProfile(participantProfile?.id || '', physiqueData);
+            }}
         />
         <CommunityModal
             isOpen={isCommunityModalOpen}
