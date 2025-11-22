@@ -70,11 +70,18 @@ export const FabMenu: React.FC<FabMenuProps> = ({ isOpen, onToggle, onClose, wor
       finalMenuItems = finalMenuItems.filter(item => item.value !== 'Personligt program');
     }
 
+    const shouldHideRestricted = integrationSettings.restrictedContentBehavior === 'hide';
+
     finalMenuItems.forEach(category => {
         let isRestricted = false;
         // Don't apply restrictions to 'Personligt program'
         if (membership?.restrictedCategories && category.value !== 'Personligt program') {
             isRestricted = membership.restrictedCategories.includes(category.value);
+        }
+        
+        // If restricted and setting is 'hide', skip adding this button
+        if (isRestricted && shouldHideRestricted) {
+            return;
         }
         
         actions.push({

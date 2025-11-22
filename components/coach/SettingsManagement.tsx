@@ -73,6 +73,11 @@ const ModuleSettingsManager: React.FC = () => {
         { value: '', label: 'Välj en kategori...' },
         ...workoutCategories.map(c => ({ value: c.id, label: c.name }))
       ], [workoutCategories]);
+      
+    const restrictedBehaviorOptions = [
+        { value: 'show_lock', label: 'Visa pass med hänglås (Teaser)' },
+        { value: 'hide', label: 'Dölj begränsade pass helt' },
+    ];
 
     return (
         <Card title="Modulinställningar">
@@ -123,6 +128,17 @@ const ModuleSettingsManager: React.FC = () => {
                     label="Aktivera Schema"
                     description="Visar schemaläggningskalendern inuti 'Personal & Schema'-vyn."
                 />
+                
+                <div className="pt-6 border-t">
+                    <h4 className="text-xl font-bold text-gray-700 mb-2">Behörigheter & Innehåll</h4>
+                    <Select
+                        label="Hantering av begränsade pass/kategorier"
+                        value={integrationSettings.restrictedContentBehavior || 'show_lock'}
+                        onChange={(e) => handleSettingChange('restrictedContentBehavior', e.target.value)}
+                        options={restrictedBehaviorOptions}
+                        description="Styr hur pass som inte ingår i en medlems medlemskap ska visas. 'Visa med hänglås' visar att passet finns men kräver uppgradering. 'Dölj helt' tar bort passet från listan."
+                    />
+                </div>
 
                 <div className="pt-6 border-t">
                     <h4 className="text-xl font-bold text-gray-700 mb-2">Startprogram</h4>
@@ -255,9 +271,12 @@ const LocationManager: React.FC = () => {
 };
 
 const WorkoutCategoryManager: React.FC = () => {
-    const { workoutCategories, setWorkoutCategoriesData, workouts, memberships, integrationSettings } = useAppContext();
+    const { workoutCategories, setWorkoutCategoriesData, workouts, memberships, integrationSettings, setWorkoutsData, setMembershipsData } = useAppContext();
     const [newCategory, setNewCategory] = useState('');
     const [categoryToDelete, setCategoryToDelete] = useState<WorkoutCategoryDefinition | null>(null);
+    
+    const [editingCategory, setEditingCategory] = useState<WorkoutCategoryDefinition | null>(null);
+    const [editName, setEditName] = useState('');
 
     const handleAdd = () => {
         if (newCategory.trim() && !workoutCategories.some(c => c.name.toLowerCase() === newCategory.trim().toLowerCase())) {
@@ -294,6 +313,42 @@ const WorkoutCategoryManager: React.FC = () => {
             setCategoryToDelete(category);
         }
     };
+    
+    const handleEdit = (category: WorkoutCategoryDefinition) => {
+        setEditingCategory(category);
+        setEditName(category.name);
+    };
+    
+    const handleSaveEdit = () => {
+        if (!editingCategory || !editName.trim()) return;
+        const oldName = editingCategory.name;
+        const newName = editName.trim();
+        
+        if (newName === oldName) {
+            setEditingCategory(null);
+            return;
+        }
+        
+        // 1. Update definition
+        setWorkoutCategoriesData(prev => prev.map(c => c.id === editingCategory.id ? { ...c, name: newName } : c));
+        
+        // 2. Update Workouts
+        setWorkoutsData(prev => prev.map(w => w.category === oldName ? { ...w, category: newName } : w));
+        
+        // 3. Update Memberships
+        setMembershipsData(prev => prev.map(m => {
+             if (m.restrictedCategories && m.restrictedCategories.includes(oldName)) {
+                 return {
+                     ...m,
+                     restrictedCategories: m.restrictedCategories.map(cat => cat === oldName ? newName : cat)
+                 };
+             }
+             return m;
+        }));
+
+        setEditingCategory(null);
+        setEditName('');
+    };
 
     const confirmDelete = () => {
         if (categoryToDelete) {
@@ -327,14 +382,35 @@ const WorkoutCategoryManager: React.FC = () => {
                         <div className="space-y-2">
                             {workoutCategories.map(cat => (
                                 <div key={cat.id} className="flex justify-between items-center p-2 bg-gray-100 rounded-md">
-                                    <span className="text-gray-800">{cat.name}</span>
-                                    <Button variant="danger" size="sm" className="!p-1.5" onClick={() => handleDelete(cat)}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg></Button>
+                                    <span className="text-gray-800 font-medium">{cat.name}</span>
+                                    <div className="flex gap-2">
+                                        <Button variant="outline" size="sm" className="!p-1.5" onClick={() => handleEdit(cat)}>Redigera</Button>
+                                        <Button variant="danger" size="sm" className="!p-1.5" onClick={() => handleDelete(cat)}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg></Button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
                     </div>
                 </div>
             </Card>
+            
+            {editingCategory && (
+                <Modal isOpen={!!editingCategory} onClose={() => setEditingCategory(null)} title="Redigera Kategori" size="sm">
+                    <div className="space-y-4">
+                        <p className="text-sm text-gray-600">Om du byter namn på denna kategori kommer alla pass och medlemskapsregler som använder namnet "{editingCategory.name}" automatiskt att uppdateras.</p>
+                        <Input 
+                            label="Namn"
+                            value={editName}
+                            onChange={e => setEditName(e.target.value)}
+                        />
+                        <div className="flex justify-end gap-2">
+                            <Button variant="secondary" onClick={() => setEditingCategory(null)}>Avbryt</Button>
+                            <Button onClick={handleSaveEdit}>Spara</Button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+
             <ConfirmationModal 
                 isOpen={!!categoryToDelete}
                 onClose={() => setCategoryToDelete(null)}

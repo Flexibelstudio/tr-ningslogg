@@ -35,6 +35,9 @@ export interface IntegrationSettings {
   startProgramSessionsRequired?: number;
   enableSessionReminders?: boolean;
   sessionReminderHoursBefore?: number;
+  
+  // New setting for visibility behavior
+  restrictedContentBehavior?: 'show_lock' | 'hide';
 }
 
 export interface StaffAvailability {
