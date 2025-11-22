@@ -151,7 +151,20 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                         let isRestricted = false;
                         if (membership?.restrictedCategories) {
                             const categoryName = classDef.name;
-                            isRestricted = membership.restrictedCategories.map(c => c.toLowerCase()).includes(categoryName.toLowerCase());
+                            
+                            const restrictionKey = Object.keys(membership.restrictedCategories).find(
+                                key => key.toLowerCase() === categoryName.toLowerCase()
+                            );
+
+                            if (restrictionKey) {
+                                const behavior = membership.restrictedCategories[restrictionKey];
+                                if (behavior === 'hide') {
+                                    return; // Skip adding this instance if hidden
+                                }
+                                if (behavior === 'show_lock') {
+                                    isRestricted = true;
+                                }
+                            }
                         }
     
                         instances.push({
