@@ -21,16 +21,16 @@ const VolumeComparison: React.FC<{ summary: PostWorkoutSummaryData | undefined }
 
     if (summary.isFirstTimeLoggingWorkout) {
         return (
-            <p className="mt-2 text-base text-green-700 font-semibold animate-fade-in-down" style={{ animationDelay: '200ms' }}>
-                Första gången du loggar detta pass? Snyggt! Nu har du en baslinje att slå nästa gång.
+            <p className="mt-2 text-sm text-green-700 font-semibold animate-fade-in-down" style={{ animationDelay: '200ms' }}>
+                Första gången! Nu har du en baslinje.
             </p>
         );
     }
 
     if (summary.volumeDifferenceVsPrevious !== undefined && summary.volumeDifferenceVsPrevious > 0) {
         return (
-            <p className="mt-2 text-base text-green-700 font-semibold animate-fade-in-down" style={{ animationDelay: '200ms' }}>
-                +{summary.volumeDifferenceVsPrevious.toLocaleString('sv-SE')} kg mer än förra gången! 💪
+            <p className="mt-2 text-sm text-green-700 font-semibold animate-fade-in-down" style={{ animationDelay: '200ms' }}>
+                +{summary.volumeDifferenceVsPrevious.toLocaleString('sv-SE')} kg mer än sist! 💪
             </p>
         );
     }
@@ -130,8 +130,9 @@ export const PostWorkoutSummaryModal: React.FC<PostWorkoutSummaryModalProps> = (
       try {
         const canvas = await html2canvas(shareableContentRef.current, {
           useCORS: true,
-          backgroundColor: '#ffffff',
-          scale: 2,
+          backgroundColor: '#ffffff', // Ensure white background for the image
+          scale: 3, // Higher scale for better quality on retina displays
+          logging: false,
         });
         const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
         if (blob) {
@@ -199,106 +200,133 @@ export const PostWorkoutSummaryModal: React.FC<PostWorkoutSummaryModalProps> = (
   if (isFinalizing && !hasFinalized) finalizeButtonText = "Sparar..."; 
   if (hasFinalized) finalizeButtonText = "Sparat! ✓";
 
+  const dateFormatted = new Date(log.completedDate).toLocaleDateString('sv-SE', { day: 'numeric', month: 'long', year: 'numeric' });
+
   return (
     <Modal isOpen={isOpen} onClose={handleModalCloseWithFinalize} title="" size="lg" isClosable={false}>
       {isNewCompletion && isOpen && summaryData && <Confetti />}
-      <div ref={shareableContentRef} className="bg-white p-6 rounded-lg">
-        <div className="text-center space-y-4">
-
-            <p className="text-xl text-gray-500 font-semibold">Pass Slutfört!</p>
-
-            {summaryData.animalEquivalent && (
-              <div className="my-6 animate-fade-in-down">
-                <span className="text-9xl" role="img" aria-label={summaryData.animalEquivalent.name}>
-                    {summaryData.animalEquivalent.emoji || '💪'}
-                </span>
-              </div>
-            )}
-
-            {summaryData.animalEquivalent && (
-              <div className="animate-fade-in-down" style={{animationDelay: '100ms'}}>
-                <h2 className="text-3xl font-bold text-gray-800">
-                    Grattis! Du har lyft{' '}
-                    {summaryData.animalEquivalent.count > 1
-                        ? `${summaryData.animalEquivalent.count} ${summaryData.animalEquivalent.unitName.toLowerCase()}`
-                        : `${summaryData.animalEquivalent.article || 'en'} ${summaryData.animalEquivalent.unitName.toLowerCase()}`
-                    }!
-                </h2>
-                <p className="mt-2 text-lg text-gray-600">
-                    Du lyfte {summaryData.totalWeightLifted.toLocaleString('sv-SE')} kg på detta passet.
-                    {animalWeightDetails && ` En ${animalWeightDetails.name.toLowerCase()} väger i snitt ${animalWeightDetails.weightKg} kg!`}
-                </p>
-                <VolumeComparison summary={summaryData} />
-              </div>
-            )}
+      
+      {/* SHAREABLE CARD CONTAINER */}
+      <div className="flex justify-center bg-gray-50 p-2 sm:p-4 rounded-lg">
+        <div 
+            ref={shareableContentRef} 
+            className="bg-white rounded-xl shadow-xl overflow-hidden w-full max-w-md border border-gray-200"
+            style={{ minHeight: '400px' }}
+        >
+            {/* Header Stripe */}
+            <div className="h-3 bg-flexibel w-full"></div>
             
-            {!summaryData.animalEquivalent && summaryData.totalWeightLifted > 0 && (
-                <div className="my-6">
-                    <p className="text-base text-gray-500 uppercase tracking-wide">Total Volym</p>
-                    <p className="text-5xl font-bold text-flexibel">
-                        {summaryData.totalWeightLifted.toLocaleString('sv-SE')} kg
-                    </p>
-                    <VolumeComparison summary={summaryData} />
+            <div className="p-6 flex flex-col items-center text-center">
+                
+                {/* Header Info */}
+                <div className="mb-6 w-full">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">{dateFormatted}</p>
+                    <h2 className="text-2xl font-bold text-gray-800 leading-tight">{workout.title}</h2>
+                    <div className="h-1 w-12 bg-gray-200 mx-auto mt-3 rounded-full"></div>
                 </div>
-            )}
-        </div>
-        
-        <div className="space-y-4">
-          {summaryData.bodyweightRepsSummary && summaryData.bodyweightRepsSummary.length > 0 && (
-            <div className="p-4 bg-gray-50 rounded-lg border text-center">
-                <p className="text-base text-gray-500 uppercase tracking-wide">Kroppsviktsövningar</p>
-                <p className="text-lg text-gray-800 mt-2">
-                    Samt gjort{' '}
-                    {summaryData.bodyweightRepsSummary.map((item, index) => (
-                        <React.Fragment key={index}>
-                        <span className="font-bold">{item.totalReps}</span> {item.exerciseName.toLowerCase()}
-                        {index < summaryData.bodyweightRepsSummary!.length - 1 && ', '}
-                        </React.Fragment>
-                    ))}.
-                </p>
-            </div>
-          )}
 
-          {quickLogResults.length > 0 && (
-            <div className="mt-6 pt-6 border-t">
-              <h3 className="text-xl font-semibold text-gray-800 mb-3 text-center">⏱️ Snabbloggade Block</h3>
-              <ul className="space-y-2 text-left">
-                {quickLogResults.map((result, index) => (
-                  <li key={index} className="p-3 bg-blue-50 border border-blue-300 rounded-md text-base flex justify-between">
-                    <span className="font-semibold text-blue-700">{result.blockName}</span>
-                    <span className="font-bold">{result.rounds} varv</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+                {/* Main Visual (Animal or Generic) */}
+                {summaryData.animalEquivalent ? (
+                    <div className="relative mb-6 animate-fade-in-down">
+                        <div className="w-32 h-32 bg-blue-50 rounded-full flex items-center justify-center shadow-inner mx-auto">
+                            <span className="text-7xl" role="img" aria-label={summaryData.animalEquivalent.name}>
+                                {summaryData.animalEquivalent.emoji || '💪'}
+                            </span>
+                        </div>
+                        {/* Badge */}
+                        <div className="absolute -bottom-3 left-1/2 transform -translate-x-1/2 bg-white px-3 py-1 rounded-full shadow border border-gray-100 text-sm font-bold text-gray-700 whitespace-nowrap">
+                            {summaryData.animalEquivalent.count > 1 ? `${summaryData.animalEquivalent.count} st!` : 'En hel!'}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="mb-6 animate-fade-in-down">
+                         <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center shadow-inner mx-auto text-flexibel">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </div>
+                    </div>
+                )}
 
-          {summaryData.newBaselines && summaryData.newBaselines.length > 0 && (
-            <div className="mt-6 pt-6 border-t">
-              <h3 className="text-xl font-semibold text-gray-800 mb-3 text-center">📊 Ny Baslinje Satt!</h3>
-              <ul className="space-y-2 text-left">
-                {summaryData.newBaselines.map((baseline, index) => (
-                  <li key={index} className="p-3 bg-blue-50 border border-blue-300 rounded-md text-base">
-                    <span className="font-semibold text-blue-700">{baseline.exerciseName}:</span> Ny utgångspunkt satt till <span className="font-bold">{baseline.value}</span>. Bra start!
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+                {/* Main Stats */}
+                <div className="space-y-2 mb-6 animate-fade-in-down" style={{animationDelay: '100ms'}}>
+                     {summaryData.animalEquivalent ? (
+                         <>
+                            <h3 className="text-xl font-bold text-gray-800">
+                                Du lyfte {summaryData.animalEquivalent.article || 'en'} {summaryData.animalEquivalent.unitName.toLowerCase()}!
+                            </h3>
+                             <p className="text-sm text-gray-600 px-4">
+                                Total volym: <strong>{summaryData.totalWeightLifted.toLocaleString('sv-SE')} kg</strong>
+                                {animalWeightDetails && ` (snittvikt ca ${animalWeightDetails.weightKg} kg)`}
+                            </p>
+                         </>
+                     ) : (
+                         <>
+                             <h3 className="text-xl font-bold text-gray-800">Pass Slutfört!</h3>
+                             {summaryData.totalWeightLifted > 0 && (
+                                 <p className="text-4xl font-bold text-flexibel mt-2">
+                                     {summaryData.totalWeightLifted.toLocaleString('sv-SE')} kg
+                                 </p>
+                             )}
+                         </>
+                     )}
+                     <VolumeComparison summary={summaryData} />
+                </div>
+                
+                {/* Stats List */}
+                <div className="w-full space-y-3 text-left">
+                    {summaryData.bodyweightRepsSummary && summaryData.bodyweightRepsSummary.length > 0 && (
+                        <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 text-sm text-center text-gray-700">
+                            {summaryData.bodyweightRepsSummary.map((item, i) => (
+                                <span key={i}>
+                                    {i > 0 && ', '}
+                                    <strong>{item.totalReps}</strong> {item.exerciseName.toLowerCase()}
+                                </span>
+                            ))}
+                        </div>
+                    )}
 
-          {summaryData.newPBs && summaryData.newPBs.length > 0 && (
-            <div className="mt-6 pt-6 border-t">
-              <h3 className="text-xl font-semibold text-gray-800 mb-3 text-center">🏆 Nya Rekord!</h3>
-              <ul className="space-y-2 text-left">
-                {summaryData.newPBs.map((pb, index) => (
-                  <li key={index} className="p-3 bg-yellow-50 border border-yellow-300 rounded-md text-base">
-                    <span className="font-semibold text-yellow-700">{pb.exerciseName}:</span> {pb.achievement} <span className="font-bold">{pb.value}</span>
-                    {pb.previousBest && <span className="text-sm text-yellow-600">{pb.previousBest}</span>}
-                  </li>
-                ))}
-              </ul>
+                     {quickLogResults.length > 0 && (
+                         <div className="space-y-2">
+                             {quickLogResults.map((result, index) => (
+                                 <div key={index} className="flex justify-between items-center p-2 bg-blue-50 rounded border border-blue-100 text-sm">
+                                     <span className="font-semibold text-blue-800">{result.blockName}</span>
+                                     <span className="bg-white px-2 py-0.5 rounded text-blue-800 font-bold shadow-sm">{result.rounds} varv</span>
+                                 </div>
+                             ))}
+                         </div>
+                     )}
+
+                     {summaryData.newPBs && summaryData.newPBs.length > 0 && (
+                         <div className="space-y-2">
+                             <p className="text-xs font-bold text-gray-400 uppercase tracking-wide text-center mb-1">Nya Rekord 🏆</p>
+                             {summaryData.newPBs.map((pb, index) => (
+                                 <div key={index} className="p-2 bg-yellow-50 border border-yellow-200 rounded text-sm flex justify-between items-center">
+                                     <span className="font-semibold text-yellow-900 truncate pr-2">{pb.exerciseName}</span>
+                                     <span className="flex-shrink-0 text-yellow-800">{pb.value}</span>
+                                 </div>
+                             ))}
+                         </div>
+                     )}
+
+                     {summaryData.newBaselines && summaryData.newBaselines.length > 0 && (
+                         <div className="space-y-2">
+                             <p className="text-xs font-bold text-gray-400 uppercase tracking-wide text-center mb-1">Nya Baslinjer 📊</p>
+                             {summaryData.newBaselines.map((b, index) => (
+                                 <div key={index} className="p-2 bg-gray-50 border border-gray-200 rounded text-sm flex justify-between items-center">
+                                     <span className="font-semibold text-gray-700 truncate pr-2">{b.exerciseName}</span>
+                                     <span className="flex-shrink-0 text-gray-600">{b.value}</span>
+                                 </div>
+                             ))}
+                         </div>
+                     )}
+                </div>
+
+                 {/* Footer Branding */}
+                 <div className="mt-8 pt-4 border-t border-gray-100 w-full flex justify-between items-center">
+                     <span className="text-xs font-semibold text-gray-400">Träningslogg</span>
+                     <span className="text-xs font-bold text-flexibel">#FlexibelHälsostudio</span>
+                 </div>
+
             </div>
-          )}
         </div>
       </div>
       
