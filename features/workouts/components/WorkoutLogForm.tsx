@@ -903,41 +903,41 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
           <div className="space-y-6 animate-fade-in bg-white p-6 rounded-lg shadow-lg">
             <h2 className="text-2xl font-semibold text-gray-700">Slutför Passet</h2>
             
-            {/* Wellbeing Presets - New Main Interface */}
+            {/* Wellbeing Presets - Compact Layout */}
             <div className="space-y-4">
                  <h3 className="text-lg font-semibold text-gray-800">Hur känns kroppen idag?</h3>
-                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                 <div className="grid grid-cols-3 gap-2">
                     <button 
                         type="button"
                         onClick={() => handleWellbeingPresetClick('good')}
-                        className={`flex flex-row sm:flex-col items-center justify-center p-4 border-2 rounded-xl transition-all active:scale-95 group text-left sm:text-center ${wellbeingPreset === 'good' ? 'bg-green-100 border-green-500 shadow-md scale-105' : 'bg-white border-gray-200 hover:border-green-300'}`}
+                        className={`flex flex-col items-center justify-center p-2 border-2 rounded-xl transition-all active:scale-95 group text-center h-full ${wellbeingPreset === 'good' ? 'bg-green-100 border-green-500 shadow-md scale-105' : 'bg-white border-gray-200 hover:border-green-300'}`}
                     >
-                        <span className="text-4xl mr-4 sm:mr-0 sm:mb-2 group-hover:scale-110 transition-transform">🤩</span>
-                        <div>
-                            <span className="block text-lg font-bold text-green-800">På topp</span>
-                            <span className="block text-xs text-green-600">Stark, pigg & glad</span>
+                        <span className="text-2xl mb-1 group-hover:scale-110 transition-transform">🤩</span>
+                        <div className="leading-tight">
+                            <span className="block text-sm font-bold text-green-800">På topp</span>
+                            <span className="block text-[10px] text-green-600">Stark & glad</span>
                         </div>
                     </button>
                     <button 
                         type="button"
                         onClick={() => handleWellbeingPresetClick('neutral')}
-                        className={`flex flex-row sm:flex-col items-center justify-center p-4 border-2 rounded-xl transition-all active:scale-95 group text-left sm:text-center ${wellbeingPreset === 'neutral' ? 'bg-blue-100 border-blue-500 shadow-md scale-105' : 'bg-white border-gray-200 hover:border-blue-300'}`}
+                        className={`flex flex-col items-center justify-center p-2 border-2 rounded-xl transition-all active:scale-95 group text-center h-full ${wellbeingPreset === 'neutral' ? 'bg-blue-100 border-blue-500 shadow-md scale-105' : 'bg-white border-gray-200 hover:border-blue-300'}`}
                     >
-                        <span className="text-4xl mr-4 sm:mr-0 sm:mb-2 group-hover:scale-110 transition-transform">🙂</span>
-                        <div>
-                            <span className="block text-lg font-bold text-blue-800">Helt OK</span>
-                            <span className="block text-xs text-blue-600">Vanlig dag</span>
+                        <span className="text-2xl mb-1 group-hover:scale-110 transition-transform">🙂</span>
+                        <div className="leading-tight">
+                            <span className="block text-sm font-bold text-blue-800">Helt OK</span>
+                            <span className="block text-[10px] text-blue-600">Vanlig dag</span>
                         </div>
                     </button>
                     <button 
                         type="button"
                         onClick={() => handleWellbeingPresetClick('bad')}
-                        className={`flex flex-row sm:flex-col items-center justify-center p-4 border-2 rounded-xl transition-all active:scale-95 group text-left sm:text-center ${wellbeingPreset === 'bad' ? 'bg-orange-100 border-orange-500 shadow-md scale-105' : 'bg-white border-gray-200 hover:border-orange-300'}`}
+                        className={`flex flex-col items-center justify-center p-2 border-2 rounded-xl transition-all active:scale-95 group text-center h-full ${wellbeingPreset === 'bad' ? 'bg-orange-100 border-orange-500 shadow-md scale-105' : 'bg-white border-gray-200 hover:border-orange-300'}`}
                     >
-                        <span className="text-4xl mr-4 sm:mr-0 sm:mb-2 group-hover:scale-110 transition-transform">😴</span>
-                        <div>
-                            <span className="block text-lg font-bold text-orange-800">Sliten</span>
-                            <span className="block text-xs text-orange-600">Stressad eller trött</span>
+                        <span className="text-2xl mb-1 group-hover:scale-110 transition-transform">😴</span>
+                        <div className="leading-tight">
+                            <span className="block text-sm font-bold text-orange-800">Sliten</span>
+                            <span className="block text-[10px] text-orange-600">Stress/Trött</span>
                         </div>
                     </button>
                 </div>
@@ -946,7 +946,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
             {/* RPE - Ansträngning */}
             <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-gray-800">Hur jobbigt var det? (RPE 1-10)</h3>
-                <div className="flex justify-between items-center gap-1 overflow-x-auto pb-2">
+                <div className="grid grid-cols-10 gap-1 pb-2">
                     {Array.from({length: 10}, (_, i) => i + 1).map(num => {
                         let colorClass = "bg-green-100 text-green-800 border-green-200";
                         if (num > 4) colorClass = "bg-yellow-100 text-yellow-800 border-yellow-200";
@@ -957,8 +957,8 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                                 key={num}
                                 onClick={() => setRpe(num)}
                                 className={`
-                                    w-10 h-12 sm:w-12 sm:h-14 rounded-lg border-2 font-bold text-lg transition-all duration-200 flex-shrink-0
-                                    ${rpe === num ? `${colorClass.replace('100', '500').replace('800', 'white')} scale-110 shadow-md` : `${colorClass} hover:opacity-80`}
+                                    w-full aspect-[3/4] sm:h-12 sm:aspect-auto rounded-md border font-bold text-lg transition-all duration-200
+                                    ${rpe === num ? `${colorClass.replace('100', '500').replace('800', 'white')} scale-110 shadow-md ring-1 ring-offset-1 ring-gray-300` : `${colorClass} hover:opacity-80`}
                                 `}
                             >
                                 {num}
