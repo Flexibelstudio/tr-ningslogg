@@ -68,6 +68,8 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [hasSaved, setHasSaved] = useState(false);
   const wakeLockSentinelRef = useRef<WakeLockSentinel | null>(null);
+  
+  const [showRpeInfo, setShowRpeInfo] = useState(false);
 
   // Wellbeing state for "one-click" checkin
   const [wellbeingPreset, setWellbeingPreset] = useState<'good' | 'neutral' | 'bad' | null>(null);
@@ -945,7 +947,34 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
 
             {/* RPE - Ansträngning */}
             <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800">Hur jobbigt var det? (RPE 1-10)</h3>
+                <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-semibold text-gray-800">Hur jobbigt var det? (RPE 1-10)</h3>
+                    <button 
+                        type="button"
+                        onClick={() => setShowRpeInfo(!showRpeInfo)}
+                        className="text-gray-400 hover:text-flexibel focus:outline-none transition-colors"
+                        aria-label="Information om RPE"
+                        title="Vad är RPE?"
+                    >
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+
+                {showRpeInfo && (
+                    <div className="p-3 bg-blue-50 border border-blue-100 rounded-md text-sm text-blue-800 animate-fade-in">
+                        <p className="font-bold mb-1">RPE (Upplevd ansträngning)</p>
+                        <ul className="space-y-1 text-blue-900/80">
+                            <li><span className="font-semibold">1-3:</span> Mycket lätt.</li>
+                            <li><span className="font-semibold">4-6:</span> Medel. Kan prata obehindrat.</li>
+                            <li><span className="font-semibold">7-8:</span> Hårt. Ansträngd andning.</li>
+                            <li><span className="font-semibold">9:</span> Mycket hårt. En repetition kvar i tanken.</li>
+                            <li><span className="font-semibold">10:</span> Maximalt. Helt slut.</li>
+                        </ul>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-10 gap-1 pb-2">
                     {Array.from({length: 10}, (_, i) => i + 1).map(num => {
                         let colorClass = "bg-green-100 text-green-800 border-green-200";
@@ -989,8 +1018,7 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                 </div>
             </div>
 
-            <Textarea label="Kommentar (valfri)" value={postWorkoutComment} onChange={(e) => setPostWorkoutComment(e.target.value)} placeholder="Egna tankar om passet..." rows={3} />
-            
+            <Textarea label="Kommentar (valfri)" value={postWorkoutComment} onChange={(e) => setPostWorkoutComment(e.target.value)} placeholder="Hur kändes passet?" rows={4} />
             <div className="flex flex-col sm:flex-row justify-between gap-4 pt-6 border-t">
               <Button onClick={() => setCurrentView('block_selection')} variant="outline" size="lg">Tillbaka till block</Button>
               <Button onClick={handleFinalSave} size="lg" disabled={isSaving}>{isSaving ? 'Sparar...' : 'Spara & Avsluta'}</Button>

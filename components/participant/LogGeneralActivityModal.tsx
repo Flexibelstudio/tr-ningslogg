@@ -34,6 +34,8 @@ export const LogGeneralActivityModal: React.FC<LogGeneralActivityModalProps> = (
   const [isSaving, setIsSaving] = useState(false);
   const [hasSaved, setHasSaved] = useState(false);
   
+  const [showRpeInfo, setShowRpeInfo] = useState(false);
+  
   // Wellbeing state for "one-click" checkin
   const [wellbeingPreset, setWellbeingPreset] = useState<'good' | 'neutral' | 'bad' | null>(null);
 
@@ -62,6 +64,7 @@ export const LogGeneralActivityModal: React.FC<LogGeneralActivityModalProps> = (
       setErrors({});
       setIsSaving(false);
       setHasSaved(false);
+      setShowRpeInfo(false);
     }
   }, [isOpen]);
 
@@ -226,8 +229,35 @@ export const LogGeneralActivityModal: React.FC<LogGeneralActivityModalProps> = (
 
         {/* RPE - Ansträngning */}
         <div className="space-y-2">
-            <h3 className="text-base font-medium text-gray-700">Hur jobbigt var det? (RPE 1-10)</h3>
-            <div className="grid grid-cols-10 gap-1 pb-2">
+            <div className="flex items-center gap-2">
+                <h3 className="text-base font-medium text-gray-700">Hur jobbigt var det? (RPE 1-10)</h3>
+                <button 
+                    type="button"
+                    onClick={() => setShowRpeInfo(!showRpeInfo)}
+                    className="text-gray-400 hover:text-flexibel focus:outline-none transition-colors"
+                    aria-label="Information om RPE"
+                    title="Vad är RPE?"
+                >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+            
+            {showRpeInfo && (
+                <div className="p-3 bg-blue-50 border border-blue-100 rounded-md text-sm text-blue-800 animate-fade-in">
+                    <p className="font-bold mb-1">RPE (Upplevd ansträngning)</p>
+                    <ul className="space-y-1 text-blue-900/80">
+                        <li><span className="font-semibold">1-3:</span> Mycket lätt.</li>
+                        <li><span className="font-semibold">4-6:</span> Medel. Kan prata obehindrat.</li>
+                        <li><span className="font-semibold">7-8:</span> Hårt. Ansträngd andning.</li>
+                        <li><span className="font-semibold">9:</span> Mycket hårt. En repetition kvar i tanken.</li>
+                        <li><span className="font-semibold">10:</span> Maximalt. Helt slut.</li>
+                    </ul>
+                </div>
+            )}
+
+            <div className="grid grid-cols-10 gap-0.5 sm:gap-1 pb-2">
                 {Array.from({length: 10}, (_, i) => i + 1).map(num => {
                     let colorClass = "bg-green-100 text-green-800 border-green-200";
                     if (num > 4) colorClass = "bg-yellow-100 text-yellow-800 border-yellow-200";
@@ -238,7 +268,7 @@ export const LogGeneralActivityModal: React.FC<LogGeneralActivityModalProps> = (
                             key={num}
                             onClick={() => setRpe(num)}
                             className={`
-                                w-full aspect-[3/4] sm:h-12 sm:aspect-auto rounded-md border font-bold text-lg transition-all duration-200
+                                w-full h-9 sm:h-12 flex items-center justify-center rounded-md border font-bold text-sm sm:text-lg transition-all duration-200
                                 ${rpe === num ? `${colorClass.replace('100', '500').replace('800', 'white')} scale-110 shadow-md ring-1 ring-offset-1 ring-gray-300` : `${colorClass} hover:opacity-80`}
                             `}
                         >
