@@ -54,15 +54,20 @@ const ProgressCircle: React.FC<{
   percentage: number;
   colorClass: string;
   bgColorClass: string;
-}> = ({ label, displayText, displayUnit, percentage, colorClass, bgColorClass }) => {
+  size?: 'normal' | 'large';
+}> = ({ label, displayText, displayUnit, percentage, colorClass, bgColorClass, size = 'normal' }) => {
   const radius = 45; 
   const strokeWidth = 10;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (percentage / 100) * circumference;
 
+  const sizeClasses = size === 'large' ? 'w-56 h-56' : 'w-40 h-40';
+  const textClasses = size === 'large' ? 'text-5xl' : 'text-3xl';
+  const labelClasses = size === 'large' ? 'text-lg mt-4' : 'text-base mt-3';
+
   return (
     <div className="flex flex-col items-center text-center p-2 flex-1">
-      <div className="relative w-40 h-40">
+      <div className={`relative ${sizeClasses}`}>
         <svg className="w-full h-full transform -rotate-90" viewBox="0 0 120 120">
           <circle className="text-gray-100" strokeWidth={strokeWidth} stroke="currentColor" fill="transparent" r={radius} cx="60" cy="60" />
           <circle
@@ -80,11 +85,11 @@ const ProgressCircle: React.FC<{
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-3xl font-bold text-gray-800">{displayText}</span>
+          <span className={`${textClasses} font-bold text-gray-800`}>{displayText}</span>
           <span className="text-sm font-medium text-gray-400 uppercase tracking-wide">{displayUnit}</span>
         </div>
       </div>
-      <p className="mt-3 text-base font-semibold text-gray-600">{label}</p>
+      <p className={`${labelClasses} font-semibold text-gray-600`}>{label}</p>
     </div>
   );
 };
@@ -175,6 +180,7 @@ const GoalProgressCard: React.FC<{ goal: ParticipantGoalData | null, logs: Activ
                         percentage={Math.min(100, (progress.completed / progress.target) * 100)}
                         colorClass="text-flexibel-orange"
                         bgColorClass="bg-orange-50"
+                        size="large"
                     />
                 ) : (
                     <div className="text-center py-6">
