@@ -1,0 +1,8 @@
+{
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "name": "Ny Träningslogg",
+  "description": "Bytte till en kopia från 25 nov kl. 17.40",
+  "prompt": ""
+}

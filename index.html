@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="sv-SE">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Träningslogg</title>
+
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/icon-180x180.png">
+  <meta name="theme-color" content="#3bab5a">
+
+  <!-- CRITICAL FIX: Immediate Service Worker Unregistration -->
+  <script>
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          console.log('Force unregistering SW to fix preview crash:', registration);
+          registration.unregister();
+        }
+      }).catch(function(err) {
+        console.warn('SW cleanup warning (safe to ignore):', err);
+      });
+    }
+  </script>
+
+  <!-- Tailwind via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          backgroundImage: {
+            'dotted-pattern': "radial-gradient(hsl(215 20% 85%) 1px, transparent 0)",
+          },
+          backgroundSize: {
+            'dotted-size': '25px 25px',
+          },
+          colors: {
+            flexibel: '#3bab5a',
+            'flexibel-orange': '#f97316',
+            slate: {
+              50: '#f8fafc',
+              100: '#f1f5f9',
+              200: '#e2e8f0',
+              300: '#cbd5e1',
+              400: '#94a3b8',
+              500: '#64748b',
+              600: '#475569',
+              700: '#334155',
+              800: '#1e293b',
+              900: '#0f172a',
+            },
+            blue: { 500: '#3b82f6' }
+          },
+          animation: {
+            'fade-in-down': 'fadeInDown 0.5s ease-out',
+            'pulse-cta': 'pulse-cta 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'pulse-icon': 'pulse-icon 1.5s ease-in-out infinite',
+            'fade-in': 'fadeIn 0.3s ease-out',
+            'scale-in': 'scaleIn 0.2s ease-out',
+            'highlight-new': 'highlight-fade 3s ease-out'
+          },
+          keyframes: {
+            fadeInDown: {
+              '0%': { opacity: '0', transform: 'translateY(-10px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
+            },
+            'pulse-cta': {
+              '0%, 100%': { transform: 'scale(1)' },
+              '50%': { transform: 'scale(1.05)' },
+            },
+            'pulse-icon': {
+              '0%, 100%': { transform: 'scale(1)', opacity: '1' },
+              '50%': { transform: 'scale(1.25)', opacity: '0.75' },
+            },
+            fadeIn: {
+              '0%': { opacity: '0' },
+              '100%': { opacity: '1' },
+            },
+            scaleIn: {
+              '0%': { opacity: '0', transform: 'scale(0.95)' },
+              '100%': { opacity: '1', transform: 'scale(1)' },
+            },
+            'highlight-fade': {
+              '0%': { backgroundColor: '#dcfce7' },
+              '100%': { backgroundColor: 'transparent' },
+            },
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    @keyframes confetti-fall {
+      0%   { transform: translateY(0) rotateZ(0deg) rotateY(0deg); opacity: 1; }
+      100% { transform: translateY(110vh) rotateZ(720deg) rotateY(360deg); opacity: 0; }
+    }
+    .confetti {
+      position: fixed;
+      top: -20px;
+      animation-name: confetti-fall;
+      animation-timing-function: linear;
+      animation-iteration-count: 1;
+      will-change: transform, opacity;
+    }
+  </style>
+
+  <!-- Import map med PINNADE versioner för att undvika dubbla React-instanser -->
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.3.1",
+    "react/": "https://esm.sh/react@18.3.1/",
+    "react-dom": "https://esm.sh/react-dom@18.3.1",
+    "react-dom/": "https://esm.sh/react-dom@18.3.1/",
+    "react-router-dom": "https://esm.sh/react-router-dom@6.22.3?deps=react@18.3.1,react-dom@18.3.1",
+    "framer-motion": "https://esm.sh/framer-motion@10.16.4?deps=react@18.3.1,react-dom@18.3.1",
+    "recharts": "https://esm.sh/recharts@2.12.3?deps=react@18.3.1,react-dom@18.3.1",
+    "@google/genai": "https://esm.sh/@google/genai",
+    "html2canvas": "https://esm.sh/html2canvas@^1.4.1",
+    "chart.js/auto": "https://esm.sh/chart.js@^4.4.3/auto",
+    "chartjs-adapter-date-fns": "https://esm.sh/chartjs-adapter-date-fns@^3.0.0",
+    "chart.js/": "https://esm.sh/chart.js@^4.5.0/",
+    "jsqr": "https://esm.sh/jsqr@^1.4.0",
+    "qrcode": "https://esm.sh/qrcode@^1.5.3",
+    "firebase/compat/app": "https://esm.sh/firebase@9.23.0/compat/app",
+    "firebase/compat/auth": "https://esm.sh/firebase@9.23.0/compat/auth",
+    "firebase/compat/firestore": "https://esm.sh/firebase@9.23.0/compat/firestore",
+    "firebase/compat/functions": "https://esm.sh/firebase@9.23.0/compat/functions",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.4.0/",
+    "web-push": "https://aistudiocdn.com/web-push@^3.6.7",
+    "firebase-functions/": "https://aistudiocdn.com/firebase-functions@^7.0.0/",
+    "firebase-admin/": "https://aistudiocdn.com/firebase-admin@^13.6.0/",
+    "dom": "https://aistudiocdn.com/dom@^0.0.3",
+    "es2015": "https://aistudiocdn.com/es2015@^0.0.0"
+  }
+}
+</script>
+
+  <link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-gray-100 text-gray-800 antialiased" style="background-color: #f3f4f6;">
+  <div id="root"></div>
+
+  <!-- Vite entry -->
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+// DELETED - Moved to features/auth/components/Register.tsx
