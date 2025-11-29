@@ -62,7 +62,7 @@ const ProgressCircle: React.FC<{
 
   return (
     <div className="flex flex-col items-center text-center p-2 flex-1">
-      <div className="relative w-32 h-32">
+      <div className="relative w-40 h-40">
         <svg className="w-full h-full transform -rotate-90" viewBox="0 0 120 120">
           <circle className="text-gray-100" strokeWidth={strokeWidth} stroke="currentColor" fill="transparent" r={radius} cx="60" cy="60" />
           <circle
@@ -80,11 +80,11 @@ const ProgressCircle: React.FC<{
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-bold text-gray-800">{displayText}</span>
-          <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{displayUnit}</span>
+          <span className="text-3xl font-bold text-gray-800">{displayText}</span>
+          <span className="text-sm font-medium text-gray-400 uppercase tracking-wide">{displayUnit}</span>
         </div>
       </div>
-      <p className="mt-2 text-sm font-semibold text-gray-600">{label}</p>
+      <p className="mt-3 text-base font-semibold text-gray-600">{label}</p>
     </div>
   );
 };
@@ -120,12 +120,8 @@ const GoalProgressCard: React.FC<{ goal: ParticipantGoalData | null, logs: Activ
 
 
         return (
-            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="p-6">
-                    <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                        <span className="w-2 h-6 bg-flexibel rounded-full mr-2"></span>
-                        Aktuell Plan
-                    </h2>
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-100">
+                <div className="p-6 pb-0">
                     <div className="flex justify-center sm:justify-around items-start gap-6">
                         {weeklyTarget > 0 && (
                             <ProgressCircle
@@ -150,7 +146,7 @@ const GoalProgressCard: React.FC<{ goal: ParticipantGoalData | null, logs: Activ
                     </div>
                 </div>
                 
-                <div className="bg-gray-50 p-4 border-t border-gray-100">
+                <div className="p-6 pt-4">
                     <div className="flex justify-between items-center mb-2 text-sm">
                         <span className="font-semibold text-gray-600">Tidslinje</span>
                         <span className="font-bold text-gray-800">{Math.round(daysRemaining)} dagar kvar</span>
@@ -170,11 +166,7 @@ const GoalProgressCard: React.FC<{ goal: ParticipantGoalData | null, logs: Activ
     // Fallback if no target date is set
     return (
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-             <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                <span className="w-2 h-6 bg-gray-300 rounded-full mr-2"></span>
-                Aktuell Status
-            </h2>
-             <div className="flex justify-center sm:justify-around items-start mt-4 gap-4">
+             <div className="flex justify-center sm:justify-around items-start mt-2 gap-4">
                 {progress ? (
                     <ProgressCircle
                         label="Veckans Pass"
