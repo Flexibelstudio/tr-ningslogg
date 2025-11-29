@@ -41,7 +41,7 @@ export const useClientJourney = (loggedInStaff: StaffMember | null) => {
   );
 
   const [activeTab, setActiveTab] = useState<ClientJourneyTab>('leads');
-  const [activeLeadFilter, setActiveLeadFilter] = useState<LeadFilter>('new');
+  const [activeLeadFilter, setActiveLeadFilter] = useState<LeadFilter>('all'); // Default to 'all' (Active)
   const [activeFilter, setActiveFilter] = useState<string | null>(null); // For journey tab
   const [introCallView, setIntroCallView] = useState<IntroCallFilter>('actionable');
 
@@ -200,13 +200,15 @@ export const useClientJourney = (loggedInStaff: StaffMember | null) => {
       intro_booked: 0,
       converted: 0,
       junk: 0,
-      all: leads.length,
+      all: 0,
     };
     leads.forEach((l) => {
       if (counts[l.status] !== undefined) {
         counts[l.status]++;
       }
     });
+    // "All" now means "Active Leads" (excluding junk and converted)
+    counts.all = counts.new + counts.contacted + counts.intro_booked;
     return counts;
   }, [leads]);
 
@@ -214,9 +216,12 @@ export const useClientJourney = (loggedInStaff: StaffMember | null) => {
     const sortedLeads = [...leads].sort(
       (a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime()
     );
+    
     if (activeLeadFilter === 'all') {
-      return sortedLeads;
+      // Filter out Junk and Converted when 'all' (All Active) is selected
+      return sortedLeads.filter(l => ['new', 'contacted', 'intro_booked'].includes(l.status));
     }
+    
     return sortedLeads.filter((l) => l.status === activeLeadFilter);
   }, [leads, activeLeadFilter]);
 
