@@ -399,14 +399,19 @@ exports.cancelClassInstance = (0, https_1.onCall)({
         logger.info(`[${opId}] WROTE exception`, { exceptionId: exceptionRef.id });
         // 2) Hitta bokningar (robust)
         const dateKey = normalizeDateKey(String(classDate));
+        logger.info(`[${opId}] Booking lookup input`, {
+            scheduleId,
+            classDateInput: classDate,
+            normalizedDateKey: dateKey,
+        });
         const bookingsRef = db.collection("organizations").doc(orgId).collection("participantBookings");
         let bookingsSnap = await bookingsRef
             .where("scheduleId", "==", scheduleId)
             .where("classDate", "==", dateKey)
             .where("status", "in", ["BOOKED", "CHECKED-IN", "CONFIRMED", "ACTIVE"])
             .get();
+        logger.info(`[${opId}] Primary bookings query`, { count: bookingsSnap.size });
         if (bookingsSnap.empty) {
-            // Fallback om datumformat diffar
             const schedOnlySnap = await bookingsRef
                 .where("scheduleId", "==", scheduleId)
                 .where("status", "in", ["BOOKED", "CHECKED-IN", "CONFIRMED", "ACTIVE"])
@@ -420,9 +425,11 @@ exports.cancelClassInstance = (0, https_1.onCall)({
             });
             if (candidates.length > 0) {
                 bookingsSnap = { empty: false, size: candidates.length, docs: candidates };
+                logger.info(`[${opId}] Fallback hit (scheduleId-only + in-memory date filter)`, { count: candidates.length });
             }
         }
         if (bookingsSnap.empty) {
+            logger.info(`[${opId}] No active bookings found for schedule ${scheduleId} on ${dateKey}. Exception created.`);
             return { success: true, message: "Class cancelled, no active bookings found." };
         }
         // 3) Uppdatera bokningar + ev. refund + event + in-app notiser
@@ -513,8 +520,31 @@ exports.cancelClassInstance = (0, https_1.onCall)({
             targetParticipantIds: Array.from(affectedParticipantIds),
             createdDate: new Date().toISOString(),
         });
+        for (const participantId of affectedParticipantIds) {
+            const notifRef = db
+                .collection("organizations")
+                .doc(orgId)
+                .collection("participantDirectory")
+                .doc(participantId)
+                .collection("user_notifications")
+                .doc();
+            batch.set(notifRef, {
+                type: "CLASS_CANCELLED",
+                scheduleId,
+                classDate: dateKey,
+                title: "Pass inställt",
+                body: "Ditt bokade pass har ställts in av en coach.",
+                createdAt: nowTs,
+                read: false,
+            });
+        }
         await batch.commit();
-        // 4) Push – gör icke-kritiskt
+        logger.info(`[${opId}] Bookings updated`, {
+            cancelledCount: bookingsSnap.size,
+            affectedParticipants: Array.from(affectedParticipantIds).length,
+            refunds: participantIdsToRefundClips.size,
+        });
+        // 4) Push – gör icke-kritiskt (svälj fel)
         const payload = JSON.stringify({
             title: `Pass inställt: ${className}`,
             body: `Ditt pass ${className} den ${dateString} kl ${classTime} har tyvärr ställts in.`,
@@ -522,6 +552,19 @@ exports.cancelClassInstance = (0, https_1.onCall)({
         let notificationsSent = 0;
         if (tryInitWebPush()) {
             for (const participantId of affectedParticipantIds) {
+                const participantProfileDoc = await db
+                    .collection("organizations")
+                    .doc(orgId)
+                    .collection("participantDirectory")
+                    .doc(participantId)
+                    .get();
+                if (!participantProfileDoc.exists)
+                    continue;
+                const profile = participantProfileDoc.data();
+                const settings = profile?.notificationSettings;
+                if (settings?.pushEnabled === false || settings?.classCancellation === false) {
+                    continue;
+                }
                 const subsSnap = await db
                     .collection("organizations")
                     .doc(orgId)
@@ -536,14 +579,21 @@ exports.cancelClassInstance = (0, https_1.onCall)({
                             notificationsSent++;
                         }
                         catch (err) {
+                            logger.error(`Push send error for participant ${participantId}:`, err);
                             if (err?.statusCode === 404 || err?.statusCode === 410) {
                                 await doc.ref.delete();
+                                await participantProfileDoc.ref.update({ "notificationSettings.pushEnabled": false });
                             }
                         }
                     }));
                 }
             }
+            logger.info(`[${opId}] SENT push`, { notificationsSent });
         }
+        else {
+            logger.info("[Push] Skippas i cancelClassInstance (ej initierad).");
+        }
+        logger.info(`[${opId}] DONE`);
         return { success: true, cancelledCount: bookingsSnap.size, notificationsSent };
     }
     catch (error) {
@@ -554,7 +604,7 @@ exports.cancelClassInstance = (0, https_1.onCall)({
     }
 });
 /* -----------------------------------------------------------------------------
- * HTTP: Calendar Feed (iCal) - FIXAD VERSION
+ * HTTP: Calendar Feed (iCal)
  * ---------------------------------------------------------------------------*/
 exports.calendarFeed = (0, https_1.onRequest)({ region: "europe-west1" }, async (req, res) => {
     const { userId, type } = req.query;
@@ -591,64 +641,21 @@ exports.calendarFeed = (0, https_1.onRequest)({ region: "europe-west1" }, async 
             res.status(404).send("User not found.");
             return;
         }
+        // 2. Hämta events
         let events = [];
         const now = new Date();
-        const threeMonthsLater = new Date();
-        threeMonthsLater.setMonth(now.getMonth() + 3);
-        // ---------------------------------------
-        // LOGIK FÖR COACH
-        // ---------------------------------------
         if (type === "coach") {
-            // A. Hämta återkommande scheman för denna coach
+            // Återkommande scheman där coachId == userId (ej expanderade än – TODO om du vill)
             const schedulesSnap = await db
                 .collection("organizations")
                 .doc(foundOrgId)
                 .collection("groupClassSchedules")
                 .where("coachId", "==", userId)
                 .get();
-            // Hämta definitioner för att få namnet på passet
-            const defsRef = db.collection("organizations").doc(foundOrgId).collection("groupClassDefinitions");
-            const definitionsSnap = await defsRef.get();
-            const definitionsMap = new Map();
-            definitionsSnap.forEach(doc => definitionsMap.set(doc.id, doc.data()));
-            // Hämta exceptions (inställda pass)
-            // För enkelhetens skull hämtar vi alla och filtrerar i minnet (oftast få exceptions)
-            const exceptionsRef = db.collection("organizations").doc(foundOrgId).collection("groupClassScheduleExceptions");
-            const exceptionsSnap = await exceptionsRef.get();
-            const exceptions = exceptionsSnap.docs.map(d => d.data());
-            // B. Loopa igenom scheman och skapa events
-            for (const schedDoc of schedulesSnap.docs) {
-                const s = schedDoc.data();
-                const classDef = definitionsMap.get(s.groupClassId);
-                const className = classDef ? classDef.name : "Gruppass";
-                const start = new Date(s.startDate);
-                const end = new Date(s.endDate);
-                // Bestäm tidsintervall för kalendergenerering (max 3 månader framåt)
-                const loopStart = start > now ? start : now;
-                const loopEnd = end < threeMonthsLater ? end : threeMonthsLater;
-                // Parse start time HH:MM
-                const [h, m] = String(s.startTime).split(":").map(Number);
-                // Iterera dag för dag
-                for (let d = new Date(loopStart); d <= loopEnd; d.setDate(d.getDate() + 1)) {
-                    // Flexibel App uses 1=Mon...7=Sun. JS uses 0=Sun...6=Sat.
-                    const jsDay = d.getDay();
-                    const appDay = jsDay === 0 ? 7 : jsDay;
-                    if (s.daysOfWeek && s.daysOfWeek.includes(appDay)) {
-                        const dateString = d.toISOString().split('T')[0];
-                        // Kolla om passet är inställt (exception)
-                        const isCancelled = exceptions.some((ex) => ex.scheduleId === schedDoc.id &&
-                            ex.date === dateString &&
-                            (ex.status === 'CANCELLED' || ex.status === 'DELETED'));
-                        if (!isCancelled) {
-                            const eventStart = new Date(d);
-                            eventStart.setHours(h, m, 0, 0);
-                            const eventEnd = new Date(eventStart.getTime() + s.durationMinutes * 60000);
-                            events.push(createVEVENT(className, `Coachar: ${className}`, eventStart, eventEnd));
-                        }
-                    }
-                }
+            if (!schedulesSnap.empty) {
+                logger.info(`Found ${schedulesSnap.size} recurring schedules for coach ${userId}, not yet expanded to iCal.`);
             }
-            // C. Hämta 1-on-1 sessions
+            // 1-on-1 där coachId == userId
             const sessionsSnap = await db
                 .collection("organizations")
                 .doc(foundOrgId)
@@ -658,17 +665,11 @@ exports.calendarFeed = (0, https_1.onRequest)({ region: "europe-west1" }, async 
                 .get();
             sessionsSnap.forEach((sessionDoc) => {
                 const s = sessionDoc.data();
-                // Enkel koll så att data är hel
-                if (s.startTime && s.endTime) {
-                    events.push(createVEVENT(s.title || "Möte", s.purpose || "1-on-1", new Date(s.startTime), new Date(s.endTime)));
-                }
+                events.push(createVEVENT(s.title, s.purpose, new Date(s.startTime), new Date(s.endTime)));
             });
-            // ---------------------------------------
-            // LOGIK FÖR MEDLEM (PARTICIPANT)
-            // ---------------------------------------
         }
         else {
-            // A. Hämta bokningar
+            // Participant: Bookings + 1-on-1
             const bookingsSnap = await db
                 .collection("organizations")
                 .doc(foundOrgId)
@@ -679,45 +680,28 @@ exports.calendarFeed = (0, https_1.onRequest)({ region: "europe-west1" }, async 
                 .get();
             for (const bookingDoc of bookingsSnap.docs) {
                 const b = bookingDoc.data();
-                // Fail-safe: Om schemat är raderat men bokningen finns kvar
-                try {
-                    const schedDoc = await db
+                const schedDoc = await db
+                    .collection("organizations")
+                    .doc(foundOrgId)
+                    .collection("groupClassSchedules")
+                    .doc(b.scheduleId)
+                    .get();
+                if (schedDoc.exists) {
+                    const s = schedDoc.data();
+                    const defDoc = await db
                         .collection("organizations")
                         .doc(foundOrgId)
-                        .collection("groupClassSchedules")
-                        .doc(b.scheduleId)
+                        .collection("groupClassDefinitions")
+                        .doc(s.groupClassId)
                         .get();
-                    if (schedDoc.exists) {
-                        const s = schedDoc.data();
-                        const defDoc = await db
-                            .collection("organizations")
-                            .doc(foundOrgId)
-                            .collection("groupClassDefinitions")
-                            .doc(s.groupClassId)
-                            .get();
-                        // Om passtyp saknas, använd fallback-namn
-                        const className = defDoc.exists ? defDoc.data().name : "Bokat Pass (Info saknas)";
-                        const [h, m] = String(s.startTime).split(":").map(Number);
-                        const start = new Date(b.classDate);
-                        start.setHours(h, m, 0, 0);
-                        const end = new Date(start.getTime() + s.durationMinutes * 60000);
-                        events.push(createVEVENT(className, "Träning på Flexibel", start, end));
-                    }
-                    else {
-                        // Schema saknas men bokning finns -> skapa event ändå så medlemmen ser det
-                        const start = new Date(b.classDate);
-                        // Vi vet inte tiden om schemat är borta, sätter heldag eller default 12:00? 
-                        // Sätter 12:00 för säkerhets skull
-                        start.setHours(12, 0, 0, 0);
-                        const end = new Date(start.getTime() + 60 * 60000);
-                        events.push(createVEVENT("Bokat Pass (Schema saknas)", "Kontakta studion", start, end));
-                    }
-                }
-                catch (err) {
-                    logger.error(`Error processing booking ${bookingDoc.id} for iCal`, err);
+                    const className = defDoc.exists ? defDoc.data().name : "Pass";
+                    const [h, m] = String(s.startTime).split(":").map(Number);
+                    const start = new Date(b.classDate);
+                    start.setHours(h, m, 0, 0);
+                    const end = new Date(start.getTime() + s.durationMinutes * 60000);
+                    events.push(createVEVENT(className, "Träning på Flexibel", start, end));
                 }
             }
-            // B. Hämta 1-on-1
             const sessionsSnap = await db
                 .collection("organizations")
                 .doc(foundOrgId)
@@ -727,12 +711,10 @@ exports.calendarFeed = (0, https_1.onRequest)({ region: "europe-west1" }, async 
                 .get();
             sessionsSnap.forEach((sessionDoc) => {
                 const s = sessionDoc.data();
-                if (s.startTime && s.endTime) {
-                    events.push(createVEVENT(s.title, s.purpose, new Date(s.startTime), new Date(s.endTime)));
-                }
+                events.push(createVEVENT(s.title, s.purpose, new Date(s.startTime), new Date(s.endTime)));
             });
         }
-        // 4. Skapa slutgiltig ICS-fil
+        // 3. Skapa ICS
         const icsContent = `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Flexibel//Träningslogg//SV
@@ -752,16 +734,13 @@ END:VCALENDAR`;
 });
 function createVEVENT(summary, description, start, end) {
     const formatDate = (date) => date.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
-    // Sanitize strings to avoid breaking ICS format
-    const cleanSummary = (summary || "Aktivitet").replace(/\n/g, " ");
-    const cleanDesc = (description || "").replace(/\n/g, " ");
     return `BEGIN:VEVENT
 UID:${Math.random().toString(36).substr(2)}@flexibel.se
 DTSTAMP:${formatDate(new Date())}
 DTSTART:${formatDate(start)}
 DTEND:${formatDate(end)}
-SUMMARY:${cleanSummary}
-DESCRIPTION:${cleanDesc}
+SUMMARY:${summary}
+DESCRIPTION:${description}
 END:VEVENT`;
 }
 /* -----------------------------------------------------------------------------
@@ -842,21 +821,147 @@ exports.callGeminiApi = (0, https_1.onCall)({
     secrets: ["GEMINI_API_KEY"],
 }, async (request) => {
     try {
-        const { model, contents, config } = (request.data ?? {});
-        if (!model || contents == null) {
-            logger.error("Bad Request: Missing 'model' or 'contents'");
-            return { error: "Bad Request: Missing 'model' or 'contents'." };
-        }
+        const { model, contents, config, action, context } = (request.data ?? {});
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) {
             logger.error("GEMINI_API_KEY secret not found on the server.");
             return { error: "API key is not configured on the server." };
         }
         const ai = new genai_1.GoogleGenAI({ apiKey });
+        let targetModel = model || "gemini-2.5-flash";
+        let targetContents = contents;
+        let targetConfig = config;
+        if (action) {
+            switch (action) {
+                case "generate_goal_prognosis": {
+                    const { fitnessGoals, workoutsPerWeekTarget, targetDate, preferences } = context || {};
+                    targetContents = `
+Du är en expert PT och coach. En klient har satt upp följande träningsmål:
+- Mål: "${fitnessGoals}"
+- Målfrekvens: ${workoutsPerWeekTarget} pass/vecka
+- Måldatum: ${targetDate || "Ej satt"}
+- Preferenser/Övrigt: "${preferences || "Inga"}"
+
+Ge en kort, peppande och realistisk prognos.
+1. Är målet realistiskt med tanke på frekvensen?
+2. Ge 2-3 konkreta tips på vad klienten bör fokusera på för att lyckas.
+3. Om måldatum saknas eller verkar orimligt, ge ett förslag.
+
+Svara direkt till klienten ("Du..."). Håll det under 150 ord. Använd Markdown.
+            `;
+                    break;
+                }
+                case "generate_smart_goal": {
+                    targetContents = `Du är en expert på att formulera SMART-mål för träning.\nAnvändaren har skrivit: "${context?.goalInput}"\n\nFormulera om detta till ett tydligt, inspirerande SMART-mål (Specifikt, Mätbart, Accepterat, Realistiskt, Tidsbundet) på svenska.\nSvara ENDAST med själva målformuleringen, ingen inledning eller förklaring.`;
+                    break;
+                }
+                case "chat_with_coach": {
+                    targetContents = `
+Du är en vänlig, peppande och kunnig AI-coach för Flexibel Hälsostudio. Du pratar med ${context?.participant?.name || "en medlem"}.
+
+**Profil:**
+- Mål: ${context?.goal}
+- Senaste träning: ${JSON.stringify(context?.recentWorkouts)}
+- Övrig aktivitet: ${JSON.stringify(context?.recentActivities)}
+
+**Användarens meddelande:** "${context?.userMessage}"
+
+Svara hjälpsamt, kortfattat och engagerande på svenska. Om de frågar om passförslag, utgå från: ${JSON.stringify(context?.availableWorkouts)}.
+            `;
+                    break;
+                }
+                case "generate_workout_tips": {
+                    targetContents = `
+Du är en expertcoach. Ge korta, peppande tips inför passet "${context?.workoutTitle}" för ${context?.participantName}.
+${context?.aiInstruction ? `Coach-instruktion: ${context?.aiInstruction}` : ""}
+${context?.previousLog ? `Förra gången: ${JSON.stringify(context?.previousLog)}` : "Första gången detta pass loggas."}
+Övningar: ${context?.exercisesList}
+
+Svara med strikt JSON: { "generalTips": "...", "exerciseTips": [{ "exerciseName": "...", "tip": "..." }] }
+            `;
+                    targetConfig = { ...targetConfig, responseMimeType: "application/json" };
+                    break;
+                }
+                case "generate_checkin_summary": {
+                    targetContents = `
+Du är en coach. Skapa en kort sammanfattning av medlemmens aktivitet för ett avstämningssamtal.
+Namn: ${context?.participantName}
+Mål: ${context?.goal} (Mål: ${context?.goalTarget} pass/v)
+Senaste avstämning: ${context?.lastCheckinDate || "Aldrig"}
+Aktivitetssammanfattning: ${context?.logSummary}
+
+Ge en kort analys av trender och föreslå 1-2 frågor att ställa till medlemmen. Använd Markdown.
+            `;
+                    break;
+                }
+                case "analyze_business_insights": {
+                    const { dataSnapshot, question } = context;
+                    targetContents = `Analysera denna data: ${dataSnapshot}. Svara på frågan: "${question}"`;
+                    break;
+                }
+                case "analyze_member_insights": {
+                    const { recentComments, avgMoodRating } = context;
+                    targetContents = `Analysera medlemmens data för att hitta mönster.\nKommentarer: ${recentComments}. Mående: ${avgMoodRating}. Mål: ${context?.goal}\n\nGe en kort insikt om medlemmens mentala inställning och progression.`;
+                    break;
+                }
+                case "generate_weekly_highlights": {
+                    const { pbs, totalLogs } = context;
+                    targetContents = `Skriv ett inlägg om veckans höjdpunkter. ${totalLogs} pass loggade. PBs: ${JSON.stringify(pbs)}.`;
+                    break;
+                }
+                case "generate_workout_program": {
+                    targetContents = `
+Du är en expertcoach som skapar träningsprogram.
+Medlem: ${context?.participantName} (${context?.age} år, ${context?.gender})
+Mål: ${context?.goal}
+Coach-recept: ${context?.coachPrescription}
+Specifika önskemål: ${context?.specificRequests}
+Tillgängliga baslyft: ${context?.availableBaseLifts}
+
+Skapa ett pass i Markdown-format.
+Struktur:
+**Titel:** [Passets namn]
+**Coachanteckning:** [Kort intro]
+
+### [Blocknamn 1]
+* [Övning 1]: [Set] x [Reps] @ [Vikt/RPE] (Baslyft: [Valfritt baslyft från listan])
+* [Övning 2]...
+
+Var kreativ men följ önskemålen.
+            `;
+                    break;
+                }
+                case "analyze_activity_trends": {
+                    const { summaryOfLogs } = context;
+                    targetContents = `Analysera följande träningsloggar och ge en kort sammanfattning av trender, styrkor och vad som kan förbättras. Tilltala medlemmen direkt.\n\nLoggar: ${summaryOfLogs}`;
+                    break;
+                }
+                case "identify_silent_heroes": {
+                    const { candidates } = context;
+                    targetContents = `Identifiera "Tysta hjältar" (hög aktivitet men lite interaktion) från listan. Returnera JSON array: [{ "participantId": "...", "name": "...", "reason": "..." }].\nLista: ${JSON.stringify(candidates)}`;
+                    targetConfig = { ...targetConfig, responseMimeType: "application/json" };
+                    break;
+                }
+                case "identify_churn_risks": {
+                    const { candidates } = context;
+                    targetContents = `Identifiera "Churn risk" (minskande aktivitet) från listan. Returnera JSON array: [{ "participantId": "...", "name": "...", "reason": "..." }].\nLista: ${JSON.stringify(candidates)}`;
+                    targetConfig = { ...targetConfig, responseMimeType: "application/json" };
+                    break;
+                }
+                default:
+                    if (!targetContents && context?.prompt)
+                        targetContents = context.prompt;
+                    break;
+            }
+        }
+        if (!targetContents) {
+            logger.error("Bad Request: Missing 'contents' or valid 'action'");
+            return { error: "Bad Request: Missing 'contents' or valid 'action'." };
+        }
         const resp = (await ai.models.generateContent({
-            model,
-            contents: contents,
-            config,
+            model: targetModel,
+            contents: targetContents,
+            config: targetConfig,
         }));
         const text = resp.text;
         if (!text) {
