@@ -40,6 +40,10 @@ interface CalendarEvent {
     icon: string;
     description: string;
     node?: React.ReactNode;
+<<<<<<< HEAD
+=======
+    colorClass?: string; 
+>>>>>>> origin/staging
 }
 
 interface ParticipantActivityViewProps {
@@ -83,7 +87,11 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
   onViewLogSummary, 
   onDeleteActivity, 
   activeGoal,
+<<<<<<< HEAD
   strengthStatsHistory,
+=======
+  strengthStatsHistory, 
+>>>>>>> origin/staging
   allStrengthStatsForLeaderboards,
   conditioningStatsHistory,
   physiqueHistory,
@@ -144,6 +152,7 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
     const dayStr = dateUtils.toYYYYMMDD(day);
     const now = new Date();
     
+<<<<<<< HEAD
     // Add logs to events
     if (dayLogs.some(log => log.type === 'workout' && (log as WorkoutLog).postWorkoutSummary?.newPBs?.length > 0)) {
       dayEvents.push({ type: 'PB', icon: '⭐', description: '' });
@@ -156,10 +165,25 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
     }
     if (dayLogs.some(log => log.type === 'general')) {
        dayEvents.push({ type: 'GENERAL_ACTIVITY', icon: '🤸', description: '' });
+=======
+    // Add logs to events with colors
+    if (dayLogs.some(log => log.type === 'workout' && (log as WorkoutLog).postWorkoutSummary?.newPBs?.length > 0)) {
+      dayEvents.push({ type: 'PB', icon: '⭐', description: '', colorClass: 'text-yellow-500' });
+    }
+    if (dayLogs.some(log => log.type === 'goal_completion')) {
+      dayEvents.push({ type: 'GOAL_COMPLETED', icon: '🏆', description: '', colorClass: 'text-orange-500' });
+    }
+    if (dayLogs.some(log => log.type === 'workout')) {
+       dayEvents.push({ type: 'WORKOUT_LOGGED', icon: '●', description: '', colorClass: 'text-flexibel' }); // Using dot for cleaner look
+    }
+    if (dayLogs.some(log => log.type === 'general')) {
+       dayEvents.push({ type: 'GENERAL_ACTIVITY', icon: '●', description: '', colorClass: 'text-blue-400' });
+>>>>>>> origin/staging
     }
     
     // Coach events
     const eventsToday = coachEvents.filter(e => e.type === 'event' && e.eventDate && dateUtils.isSameDay(new Date(e.eventDate), day));
+<<<<<<< HEAD
     eventsToday.forEach(() => dayEvents.push({ type: 'COACH_EVENT', icon: DEFAULT_COACH_EVENT_ICON, description: '' }));
 
     // One-on-one sessions
@@ -169,6 +193,17 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
     // Goal target
     if (activeGoal?.targetDate && dateUtils.isSameDay(new Date(activeGoal.targetDate), day)) {
         dayEvents.push({ type: 'GOAL_TARGET', icon: '🎯', description: '' });
+=======
+    eventsToday.forEach(() => dayEvents.push({ type: 'COACH_EVENT', icon: '📅', description: '', colorClass: 'text-purple-500' }));
+
+    // One-on-one sessions
+    const sessionsToday = oneOnOneSessions.filter(s => s.participantId === currentParticipantId && s.status === 'scheduled' && dateUtils.isSameDay(new Date(s.startTime), day));
+    sessionsToday.forEach(() => dayEvents.push({ type: 'ONE_ON_ONE', icon: '🗣️', description: '', colorClass: 'text-indigo-500' }));
+    
+    // Goal target
+    if (activeGoal?.targetDate && dateUtils.isSameDay(new Date(activeGoal.targetDate), day)) {
+        dayEvents.push({ type: 'GOAL_TARGET', icon: '🎯', description: '', colorClass: 'text-red-500' });
+>>>>>>> origin/staging
     }
 
     // --- BOOKINGS (Rendered as bars) ---
@@ -205,6 +240,7 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
     }).filter((b): b is NonNullable<typeof b> => b !== null).sort((a, b) => a.time.localeCompare(b.time));
 
     return (
+<<<<<<< HEAD
         <div className="w-full flex flex-col gap-0.5">
             {/* Render Bookings as Bars */}
             {visibleBookings.map(b => (
@@ -229,19 +265,53 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
                 ))}
                 {dayEvents.length > 4 && <span className="text-[10px] leading-none text-gray-500 self-center">...</span>}
             </div>
+=======
+        <div className="w-full flex flex-col gap-1 items-center">
+            {/* Render Bookings as Pill Bars */}
+            {visibleBookings.map(b => (
+                <div 
+                    key={b.id}
+                    className="w-full text-[9px] truncate px-1.5 py-0.5 rounded-md leading-tight shadow-sm"
+                    style={{ 
+                        backgroundColor: b.isWaitlisted ? '#fffbeb' : b.color, 
+                        color: b.isWaitlisted ? '#d97706' : '#fff',
+                        border: b.isWaitlisted ? '1px solid #fcd34d' : 'none'
+                    }}
+                    title={`${b.time} - ${b.name}${b.isWaitlisted ? ' (Kö)' : ''}`}
+                >
+                    {b.time} {b.name}
+                </div>
+            ))}
+
+            {/* Render Dots/Icons for other events */}
+            {dayEvents.length > 0 && (
+                <div className="flex flex-wrap gap-1 justify-center mt-0.5">
+                    {dayEvents.slice(0, 5).map((e, i) => (
+                        <span key={i} className={`text-[10px] ${e.colorClass || 'text-gray-500'}`}>{e.icon}</span>
+                    ))}
+                    {dayEvents.length > 5 && <span className="text-[8px] text-gray-400 self-center">•</span>}
+                </div>
+            )}
+>>>>>>> origin/staging
         </div>
     );
   }, [allActivityLogs, coachEvents, oneOnOneSessions, currentParticipantId, allParticipantBookings, activeGoal, groupClassSchedules, groupClassDefinitions, groupClassScheduleExceptions, getColorForCategory]);
 
   const getDayProps = useCallback((day: Date) => {
+<<<<<<< HEAD
       const dayStr = dateUtils.toYYYYMMDD(day);
       // Check for any content to enable clicking
       const hasContent = renderDayContent(day).props.children.some((child: any) => child && child.length !== 0);
       // Or simpler: check if logs or bookings exist for this day manually if renderDayContent is expensive
+=======
+      // Check for any content to enable clicking
+      const hasContent = renderDayContent(day).props.children.some((child: any) => child && (Array.isArray(child) ? child.length > 0 : true));
+>>>>>>> origin/staging
       return { hasContent };
   }, [renderDayContent]);
 
   return (
+<<<<<<< HEAD
     <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
        {/* Unified Header with Tabs */}
        <div className="p-3 border-b border-gray-100 bg-white flex justify-center gap-2 flex-wrap">
@@ -269,6 +339,38 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
 
        {/* Content Area */}
        <div className="p-0"> 
+=======
+    <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden flex flex-col h-full">
+       
+       {/* Unified Card Header with Tabs */}
+       <div className="bg-white p-3 border-b border-gray-100">
+          <div className="p-1 bg-gray-100 rounded-2xl flex justify-between items-center">
+              <button 
+                onClick={() => setActiveTab('calendar')} 
+                className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-bold transition-all duration-200 ${activeTab === 'calendar' ? 'bg-white text-flexibel shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'}`}
+              >
+                Kalender
+              </button>
+              <button 
+                onClick={() => setActiveTab('klubbar')} 
+                className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-bold transition-all duration-200 ${activeTab === 'klubbar' ? 'bg-white text-blue-600 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'}`}
+              >
+                Klubbar
+              </button>
+              {leaderboardSettings.leaderboardsEnabled && (
+                <button 
+                    onClick={() => setActiveTab('leaderboards')} 
+                    className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-bold transition-all duration-200 ${activeTab === 'leaderboards' ? 'bg-white text-yellow-600 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'}`}
+                >
+                    Topplistor
+                </button>
+              )}
+           </div>
+       </div>
+
+       {/* Unified Content Area */}
+       <div className="bg-white flex-grow min-h-[500px] animate-fade-in relative"> 
+>>>>>>> origin/staging
             {activeTab === 'calendar' && (
                 <>
                     <CalendarGrid
@@ -278,7 +380,11 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
                         renderDayContent={renderDayContent}
                         getDayProps={getDayProps}
                         getHolidayForDay={getHolidayForDay}
+<<<<<<< HEAD
                         className="!shadow-none !rounded-none !border-none" // Remove cards own shadow to blend in
+=======
+                        className="!shadow-none !border-none !rounded-none !bg-transparent"
+>>>>>>> origin/staging
                     />
                     {isDayActivitiesModalOpen && (
                         <DayActivitiesModal
@@ -314,7 +420,11 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
             )}
 
             {activeTab === 'klubbar' && participantProfile && (
+<<<<<<< HEAD
                 <div className="p-4 bg-gray-50 min-h-[400px]">
+=======
+                <div className="p-4 min-h-[500px]">
+>>>>>>> origin/staging
                     <ClubsView
                         participantProfile={participantProfile}
                         allActivityLogs={allActivityLogs}
@@ -329,7 +439,11 @@ export const ParticipantActivityView: React.FC<ParticipantActivityViewProps> = (
             )}
 
             {activeTab === 'leaderboards' && participantProfile && (
+<<<<<<< HEAD
                 <div className="p-4 bg-gray-50 min-h-[400px]">
+=======
+                <div className="p-4 min-h-[500px]">
+>>>>>>> origin/staging
                     <LeaderboardView
                         currentParticipantId={currentParticipantId}
                         participants={allParticipants}

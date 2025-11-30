@@ -1,7 +1,15 @@
+<<<<<<< HEAD
 import React, { useState, useEffect, useMemo } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
 import { ActivityLog, Workout, WorkoutLog, GeneralActivityLog, Exercise, GoalCompletionLog, ParticipantGoalData, UserStrengthStat, ParticipantConditioningStat, ParticipantClubMembership, ParticipantProfile, CoachEvent, ParticipantPhysiqueStat, OneOnOneSession, StaffMember, GroupClassSchedule, GroupClassDefinition, ParticipantBooking, Location, IntegrationSettings } from '../../types';
+=======
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { Modal } from '../Modal';
+import { Button } from '../Button';
+import { ActivityLog, Workout, WorkoutLog, GeneralActivityLog, Exercise, GoalCompletionLog, ParticipantGoalData, UserStrengthStat, ParticipantConditioningStat, ParticipantClubMembership, ParticipantProfile, CoachEvent, ParticipantPhysiqueStat, OneOnOneSession, StaffMember, GroupClassSchedule, GroupClassDefinition, ParticipantBooking, Location, IntegrationSettings, GroupClassScheduleException } from '../../types';
+>>>>>>> origin/staging
 import { ConfirmationModal } from '../ConfirmationModal';
 import { MOOD_OPTIONS, CLUB_DEFINITIONS, DEFAULT_COACH_EVENT_ICON, STUDIO_TARGET_OPTIONS } from '../../constants'; 
 import * as dateUtils from '../../utils/dateUtils';
@@ -28,6 +36,10 @@ interface DayActivitiesModalProps {
   staffMembers: StaffMember[];
   groupClassSchedules: GroupClassSchedule[];
   groupClassDefinitions: GroupClassDefinition[];
+<<<<<<< HEAD
+=======
+  groupClassScheduleExceptions: GroupClassScheduleException[];
+>>>>>>> origin/staging
   allParticipantBookings: ParticipantBooking[];
   locations: Location[];
   onCancelBooking: (bookingId: string) => void;
@@ -99,6 +111,10 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
   staffMembers,
   groupClassSchedules,
   groupClassDefinitions,
+<<<<<<< HEAD
+=======
+  groupClassScheduleExceptions,
+>>>>>>> origin/staging
   allParticipantBookings,
   locations,
   onCancelBooking,
@@ -158,11 +174,28 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
     return myBookingsToday.map(booking => {
         const schedule = groupClassSchedules.find(s => s.id === booking.scheduleId);
         if (!schedule) return null;
+<<<<<<< HEAD
         const classDef = groupClassDefinitions.find(d => d.id === schedule.groupClassId);
         const coach = staffMembers.find(s => s.id === schedule.coachId);
         if (!classDef || !coach) return null;
 
         const [hour, minute] = schedule.startTime.split(':').map(Number);
+=======
+
+        const exception = groupClassScheduleExceptions.find(ex => ex.scheduleId === schedule.id && ex.date === booking.classDate);
+        if (exception && (exception.status === 'DELETED' || exception.status === 'CANCELLED')) return null;
+
+        const overriddenSchedule = {
+            ...schedule,
+            startTime: exception?.newStartTime || schedule.startTime,
+        };
+
+        const classDef = groupClassDefinitions.find(d => d.id === overriddenSchedule.groupClassId);
+        const coach = staffMembers.find(s => s.id === overriddenSchedule.coachId);
+        if (!classDef || !coach) return null;
+
+        const [hour, minute] = overriddenSchedule.startTime.split(':').map(Number);
+>>>>>>> origin/staging
         const classStartDateTime = new Date(selectedDate);
         classStartDateTime.setHours(hour, minute, 0, 0);
         
@@ -180,7 +213,11 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
         return {
             ...booking,
             className: classDef.name,
+<<<<<<< HEAD
             startTime: schedule.startTime,
+=======
+            startTime: overriddenSchedule.startTime,
+>>>>>>> origin/staging
             coachName: coach.name,
             coachId: coach.id,
             startDateTime: classStartDateTime,
@@ -189,7 +226,11 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
             color: classDef.color || getColorForCategory(classDef.name),
         };
     }).filter((b): b is FullBookingInfo => b !== null).sort((a, b) => a.startTime.localeCompare(b.startTime));
+<<<<<<< HEAD
   }, [selectedDate, participantProfile, allParticipantBookings, groupClassSchedules, groupClassDefinitions, staffMembers, getColorForCategory]);
+=======
+  }, [selectedDate, participantProfile, allParticipantBookings, groupClassSchedules, groupClassDefinitions, staffMembers, getColorForCategory, groupClassScheduleExceptions]);
+>>>>>>> origin/staging
 
 
   const specialEventsForDay = useMemo(() => {
@@ -609,4 +650,8 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
       />
     </>
   );
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> origin/staging

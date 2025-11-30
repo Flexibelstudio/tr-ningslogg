@@ -3,11 +3,19 @@
 // SW uppdaterar sig själv (skipWaiting + clients.claim), rensar gamla caches,
 // stör inte API/Firebase och tål saknade precache-filer.
 
+<<<<<<< HEAD
 const VERSION = '2025-11-22-1'; // bumpa när du vill tvinga alla att uppdatera
 
 // BUMPA dessa när du vill forcera ut ny version
 const STATIC_CACHE_NAME  = 'traningslogg-static-v26';
 const DYNAMIC_CACHE_NAME = 'traningslogg-dynamic-v21';
+=======
+const VERSION = '2025-11-30-1'; // bumpa när du vill tvinga alla att uppdatera
+
+// BUMPA dessa när du vill forcera ut ny version
+const STATIC_CACHE_NAME  = 'traningslogg-static-v27';
+const DYNAMIC_CACHE_NAME = 'traningslogg-dynamic-v22';
+>>>>>>> origin/staging
 const MAX_DYNAMIC_ENTRIES = 80;
 
 const URLS_TO_CACHE = [
@@ -123,6 +131,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(fetch(req).catch(() => caches.match(req)));
 });
 
+<<<<<<< HEAD
 /* ─────────────────────────────────────────────
  * Push-notiser + klick-hantering
  * ───────────────────────────────────────────*/
@@ -157,11 +166,56 @@ self.addEventListener('notificationclick', (event) => {
         return false;
       });
       if (!hadWindow) return clients.openWindow(url);
+=======
+self.addEventListener('push', (event) => {
+  console.log('[SW] Push Received.');
+  let data = {};
+  try {
+    data = event.data.json();
+  } catch (e) {
+    console.error('[SW] Push event but no data');
+    data = { title: 'Ny notis', body: 'Du har fått en ny notis!' };
+  }
+
+  const title = data.title || 'Träningslogg';
+  const options = {
+    body: data.body || 'Ny händelse.',
+    icon: '/icon-192x192.png',
+    badge: '/favicon-32x32.png',
+    vibrate: [200, 100, 200],
+    tag: 'booking-notification', // Groups notifications
+    renotify: true,
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  console.log('[SW] Notification click Received.');
+  event.notification.close();
+
+  event.waitUntil(
+    clients.matchAll({
+      type: "window",
+    }).then((clientList) => {
+      for (const client of clientList) {
+        // Just focus any open client for this app
+        if ('focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow('/');
+      }
+>>>>>>> origin/staging
     })
   );
 });
 
+<<<<<<< HEAD
 /* ───────────────────────────────────────────*/
+=======
+>>>>>>> origin/staging
 
 async function cacheFirst(request) {
   const cached = await caches.match(request);
@@ -182,4 +236,8 @@ async function trimCache(cacheName, maxItems = 80) {
   if (keys.length > maxItems) {
     await Promise.all(keys.slice(0, keys.length - maxItems).map((k) => cache.delete(k)));
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> origin/staging

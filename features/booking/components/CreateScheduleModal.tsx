@@ -67,7 +67,12 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen
 
     useEffect(() => {
         if (isOpen) {
+<<<<<<< HEAD
             const initialState = scheduleToEdit ? { ...scheduleToEdit } : getInitialState();
+=======
+            // Ensure hasWaitlist is always boolean, defaulting to true if undefined in scheduleToEdit
+            const initialState = scheduleToEdit ? { ...scheduleToEdit, hasWaitlist: scheduleToEdit.hasWaitlist ?? true } : getInitialState();
+>>>>>>> origin/staging
             setFormState(initialState);
             setInitialFormState(initialState);
             setErrors({});

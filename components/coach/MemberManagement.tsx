@@ -1,17 +1,31 @@
+<<<<<<< HEAD
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { ParticipantProfile, ParticipantGoalData, ActivityLog, CoachNote, WorkoutLog, Location, Membership, StaffMember, OneOnOneSession, GoalCompletionLog, Workout, WorkoutCategoryDefinition, StaffAvailability } from '../../types';
 import { Button } from '../Button';
 import { AddMemberModal } from './AddMemberModal';
 import * as dateUtils from '../../utils/dateUtils';
+=======
+
+import React, { useState } from 'react';
+import { ParticipantProfile, ParticipantGoalData, ActivityLog, CoachNote, OneOnOneSession, StaffMember, Membership } from '../../types';
+import { Button } from '../Button';
+import { AddMemberModal } from './AddMemberModal';
+>>>>>>> origin/staging
 import { Input, Select } from '../Input';
 import { BulkUpdateModal, BulkActionType } from './BulkUpdateModal';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { MemberNotesModal } from './MemberNotesModal';
 import { useAppContext } from '../../context/AppContext';
+<<<<<<< HEAD
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../Modal';
 import { addDays, calculateAge } from '../../utils/dateUtils';
 
+=======
+import { Modal } from '../Modal';
+import { addDays, calculateAge } from '../../utils/dateUtils';
+import { useMembers } from '../../features/coach/hooks/useMembers';
+>>>>>>> origin/staging
 
 interface ApprovalModalProps {
     isOpen: boolean;
@@ -22,6 +36,10 @@ interface ApprovalModalProps {
 }
 
 const ApprovalModal: React.FC<ApprovalModalProps> = ({ isOpen, onClose, participant, onConfirm, memberships }) => {
+<<<<<<< HEAD
+=======
+    // ... (ApprovalModal implementation remains unchanged, keeping it here for brevity)
+>>>>>>> origin/staging
     const [isInStartProgram, setIsInStartProgram] = useState(true);
     const [membershipId, setMembershipId] = useState('');
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
@@ -29,7 +47,11 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({ isOpen, onClose, particip
     const [clipCardExpiryDate, setClipCardExpiryDate] = useState('');
     const [errors, setErrors] = useState<{ membershipId?: string, remainingClips?: string }>({});
 
+<<<<<<< HEAD
     useEffect(() => {
+=======
+    React.useEffect(() => {
+>>>>>>> origin/staging
         if (isOpen) {
             setIsInStartProgram(true);
             setMembershipId(memberships.find(m => m.type === 'subscription')?.id || memberships[0]?.id || '');
@@ -40,9 +62,15 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({ isOpen, onClose, particip
         }
     }, [isOpen, memberships]);
 
+<<<<<<< HEAD
     const selectedMembership = useMemo(() => memberships.find(m => m.id === membershipId), [membershipId, memberships]);
 
     useEffect(() => {
+=======
+    const selectedMembership = React.useMemo(() => memberships.find(m => m.id === membershipId), [membershipId, memberships]);
+
+    React.useEffect(() => {
+>>>>>>> origin/staging
         if (selectedMembership && selectedMembership.type === 'clip_card') {
             setRemainingClips(String(selectedMembership.clipCardClips || ''));
             let newExpiryDate = '';
@@ -80,7 +108,10 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({ isOpen, onClose, particip
         };
 
         if (isInStartProgram) {
+<<<<<<< HEAD
             // "Startprogram" will be handled by assigning a specific membership ID.
+=======
+>>>>>>> origin/staging
             const startProgramMembership = memberships.find(m => m.name.toLowerCase() === 'startprogram');
             updates.membershipId = startProgramMembership?.id;
         } else {
@@ -190,6 +221,7 @@ interface MemberManagementProps {
   isOnline: boolean;
 }
 
+<<<<<<< HEAD
 type EnrichedParticipant = ParticipantProfile & { 
     locationName: string; 
     typeForDisplay: string; 
@@ -204,6 +236,12 @@ const MemberIcon = () => (
 
 export const MemberManagement: React.FC<MemberManagementProps> = ({
   participants,
+=======
+type SortableKeys = 'name' | 'typeForDisplay' | 'locationName' | 'age' | 'gender';
+
+export const MemberManagement: React.FC<MemberManagementProps> = ({
+  participants: _participants, // Not used directly, using hook instead
+>>>>>>> origin/staging
   allParticipantGoals,
   allActivityLogs,
   coachNotes,
@@ -211,6 +249,7 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
   loggedInStaff,
   isOnline,
 }) => {
+<<<<<<< HEAD
     // hooks
     const { 
         locations, 
@@ -218,6 +257,9 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
         staffMembers,
         addParticipant,
         updateParticipantProfile,
+=======
+    const { 
+>>>>>>> origin/staging
         setParticipantGoalsData,
         setGoalCompletionLogsData,
         setCoachNotesData,
@@ -228,26 +270,63 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
         deleteWorkout,
         workoutCategories,
         staffAvailability,
+<<<<<<< HEAD
         integrationSettings,
     } = useAppContext();
     const { user } = useAuth();
 
     // state
+=======
+        staffMembers, // Used for Notes Modal
+    } = useAppContext();
+
+    // Use the custom hook
+    const {
+        participants,
+        locations,
+        memberships,
+        searchTerm,
+        setSearchTerm,
+        statusFilter,
+        setStatusFilter,
+        locationFilter,
+        setLocationFilter,
+        sortConfig,
+        requestSort,
+        selectedMembers,
+        handleSelectAll,
+        handleSelectOne,
+        filteredAndSortedParticipants,
+        pendingParticipants,
+        handleSaveMember,
+        handleConfirmBulkUpdate,
+        handleConfirmDelete,
+        handleConfirmDecline,
+        handleConfirmApprove,
+        isAdmin
+    } = useMembers(loggedInStaff);
+
+    // UI State handled by component
+>>>>>>> origin/staging
     const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
     const [editingMember, setEditingMember] = useState<ParticipantProfile | null>(null);
     const [memberToDelete, setMemberToDelete] = useState<ParticipantProfile | null>(null);
     const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
     const [selectedParticipantForNotes, setSelectedParticipantForNotes] = useState<ParticipantProfile | null>(null);
+<<<<<<< HEAD
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'prospect'>('active');
     const [locationFilter, setLocationFilter] = useState<string>('all');
     const [sortConfig, setSortConfig] = useState<{ key: SortableKeys, direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
     const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
+=======
+>>>>>>> origin/staging
     const [isBulkUpdateModalOpen, setIsBulkUpdateModalOpen] = useState(false);
     const [bulkAction, setBulkAction] = useState<BulkActionType | null>(null);
     const [participantToDecline, setParticipantToDecline] = useState<ParticipantProfile | null>(null);
     const [approvingParticipant, setApprovingParticipant] = useState<ParticipantProfile | null>(null);
 
+<<<<<<< HEAD
 
     const isAdmin = loggedInStaff?.role === 'Admin';
     
@@ -356,11 +435,14 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
         }
     };
     
+=======
+>>>>>>> origin/staging
     const handleOpenNotesModal = (participant: ParticipantProfile) => {
         setSelectedParticipantForNotes(participant);
         setIsNotesModalOpen(true);
     };
 
+<<<<<<< HEAD
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.checked) {
             setSelectedMembers(new Set(filteredAndSortedParticipants.map(p => p.id)));
@@ -382,10 +464,14 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
     };
 
     const handleBulkAction = (action: BulkActionType) => {
+=======
+    const handleBulkActionClick = (action: BulkActionType) => {
+>>>>>>> origin/staging
         setBulkAction(action);
         setIsBulkUpdateModalOpen(true);
     };
 
+<<<<<<< HEAD
     const handleConfirmBulkUpdate = (value: string) => {
         const updates: Partial<ParticipantProfile> = {};
         if (bulkAction === 'location') updates.locationId = value;
@@ -410,6 +496,9 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
     };
 
     const getTypeDisplay = (p: EnrichedParticipant) => {
+=======
+    const getTypeDisplay = (p: any) => {
+>>>>>>> origin/staging
         let className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ';
         const text = p.typeForDisplay;
 
@@ -440,7 +529,10 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
         );
     };
 
+<<<<<<< HEAD
     // JSX
+=======
+>>>>>>> origin/staging
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-start">
@@ -465,7 +557,11 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
                           </div>
                           <div className="flex gap-2 mt-2 sm:mt-0 flex-shrink-0">
                               <Button size="sm" variant="primary" onClick={() => setApprovingParticipant(p)}>Godkänn</Button>
+<<<<<<< HEAD
                               <Button size="sm" variant="danger" onClick={() => handleDecline(p)}>Neka</Button>
+=======
+                              <Button size="sm" variant="danger" onClick={() => setParticipantToDecline(p)}>Neka</Button>
+>>>>>>> origin/staging
                           </div>
                       </div>
                   )})}
@@ -485,7 +581,11 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
                 <Select
                     label="Status"
                     value={statusFilter}
+<<<<<<< HEAD
                     onChange={(e) => setStatusFilter(e.target.value as any)}
+=======
+                    onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive' | 'prospect')}
+>>>>>>> origin/staging
                     options={[
                         { value: 'all', label: 'Alla' },
                         { value: 'active', label: 'Aktiva' },
@@ -507,9 +607,15 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
             {selectedMembers.size > 0 && (
                 <div className="pt-4 border-t flex flex-wrap items-center gap-2">
                     <span className="text-sm font-semibold text-gray-700">{selectedMembers.size} markerade</span>
+<<<<<<< HEAD
                     <Button size="sm" variant="outline" onClick={() => handleBulkAction('membership')}>Ändra Medlemskap</Button>
                     <Button size="sm" variant="outline" onClick={() => handleBulkAction('location')}>Ändra Ort</Button>
                     <Button size="sm" variant="outline" onClick={() => handleBulkAction('status')}>Ändra Status</Button>
+=======
+                    <Button size="sm" variant="outline" onClick={() => handleBulkActionClick('membership')}>Ändra Medlemskap</Button>
+                    <Button size="sm" variant="outline" onClick={() => handleBulkActionClick('location')}>Ändra Ort</Button>
+                    <Button size="sm" variant="outline" onClick={() => handleBulkActionClick('status')}>Ändra Status</Button>
+>>>>>>> origin/staging
                 </div>
             )}
         </div>
@@ -518,7 +624,11 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
             <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                     <tr>
+<<<<<<< HEAD
                         <th scope="col" className="p-4"><input type="checkbox" onChange={handleSelectAll} checked={selectedMembers.size > 0 && selectedMembers.size === filteredAndSortedParticipants.length && filteredAndSortedParticipants.length > 0} /></th>
+=======
+                        <th scope="col" className="p-4"><input type="checkbox" onChange={(e) => handleSelectAll(e.target.checked)} checked={selectedMembers.size > 0 && selectedMembers.size === filteredAndSortedParticipants.length && filteredAndSortedParticipants.length > 0} /></th>
+>>>>>>> origin/staging
                         <SortableTh sortKey="name">Namn</SortableTh>
                         <SortableTh sortKey="typeForDisplay">Typ</SortableTh>
                         <SortableTh sortKey="locationName">Ort</SortableTh>
@@ -553,7 +663,11 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
         <AddMemberModal
             isOpen={isAddMemberModalOpen}
             onClose={() => setIsAddMemberModalOpen(false)}
+<<<<<<< HEAD
             onSaveMember={handleSaveMember}
+=======
+            onSaveMember={async (data) => await handleSaveMember(data, !!editingMember)}
+>>>>>>> origin/staging
             memberToEdit={editingMember}
             existingEmails={participants.map(p => p.email?.toLowerCase() || '')}
             locations={locations}
@@ -601,7 +715,14 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
             <BulkUpdateModal
                 isOpen={isBulkUpdateModalOpen}
                 onClose={() => setIsBulkUpdateModalOpen(false)}
+<<<<<<< HEAD
                 onConfirm={handleConfirmBulkUpdate}
+=======
+                onConfirm={(value) => {
+                    handleConfirmBulkUpdate(bulkAction, value);
+                    setIsBulkUpdateModalOpen(false);
+                }}
+>>>>>>> origin/staging
                 action={bulkAction}
                 memberCount={selectedMembers.size}
                 locations={locations}
@@ -612,7 +733,14 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
         <ConfirmationModal
             isOpen={!!memberToDelete}
             onClose={() => setMemberToDelete(null)}
+<<<<<<< HEAD
             onConfirm={handleConfirmDelete}
+=======
+            onConfirm={() => {
+                if(memberToDelete) handleConfirmDelete(memberToDelete.id);
+                setMemberToDelete(null);
+            }}
+>>>>>>> origin/staging
             title="Inaktivera Medlem"
             message={`Är du säker på att du vill inaktivera ${memberToDelete?.name}? Detta kommer att markera dem som inaktiva istället för att ta bort dem permanent.`}
             confirmButtonText="Ja, inaktivera"
@@ -620,7 +748,14 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
          <ConfirmationModal
             isOpen={!!participantToDecline}
             onClose={() => setParticipantToDecline(null)}
+<<<<<<< HEAD
             onConfirm={handleConfirmDecline}
+=======
+            onConfirm={() => {
+                if(participantToDecline) handleConfirmDecline(participantToDecline.id);
+                setParticipantToDecline(null);
+            }}
+>>>>>>> origin/staging
             title="Neka Medlem?"
             message={`Är du säker på att du vill neka ${participantToDecline?.name}? Medlemmen kommer att markeras som inaktiv och kommer inte kunna logga in.`}
             confirmButtonText="Ja, Neka"
@@ -632,7 +767,11 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
                 onClose={() => setApprovingParticipant(null)}
                 participant={approvingParticipant}
                 onConfirm={async (updates) => {
+<<<<<<< HEAD
                     await updateParticipantProfile(approvingParticipant.id, updates);
+=======
+                    await handleConfirmApprove(approvingParticipant.id, updates);
+>>>>>>> origin/staging
                     setApprovingParticipant(null);
                 }}
                 memberships={memberships}
@@ -640,4 +779,8 @@ export const MemberManagement: React.FC<MemberManagementProps> = ({
         )}
       </div>
     );
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> origin/staging

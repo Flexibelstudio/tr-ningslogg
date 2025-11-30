@@ -33,7 +33,11 @@ const LoadingSpinner = () => (
   </div>
 );
 
+<<<<<<< HEAD
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
+=======
+const ProtectedRoute: React.FC<React.PropsWithChildren<{ allowedRoles?: string[] }>> = ({ children, allowedRoles }) => {
+>>>>>>> origin/staging
   const { user, currentRole, isLoading } = useAuth();
   const location = useLocation();
 

@@ -7,6 +7,10 @@ import { GroupClassSchedule, GroupClassDefinition, ParticipantBooking, StaffMemb
 import * as dateUtils from '../../../utils/dateUtils';
 import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { useAppContext } from '../../../context/AppContext';
+<<<<<<< HEAD
+=======
+import { CalendarSubscriptionModal } from '../../../components/CalendarSubscriptionModal';
+>>>>>>> origin/staging
 
 interface EnrichedClassInstance {
     instanceId: string;
@@ -62,6 +66,15 @@ const SpinnerIcon = () => (
     </svg>
 );
 
+<<<<<<< HEAD
+=======
+const CalendarIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+);
+
+>>>>>>> origin/staging
 
 export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, schedules, definitions, bookings, groupClassScheduleExceptions, staff, onBookClass, onCancelBooking, currentParticipantId, participantProfile, integrationSettings, membership, onOpenUpgradeModal, operationInProgress }) => {
     const { getColorForCategory } = useAppContext();
@@ -73,6 +86,14 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
     const [selectedDate, setSelectedDate] = useState(today);
     const listRef = useRef<HTMLDivElement>(null);
     const [bookingToCancel, setBookingToCancel] = useState<EnrichedClassInstance | null>(null);
+<<<<<<< HEAD
+=======
+    const [isSubModalOpen, setIsSubModalOpen] = useState(false);
+
+    // Construct a mock URL for the preview environment. Safely access env.
+    const projectId = (import.meta as any).env?.VITE_FB_PROJECT_ID || 'YOUR_PROJECT';
+    const calendarUrl = `https://europe-west1-${projectId}.cloudfunctions.net/calendarFeed?userId=${currentParticipantId}&type=participant`;
+>>>>>>> origin/staging
 
     const enrichedInstances = useMemo(() => {
         const instances: EnrichedClassInstance[] = [];
@@ -322,6 +343,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
     };
 
     return (
+<<<<<<< HEAD
         <Modal isOpen={isOpen} onClose={onClose} title="Boka Pass" size="3xl">
             <div className="flex flex-col h-[80vh] text-gray-800">
                 <div className="px-1 pb-4 border-b border-gray-200">
@@ -404,6 +426,98 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                     ) : <p className="text-center text-gray-500 py-8 text-lg">Inga pass schemalagda de kommande {integrationSettings.bookingLeadTimeWeeks || 2} veckorna för din valda ort.</p>}
                 </div>
             </div>
+=======
+        <>
+            <Modal isOpen={isOpen} onClose={onClose} title="Boka Pass" size="3xl">
+                <div className="flex flex-col h-[80vh] text-gray-800">
+                    <div className="px-1 pb-2 border-b border-gray-200">
+                        <div className="flex justify-end mb-2">
+                            <button onClick={() => setIsSubModalOpen(true)} className="text-flexibel text-sm font-medium flex items-center hover:underline">
+                                <CalendarIcon /> Prenumerera på mina pass
+                            </button>
+                        </div>
+                        <div className="flex justify-around items-center text-center mb-4">
+                            {weeks.map(week => (
+                                <button key={week.weekNumber} onClick={() => setSelectedDate(week.startDate < today ? today : week.startDate)}
+                                    className={`px-3 py-1 text-sm sm:text-base rounded-full transition-colors ${selectedWeekNumber === week.weekNumber ? 'bg-gray-200 text-gray-800 font-semibold' : 'text-gray-500 hover:bg-gray-100'}`}>
+                                    {week.label}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="flex justify-around items-center">
+                            {daysInSelectedWeek.map(day => {
+                                const isSelected = dateUtils.isSameDay(day, selectedDate);
+                                const isDisabled = day < today;
+                                return (
+                                    <button key={day.toISOString()} onClick={() => !isDisabled && setSelectedDate(day)}
+                                        disabled={isDisabled}
+                                        className={`flex flex-col items-center p-2 rounded-full transition-colors w-12 h-12 sm:w-14 sm:h-14 justify-center ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''} ${isSelected ? 'bg-flexibel text-white' : 'hover:bg-gray-100'}`}>
+                                        <span className="text-xs sm:text-sm font-semibold uppercase">
+                                            {day.toLocaleDateString('sv-SE', { weekday: 'short' }).replace('.', '')}
+                                        </span>
+                                        <span className="text-base sm:text-lg font-bold">{day.getDate()}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <div ref={listRef} className="flex-grow overflow-y-auto pt-4 space-y-6">
+                        {groupedInstances.length > 0 ? (
+                            groupedInstances.map(([dateStr, instances]) => (
+                                <div key={dateStr} id={`day-header-${dateStr}`} className="scroll-mt-4">
+                                    <div className={`px-2 pb-2 mb-2 ${dateUtils.isSameDay(new Date(dateStr), selectedDate) ? 'text-flexibel' : ''}`}>
+                                        <h3 className="text-2xl font-bold capitalize">{getDayLabel(new Date(dateStr))}</h3>
+                                        <p className="text-base text-gray-500">{new Date(dateStr).toLocaleDateString('sv-SE', { day: 'numeric', month: 'long' })}</p>
+                                    </div>
+                                    <div className="space-y-3">
+                                    {instances.length > 0 ? instances.map(instance => {
+                                        const isRestricted = instance.isRestricted;
+                                        return (
+                                            <div 
+                                                key={instance.instanceId} 
+                                                className={`relative flex items-center gap-3 p-3 rounded-lg shadow-sm border-l-4 transition-colors ${
+                                                    isRestricted
+                                                        ? 'bg-gray-100' 
+                                                        : 'bg-white'
+                                                }`}
+                                                style={{ borderColor: isRestricted ? '#d1d5db' : instance.color }}
+                                                title={instance.className}
+                                            >
+                                                {isRestricted && <div className="absolute inset-0 bg-gray-200/50 rounded-lg z-10 cursor-not-allowed"></div>}
+                                                
+                                                <div 
+                                                    className={`flex-shrink-0 w-20 h-20 flex flex-col items-center justify-center rounded-md text-white z-20 ${isRestricted ? 'opacity-60' : ''}`}
+                                                    style={{ backgroundColor: instance.color }}
+                                                >
+                                                    <p className="text-2xl font-bold">{instance.startDateTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}</p>
+                                                    <p className="text-sm">{instance.duration} min</p>
+                                                </div>
+                                                <div className="flex-grow z-20">
+                                                    <p className={`font-bold text-lg ${isRestricted ? 'text-gray-500' : ''}`}>{instance.className}</p>
+                                                    <div className={`flex items-center gap-2 text-sm ${isRestricted ? 'text-gray-500' : 'text-gray-600'}`}>
+                                                        <Avatar name={instance.coachName} size="sm" className="!w-6 !h-6 !text-xs" />
+                                                        <span>{instance.coachName}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex-shrink-0 text-center sm:w-48 z-20">
+                                                    {renderActionButton(instance)}
+                                                    {instance.myBookingStatus !== 'WAITLISTED' && !instance.isRestricted && (
+                                                        <p className="text-sm text-gray-500 mt-1">{instance.maxParticipants - instance.bookedCount} lediga</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )
+                                    }) : <p className="text-gray-500 px-2">Inga aktiviteter</p>}
+                                    </div>
+                                </div>
+                            ))
+                        ) : <p className="text-center text-gray-500 py-8 text-lg">Inga pass schemalagda de kommande {integrationSettings.bookingLeadTimeWeeks || 2} veckorna för din valda ort.</p>}
+                    </div>
+                </div>
+            </Modal>
+
+>>>>>>> origin/staging
             <ConfirmationModal
                 isOpen={!!bookingToCancel}
                 onClose={() => setBookingToCancel(null)}
@@ -426,6 +540,18 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                 confirmButtonText={bookingToCancel?.isWaitlistedByMe ? 'Ja, lämna kön' : 'Ja, avboka'}
                 confirmButtonVariant="danger"
             />
+<<<<<<< HEAD
         </Modal>
     );
 };
+=======
+
+            <CalendarSubscriptionModal
+                isOpen={isSubModalOpen}
+                onClose={() => setIsSubModalOpen(false)}
+                calendarUrl={calendarUrl}
+            />
+        </>
+    );
+};
+>>>>>>> origin/staging

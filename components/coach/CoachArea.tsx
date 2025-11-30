@@ -1,4 +1,8 @@
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/staging
 import React, { useState, useMemo, useCallback, lazy, Suspense, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { OneOnOneSession } from '../../types';
@@ -13,6 +17,10 @@ import { AIBusinessInsights } from './AIBusinessInsights';
 import { ClientJourneyView } from './ClientJourneyView';
 import { MeetingDetailsModal } from '../../features/booking/components/MeetingDetailsModal';
 import { EngagementOpportunities } from './EngagementOpportunities';
+<<<<<<< HEAD
+=======
+import { BirthdayWidget } from './BirthdayWidget'; // Import
+>>>>>>> origin/staging
 import { ConfirmationModal } from '../ConfirmationModal';
 import { CalendarView } from '../../features/booking/components/CalendarView';
 import { ClassManagementModal } from '../../features/booking/components/ClassManagementModal';
@@ -24,6 +32,10 @@ import { ToggleSwitch } from '../ToggleSwitch';
 import { Select } from '../Input';
 import { useCoachData } from '../../features/coach/hooks/useCoachData';
 import { useCoachOperations } from '../../features/coach/hooks/useCoachOperations';
+<<<<<<< HEAD
+=======
+import { VerificationRequests } from '../../features/coach'; // Import the new component
+>>>>>>> origin/staging
 
 const AnalyticsDashboard = lazy(() => import('./AnalyticsDashboard'));
 
@@ -91,7 +103,11 @@ export const CoachArea: React.FC = () => {
   const onPromoteFromWaitlist = ops.handlePromoteFromWaitlist;
   const onCancelClassInstance = ops.handleCancelClassInstance;
   const onUpdateClassInstance = ops.handleUpdateClassInstance;
+<<<<<<< HEAD
   const { handleAddComment, handleDeleteComment, handleToggleCommentReaction } = ops;
+=======
+  const { handleAddComment, handleDeleteComment, handleToggleCommentReaction, handleVerifyStat } = ops;
+>>>>>>> origin/staging
 
   const { user } = useAuth();
   const { isOnline } = useNetworkStatus();
@@ -290,12 +306,31 @@ export const CoachArea: React.FC = () => {
       <div role="tabpanel" hidden={activeTab !== 'overview'}>
         {activeTab === 'overview' && (
           <>
+<<<<<<< HEAD
             <EngagementOpportunities
               participants={participantsForView}
               workoutLogs={workoutLogsForView}
               oneOnOneSessions={oneOnOneSessionsForView}
               isOnline={isOnline}
             />
+=======
+            <div className="mt-6">
+                <VerificationRequests 
+                    userStrengthStats={userStrengthStatsForView}
+                    participants={participantsForView}
+                    onVerify={(statId, lift, status) => handleVerifyStat(statId, lift, status, loggedInStaff?.name || 'Coach')}
+                />
+            </div>
+            <div className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+              <EngagementOpportunities
+                participants={participantsForView}
+                workoutLogs={workoutLogsForView}
+                oneOnOneSessions={oneOnOneSessionsForView}
+                isOnline={isOnline}
+              />
+              <BirthdayWidget participants={participantsForView} />
+            </div>
+>>>>>>> origin/staging
             <MemberManagement
               participants={participantsForView}
               allParticipantGoals={participantGoalsForView}
@@ -594,6 +629,10 @@ export const CoachArea: React.FC = () => {
           onCancelBooking={onCancelBooking}
           onPromoteFromWaitlist={onPromoteFromWaitlist}
           onCancelClassInstance={onCancelClassInstance}
+<<<<<<< HEAD
+=======
+          onUpdateClassInstance={onUpdateClassInstance}
+>>>>>>> origin/staging
         />
       )}
     </div>

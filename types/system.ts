@@ -1,8 +1,13 @@
 
 import { Reaction, Comment } from './shared';
 import { ParticipantProfile, StaffMember, Lead, ProspectIntroCall, Connection, UserPushSubscription } from './user';
+<<<<<<< HEAD
 import { Workout, WorkoutLog, GeneralActivityLog, GoalCompletionLog, ParticipantGoalData, CoachNote, UserStrengthStat, ParticipantConditioningStat, ParticipantPhysiqueStat, ParticipantMentalWellbeing, WorkoutCategoryDefinition } from './workout';
 import { ParticipantGamificationStats, ParticipantClubMembership, LeaderboardSettings } from './gamification';
+=======
+import { Workout, WorkoutLog, GeneralActivityLog, GoalCompletionLog, CoachNote, UserStrengthStat, ParticipantConditioningStat, ParticipantPhysiqueStat, ParticipantMentalWellbeing, WorkoutCategoryDefinition } from './workout';
+import { ParticipantGamificationStats, ParticipantClubMembership, LeaderboardSettings, ParticipantGoalData } from './gamification';
+>>>>>>> origin/staging
 import { Location, Membership, WeeklyHighlightSettings, StaffAvailability, IntegrationSettings, BrandingSettings } from './settings';
 import { GroupClassDefinition, GroupClassSchedule, GroupClassScheduleException, ParticipantBooking, OneOnOneSession } from './booking';
 

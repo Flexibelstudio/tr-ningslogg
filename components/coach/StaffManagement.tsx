@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/staging
 import React, { useState, useMemo } from 'react';
 import { StaffMember, Location, StaffAvailability, ParticipantProfile } from '../../types';
 import { Button } from '../Button';
@@ -6,6 +10,10 @@ import { ConfirmationModal } from '../ConfirmationModal';
 import { Input, Select } from '../Input';
 import { AvailabilityCalendar } from './AvailabilityCalendar';
 import { useAppContext } from '../../context/AppContext';
+<<<<<<< HEAD
+=======
+import { CalendarSubscriptionModal } from '../CalendarSubscriptionModal';
+>>>>>>> origin/staging
 
 interface StaffManagementProps {
   staff: StaffMember[];
@@ -27,6 +35,10 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ staff, setStaf
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [staffToDelete, setStaffToDelete] = useState<StaffMember | null>(null);
+<<<<<<< HEAD
+=======
+  const [isSubModalOpen, setIsSubModalOpen] = useState(false);
+>>>>>>> origin/staging
   
   // State for calendar view
   const [selectedStaffId, setSelectedStaffId] = useState<string>(loggedInStaff.id);
@@ -87,11 +99,25 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ staff, setStaf
   , [staff]);
 
   const selectedStaffMemberForCalendar = useMemo(() => staff.find(s => s.id === selectedStaffId) || loggedInStaff, [staff, selectedStaffId, loggedInStaff]);
+<<<<<<< HEAD
+=======
+  
+  // Construct mock URL. Safely access env.
+  const projectId = (import.meta as any).env?.VITE_FB_PROJECT_ID || 'YOUR_PROJECT';
+  const calendarUrl = `https://europe-west1-${projectId}.cloudfunctions.net/calendarFeed?userId=${loggedInStaff.id}&type=coach`;
+>>>>>>> origin/staging
 
   return (
     <div className="p-4 sm:p-6 bg-white rounded-lg shadow-xl space-y-8">
       {/* Top Header */}
+<<<<<<< HEAD
       <div className="flex flex-col sm:flex-row justify-end items-start sm:items-center pb-4 border-b">
+=======
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b gap-4">
+        <Button variant="outline" onClick={() => setIsSubModalOpen(true)}>
+             Prenumerera på mitt schema (iCal)
+        </Button>
+>>>>>>> origin/staging
         <Button onClick={openAddModal} className="mt-3 sm:mt-0">Lägg till Personal</Button>
       </div>
 
@@ -184,6 +210,15 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ staff, setStaf
         message={`Är du säker på att du vill ta bort "${staffToDelete?.name}"? Detta kommer också att radera deras arbetsschema. Detta kan inte ångras.`}
         confirmButtonText="Ta bort"
       />
+<<<<<<< HEAD
+=======
+      
+      <CalendarSubscriptionModal
+        isOpen={isSubModalOpen}
+        onClose={() => setIsSubModalOpen(false)}
+        calendarUrl={calendarUrl}
+      />
+>>>>>>> origin/staging
     </div>
   );
 };

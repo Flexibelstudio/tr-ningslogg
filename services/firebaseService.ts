@@ -97,11 +97,18 @@ const firebaseService = {
         const newParticipantProfile = {
             name: name.trim(),
             email: email.toLowerCase(),
+<<<<<<< HEAD
             locationId: locationId,
+=======
+>>>>>>> origin/staging
             isActive: false,
             isProspect: false,
             approvalStatus: 'pending' as const,
             isSearchable: true,
+<<<<<<< HEAD
+=======
+            locationId: locationId,
+>>>>>>> origin/staging
             creationDate: new Date().toISOString(),
             lastUpdated: new Date().toISOString(),
         };
@@ -153,8 +160,13 @@ const firebaseService = {
             'participantGamificationStats', 'clubMemberships', 'leaderboardSettings', 'coachEvents',
             'connections', 'lastFlowViewTimestamp', 'locations', 'staffMembers', 'memberships',
             'weeklyHighlightSettings', 'oneOnOneSessions', 'workoutCategories', 'staffAvailability',
+<<<<<<< HEAD
             'integrationSettings', 'groupClassDefinitions', 'groupClassSchedules', 'groupClassScheduleExceptions',
             'participantBookings', 'leads', 'prospectIntroCalls', 'userPushSubscriptions', 'branding',
+=======
+            'integrationSettings', 'groupClassDefinitions', 'groupClassSchedules', 'participantBookings', 'branding',
+            'leads', 'prospectIntroCalls', 'groupClassScheduleExceptions',
+>>>>>>> origin/staging
         ];
 
         const promises = collectionKeys.map(key => this.getCollection(orgId, key));

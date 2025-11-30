@@ -152,4 +152,8 @@ export const StrengthHistoryChart: React.FC<StrengthHistoryChartProps> = ({ hist
       <canvas ref={chartRef}></canvas>
     </div>
   );
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> origin/staging

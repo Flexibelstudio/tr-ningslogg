@@ -1,13 +1,22 @@
+<<<<<<< HEAD
 import React, { useState, useEffect, useMemo, useCallback, forwardRef, useImperativeHandle, useRef } from 'react';
 import { ParticipantProfile, UserStrengthStat, StrengthStandard, LiftType, StrengthLevel, StrengthStandardDetail, GenderOption, ParticipantGoalData, ClubDefinition, ParticipantClubMembership } from '../../types';
+=======
+
+import React, { useState, useEffect, useMemo, useCallback, forwardRef, useImperativeHandle, useRef } from 'react';
+import { ParticipantProfile, UserStrengthStat, StrengthStandard, LiftType, StrengthLevel, StrengthStandardDetail, GenderOption, ParticipantGoalData, ClubDefinition, ParticipantClubMembership, VerificationStatus } from '../../types';
+>>>>>>> origin/staging
 import { STRENGTH_LEVEL_ORDER, FSS_CONFIG, FLEXIBEL_PRIMARY_COLOR, MAIN_LIFTS_CONFIG_HEADER, LEVEL_COLORS_HEADER, CLUB_DEFINITIONS } from '../../constants';
 import { Input } from '../Input';
 import { Button } from '../Button';
 import { calculateEstimated1RM } from '../../utils/workoutUtils';
 import { calculateAge } from '../../utils/dateUtils';
 import html2canvas from 'html2canvas';
+<<<<<<< HEAD
 import { StrengthHistoryChart } from './StrengthHistoryChart';
 import { FssHistoryChart } from './FssHistoryChart';
+=======
+>>>>>>> origin/staging
 
 export interface LiftScoreDetails {
   lift: LiftType;
@@ -35,6 +44,27 @@ const FSS_STAT_KEY_MAPPING = {
   'Axelpress': 'overheadPress1RMaxKg',
 } as const;
 
+<<<<<<< HEAD
+=======
+const VerificationBadge: React.FC<{ status?: VerificationStatus, by?: string, date?: string }> = ({ status, by, date }) => {
+    if (!status || status === 'unverified') return null;
+
+    if (status === 'pending') {
+        return <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full font-semibold ml-2" title="Väntar på coach-granskning">Väntar ⏳</span>;
+    }
+
+    if (status === 'verified') {
+        return <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-semibold ml-2 flex items-center gap-1" title={`Verifierat av ${by} den ${date ? new Date(date).toLocaleDateString('sv-SE') : ''}`}>Verified ✅</span>;
+    }
+    
+    if (status === 'rejected') {
+         return <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-semibold ml-2" title="Avfärdad av coach">Ej godkänd ❌</span>;
+    }
+
+    return null;
+};
+
+>>>>>>> origin/staging
 export const calculateFlexibelStrengthScoreInternal = (userStats: UserStrengthStat, userProfile: ParticipantProfile): FssScoreOutput | null => {
   const getLevelFromScore = (score: number): StrengthLevel => {
     // Find the last level where the score is greater than or equal to the minimum.
@@ -381,15 +411,35 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
         id: crypto.randomUUID(),
         participantId: profile.id,
         bodyweightKg: profile.bodyweightKg,
+<<<<<<< HEAD
         squat1RMaxKg: squat1RMax.trim() ? Number(squat1RMax.replace(',', '.')) : undefined,
         benchPress1RMaxKg: benchPress1RMax.trim() ? Number(benchPress1RMax.replace(',', '.')) : undefined,
         deadlift1RMaxKg: deadlift1RMax.trim() ? Number(deadlift1RMax.replace(',', '.')) : undefined,
         overheadPress1RMaxKg: overheadPress1RMax.trim() ? Number(overheadPress1RMax.replace(',', '.')) : undefined,
+=======
+        
+        squat1RMaxKg: squat1RMax.trim() ? Number(squat1RMax.replace(',', '.')) : undefined,
+        squatVerificationStatus: (squat1RMax !== latestStats?.squat1RMaxKg?.toString()) ? 'pending' : latestStats?.squatVerificationStatus,
+
+        benchPress1RMaxKg: benchPress1RMax.trim() ? Number(benchPress1RMax.replace(',', '.')) : undefined,
+        benchPressVerificationStatus: (benchPress1RMax !== latestStats?.benchPress1RMaxKg?.toString()) ? 'pending' : latestStats?.benchPressVerificationStatus,
+
+        deadlift1RMaxKg: deadlift1RMax.trim() ? Number(deadlift1RMax.replace(',', '.')) : undefined,
+        deadliftVerificationStatus: (deadlift1RMax !== latestStats?.deadlift1RMaxKg?.toString()) ? 'pending' : latestStats?.deadliftVerificationStatus,
+
+        overheadPress1RMaxKg: overheadPress1RMax.trim() ? Number(overheadPress1RMax.replace(',', '.')) : undefined,
+        overheadPressVerificationStatus: (overheadPress1RMax !== latestStats?.overheadPress1RMaxKg?.toString()) ? 'pending' : latestStats?.overheadPressVerificationStatus,
+
+>>>>>>> origin/staging
         lastUpdated: new Date().toISOString(),
       };
       onSaveStrengthStats(newStat);
       return true;
+<<<<<<< HEAD
     }, [squat1RMax, benchPress1RMax, deadlift1RMax, overheadPress1RMax, profile, onSaveStrengthStats, onOpenPhysiqueModal]);
+=======
+    }, [squat1RMax, benchPress1RMax, deadlift1RMax, overheadPress1RMax, profile, onSaveStrengthStats, onOpenPhysiqueModal, latestStats]);
+>>>>>>> origin/staging
 
     useImperativeHandle(ref, () => ({
       submitForm: () => {
@@ -436,6 +486,7 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
 
     const fssInterpretation = getFssScoreInterpretation(fssData?.totalScore);
 
+<<<<<<< HEAD
     const fssHistoryData = useMemo(() => {
       if (!profile) return [];
       return strengthStatsHistory
@@ -450,6 +501,8 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
     }, [strengthStatsHistory, profile]);
 
 
+=======
+>>>>>>> origin/staging
     if (!profile || !profile.gender || (!profile.birthDate && !profile.age)) {
       return <p className="text-center p-4 bg-yellow-100 text-yellow-800 rounded-md">Vänligen fyll i kön och födelsedatum i din profil för att kunna se och jämföra din styrka.</p>;
     }
@@ -483,7 +536,10 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
                   </p>
                 </div>
               )}
+<<<<<<< HEAD
                {fssHistoryData.length > 1 && <FssHistoryChart history={fssHistoryData} />}
+=======
+>>>>>>> origin/staging
             </div>
             <Button onClick={handleShare} fullWidth variant="secondary">
               Dela resultat
@@ -559,6 +615,16 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
               statKey
             ];
             const liftScoreData = fssData?.liftScores.find((l) => l.lift === lift);
+<<<<<<< HEAD
+=======
+            
+            const verificationData = {
+                squat1RMaxKg: { status: latestStats?.squatVerificationStatus, by: latestStats?.squatVerifiedBy, date: latestStats?.squatVerifiedDate },
+                benchPress1RMaxKg: { status: latestStats?.benchPressVerificationStatus, by: latestStats?.benchPressVerifiedBy, date: latestStats?.benchPressVerifiedDate },
+                deadlift1RMaxKg: { status: latestStats?.deadliftVerificationStatus, by: latestStats?.deadliftVerifiedBy, date: latestStats?.deadliftVerifiedDate },
+                overheadPress1RMaxKg: { status: latestStats?.overheadPressVerificationStatus, by: latestStats?.overheadPressVerifiedBy, date: latestStats?.overheadPressVerifiedDate },
+            }[statKey];
+>>>>>>> origin/staging
 
             return (
               <details key={statKey} className="bg-white p-3 rounded-lg shadow-sm border border-gray-200" open={expandedLifts[lift]}>
@@ -569,11 +635,20 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
                     setExpandedLifts((p) => ({ ...p, [lift]: !p[lift] }));
                   }}
                 >
+<<<<<<< HEAD
                   <span>
                     {lift}:{' '}
                     <span className="font-bold text-flexibel">
                       {liftState || '-'} kg
                     </span>
+=======
+                  <span className="flex items-center">
+                    {lift}:{' '}
+                    <span className="font-bold text-flexibel ml-1">
+                      {liftState || '-'} kg
+                    </span>
+                    {verificationData && <VerificationBadge status={verificationData.status} by={verificationData.by} date={verificationData.date} />}
+>>>>>>> origin/staging
                   </span>
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -617,6 +692,7 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
           })}
         </div>
 
+<<<<<<< HEAD
         <details className="mt-8 pt-6 border-t" open={strengthStatsHistory.length > 1}>
             <summary className="text-xl font-semibold text-gray-700 cursor-pointer list-none flex justify-between items-center py-2 group hover:text-flexibel transition-colors">
                 Historik
@@ -627,6 +703,24 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
             <div className="mt-2 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                 <StrengthHistoryChart history={strengthStatsHistory} />
             </div>
+=======
+        <details className="mt-8 pt-6 border-t">
+          <summary className="text-xl font-semibold text-gray-700 cursor-pointer list-none flex justify-between items-center py-2 group hover:text-flexibel transition-colors">
+            Historik
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 text-gray-500 transition-transform duration-200 group-open:rotate-180"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </summary>
+          <div className="mt-2 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+            <p className="text-base text-gray-600">Här kan du se din historiska utveckling. Spara nya mätpunkter för att se grafen växa!</p>
+            {/* Future chart component would go here */}
+          </div>
+>>>>>>> origin/staging
         </details>
 
         {!isEmbedded && (

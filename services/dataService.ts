@@ -4,7 +4,11 @@ import {
     StaffMember, GroupClassSchedule, Membership, WorkoutCategoryDefinition, GroupClassDefinition, User
 } from '../types';
 // FIX: COLOR_PALETTE was missing from this import
+<<<<<<< HEAD
 import { LOCAL_STORAGE_KEYS, PREDEFINED_GROUP_CLASSES, PREDEFINED_MEMBERSHIPS, PREDEFINED_WORKOUT_CATEGORIES, COLOR_PALETTE } from '../constants';
+=======
+import { LOCAL_STORAGE_KEYS, PREDEFINED_GROUP_CLASSES, PREDEFINED_MEMBERSHIPS, PREDEFINED_WORKOUT_CATEGORIES, COLOR_PALETTE, DEFAULT_GENERAL_ACTIVITIES } from '../constants';
+>>>>>>> origin/staging
 
 export const createInitialOrgData = (orgId: string): OrganizationData => {
     const loc1Id = 'loc-1-salem';
@@ -53,6 +57,10 @@ export const createInitialOrgData = (orgId: string): OrganizationData => {
             startProgramSessionsRequired: 4,
             enableSessionReminders: false,
             sessionReminderHoursBefore: 2,
+<<<<<<< HEAD
+=======
+            commonGeneralActivities: DEFAULT_GENERAL_ACTIVITIES,
+>>>>>>> origin/staging
         },
         groupClassDefinitions: PREDEFINED_GROUP_CLASSES,
         groupClassSchedules: [],

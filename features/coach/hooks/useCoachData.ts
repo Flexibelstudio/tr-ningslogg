@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/staging
 import { useMemo } from 'react';
 import { useAppContext } from '../../../context/AppContext';
 import { useAuth } from '../../../context/AuthContext';
@@ -35,6 +39,11 @@ export const useCoachData = () => {
     participantBookings,
     orgDataError,
     getColorForCategory,
+<<<<<<< HEAD
+=======
+    leads,
+    prospectIntroCalls,
+>>>>>>> origin/staging
   } = useAppContext();
 
   const { user, isImpersonating } = useAuth();
@@ -294,7 +303,13 @@ export const useCoachData = () => {
     allActivityLogsForView,
 
     // 🔑 Rådata som sub-komponenter kan behöva
+<<<<<<< HEAD
     participantDirectory, // <-- LÄGG MÄRKE TILL DENNA, tillgänglig för CoachArea m.fl.
+=======
+    participantDirectory, 
+    leads,
+    prospectIntroCalls,
+>>>>>>> origin/staging
     workouts,
     leaderboardSettings,
     coachEvents,

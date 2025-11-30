@@ -1,7 +1,15 @@
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/staging
 import React, { useState, useMemo } from 'react';
 import { ParticipantProfile, ActivityLog, WorkoutLog, UserStrengthStat, ParticipantClubMembership, LeaderboardSettings, Location, LiftType, Workout, ParticipantConditioningStat, Exercise } from '../../types';
 import * as dateUtils from '../../utils/dateUtils';
 import { calculateFlexibelStrengthScoreInternal } from './StrengthComparisonTool';
+<<<<<<< HEAD
+=======
+import { ToggleSwitch } from '../ToggleSwitch';
+>>>>>>> origin/staging
 
 interface LeaderboardViewProps {
     currentParticipantId: string;
@@ -25,8 +33,20 @@ interface LeaderboardEntry {
     value: number;
     rank: number;
     isCurrentUser: boolean;
+<<<<<<< HEAD
 }
 
+=======
+    isVerified?: boolean;
+}
+
+const VerifiedIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-600 inline ml-1" viewBox="0 0 20 20" fill="currentColor" title="Verifierat resultat">
+        <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+    </svg>
+);
+
+>>>>>>> origin/staging
 const StudioFilterControl: React.FC<{
     value: string;
     onChange: (value: string) => void;
@@ -40,7 +60,11 @@ const StudioFilterControl: React.FC<{
 
     const options = [{ value: 'all', label: 'Alla Studior' }];
     if (myStudioLocation) {
+<<<<<<< HEAD
         options.unshift({ value: myStudioLocation.id, label: `Min Studio (${myStudioLocation.name})` });
+=======
+        options.unshift({ value: myStudioLocation.id, label: `Min Studio` });
+>>>>>>> origin/staging
     }
 
     if (options.length <= 1) return null;
@@ -72,11 +96,19 @@ const LeaderboardCard: React.FC<{ title: string; entries: LeaderboardEntry[]; un
             <p className="text-gray-500">Ingen data att visa. Var med och tävla!</p>
         ) : (
             <ol className="space-y-2">
+<<<<<<< HEAD
                 {entries.map(({ participant, value, rank, isCurrentUser }) => (
+=======
+                {entries.map(({ participant, value, rank, isCurrentUser, isVerified }) => (
+>>>>>>> origin/staging
                     <li key={participant.id} className={`flex items-center justify-between p-2 rounded-md transition-colors ${isCurrentUser ? 'bg-flexibel/20 border-2 border-flexibel' : 'bg-gray-50'}`}>
                         <div className="flex items-center">
                             <span className={`text-lg font-semibold w-8 ${isCurrentUser ? 'text-flexibel' : 'text-gray-500'}`}>{rank}.</span>
                             <span className="text-base font-medium text-gray-800">{isCurrentUser ? 'Du' : participant.name}</span>
+<<<<<<< HEAD
+=======
+                            {isVerified && <VerifiedIcon />}
+>>>>>>> origin/staging
                         </div>
                         <span className="text-lg font-bold text-flexibel">{value.toLocaleString('sv-SE')} {unit}</span>
                     </li>
@@ -97,6 +129,10 @@ const LeaderboardCard: React.FC<{ title: string; entries: LeaderboardEntry[]; un
                         <span className="flex items-center">
                             <span className="text-lg font-semibold w-8 text-flexibel">{currentUserEntry.rank}.</span>
                             <span className="text-base font-medium text-gray-800">Du</span>
+<<<<<<< HEAD
+=======
+                            {currentUserEntry.isVerified && <VerifiedIcon />}
+>>>>>>> origin/staging
                         </span>
                         <span className="text-lg font-bold text-flexibel">{currentUserEntry.value.toLocaleString('sv-SE')} {unit}</span>
                     </p>
@@ -112,6 +148,10 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
     const [activeTab, setActiveTab] = useState<LeaderboardSubTab>('weekly');
     const [weeklyFilter, setWeeklyFilter] = useState<StudioFilter>(participantProfile?.locationId || 'all');
     const [allTimeFilter, setAllTimeFilter] = useState<StudioFilter>('all');
+<<<<<<< HEAD
+=======
+    const [showVerifiedOnly, setShowVerifiedOnly] = useState(false);
+>>>>>>> origin/staging
     
     const optedInParticipants = useMemo(() => {
         return participants.filter(p => p.enableLeaderboardParticipation && p.isActive);
@@ -184,9 +224,50 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
             const latestStats = userStrengthStats
                 .filter(stat => stat.participantId === participant.id)
                 .sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
+<<<<<<< HEAD
             if (!latestStats) return null;
             const scoreData = calculateFlexibelStrengthScoreInternal(latestStats, participant);
             return scoreData && scoreData.totalScore > 0 ? { participant, value: scoreData.totalScore, isCurrentUser: participant.id === currentParticipantId } : null;
+=======
+            
+            if (!latestStats) return null;
+
+            const getVerifiedValue = (val: number | undefined, status: string | undefined) => {
+                 if (showVerifiedOnly && status !== 'verified') return undefined;
+                 return val;
+            }
+
+            const filteredStats: UserStrengthStat = showVerifiedOnly ? {
+                ...latestStats,
+                squat1RMaxKg: getVerifiedValue(latestStats.squat1RMaxKg, latestStats.squatVerificationStatus),
+                benchPress1RMaxKg: getVerifiedValue(latestStats.benchPress1RMaxKg, latestStats.benchPressVerificationStatus),
+                deadlift1RMaxKg: getVerifiedValue(latestStats.deadlift1RMaxKg, latestStats.deadliftVerificationStatus),
+                overheadPress1RMaxKg: getVerifiedValue(latestStats.overheadPress1RMaxKg, latestStats.overheadPressVerificationStatus),
+            } : latestStats;
+
+            // Determine if this entry is considered "verified". In this context, it's verified if all contributed lifts are verified or if checking individual lifts. 
+            // For FSS total score, let's verify if *any* contributing lift is verified? No, typically means all are valid.
+            // But for filtering purposes above, we just exclude unverified numbers.
+            // Let's mark the entry as verified if all 4 lifts used in FSS calculation are verified.
+            const isFullyVerified = 
+                latestStats.squatVerificationStatus === 'verified' && 
+                latestStats.benchPressVerificationStatus === 'verified' &&
+                latestStats.deadliftVerificationStatus === 'verified' &&
+                latestStats.overheadPressVerificationStatus === 'verified';
+
+
+            const scoreData = calculateFlexibelStrengthScoreInternal(filteredStats, participant);
+            
+            if (scoreData && scoreData.totalScore > 0) {
+                return { 
+                    participant, 
+                    value: scoreData.totalScore, 
+                    isCurrentUser: participant.id === currentParticipantId,
+                    isVerified: isFullyVerified
+                };
+            }
+            return null;
+>>>>>>> origin/staging
         })
         .filter((e): e is Omit<LeaderboardEntry, 'rank'> => e !== null)
         .sort((a, b) => b.value - a.value)
@@ -196,7 +277,11 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
             allTimeFssLeaderboard: allEntries.slice(0, 20),
             currentUserFssEntry: allEntries.find(e => e.isCurrentUser) || null,
         };
+<<<<<<< HEAD
     }, [allTimeParticipants, userStrengthStats, currentParticipantId]);
+=======
+    }, [allTimeParticipants, userStrengthStats, currentParticipantId, showVerifiedOnly]);
+>>>>>>> origin/staging
 
     const { allTimeInBodyLeaderboard, currentUserInBodyEntry } = useMemo(() => {
         const allEntries = allTimeParticipants
@@ -249,7 +334,19 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
             </div>
 
             <div role="tabpanel" hidden={activeTab !== 'all-time'}>
+<<<<<<< HEAD
                 <StudioFilterControl value={allTimeFilter} onChange={setAllTimeFilter} locations={locations} participantProfile={participantProfile} />
+=======
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
+                    <StudioFilterControl value={allTimeFilter} onChange={setAllTimeFilter} locations={locations} participantProfile={participantProfile} />
+                    <ToggleSwitch 
+                        id="verified-only"
+                        label="Visa endast verifierade ✅"
+                        checked={showVerifiedOnly}
+                        onChange={setShowVerifiedOnly}
+                    />
+                </div>
+>>>>>>> origin/staging
                 <div className="p-3 mb-4 bg-blue-50 border-l-4 border-blue-400 text-blue-800 rounded-r-lg" role="alert">
                     <p className="font-bold">Rättvis Jämförelse</p>
                     <p className="text-sm mt-1">
@@ -263,4 +360,8 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
             </div>
         </div>
     );
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> origin/staging

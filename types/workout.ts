@@ -161,6 +161,11 @@ export interface WorkoutLog {
   postWorkoutComment?: string;
   postWorkoutSummary?: PostWorkoutSummaryData; 
   moodRating?: number; // Optional: 1-5 scale
+<<<<<<< HEAD
+=======
+  rpe?: number; // Rate of Perceived Exertion (1-10)
+  tags?: string[]; // Quick selection tags e.g. "Roligt", "Tungt", "Bra musik"
+>>>>>>> origin/staging
   selectedExercisesForModifiable?: Exercise[]; 
   reactions?: Reaction[];
   comments?: Comment[]; // New for comments feature
@@ -178,6 +183,11 @@ export interface GeneralActivityLog {
   comment?: string;
   completedDate: string; // ISO string
   moodRating?: number; // Optional: 1-5 scale
+<<<<<<< HEAD
+=======
+  rpe?: number; // Rate of Perceived Exertion (1-10)
+  tags?: string[]; // Quick selection tags
+>>>>>>> origin/staging
   reactions?: Reaction[];
   comments?: Comment[]; // New for comments feature
 }
@@ -229,14 +239,43 @@ export interface StrengthStandard {
   standards: StrengthStandardDetail[]; 
 }
 
+<<<<<<< HEAD
+=======
+export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
+
+>>>>>>> origin/staging
 export interface UserStrengthStat {
   id: string;
   participantId: string;
   bodyweightKg?: number;
+<<<<<<< HEAD
   squat1RMaxKg?: number;
   benchPress1RMaxKg?: number;
   deadlift1RMaxKg?: number;
   overheadPress1RMaxKg?: number; // Added Axelpress
+=======
+  
+  squat1RMaxKg?: number;
+  squatVerificationStatus?: VerificationStatus;
+  squatVerifiedBy?: string;
+  squatVerifiedDate?: string;
+
+  benchPress1RMaxKg?: number;
+  benchPressVerificationStatus?: VerificationStatus;
+  benchPressVerifiedBy?: string;
+  benchPressVerifiedDate?: string;
+
+  deadlift1RMaxKg?: number;
+  deadliftVerificationStatus?: VerificationStatus;
+  deadliftVerifiedBy?: string;
+  deadliftVerifiedDate?: string;
+
+  overheadPress1RMaxKg?: number; 
+  overheadPressVerificationStatus?: VerificationStatus;
+  overheadPressVerifiedBy?: string;
+  overheadPressVerifiedDate?: string;
+
+>>>>>>> origin/staging
   lastUpdated: string; // ISO string
   reactions?: Reaction[];
   comments?: Comment[];

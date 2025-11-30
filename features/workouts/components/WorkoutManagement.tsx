@@ -1,5 +1,9 @@
 
+<<<<<<< HEAD
 import React, { useState, useEffect } from 'react';
+=======
+import React, { useState, useEffect, useMemo } from 'react';
+>>>>>>> origin/staging
 import { Workout, Exercise, LiftType, WorkoutBlock, WorkoutCategoryDefinition, ParticipantProfile } from '../../../types';
 import { Button } from '../../../components/Button';
 import { CreateWorkoutModal } from './CreateWorkoutModal';
@@ -111,12 +115,20 @@ interface WorkoutManagementProps {
 }
 
 export const WorkoutManagement: React.FC<WorkoutManagementProps> = ({ participants, isOnline }) => {
+<<<<<<< HEAD
     const { workouts, addWorkout, updateWorkout, deleteWorkout } = useAppContext();
+=======
+    const { workouts, addWorkout, updateWorkout, deleteWorkout, getColorForCategory, workoutCategories } = useAppContext();
+>>>>>>> origin/staging
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null);
     const [isAiAssistantModalOpen, setIsAiAssistantModalOpen] = useState(false);
     const [expandedWorkoutIds, setExpandedWorkoutIds] = useState<Set<string>>(new Set());
     const [expandedBlockStates, setExpandedBlockStates] = useState<Record<string, Set<string>>>({});
+<<<<<<< HEAD
+=======
+    const [categoryFilter, setCategoryFilter] = useState<string>('all');
+>>>>>>> origin/staging
   
     const [showConfirmDeleteWorkoutModal, setShowConfirmDeleteWorkoutModal] = useState(false);
     const [workoutToConfirmDelete, setWorkoutToConfirmDelete] = useState<Workout | null>(null);
@@ -124,8 +136,37 @@ export const WorkoutManagement: React.FC<WorkoutManagementProps> = ({ participan
     const [workoutToAssign, setWorkoutToAssign] = useState<Workout | null>(null);
     const [assignSuccessMessage, setAssignSuccessMessage] = useState('');
 
+<<<<<<< HEAD
 
     const templateWorkouts = workouts.filter(w => !w.assignedToParticipantId);
+=======
+    // Filter out assigned (personal) workouts to only show templates
+    const templateWorkouts = useMemo(() => workouts.filter(w => !w.assignedToParticipantId), [workouts]);
+
+    // Prepare category options
+    const categoryOptions = useMemo(() => [
+        { value: 'all', label: 'Alla kategorier' },
+        ...workoutCategories.map(c => ({ value: c.name, label: c.name }))
+    ], [workoutCategories]);
+
+    // Group workouts by category for display
+    const groupedWorkouts = useMemo(() => {
+        const groups: Record<string, Workout[]> = {};
+        
+        templateWorkouts.forEach(workout => {
+            // Apply filter if active
+            if (categoryFilter !== 'all' && workout.category !== categoryFilter) return;
+
+            const cat = workout.category || 'Övrigt';
+            if (!groups[cat]) groups[cat] = [];
+            groups[cat].push(workout);
+        });
+        return groups;
+    }, [templateWorkouts, categoryFilter]);
+
+    // Sort categories alphabetically
+    const sortedCategories = useMemo(() => Object.keys(groupedWorkouts).sort((a, b) => a.localeCompare(b)), [groupedWorkouts]);
+>>>>>>> origin/staging
 
     const handleSaveWorkout = (newWorkout: Workout) => {
         addWorkout(newWorkout);
@@ -144,6 +185,7 @@ export const WorkoutManagement: React.FC<WorkoutManagementProps> = ({ participan
       };
     
     const handleOpenEditModal = (workout: Workout) => {
+<<<<<<< HEAD
     const workoutWithBlocks: Workout = {
         ...workout,
         blocks: workout.blocks || (workout.hasOwnProperty('exercises') ? [{ id: crypto.randomUUID(), name: '', exercises: (workout as any).exercises }] : [{id: crypto.randomUUID(), name: '', exercises: []}]),
@@ -153,6 +195,17 @@ export const WorkoutManagement: React.FC<WorkoutManagementProps> = ({ participan
     }
     setEditingWorkout(workoutWithBlocks);
     setIsCreateModalOpen(true);
+=======
+        const workoutWithBlocks: Workout = {
+            ...workout,
+            blocks: workout.blocks || (workout.hasOwnProperty('exercises') ? [{ id: crypto.randomUUID(), name: '', exercises: (workout as any).exercises }] : [{id: crypto.randomUUID(), name: '', exercises: []}]),
+        };
+        if (workout.hasOwnProperty('exercises')) {
+            delete (workoutWithBlocks as any).exercises;
+        }
+        setEditingWorkout(workoutWithBlocks);
+        setIsCreateModalOpen(true);
+>>>>>>> origin/staging
     };
     
     const handleTogglePublishState = (workoutId: string) => {
@@ -208,6 +261,7 @@ export const WorkoutManagement: React.FC<WorkoutManagementProps> = ({ participan
       };
       
     const handleToggleBlockExpand = (workoutId: string, blockId: string) => {
+<<<<<<< HEAD
     setExpandedBlockStates(prev => {
         const currentWorkoutBlocks = new Set(prev[workoutId] || []);
         if (currentWorkoutBlocks.has(blockId)) {
@@ -217,6 +271,17 @@ export const WorkoutManagement: React.FC<WorkoutManagementProps> = ({ participan
         }
         return { ...prev, [workoutId]: currentWorkoutBlocks };
     });
+=======
+        setExpandedBlockStates(prev => {
+            const currentWorkoutBlocks = new Set(prev[workoutId] || []);
+            if (currentWorkoutBlocks.has(blockId)) {
+                currentWorkoutBlocks.delete(blockId);
+            } else {
+                currentWorkoutBlocks.add(blockId);
+            }
+            return { ...prev, [workoutId]: currentWorkoutBlocks };
+        });
+>>>>>>> origin/staging
     };
 
     const handleAcceptAiSuggestion = (suggestion: { title: string; coachNote?: string; blocksData: WorkoutBlock[] }) => {
@@ -232,6 +297,7 @@ export const WorkoutManagement: React.FC<WorkoutManagementProps> = ({ participan
         setIsAiAssistantModalOpen(false); 
       };
 
+<<<<<<< HEAD
       const sortedWorkouts = templateWorkouts;
 
       return (
@@ -253,13 +319,47 @@ export const WorkoutManagement: React.FC<WorkoutManagementProps> = ({ participan
                 </Button>
                 <Button onClick={handleOpenCreateModal} className="w-full sm:w-auto">Nytt Pass</Button>
             </div>
+=======
+      return (
+        <>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-6">
+                <div className="w-full sm:w-64">
+                     <Select
+                        label="Filtrera kategori"
+                        value={categoryFilter}
+                        onChange={e => setCategoryFilter(e.target.value)}
+                        options={categoryOptions}
+                        containerClassName="w-full"
+                    />
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                    <Button 
+                        onClick={() => setIsAiAssistantModalOpen(true)} 
+                        variant="outline" 
+                        className="w-full sm:w-auto"
+                        title={"AI Programassistent"}
+                        disabled={!isOnline}
+                    >
+                        {isOnline ? 'AI Programassistent' : 'AI Offline'}
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-2 inline" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v1.999l4.879 4.879a1 1 0 01-.318 1.682l-5.25 1.625a1 1 0 01-1.24-.226l-3.328-4.16a1 1 0 01.226-1.24l1.625-5.25a1 1 0 011.682-.318L11 3.05V2a1 1 0 01.3-.954zM9 12v6a1 1 0 001 1h.01a1 1 0 00.993-.993L11 12H9z" clipRule="evenodd" />
+                            <path d="M5 2.5a.5.5 0 01.5-.5H6a.5.5 0 010 1H5.5a.5.5 0 01-.5-.5zM3 5.5a.5.5 0 01.5-.5H4a.5.5 0 010 1H3.5a.5.5 0 01-.5-.5zM2 8.5a.5.5 0 01.5-.5H3a.5.5 0 010 1H2.5a.5.5 0 01-.5-.5zM2 11.5a.5.5 0 01.5-.5H3a.5.5 0 010 1H2.5a.5.5 0 01-.5-.5zM3.5 14a.5.5 0 000 1H4a.5.5 0 000-1h-.5zM5.5 16a.5.5 0 000 1H6a.5.5 0 000-1h-.5z" />
+                        </svg>
+                    </Button>
+                    <Button onClick={handleOpenCreateModal} className="w-full sm:w-auto">Nytt Pass</Button>
+                </div>
+>>>>>>> origin/staging
             </div>
 
             {assignSuccessMessage && (
                 <div className="p-3 bg-green-100 text-green-800 rounded-md mb-4 animate-fade-in">{assignSuccessMessage}</div>
             )}
 
+<<<<<<< HEAD
             {sortedWorkouts.length === 0 ? (
+=======
+            {sortedCategories.length === 0 ? (
+>>>>>>> origin/staging
             <div className="text-center py-10 bg-white rounded-lg shadow-md">
                 <svg className="mx-auto h-12 w-12 text-flexibel/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                 <path vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2-2H5a2 2 0 01-2-2z" />
@@ -268,6 +368,7 @@ export const WorkoutManagement: React.FC<WorkoutManagementProps> = ({ participan
                 <p className="mt-1 text-lg text-gray-500">Klicka 'Nytt Pass' för att börja.</p>
             </div>
             ) : (
+<<<<<<< HEAD
             <div className="space-y-4">
                 {sortedWorkouts.map((workout, index) => {
                 const intensityDetail = workout.category === 'PT-bas' && workout.intensityLevel 
@@ -405,6 +506,159 @@ export const WorkoutManagement: React.FC<WorkoutManagementProps> = ({ participan
                     </div>
                     </div>
                 )
+=======
+            <div className="space-y-8">
+                {sortedCategories.map(categoryName => {
+                    const categoryColor = getColorForCategory(categoryName);
+                    const workoutsInCategory = groupedWorkouts[categoryName];
+
+                    return (
+                        <div key={categoryName} className="space-y-4">
+                            <div className="flex items-center gap-3 pb-2 border-b border-gray-200">
+                                <div className="w-4 h-8 rounded-sm" style={{ backgroundColor: categoryColor }}></div>
+                                <h2 className="text-xl font-bold text-gray-800">{categoryName} <span className="text-gray-500 font-normal text-base">({workoutsInCategory.length})</span></h2>
+                            </div>
+                            <div className="space-y-4">
+                                {workoutsInCategory.map((workout, index) => {
+                                    const intensityDetail = workout.category === 'PT-bas' && workout.intensityLevel 
+                                                            ? INTENSITY_LEVELS.find(l => l.value === workout.intensityLevel) 
+                                                            : null;
+                                    const isWorkoutExpanded = expandedWorkoutIds.has(workout.id);
+                                    const numberOfBlocks = workout.blocks?.length || 0;
+                                    const totalNumberOfExercises = workout.blocks?.reduce((sum, block) => sum + (block.exercises?.length || 0), 0) || 0;
+                                    
+                                    return (
+                                        <div key={workout.id} className="bg-white p-4 sm:p-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 ease-out border-l-4" style={{ borderColor: categoryColor }}>
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h3 className="text-2xl font-semibold text-gray-800">{workout.title}</h3>
+                                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+                                                    {intensityDetail && (
+                                                        <span className={`inline-block ${intensityDetail.twBadgeClass} text-sm font-semibold px-2 py-0.5 rounded-full`}>
+                                                            Fokus: {intensityDetail.label}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className={`text-sm font-semibold mt-1 ${workout.isPublished ? 'text-green-600' : 'text-yellow-600'}`}>
+                                                    {workout.isPublished ? 'Publicerat' : 'Utkast'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="mt-4 border-t pt-4">
+                                            <button
+                                            onClick={() => handleToggleExpandWorkout(workout.id)}
+                                            className="w-full text-left text-lg font-semibold text-gray-700 mb-2 flex justify-between items-center group py-1 hover:text-flexibel transition-colors"
+                                            aria-expanded={isWorkoutExpanded}
+                                            aria-controls={`workout-details-and-structure-${workout.id}`}
+                                            >
+                                            <span>Detaljer & Struktur ({numberOfBlocks} block, {totalNumberOfExercises} övningar)</span>
+                                            {isWorkoutExpanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
+                                            </button>
+                                            
+                                            {isWorkoutExpanded && (
+                                            <div id={`workout-details-and-structure-${workout.id}`}>
+                                                {workout.coachNote && (
+                                                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-300 rounded-md">
+                                                    <p className="text-base font-semibold text-yellow-700">Anteckning till medlem:</p>
+                                                    <p className="text-base text-yellow-600 italic whitespace-pre-wrap">{workout.coachNote}</p>
+                                                </div>
+                                                )}
+                                                {workout.category === 'PT-bas' && workout.intensityInstructions && (
+                                                <div className="mt-2 p-3 bg-blue-50 border border-blue-300 rounded-md">
+                                                    <p className="text-base font-semibold text-blue-700">Instruktion för intensitet ({intensityDetail?.label}):</p>
+                                                    <p className="text-base text-blue-600 italic whitespace-pre-wrap">{workout.intensityInstructions}</p>
+                                                </div>
+                                                )}
+                                                
+                                                <div className={`
+                                                ${(workout.coachNote || (workout.category === 'PT-bas' && workout.intensityInstructions)) ? 'mt-4 pt-4 border-t' : 'mt-0'} 
+                                                `}>
+                                                {(!workout.blocks || workout.blocks.length === 0) && <p className="text-base text-gray-500">Inga övningar eller block definierade.</p>}
+                                                {workout.blocks?.map((block, blockIndex) => {
+                                                    const isBlockExpanded = expandedBlockStates[workout.id]?.has(block.id) || false;
+                                                    return (
+                                                    <div key={block.id} className="mb-3 pl-2 border-l-2 border-flexibel/30">
+                                                        <button
+                                                            onClick={() => handleToggleBlockExpand(workout.id, block.id)}
+                                                            className="w-full text-left text-lg font-semibold text-gray-600 mb-1 flex justify-between items-center group py-1 hover:text-flexibel/80 transition-colors"
+                                                            aria-expanded={isBlockExpanded}
+                                                            aria-controls={`block-content-${block.id}`}
+                                                        >
+                                                            <span className="truncate">
+                                                            {block.name ? block.name : `Block ${blockIndex + 1}`}
+                                                            {block.exercises.length === 0 && <span className="text-sm font-normal text-gray-400"> (Tomt block)</span>}
+                                                            {!isBlockExpanded && block.exercises.length > 0 && <span className="text-sm font-normal text-gray-500 ml-1">({block.exercises.length} övn.)</span>}
+                                                            </span>
+                                                            {isBlockExpanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
+                                                        </button>
+                                                        {isBlockExpanded && (
+                                                            <div id={`block-content-${block.id}`}>
+                                                                {block.exercises.length > 0 ? (
+                                                                    <ul className="list-none space-y-1.5 pl-1 mt-1">
+                                                                    {block.exercises.map((ex) => {
+                                                                        const planText = formatPlan(ex);
+                                                                        return (
+                                                                            <li key={ex.id} className="text-base text-gray-600">
+                                                                                <span className="font-medium block">
+                                                                                    {ex.name}
+                                                                                    {ex.baseLiftType && <span className="text-sm text-flexibel/80 font-normal ml-1"> (Baslyft: {ex.baseLiftType})</span>}
+                                                                                    {ex.isBodyweight && <span className="text-sm text-green-600 ml-1">(KV)</span>}
+                                                                                </span>
+                                                                                {planText && <p className="text-sm font-semibold text-gray-700 pl-2">{planText}</p>}
+                                                                                {ex.notes && (
+                                                                                    <div 
+                                                                                    className="mt-0.5 pl-2 text-sm text-gray-500 whitespace-pre-wrap prose prose-base max-w-none" 
+                                                                                    dangerouslySetInnerHTML={{ __html: renderMarkdownBold(ex.notes) }}
+                                                                                    />
+                                                                                )}
+                                                                            </li>
+                                                                        )
+                                                                    })}
+                                                                    </ul>
+                                                                ) : (
+                                                                <p className="text-sm text-gray-500 italic pl-1 mt-1">Inga övningar i detta block.</p>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    );
+                                                })}
+                                                </div>
+                                            </div>
+                                            )}
+                                        </div>
+                                        <div className="mt-4 pt-4 border-t flex flex-wrap gap-2 items-center">
+                                            <Button onClick={() => handleOpenEditModal(workout)} variant="outline" size="sm">
+                                                {workout.isPublished ? 'Redigera Pass' : 'Redigera Utkast'}
+                                            </Button>
+                                            <Button onClick={() => { setWorkoutToAssign(workout); setIsAssignModalOpen(true); }} variant="outline" size="sm">
+                                                Tilldela...
+                                            </Button>
+                                            
+                                            {workout.isPublished ? (
+                                                <Button onClick={() => handleTogglePublishState(workout.id)} variant="secondary" size="sm">Avpublicera</Button>
+                                            ) : (
+                                                <Button onClick={() => handleTogglePublishState(workout.id)} variant="primary" size="sm">Publicera</Button>
+                                            )}
+
+                                            <Button 
+                                                onClick={() => handleDeleteWorkoutInitiated(workout)} 
+                                                variant="danger" 
+                                                size="sm" 
+                                                className="ml-auto"
+                                                aria-label={`Ta bort passet ${workout.title}`}
+                                            >
+                                                <TrashIcon /> Ta bort
+                                            </Button>
+                                        </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    );
+>>>>>>> origin/staging
                 })}
             </div>
             )}

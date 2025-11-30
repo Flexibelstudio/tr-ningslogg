@@ -11,7 +11,12 @@ import {
     UserPushSubscription,
     ActivityLog,
     Exercise,
+<<<<<<< HEAD
     ParticipantPhysiqueStat
+=======
+    ParticipantPhysiqueStat,
+    ParticipantMentalWellbeing
+>>>>>>> origin/staging
 } from '../../types';
 import { Button } from '../Button';
 import { Modal } from '../Modal';
@@ -62,7 +67,11 @@ import { useParticipantData } from '../../features/participant/hooks/useParticip
 import { useParticipantOperations } from '../../features/participant/hooks/useParticipantOperations';
 import { ParticipantDashboardView } from './ParticipantDashboardView';
 
+<<<<<<< HEAD
 // --- REUSABLE CARD COMPONENTS ---
+=======
+// ... (REUSABLE CARD COMPONENTS and helper functions remain unchanged)
+>>>>>>> origin/staging
 function ToolCard({ title, description, icon, onClick }: { title: string; description: string; icon: React.ReactNode; onClick: () => void; }) {
     return (
         <button onClick={onClick} className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 text-left w-full hover:shadow-xl hover:border-flexibel transition-all duration-200 group">
@@ -129,7 +138,10 @@ interface ParticipantAreaProps {
   operationInProgress: string[];
 }
 
+<<<<<<< HEAD
 // Main ParticipantArea Component
+=======
+>>>>>>> origin/staging
 export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   currentParticipantId,
   openProfileModalOnInit,
@@ -141,7 +153,11 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
   newFlowItemsCount = 0,
   operationInProgress,
 }) => {
+<<<<<<< HEAD
     // Hook 1: Get All Data
+=======
+    // ... (Hooks for data and operations remain same)
+>>>>>>> origin/staging
     const {
         participantProfile,
         myWorkoutLogs,
@@ -176,7 +192,10 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         coachEvents
     } = useParticipantData(currentParticipantId);
 
+<<<<<<< HEAD
     // Hook 2: Operations
+=======
+>>>>>>> origin/staging
     const {
         handleBookClass,
         handleCancelBooking,
@@ -216,6 +235,10 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     const { isOnline } = useNetworkStatus();
     const { addNotification } = useNotifications();
 
+<<<<<<< HEAD
+=======
+    // ... (State definitions remain same)
+>>>>>>> origin/staging
     const [currentWorkoutLog, setCurrentWorkoutLog] = useState<WorkoutLog | undefined>(undefined);
     const [logForReference, setLogForReference] = useState<WorkoutLog | undefined>(undefined);
     const [isNewSessionForLog, setIsNewSessionForLog] = useState(true);
@@ -230,7 +253,11 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     const [isAICoachModalOpen, setIsAICoachModalOpen] = useState(false);
 
     const [isAIAssistantModalOpen, setIsAIAssistantModalOpen] = useState(false);
+<<<<<<< HEAD
     const [preWorkoutData, setPreWorkoutData] = useState<{ workout: Workout, previousLog: WorkoutLog } | null>(null);
+=======
+    const [preWorkoutData, setPreWorkoutData] = useState<{ workout: Workout, previousLog?: WorkoutLog } | null>(null);
+>>>>>>> origin/staging
     const [aiWorkoutTips, setAiWorkoutTips] = useState<AiWorkoutTips | null>(null);
 
     const [isPostWorkoutSummaryModalOpen, setIsPostWorkoutSummaryModalOpen] = useState(false);
@@ -294,7 +321,11 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         return myMembership?.type === 'subscription';
     }, [myMembership]);
 
+<<<<<<< HEAD
     // --- NEW: Push Notification Logic ---
+=======
+    // ... (Push notification logic)
+>>>>>>> origin/staging
     useEffect(() => {
         if ('Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window) {
             if (Notification.permission === 'default') {
@@ -381,7 +412,12 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         });
     };
     
+<<<<<<< HEAD
     const handleSaveLog = async (logData: WorkoutLog) => {
+=======
+    // Updated handleSaveLog to accept extra wellbeing data
+    const handleSaveLog = async (logData: WorkoutLog, wellbeingData?: { stress: number, energy: number, sleep: number, mood: number }) => {
+>>>>>>> origin/staging
         if (!participantProfile?.id || !organizationId || !db) {
             throw new Error("Profil- eller organisationsinformation saknas. Kan inte spara logg.");
         }
@@ -405,6 +441,23 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 overheadPress1RMaxKg: updatedStats.overheadPress1RMaxKg,
             };
         }
+<<<<<<< HEAD
+=======
+        
+        // Prepare Wellbeing Data if provided
+        let newWellbeingRecord: ParticipantMentalWellbeing | undefined;
+        if (wellbeingData) {
+             newWellbeingRecord = {
+                id: participantProfile.id, // Assuming one doc per user as per current structure, or could be new ID for history
+                participantId: participantProfile.id,
+                stressLevel: wellbeingData.stress,
+                energyLevel: wellbeingData.energy,
+                sleepQuality: wellbeingData.sleep,
+                overallMood: wellbeingData.mood,
+                lastUpdated: new Date().toISOString(),
+            };
+        }
+>>>>>>> origin/staging
 
         const tempUpdatedWorkoutLogs = workoutLogs.some(l => l.id === logWithSummary.id)
             ? workoutLogs.map(l => (l.id === logWithSummary.id ? logWithSummary : l))
@@ -426,6 +479,22 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             const statRef = db.collection('organizations').doc(organizationId).collection('userStrengthStats').doc(statId);
             batch.set(statRef, sanitizeDataForFirebase(statSaveData));
         }
+<<<<<<< HEAD
+=======
+        
+        if (newWellbeingRecord) {
+             const { id: wbId, ...wbSaveData } = newWellbeingRecord;
+             // Using participant ID as doc ID for single-record-per-user approach, or random for history. 
+             // Current app context seems to treat it as a list, but only uses latest. 
+             // Let's save as a new document for history tracking if needed, but here we overwrite the "current" status or add to list.
+             // To support history, we should probably use random ID.
+             // But `participantMentalWellbeing` in context seems to be `ParticipantMentalWellbeing[]`.
+             // Let's use random ID to allow history.
+             const newWbDocId = crypto.randomUUID();
+             const wbRef = db.collection('organizations').doc(organizationId).collection('participantMentalWellbeing').doc(newWbDocId);
+             batch.set(wbRef, sanitizeDataForFirebase({ ...wbSaveData, id: newWbDocId }));
+        }
+>>>>>>> origin/staging
 
         const oldGoalsMap = new Map(myParticipantGoals.map(g => [g.id, g]));
         updatedGoals.forEach(goal => {
@@ -449,6 +518,14 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             if (newStatRecord) {
                 setUserStrengthStatsData(prev => [...(prev || []), newStatRecord!]);
             }
+<<<<<<< HEAD
+=======
+            
+            if (newWellbeingRecord) {
+                setParticipantMentalWellbeingData(prev => [...(prev || []), newWellbeingRecord!]);
+            }
+
+>>>>>>> origin/staging
             setWorkoutLogsData(tempUpdatedWorkoutLogs);
             setParticipantGoalsData(prev => [...(prev || []).filter(g => g.participantId !== currentParticipantId), ...updatedGoals]);
             if (updatedGamificationStats) {
@@ -476,15 +553,35 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 };
                 setLastGeneralActivity(simpleSummaryLog);
                 setIsGeneralActivitySummaryOpen(true);
+<<<<<<< HEAD
             } else {
                 openMentalCheckinIfNeeded();
             }
+=======
+            }
+            
+            // Removed openMentalCheckinIfNeeded call
+>>>>>>> origin/staging
         } catch (error) {
             console.error("Failed to save workout log batch:", error);
             alert("Kunde inte spara passet. Kontrollera din anslutning och försök igen.");
             throw error; 
         }
     };
+<<<<<<< HEAD
+=======
+    
+    const handleSavePhysique = useCallback(async (physiqueData: Partial<Pick<any, "bodyweightKg" | "muscleMassKg" | "fatMassKg" | "inbodyScore">>) => {
+      const newHistoryEntry: ParticipantPhysiqueStat = {
+        id: crypto.randomUUID(),
+        participantId: participantProfile?.id || '',
+        lastUpdated: new Date().toISOString(),
+        ...physiqueData,
+      };
+      setParticipantPhysiqueHistoryData(prev => [...prev, newHistoryEntry]);
+      await updateParticipantProfile(participantProfile?.id || '', physiqueData);
+    }, [participantProfile, setParticipantPhysiqueHistoryData, updateParticipantProfile]);
+>>>>>>> origin/staging
 
     useEffect(() => {
         setParticipantModalOpeners({
@@ -506,6 +603,19 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         }
     }, [storageKey]);
 
+<<<<<<< HEAD
+=======
+    // Trigger Birth Date Prompt if missing
+    useEffect(() => {
+        if (participantProfile && !participantProfile.birthDate && !hasDismissedPromptThisSession) {
+            const timer = setTimeout(() => {
+                setIsBirthDatePromptOpen(true);
+            }, 2000);
+            return () => clearTimeout(timer);
+        }
+    }, [participantProfile, hasDismissedPromptThisSession]);
+
+>>>>>>> origin/staging
     const handleDeleteInProgressWorkout = () => {
         localStorage.removeItem(storageKey);
         setInProgressWorkout(null);
@@ -703,7 +813,11 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         setLogForSummaryModal(null);
         setWorkoutForSummaryModal(null);
         setIsNewCompletion(false);
+<<<<<<< HEAD
         openMentalCheckinIfNeeded();
+=======
+        // No longer need to trigger mental checkin separately
+>>>>>>> origin/staging
     };
     
     const handleEditLogFromSummary = () => {
@@ -736,7 +850,11 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             setIsNewSessionForLog(true);
             setLogForReference(undefined);
 
+<<<<<<< HEAD
             if (previousLogForThisTemplate && isAiEnabled && isOnline) {
+=======
+            if (isAiEnabled && isOnline) {
+>>>>>>> origin/staging
                 setPreWorkoutData({ workout, previousLog: previousLogForThisTemplate });
                 setIsAIAssistantModalOpen(true);
                 setIsSelectWorkoutModalOpen(false);
@@ -815,6 +933,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             setCurrentAiModalTitle("Coachens tips för att du ska nå ditt mål");
             setIsAiFeedbackModalOpen(true);
     
+<<<<<<< HEAD
             const prompt = `Du är "Flexibot", en AI-coach och digital träningskompis från Flexibel Hälsostudio. Din roll är att ge en personlig, motiverande och vetenskapligt grundad prognos och rekommendation (ett "recept") för en medlem som precis satt ett nytt mål. Svaret ska vara på svenska och formaterat med Markdown (## Rubriker, **fet text**, * punktlistor).
     
             Medlemmens nya mål:
@@ -833,6 +952,17 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 const result = await callGeminiApiFn({
                     model: 'gemini-2.5-flash',
                     contents: prompt,
+=======
+            try {
+                const result = await callGeminiApiFn({
+                    action: 'generate_goal_prognosis',
+                    context: {
+                        fitnessGoals: goalData.fitnessGoals,
+                        workoutsPerWeekTarget: goalData.workoutsPerWeekTarget,
+                        targetDate: goalData.targetDate,
+                        preferences: goalData.preferences
+                    }
+>>>>>>> origin/staging
                 });
                 
                 const { text, error } = result.data as { text?: string; error?: string };
@@ -921,7 +1051,11 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         });
     }, [isAiEnabled, isOnline, latestActiveGoal, currentParticipantId, setParticipantGoalsData, setGoalCompletionLogsData]);
     
+<<<<<<< HEAD
     const handleSaveGeneralActivity = (activityData: Omit<GeneralActivityLog, 'id' | 'type' | 'participantId'>) => {
+=======
+    const handleSaveGeneralActivity = (activityData: Omit<GeneralActivityLog, 'id' | 'type' | 'participantId'>, wellbeingData?: { stress: number, energy: number, sleep: number, mood: number }) => {
+>>>>>>> origin/staging
         const newActivity: GeneralActivityLog = {
             ...activityData,
             id: crypto.randomUUID(),
@@ -929,6 +1063,24 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             type: 'general',
         };
         setGeneralActivityLogsData(prev => [...(prev || []), newActivity]);
+<<<<<<< HEAD
+=======
+        
+        // Save wellbeing data if provided
+        if (wellbeingData) {
+             const newWellbeingRecord: ParticipantMentalWellbeing = {
+                id: crypto.randomUUID(),
+                participantId: currentParticipantId,
+                stressLevel: wellbeingData.stress,
+                energyLevel: wellbeingData.energy,
+                sleepQuality: wellbeingData.sleep,
+                overallMood: wellbeingData.mood,
+                lastUpdated: new Date().toISOString(),
+            };
+            setParticipantMentalWellbeingData(prev => [...(prev || []), newWellbeingRecord]);
+        }
+        
+>>>>>>> origin/staging
         setLastGeneralActivity(newActivity);
         setIsGeneralActivitySummaryOpen(true);
     };
@@ -936,7 +1088,11 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
     const handleFinalizeGeneralActivitySummary = () => {
         setIsGeneralActivitySummaryOpen(false);
         setLastGeneralActivity(null);
+<<<<<<< HEAD
         openMentalCheckinIfNeeded();
+=======
+        // Removed openMentalCheckinIfNeeded();
+>>>>>>> origin/staging
     };
     
     const handleOpenPhysiqueFromStrength = () => {
@@ -1008,6 +1164,10 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
         ) : (
             <div className="pb-40">
                 <div ref={mainContentRef} className="container mx-auto px-2 sm:px-4 py-4 space-y-3">
+<<<<<<< HEAD
+=======
+                    {/* ... (Notifications, Progress banners, etc. remain unchanged) */}
+>>>>>>> origin/staging
                     {showNotificationBanner && (
                         <div className="p-3 bg-blue-100 border-l-4 border-blue-500 rounded-r-lg flex flex-col sm:flex-row justify-between items-center gap-4 mb-4 animate-fade-in-down">
                             <div>
@@ -1240,6 +1400,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
             isOpen={isPhysiqueModalOpen}
             onClose={() => setIsPhysiqueModalOpen(false)}
             currentProfile={participantProfile}
+<<<<<<< HEAD
             onSave={async (physiqueData) => {
                 const newHistoryEntry: ParticipantPhysiqueStat = {
                     id: crypto.randomUUID(),
@@ -1250,6 +1411,9 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 setParticipantPhysiqueHistoryData(prev => [...prev, newHistoryEntry]);
                 await updateParticipantProfile(participantProfile?.id || '', physiqueData);
             }}
+=======
+            onSave={handleSavePhysique}
+>>>>>>> origin/staging
         />
         <CommunityModal
             isOpen={isCommunityModalOpen}

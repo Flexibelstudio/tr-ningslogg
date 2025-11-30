@@ -2,7 +2,12 @@
   "requestFramePermissions": [
     "camera"
   ],
+<<<<<<< HEAD
   "name": "Träningslogg",
   "description": "",
+=======
+  "name": "Ny Träningslogg",
+  "description": "Bytte till en kopia från 25 nov kl. 17.40",
+>>>>>>> origin/staging
   "prompt": ""
 }

@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/staging
 import React, { useState } from 'react';
 import { CoachEvent, WorkoutLog, ParticipantProfile, WeeklyHighlightSettings } from '../../types';
 import { Button } from '../Button';
@@ -105,6 +109,7 @@ export const EventManagement: React.FC<EventManagementProps> = ({ events, setEve
         const participant = participants.find(p => p.id === log.participantId);
         return (log.postWorkoutSummary?.newPBs || []).map(pb => ({ ...pb, participantName: participant?.name || 'Okänd' }));
       })
+<<<<<<< HEAD
       .slice(0, 10); // Limit to 10 PBs for prompt length
 
     const prompt = `Du är "Flexibot", en AI-assistent för Flexibel Hälsostudio. Din uppgift är att skapa ett "Veckans Höjdpunkter"-inlägg för community-flödet. Svaret MÅSTE vara på svenska och formaterat med Markdown.
@@ -125,6 +130,20 @@ export const EventManagement: React.FC<EventManagementProps> = ({ events, setEve
 
     try {
         const result = await callGeminiApiFn({ model: 'gemini-2.5-flash', contents: prompt });
+=======
+      .slice(0, 10);
+
+    try {
+        const result = await callGeminiApiFn({ 
+            action: 'generate_weekly_highlights',
+            context: {
+                totalLogs: logsLastWeek.length,
+                uniqueParticipantsCount: new Set(logsLastWeek.map(l => l.participantId)).size,
+                pbs: pbsLastWeek,
+                weekNumber: dateUtils.getISOWeek(new Date())
+            }
+        });
+>>>>>>> origin/staging
         const { text, error } = result.data as { text?: string; error?: string };
         if (error) throw new Error(error);
         
@@ -245,4 +264,8 @@ export const EventManagement: React.FC<EventManagementProps> = ({ events, setEve
         />
     </div>
   );
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> origin/staging

@@ -134,4 +134,8 @@ export const FssHistoryChart: React.FC<FssHistoryChartProps> = ({ history }) => 
       <canvas ref={chartRef}></canvas>
     </div>
   );
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> origin/staging

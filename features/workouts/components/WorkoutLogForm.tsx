@@ -17,7 +17,11 @@ interface WorkoutLogFormProps {
   logForReferenceOrEdit: WorkoutLog | undefined;
   logForReference?: WorkoutLog;
   isNewSession: boolean;
+<<<<<<< HEAD
   onSaveLog: (log: WorkoutLog) => Promise<void>;
+=======
+  onSaveLog: (log: WorkoutLog, wellbeingData?: { stress: number, energy: number, sleep: number, mood: number }) => Promise<void>;
+>>>>>>> origin/staging
   onClose: () => void;
   latestGoal: ParticipantGoalData | null;
   participantProfile: ParticipantProfile | null;
@@ -32,6 +36,7 @@ const AiCoachIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
 );
 
+<<<<<<< HEAD
 const liftTypeToPlaceholderKey = (lift: LiftType): string => {
     switch (lift) {
         case 'Knäböj': return 'squat';
@@ -41,6 +46,13 @@ const liftTypeToPlaceholderKey = (lift: LiftType): string => {
         default: return '';
     }
 };
+=======
+// Predefined tags for quick selection
+const FEEDBACK_TAGS = [
+    "Stark", "Tungt", "Bra flow", "Segt", "Ont", 
+    "Pigg", "Trött", "Bra musik", "Tidspress", "Tekniskt", "Roligt"
+];
+>>>>>>> origin/staging
 
 export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
     workout,
@@ -63,6 +75,11 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   const [logEntries, setLogEntries] = useState<Map<string, SetDetail[]>>(new Map());
   const [postWorkoutComment, setPostWorkoutComment] = useState('');
   const [moodRating, setMoodRating] = useState<number | null>(null);
+<<<<<<< HEAD
+=======
+  const [rpe, setRpe] = useState<number | undefined>(undefined);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+>>>>>>> origin/staging
   const [completedDate, setCompletedDate] = useState<string>('');
   const [showExitConfirmationModal, setShowExitConfirmationModal] = useState(false);
   const [showInProgressConfirmationModal, setShowInProgressConfirmationModal] = useState(false);
@@ -70,6 +87,15 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [hasSaved, setHasSaved] = useState(false);
   const wakeLockSentinelRef = useRef<WakeLockSentinel | null>(null);
+<<<<<<< HEAD
+=======
+  
+  const [showRpeInfo, setShowRpeInfo] = useState(false);
+
+  // Wellbeing state for "one-click" checkin
+  const [wellbeingPreset, setWellbeingPreset] = useState<'good' | 'neutral' | 'bad' | null>(null);
+
+>>>>>>> origin/staging
 
   const [initialLogEntries, setInitialLogEntries] = useState<Map<string, SetDetail[]>>(new Map());
   const [initialPostWorkoutComment, setInitialPostWorkoutComment] = useState('');
@@ -128,7 +154,11 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   const hasLoggedAnything = useMemo(() => {
     if (logEntries.size === 0) return false;
     for (const sets of logEntries.values()) {
+<<<<<<< HEAD
         if (sets.length > 0) {
+=======
+        if ((sets as SetDetail[]).length > 0) {
+>>>>>>> origin/staging
             return true;
         }
     }
@@ -136,7 +166,11 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   }, [logEntries]);
   
   const handleAddSetToGroup = useCallback((group: { exercises: Exercise[] }) => {
+<<<<<<< HEAD
     setLogEntries(prev => {
+=======
+    setLogEntries((prev: Map<string, SetDetail[]>) => {
+>>>>>>> origin/staging
         const newLogs = new Map(prev);
         group.exercises.forEach(exercise => {
             const sets = newLogs.get(exercise.id) || [];
@@ -244,7 +278,11 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
     // FIX: Ensure activeBlock.exercises is treated as an array to prevent errors when iterating.
     for (const exercise of (activeBlock?.exercises || [])) {
       // FIX: Ensure `logEntries.get(exercise.id)` is treated as an array to prevent errors when accessing its properties.
+<<<<<<< HEAD
       const sets = logEntries.get(exercise.id) || [];
+=======
+      const sets = logEntries.get(exercise.id) || ([] as SetDetail[]);
+>>>>>>> origin/staging
       if (sets.length > 0 && sets.some(s => !s.isCompleted)) {
         return true; // Found at least one uncompleted set in a non-empty exercise log
       }
@@ -297,6 +335,16 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
         setCompletedDate(new Date(logForReferenceOrEdit.completedDate).toISOString().split('T')[0]);
         setPostWorkoutComment(logForReferenceOrEdit.postWorkoutComment || '');
         setMoodRating(logForReferenceOrEdit.moodRating ?? null);
+<<<<<<< HEAD
+=======
+        setRpe(logForReferenceOrEdit.rpe);
+        setSelectedTags(logForReferenceOrEdit.tags || []);
+        // Reconstruct preset from mood if possible (simple approximation)
+        if (logForReferenceOrEdit.moodRating === 5) setWellbeingPreset('good');
+        else if (logForReferenceOrEdit.moodRating === 3) setWellbeingPreset('neutral');
+        else if (logForReferenceOrEdit.moodRating === 2) setWellbeingPreset('bad');
+
+>>>>>>> origin/staging
     } else if (isNewSession && storageKey) {
         setCompletedDate(new Date().toISOString().split('T')[0]);
         // This is a new session, create the initial draft in localStorage.
@@ -330,15 +378,33 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   const handleAttemptClose = () => {
     setShowExitConfirmationModal(true);
   };
+<<<<<<< HEAD
+=======
+  
+    const handleWellbeingPresetClick = (type: 'good' | 'neutral' | 'bad') => {
+        setWellbeingPreset(type);
+        // Auto-set mood rating based on preset for workout log compatibility
+        if (type === 'good') setMoodRating(5);
+        if (type === 'neutral') setMoodRating(3);
+        if (type === 'bad') setMoodRating(2);
+    };
+>>>>>>> origin/staging
 
     const handleFinalSave = async () => {
         setIsSaving(true);
         setHasSaved(false);
 
+<<<<<<< HEAD
         // FIX: Ensure logEntries is treated as a Map before calling map.
         const finalEntries: WorkoutExerciseLog[] = Array.from((logEntries || new Map()).entries()).map(([exerciseId, sets]) => {
             // FIX: Ensure sets is treated as an array before calling map.
             const cleanedSets = (sets || []).map(s => {
+=======
+        const currentLogEntries = logEntries as Map<string, SetDetail[]>;
+        const finalEntries: WorkoutExerciseLog[] = Array.from((currentLogEntries || new Map<string, SetDetail[]>()).entries()).map(([exerciseId, sets]) => {
+            const typedSets = sets as SetDetail[];
+            const cleanedSets = (typedSets || []).map(s => {
+>>>>>>> origin/staging
                 const repsStr = (s.reps || '').toString();
                 const weightStr = (s.weight || '').toString();
                 const distStr = (s.distanceMeters || '').toString();
@@ -352,7 +418,10 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
                     durationSeconds: durStr.trim() ? Number(durStr.replace(',', '.')) : undefined,
                     caloriesKcal: calStr.trim() ? Number(calStr.replace(',', '.')) : undefined,
                 };
+<<<<<<< HEAD
             // FIX: Ensure the array is filtered after mapping.
+=======
+>>>>>>> origin/staging
             }).filter(s => s.reps !== undefined || s.weight !== undefined || s.distanceMeters !== undefined || s.durationSeconds !== undefined || s.caloriesKcal !== undefined);
             return { exerciseId, loggedSets: cleanedSets };
         }).filter(entry => (entry.loggedSets || []).length > 0);
@@ -372,11 +441,29 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
             completedDate: finalCompletedDate,
             postWorkoutComment: postWorkoutComment.trim(),
             moodRating: moodRating || undefined,
+<<<<<<< HEAD
             selectedExercisesForModifiable: workout.isModifiable ? exercisesToLog : undefined,
         };
 
         try {
             await onSaveLog(logData);
+=======
+            rpe: rpe || undefined,
+            tags: selectedTags.length > 0 ? selectedTags : undefined,
+            selectedExercisesForModifiable: workout.isModifiable ? exercisesToLog : undefined,
+        };
+        
+        // Create specific wellbeing data based on the preset
+        let wellbeingData = undefined;
+        if (wellbeingPreset) {
+            if (wellbeingPreset === 'good') wellbeingData = { stress: 1, energy: 5, sleep: 5, mood: 5 };
+            if (wellbeingPreset === 'neutral') wellbeingData = { stress: 3, energy: 3, sleep: 3, mood: 3 };
+            if (wellbeingPreset === 'bad') wellbeingData = { stress: 4, energy: 2, sleep: 2, mood: 2 };
+        }
+
+        try {
+            await onSaveLog(logData, wellbeingData);
+>>>>>>> origin/staging
             if (storageKey) {
                 localStorage.removeItem(storageKey);
             }
@@ -394,8 +481,13 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
       // FIX: Add optional chaining and fallback empty array
       const hasTemplateEntries = (block?.exercises || []).some(ex => (logEntries.get(ex.id) || []).length > 0);
       if (!hasTemplateEntries) {
+<<<<<<< HEAD
         setLogEntries(prev => {
           const newLogs = new Map(prev);
+=======
+        setLogEntries((prev) => {
+          const newLogs = new Map(prev as Map<string, SetDetail[]>);
+>>>>>>> origin/staging
           // FIX: Add optional chaining and fallback empty array
           (block?.exercises || []).forEach(exercise => {
             const newSet: SetDetail = {
@@ -434,7 +526,11 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
         }
     }
     
+<<<<<<< HEAD
     setLogEntries(prev => {
+=======
+    setLogEntries((prev: Map<string, SetDetail[]>) => {
+>>>>>>> origin/staging
         const newLogs = new Map(prev);
         const sets = newLogs.get(exerciseId) || [];
         const updatedSets = sets.map(set => set.id === setId ? { ...set, [field]: processedValue } : set);
@@ -444,7 +540,11 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   };
 
   const handleRemoveSet = (exerciseId: string, setId: string) => {
+<<<<<<< HEAD
      setLogEntries(prev => {
+=======
+     setLogEntries((prev: Map<string, SetDetail[]>) => {
+>>>>>>> origin/staging
         const newLogs = new Map(prev);
         const sets = newLogs.get(exerciseId) || [];
         const updatedSets = sets.filter(s => s.id !== setId);
@@ -568,7 +668,11 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   
     // Validate template round
     for (const exercise of activeBlock.exercises) {
+<<<<<<< HEAD
         const templateSets = logEntries.get(exercise.id) || [];
+=======
+        const templateSets = (logEntries.get(exercise.id) || []) as SetDetail[];
+>>>>>>> origin/staging
         if (templateSets.length === 0) {
             alert(`Logga minst ett set för "${exercise.name}" som mall.`);
             return;
@@ -579,10 +683,17 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
         }
     }
 
+<<<<<<< HEAD
     setLogEntries(prev => {
         const newLogs = new Map(prev);
         activeBlock.exercises.forEach(ex => {
             const templateSets = newLogs.get(ex.id) || [];
+=======
+    setLogEntries((prev: Map<string, SetDetail[]>) => {
+        const newLogs = new Map(prev);
+        activeBlock.exercises.forEach(ex => {
+            const templateSets = (newLogs.get(ex.id) || []) as SetDetail[];
+>>>>>>> origin/staging
             if (templateSets.length === 0) return;
 
             const expandedSets: SetDetail[] = [];
@@ -618,7 +729,11 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
 
   const handleBackToTemplate = () => {
     if (!activeBlock) return;
+<<<<<<< HEAD
     setLogEntries(prev => {
+=======
+    setLogEntries((prev: Map<string, SetDetail[]>) => {
+>>>>>>> origin/staging
         const newLogs = new Map(prev);
         activeBlock.exercises.forEach(ex => {
             newLogs.delete(ex.id);
@@ -633,7 +748,11 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
     if (!validateActiveBlock()) return;
 
     // Add virtual entry for summary modal compatibility
+<<<<<<< HEAD
     setLogEntries(prev => {
+=======
+    setLogEntries((prev: Map<string, SetDetail[]>) => {
+>>>>>>> origin/staging
       const newLogs = new Map(prev);
       const virtualExerciseId = `QUICK_LOG_BLOCK_ID::${activeBlock.id}`;
       const totalRounds = Number(quickLogTotalRounds);
@@ -650,6 +769,15 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
   
     handleBackToBlockSelection();
   };
+<<<<<<< HEAD
+=======
+  
+  const handleToggleTag = (tag: string) => {
+    setSelectedTags(prev => 
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+  };
+>>>>>>> origin/staging
 
   return (
     <div className="bg-slate-100 bg-dotted-pattern bg-dotted-size bg-fixed min-h-screen">
@@ -870,8 +998,126 @@ export const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({
         {currentView === 'finalizing' && (
           <div className="space-y-6 animate-fade-in bg-white p-6 rounded-lg shadow-lg">
             <h2 className="text-2xl font-semibold text-gray-700">Slutför Passet</h2>
+<<<<<<< HEAD
             <Textarea label="Kommentar (valfri)" value={postWorkoutComment} onChange={(e) => setPostWorkoutComment(e.target.value)} placeholder="Hur kändes passet?" rows={4} />
             <MoodSelectorInput currentRating={moodRating} onSelectRating={setMoodRating} />
+=======
+            
+            {/* Wellbeing Presets - Compact Layout */}
+            <div className="space-y-4">
+                 <h3 className="text-lg font-semibold text-gray-800">Hur känns kroppen idag?</h3>
+                 <div className="grid grid-cols-3 gap-2">
+                    <button 
+                        type="button"
+                        onClick={() => handleWellbeingPresetClick('good')}
+                        className={`flex flex-col items-center justify-center p-2 border-2 rounded-xl transition-all active:scale-95 group text-center h-full ${wellbeingPreset === 'good' ? 'bg-green-100 border-green-500 shadow-md scale-105' : 'bg-white border-gray-200 hover:border-green-300'}`}
+                    >
+                        <span className="text-2xl mb-1 group-hover:scale-110 transition-transform">🤩</span>
+                        <div className="leading-tight">
+                            <span className="block text-sm font-bold text-green-800">På topp</span>
+                            <span className="block text-[10px] text-green-600">Stark & glad</span>
+                        </div>
+                    </button>
+                    <button 
+                        type="button"
+                        onClick={() => handleWellbeingPresetClick('neutral')}
+                        className={`flex flex-col items-center justify-center p-2 border-2 rounded-xl transition-all active:scale-95 group text-center h-full ${wellbeingPreset === 'neutral' ? 'bg-blue-100 border-blue-500 shadow-md scale-105' : 'bg-white border-gray-200 hover:border-blue-300'}`}
+                    >
+                        <span className="text-2xl mb-1 group-hover:scale-110 transition-transform">🙂</span>
+                        <div className="leading-tight">
+                            <span className="block text-sm font-bold text-blue-800">Helt OK</span>
+                            <span className="block text-[10px] text-blue-600">Vanlig dag</span>
+                        </div>
+                    </button>
+                    <button 
+                        type="button"
+                        onClick={() => handleWellbeingPresetClick('bad')}
+                        className={`flex flex-col items-center justify-center p-2 border-2 rounded-xl transition-all active:scale-95 group text-center h-full ${wellbeingPreset === 'bad' ? 'bg-orange-100 border-orange-500 shadow-md scale-105' : 'bg-white border-gray-200 hover:border-orange-300'}`}
+                    >
+                        <span className="text-2xl mb-1 group-hover:scale-110 transition-transform">😴</span>
+                        <div className="leading-tight">
+                            <span className="block text-sm font-bold text-orange-800">Sliten</span>
+                            <span className="block text-[10px] text-orange-600">Stress/Trött</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            {/* RPE - Ansträngning */}
+            <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-semibold text-gray-800">Hur jobbigt var det? (RPE 1-10)</h3>
+                    <button 
+                        type="button"
+                        onClick={() => setShowRpeInfo(!showRpeInfo)}
+                        className="text-gray-400 hover:text-flexibel focus:outline-none transition-colors"
+                        aria-label="Information om RPE"
+                        title="Vad är RPE?"
+                    >
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+
+                {showRpeInfo && (
+                    <div className="p-3 bg-blue-50 border border-blue-100 rounded-md text-sm text-blue-800 animate-fade-in">
+                        <p className="font-bold mb-1">RPE (Upplevd ansträngning)</p>
+                        <ul className="space-y-1 text-blue-900/80">
+                            <li><span className="font-semibold">1-3:</span> Mycket lätt.</li>
+                            <li><span className="font-semibold">4-6:</span> Medel. Kan prata obehindrat.</li>
+                            <li><span className="font-semibold">7-8:</span> Hårt. Ansträngd andning.</li>
+                            <li><span className="font-semibold">9:</span> Mycket hårt. En repetition kvar i tanken.</li>
+                            <li><span className="font-semibold">10:</span> Maximalt. Helt slut.</li>
+                        </ul>
+                    </div>
+                )}
+
+                <div className="grid grid-cols-10 gap-1 pb-2">
+                    {Array.from({length: 10}, (_, i) => i + 1).map(num => {
+                        let colorClass = "bg-green-100 text-green-800 border-green-200";
+                        if (num > 4) colorClass = "bg-yellow-100 text-yellow-800 border-yellow-200";
+                        if (num > 7) colorClass = "bg-red-100 text-red-800 border-red-200";
+
+                        return (
+                            <button
+                                key={num}
+                                onClick={() => setRpe(num)}
+                                className={`
+                                    w-full aspect-[3/4] sm:h-12 sm:aspect-auto rounded-md border font-bold text-lg transition-all duration-200
+                                    ${rpe === num ? `${colorClass.replace('100', '500').replace('800', 'white')} scale-110 shadow-md ring-1 ring-offset-1 ring-gray-300` : `${colorClass} hover:opacity-80`}
+                                `}
+                            >
+                                {num}
+                            </button>
+                        )
+                    })}
+                </div>
+            </div>
+            
+            {/* Taggar */}
+            <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-800">Beskriv passet med taggar</h3>
+                <div className="flex flex-wrap gap-2">
+                    {FEEDBACK_TAGS.map(tag => (
+                        <button 
+                            key={tag}
+                            onClick={() => handleToggleTag(tag)}
+                            className={`
+                                px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 border
+                                ${selectedTags.includes(tag) 
+                                    ? 'bg-flexibel text-white border-flexibel shadow-sm' 
+                                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}
+                            `}
+                        >
+                            {tag}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <Textarea label="Kommentar (valfri)" value={postWorkoutComment} onChange={(e) => setPostWorkoutComment(e.target.value)} placeholder="Hur kändes passet?" rows={4} />
+>>>>>>> origin/staging
             <div className="flex flex-col sm:flex-row justify-between gap-4 pt-6 border-t">
               <Button onClick={() => setCurrentView('block_selection')} variant="outline" size="lg">Tillbaka till block</Button>
               <Button onClick={handleFinalSave} size="lg" disabled={isSaving}>{isSaving ? 'Sparar...' : 'Spara & Avsluta'}</Button>

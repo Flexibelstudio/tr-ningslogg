@@ -61,7 +61,11 @@ export const WORKOUT_FOCUS_TAGS: { id: WorkoutFocusTag, label: string }[] = [
 
 export const PREDEFINED_MEMBERSHIPS: Membership[] = [
     { id: 'membership-standard-seed', name: 'Medlemskap', type: 'subscription' },
+<<<<<<< HEAD
     { id: 'membership-mini-seed', name: 'Mini' , type: 'subscription', restrictedCategories: ['PT-bas', 'PT-grupp'] },
+=======
+    { id: 'membership-mini-seed', name: 'Mini' , type: 'subscription', restrictedCategories: { 'PT-bas': 'show_lock', 'PT-grupp': 'show_lock' } },
+>>>>>>> origin/staging
     { id: 'membership-clip10-seed', name: 'Klippkort 10', type: 'clip_card', clipCardClips: 10, clipCardValidityDays: 90 },
 ];
 
@@ -71,6 +75,21 @@ export const PREDEFINED_GROUP_CLASSES: GroupClassDefinition[] = [
     { id: 'class-workout-seed', name: 'Workout', description: 'Funktionell styrka och uthållighet.', defaultDurationMinutes: 50, hasWaitlist: true, color: COLOR_PALETTE[3] },
 ];
 
+<<<<<<< HEAD
+=======
+export const DEFAULT_GENERAL_ACTIVITIES: string[] = [
+    "HIIT", 
+    "Workout", 
+    "Mindfulness", 
+    "Yin Yoga", 
+    "Postural Yoga", 
+    "Promenad", 
+    "Löpning", 
+    "Funktionell Träning",
+    "Annan aktivitet"
+];
+
+>>>>>>> origin/staging
 export const REACTION_EMOJIS: string[] = ['👍', '💪', '🔥', '🎉', '❤️'];
 
 export const DEFAULT_COACH_EVENT_ICON = '📣';

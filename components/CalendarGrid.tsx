@@ -47,6 +47,7 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
   const today = useMemo(() => new Date(), []);
 
   return (
+<<<<<<< HEAD
     <div className={`bg-white p-2 sm:p-4 rounded-2xl shadow-lg ${className || ''}`}>
       <header className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-bold text-gray-800 capitalize">
@@ -64,6 +65,25 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
       </div>
 
       <div className="grid grid-cols-7 grid-rows-6 gap-1 sm:gap-1.5 mt-1.5">
+=======
+    <div className={`bg-white p-3 sm:p-5 rounded-3xl shadow-sm border border-gray-100 ${className || ''}`}>
+      <header className="flex justify-between items-center mb-4 px-1">
+        <h2 className="text-xl font-bold text-gray-800 capitalize">
+          {currentDate.toLocaleString('sv-SE', { month: 'long', year: 'numeric' })}
+        </h2>
+        <div className="flex items-center gap-1 bg-gray-100 rounded-full p-1">
+          <button onClick={() => handleNavigate(-1)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white hover:shadow-sm transition-all text-gray-600" aria-label="Föregående månad">&lt;</button>
+          <button onClick={goToToday} className="px-3 h-8 text-sm font-medium rounded-full hover:bg-white hover:shadow-sm transition-all text-gray-700">Idag</button>
+          <button onClick={() => handleNavigate(1)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white hover:shadow-sm transition-all text-gray-600" aria-label="Nästa månad">&gt;</button>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-7 gap-1 mb-2">
+        {daysOfWeek.map(day => <div key={day} className="text-center text-xs font-bold text-gray-400 uppercase tracking-wider">{day}</div>)}
+      </div>
+
+      <div className="grid grid-cols-7 grid-rows-6 gap-1 sm:gap-2">
+>>>>>>> origin/staging
         {calendarDays.map((day) => {
           const { hasContent } = getDayProps(day);
           const holiday = getHolidayForDay ? getHolidayForDay(day) : null;
@@ -74,24 +94,39 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
 
           // --- Button Classes ---
           const buttonClasses = [
+<<<<<<< HEAD
             'p-1 sm:p-1.5',
             'min-h-[5rem] sm:min-h-[6rem] lg:min-h-[7.5rem]', // Reduced height for more compact view
             'text-left align-top relative flex flex-col',
             'rounded-md',
             'transition-colors duration-150',
             'border border-slate-200/60',
+=======
+            'p-1',
+            'min-h-[4.5rem] sm:min-h-[6rem]', 
+            'text-left align-top relative flex flex-col',
+            'rounded-xl',
+            'transition-all duration-200',
+            'border border-transparent', // Start transparent
+>>>>>>> origin/staging
           ];
 
           if (hasContent) {
             buttonClasses.push(
               'cursor-pointer',
+<<<<<<< HEAD
               'hover:bg-slate-100',
               'focus:outline-none focus:z-10 focus:ring-2 focus:ring-flexibel'
+=======
+              'hover:bg-gray-50 hover:border-gray-200 hover:shadow-sm',
+              'focus:outline-none focus:ring-2 focus:ring-flexibel/50'
+>>>>>>> origin/staging
             );
           } else {
             buttonClasses.push('cursor-default');
           }
 
+<<<<<<< HEAD
           if (holiday) {
               if (holiday.type === 'holiday') {
                   buttonClasses.push('bg-red-50/50');
@@ -100,11 +135,22 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
               }
           } else if (!isToday && (!isCurrentMonth || isWeekend)) {
               buttonClasses.push('bg-slate-50');
+=======
+          if (!isCurrentMonth) {
+               buttonClasses.push('bg-gray-50/30 text-gray-300');
+          } else if (holiday) {
+              if (holiday.type === 'holiday') {
+                  buttonClasses.push('bg-red-50/30');
+              } else {
+                  buttonClasses.push('bg-yellow-50/30');
+              }
+>>>>>>> origin/staging
           } else {
               buttonClasses.push('bg-white');
           }
           
           // --- Time Element Classes ---
+<<<<<<< HEAD
           // FIX: Changed timeClasses from a string to an array for correct conditional class application.
           const timeClasses: string[] = [
             'flex items-center justify-center',
@@ -127,6 +173,26 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
               timeClasses.push('text-slate-400');
             } else {
               timeClasses.push('text-gray-700');
+=======
+          const timeClasses: string[] = [
+            'flex items-center justify-center',
+            'h-7 w-7',
+            'text-sm',
+            'rounded-full',
+            'mb-1'
+          ];
+
+          if (isToday) {
+            timeClasses.push('bg-flexibel text-white font-bold shadow-md shadow-flexibel/30');
+          } else {
+            timeClasses.push('font-medium');
+            if (holiday?.type === 'holiday') {
+                 timeClasses.push('text-red-500');
+            } else if (!isCurrentMonth) {
+                 timeClasses.push('text-gray-300');
+            } else {
+                 timeClasses.push('text-gray-700');
+>>>>>>> origin/staging
             }
           }
           
@@ -143,6 +209,7 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
               >
                 {day.getDate()}
               </time>
+<<<<<<< HEAD
               {holiday && (
                 <div
                   title={holiday.name}
@@ -157,6 +224,17 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
                 </div>
               )}
               <div className="mt-0.5 space-y-0.5 overflow-hidden flex-grow w-full">
+=======
+              
+              <div className="mt-0 flex-grow w-full flex flex-col gap-0.5">
+                {holiday && (
+                    <div className="flex justify-center mb-0.5">
+                        <span title={holiday.name} className="text-xs" role="img" aria-label={holiday.name}>
+                            {holiday.icon || '🔴'}
+                        </span>
+                    </div>
+                )}
+>>>>>>> origin/staging
                 {renderDayContent(day)}
               </div>
             </button>
@@ -167,4 +245,8 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
   );
 };
 
+<<<<<<< HEAD
 export const CalendarGrid = React.memo(CalendarGridFC);
+=======
+export const CalendarGrid = React.memo(CalendarGridFC);
+>>>>>>> origin/staging

@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/staging
 import React, { useState, useEffect } from 'react';
 import { Button } from '../Button';
 import { Modal } from '../Modal';
@@ -42,6 +46,7 @@ const AICoachMemberInsightModalFC: React.FC<AICoachMemberInsightModalProps> = ({
           .map((c) => `* "${c}"`)
           .join('\n');
 
+<<<<<<< HEAD
         const prompt = `Du är en AI-assistent för en träningscoach på Flexibel Hälsostudio. Din uppgift är att ge en koncis och insiktsfull sammanfattning av en specifik medlems aktivitet och mående. Fokusera på att ge coachen snabba, användbara insikter. Använd Markdown för att formatera ditt svar (## Rubriker, **fet text**, * punktlistor).
 
                 Medlemmens data:
@@ -75,6 +80,20 @@ const AICoachMemberInsightModalFC: React.FC<AICoachMemberInsightModalProps> = ({
           const result = await callGeminiApiFn({
             model: 'gemini-2.5-flash',
             contents: prompt,
+=======
+        try {
+          const result = await callGeminiApiFn({
+            action: 'analyze_member_insights',
+            context: {
+                participantName: participant.name,
+                goal: latestGoal?.fitnessGoals,
+                goalTarget: latestGoal?.workoutsPerWeekTarget,
+                totalLogs: logs.length,
+                avgWeeklyActivities,
+                avgMoodRating,
+                recentComments
+            }
+>>>>>>> origin/staging
           });
 
           const { text, error } = result.data as { text?: string; error?: string };
@@ -124,4 +143,8 @@ const AICoachMemberInsightModalFC: React.FC<AICoachMemberInsightModalProps> = ({
   );
 };
 
+<<<<<<< HEAD
 export const AICoachMemberInsightModal = React.memo(AICoachMemberInsightModalFC);
+=======
+export const AICoachMemberInsightModal = React.memo(AICoachMemberInsightModalFC);
+>>>>>>> origin/staging

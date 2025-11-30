@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/staging
 import React, { useState, useMemo, useCallback } from 'react';
 import { WorkoutLog, Workout, Exercise, SetDetail, WorkoutExerciseLog, LiftType } from '../../types';
 import { Button } from '../Button';
@@ -208,6 +212,7 @@ export const ParticipantActivityOverview: React.FC<ParticipantActivityOverviewPr
 
     const summaryOfLogs = JSON.stringify(enrichedSessions.slice(0, 20)); // Limit to last 20 logs for prompt length
 
+<<<<<<< HEAD
     const prompt = `Du är en AI-assistent för en träningscoach. Ge en sammanfattning och identifiera trender från medlemmarnas senaste träningsloggar. Svara på svenska.
 Fokusera på:
 1.  **Aktivitetsfrekvens:** Har aktiviteten ökat eller minskat?
@@ -225,6 +230,12 @@ Ge en koncis rapport till coachen.`;
         const result = await callGeminiApiFn({
             model: 'gemini-2.5-flash',
             contents: prompt,
+=======
+    try {
+        const result = await callGeminiApiFn({
+            action: 'analyze_activity_trends',
+            context: { summaryOfLogs }
+>>>>>>> origin/staging
         });
 
         const { text, error } = result.data as { text?: string; error?: string };

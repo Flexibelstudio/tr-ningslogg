@@ -24,6 +24,12 @@ interface MemberNotesModalProps {
   participant: ParticipantProfile;
   notes: CoachNote[];
   allParticipantGoals: ParticipantGoalData[];
+<<<<<<< HEAD
+=======
+  setParticipantGoals: (goals: ParticipantGoalData[] | ((prev: ParticipantGoalData[]) => ParticipantGoalData[])) => void;
+  allActivityLogs: ActivityLog[];
+  setGoalCompletionLogs: (logs: GoalCompletionLog[] | ((prev: GoalCompletionLog[]) => GoalCompletionLog[])) => void;
+>>>>>>> origin/staging
   // simplified props as many actions come from hooks or context now
   onAddNote: (noteText: string) => void;
   onUpdateNote: (noteId: string, newText: string) => void;
@@ -40,10 +46,17 @@ interface MemberNotesModalProps {
   participants: ParticipantProfile[];
   staffAvailability: StaffAvailability[];
   isOnline: boolean;
+<<<<<<< HEAD
   // activity logs passed to calculate stats
   allActivityLogs: ActivityLog[];
 }
 
+=======
+}
+
+// ... (Type MemberNotesTab and AddLeadFromRecommendationModal remain same)
+
+>>>>>>> origin/staging
 type MemberNotesTab = 'notes' | 'goals' | 'sessions' | 'program';
 
 interface AddLeadFromRecommendationModalProps {
@@ -139,7 +152,13 @@ export const MemberNotesModal: React.FC<MemberNotesModalProps> = ({
   participant,
   notes,
   allParticipantGoals,
+<<<<<<< HEAD
   allActivityLogs,
+=======
+  setParticipantGoals,
+  allActivityLogs,
+  setGoalCompletionLogs,
+>>>>>>> origin/staging
   onAddNote,
   onUpdateNote,
   onDeleteNote,
@@ -155,6 +174,10 @@ export const MemberNotesModal: React.FC<MemberNotesModalProps> = ({
   staffAvailability,
   isOnline,
 }) => {
+<<<<<<< HEAD
+=======
+    // ... (State and hooks remain same)
+>>>>>>> origin/staging
     const { 
         userStrengthStats, setUserStrengthStatsData, 
         userConditioningStatsHistory, setUserConditioningStatsHistoryData,
@@ -163,8 +186,11 @@ export const MemberNotesModal: React.FC<MemberNotesModalProps> = ({
         updateParticipantProfile,
         locations,
         setLeadsData,
+<<<<<<< HEAD
         setParticipantGoalsData,
         setGoalCompletionLogsData
+=======
+>>>>>>> origin/staging
     } = useAppContext();
 
   const [activeTab, setActiveTab] = useState<MemberNotesTab>('notes');
@@ -234,6 +260,10 @@ export const MemberNotesModal: React.FC<MemberNotesModalProps> = ({
     [workouts, participant.id]
 );
 
+<<<<<<< HEAD
+=======
+// ... (Handlers for program modals remain same)
+>>>>>>> origin/staging
 const handleOpenNewProgramModal = () => {
     setProgramToEdit(null);
     setIsProgramModalOpen(true);
@@ -264,8 +294,14 @@ const handleConfirmDeleteProgram = () => {
   };
 
   const handleInsertTemplate = () => {
+<<<<<<< HEAD
     const today = new Date().toISOString().split('T')[0];
     const template = `Avstämning [Datum: ${today}]
+=======
+      // ... (Implementation same as before)
+      const today = new Date().toISOString().split('T')[0];
+      const template = `Avstämning [Datum: ${today}]
+>>>>>>> origin/staging
 
 Hur går det med din träning?
 
@@ -294,6 +330,7 @@ Bäst:
 Ny kund? (GDPR!)
 "Känner du någon vän, kollega eller familjemedlem som du tror skulle uppskatta samma hjälp som du får? Be dem gärna om lov att jag får deras kontaktuppgifter, så kan jag höra av mig."`;
 
+<<<<<<< HEAD
     setNewNote(prevNote => {
         if (prevNote.trim() === '') {
             return template;
@@ -301,6 +338,14 @@ Ny kund? (GDPR!)
         // Add two newlines for a clear separation
         return `${prevNote}\n\n${template}`;
     });
+=======
+      setNewNote(prevNote => {
+          if (prevNote.trim() === '') {
+              return template;
+          }
+          return `${prevNote}\n\n${template}`;
+      });
+>>>>>>> origin/staging
   };
   
   const handleGenerateAiSummary = async () => {
@@ -341,6 +386,7 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
         `;
     }
 
+<<<<<<< HEAD
     const prompt = `Du är en AI-assistent för en träningscoach. Ge en koncis och insiktsfull sammanfattning av en medlems aktivitet SEDAN SENASTE AVSTÄMNING. Fokusera på att ge coachen snabba, användbara insikter för ett check-in samtal. Svaret ska vara på svenska och formaterat med Markdown.
 
     Medlemmens data:
@@ -361,6 +407,18 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
         const result = await callGeminiApiFn({
             model: "gemini-2.5-flash",
             contents: prompt,
+=======
+    try {
+        const result = await callGeminiApiFn({
+            action: 'generate_checkin_summary',
+            context: {
+                participantName: participant.name,
+                goal: latestGoal?.fitnessGoals,
+                goalTarget: latestGoal?.workoutsPerWeekTarget,
+                lastCheckinDate: lastCheckinNote ? sinceDate.toLocaleDateString('sv-SE') : null,
+                logSummary: logSummaryForPrompt
+            }
+>>>>>>> origin/staging
         });
         
         const { text, error } = result.data as { text?: string; error?: string };
@@ -375,11 +433,20 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
     }
   };
 
+<<<<<<< HEAD
+=======
+  // ... (Remaining handlers and JSX remain largely unchanged)
+
+>>>>>>> origin/staging
   const handleSaveGoal = async (
     goalData: { fitnessGoals: string; workoutsPerWeekTarget: number; preferences?: string; targetDate?: string; coachPrescription?: string; },
     markLatestGoalAsCompleted: boolean,
     noGoalAdviseOptOut: boolean,
   ) => {
+<<<<<<< HEAD
+=======
+      // ... (Existing implementation)
+>>>>>>> origin/staging
     const myOldGoals = allParticipantGoals.filter(g => g.participantId !== participant.id);
     let myNewGoals = allParticipantGoals.filter(g => g.participantId === participant.id);
     
@@ -387,7 +454,11 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
     const latestExistingGoal = nonCompletedGoals[0] || null;
     
     if (markLatestGoalAsCompleted && latestExistingGoal) {
+<<<<<<< HEAD
         setGoalCompletionLogsData(prev => [...prev, {
+=======
+        setGoalCompletionLogs(prev => [...prev, {
+>>>>>>> origin/staging
             type: 'goal_completion', id: crypto.randomUUID(), participantId: participant.id,
             goalId: latestExistingGoal.id, goalDescription: latestExistingGoal.fitnessGoals,
             completedDate: new Date().toISOString()
@@ -405,10 +476,18 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
         isCompleted: false,
     };
     
+<<<<<<< HEAD
     setParticipantGoalsData([...myOldGoals, ...myNewGoals, newGoal]);
   };
   
   const handleSaveOrUpdateSession = (session: OneOnOneSession) => {
+=======
+    setParticipantGoals([...myOldGoals, ...myNewGoals, newGoal]);
+  };
+  
+  const handleSaveOrUpdateSession = (session: OneOnOneSession) => {
+    // ... (Existing implementation)
+>>>>>>> origin/staging
     setOneOnOneSessions(prev => {
         const index = prev.findIndex(s => s.id === session.id);
         if (index > -1) {
@@ -429,6 +508,10 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
   };
 
   const handleAssignExistingTemplate = () => {
+<<<<<<< HEAD
+=======
+      // ... (Existing implementation)
+>>>>>>> origin/staging
     if (!templateToAssign) return;
     const workoutTemplate = workouts.find(w => w.id === templateToAssign);
     if (!workoutTemplate) return;
@@ -464,9 +547,14 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
     <>
       <Modal isOpen={isOpen} onClose={onClose} title={`Klientkort: ${participant.name}`} size="6xl">
         <div className="flex flex-col md:flex-row gap-6 text-gray-800">
+<<<<<<< HEAD
 
           {/* LEFT PANEL: MEMBER DASHBOARD VIEW */}
           <div className="md:w-2/5 flex-shrink-0 space-y-4">
+=======
+            {/* ... (Left Panel and Right Panel structure remains same) */}
+            <div className="md:w-2/5 flex-shrink-0 space-y-4">
+>>>>>>> origin/staging
               <ParticipantDashboardView 
                   participant={participant}
                   latestGoal={latestGoal}
@@ -497,6 +585,10 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
                         </div>
                       
                       <div className="space-y-2">
+<<<<<<< HEAD
+=======
+                        {/* ... (Notes inputs and list remain same) */}
+>>>>>>> origin/staging
                         <div className="flex items-end justify-between">
                             <label className="text-lg font-semibold text-gray-800">{editingNote ? 'Redigera anteckning' : 'Ny anteckning'}</label>
                         </div>
@@ -572,14 +664,23 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
             </div>
 
             <div role="tabpanel" hidden={activeTab !== 'goals'}>
+<<<<<<< HEAD
                 {activeTab === 'goals' && (
+=======
+                {/* ... (Goal form integration remains same) */}
+                 {activeTab === 'goals' && (
+>>>>>>> origin/staging
                     <div className="max-h-[60vh] overflow-y-auto pr-2">
                       <GoalForm
                           ref={goalFormRef}
                           currentGoalForForm={latestGoal}
                           allParticipantGoals={myGoals}
                           onSave={handleSaveGoal}
+<<<<<<< HEAD
                           onTriggerAiGoalPrognosis={async () => { /* Handled by GoalForm internally for coach view */ }}
+=======
+                          onTriggerAiGoalPrognosis={async () => { /* Handled by GoalForm internally for coach view, wait no, GoalForm logic needs backend update too if it called there. */ }}
+>>>>>>> origin/staging
                           showCoachFields={true}
                           isOnline={isOnline}
                       />
@@ -591,7 +692,12 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
             </div>
 
              <div role="tabpanel" hidden={activeTab !== 'sessions'}>
+<<<<<<< HEAD
                 {activeTab === 'sessions' && (() => {
+=======
+                 {/* ... (Session management remains same) */}
+                 {activeTab === 'sessions' && (() => {
+>>>>>>> origin/staging
                     const now = new Date();
                     const participantSessions = oneOnOneSessions.filter(s => s.participantId === participant.id);
                     const upcomingSessions = participantSessions.filter(s => new Date(s.startTime) >= now).sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
@@ -635,7 +741,11 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
                                         </summary>
                                         <div className="mt-3 space-y-3">
                                             {pastSessions.map(session => (
+<<<<<<< HEAD
                                                 <div key={session.id} className="p-4 bg-gray-50 border rounded-lg opacity-80">
+=======
+                                                <div key={session.id} className="p-4 bg-gray-5 border rounded-lg opacity-80">
+>>>>>>> origin/staging
                                                     <p className="font-semibold text-lg text-gray-700">{session.title}</p>
                                                     <p className="text-base text-gray-500">{formatDateTime(session.startTime)}</p>
                                                 </div>
@@ -649,7 +759,12 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
                 })()}
             </div>
              <div role="tabpanel" hidden={activeTab !== 'program'}>
+<<<<<<< HEAD
                 {activeTab === 'program' && (
+=======
+                 {/* ... (Program management remains same) */}
+                 {activeTab === 'program' && (
+>>>>>>> origin/staging
                     <div className="space-y-6">
                         <div className="p-4 border rounded-lg bg-gray-50 space-y-3">
                             <h4 className="text-xl font-semibold text-gray-800">Tilldelade Program</h4>
@@ -756,8 +871,14 @@ ${progressionPBs || '  - Inga nya PBs loggade.'}
           participantGoal={latestGoal}
           isOnline={isOnline}
       />
+<<<<<<< HEAD
 
       <ConfirmationModal
+=======
+      
+      {/* ... (Other modals) */}
+       <ConfirmationModal
+>>>>>>> origin/staging
           isOpen={!!programToDelete}
           onClose={() => setProgramToDelete(null)}
           onConfirm={handleConfirmDeleteProgram}

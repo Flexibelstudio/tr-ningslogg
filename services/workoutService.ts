@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/staging
 // services/workoutService.ts
 import { WorkoutLog, Workout, UserStrengthStat, PostWorkoutSummaryData, NewPB, NewBaseline, Exercise, LiftType } from '../types';
 import { WEIGHT_COMPARISONS } from '../constants';
@@ -335,11 +339,34 @@ export const findAndUpdateStrengthStats = (
         ? [...strengthStatsHistory].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0]
         : null;
 
+<<<<<<< HEAD
     const currentPBs = {
         squat1RMaxKg: latestStat?.squat1RMaxKg || 0,
         benchPress1RMaxKg: latestStat?.benchPress1RMaxKg || 0,
         deadlift1RMaxKg: latestStat?.deadlift1RMaxKg || 0,
         overheadPress1RMaxKg: latestStat?.overheadPress1RMaxKg || 0,
+=======
+    const currentPBs: Partial<UserStrengthStat> = {
+        squat1RMaxKg: latestStat?.squat1RMaxKg || 0,
+        squatVerificationStatus: latestStat?.squatVerificationStatus,
+        squatVerifiedBy: latestStat?.squatVerifiedBy,
+        squatVerifiedDate: latestStat?.squatVerifiedDate,
+
+        benchPress1RMaxKg: latestStat?.benchPress1RMaxKg || 0,
+        benchPressVerificationStatus: latestStat?.benchPressVerificationStatus,
+        benchPressVerifiedBy: latestStat?.benchPressVerifiedBy,
+        benchPressVerifiedDate: latestStat?.benchPressVerifiedDate,
+
+        deadlift1RMaxKg: latestStat?.deadlift1RMaxKg || 0,
+        deadliftVerificationStatus: latestStat?.deadliftVerificationStatus,
+        deadliftVerifiedBy: latestStat?.deadliftVerifiedBy,
+        deadliftVerifiedDate: latestStat?.deadliftVerifiedDate,
+
+        overheadPress1RMaxKg: latestStat?.overheadPress1RMaxKg || 0,
+        overheadPressVerificationStatus: latestStat?.overheadPressVerificationStatus,
+        overheadPressVerifiedBy: latestStat?.overheadPressVerifiedBy,
+        overheadPressVerifiedDate: latestStat?.overheadPressVerifiedDate,
+>>>>>>> origin/staging
     };
     
     // 2. Calculate potential new PBs from the current workout log.
@@ -356,6 +383,7 @@ export const findAndUpdateStrengthStats = (
         const exerciseDetail = allExercisesInTemplate.find(ex => ex.id === entry.exerciseId);
         if (!exerciseDetail) return;
         
+<<<<<<< HEAD
         // IMPORTANT: Only check the exercise's direct name. Do not use baseLiftType.
         const liftType = exerciseDetail.name as LiftType;
 
@@ -364,6 +392,14 @@ export const findAndUpdateStrengthStats = (
             let bestE1RMInLog = 0;
             entry.loggedSets.forEach(set => {
                 // Set must be completed to count for a PB
+=======
+        const liftType = exerciseDetail.name as LiftType;
+        const mainLifts: LiftType[] = ['Knäböj', 'Bänkpress', 'Marklyft', 'Axelpress'];
+
+        if (mainLifts.includes(liftType)) {
+            let bestE1RMInLog = 0;
+            entry.loggedSets.forEach(set => {
+>>>>>>> origin/staging
                 if (set.isCompleted) {
                     const e1RM = calculateEstimated1RM(set.weight, set.reps);
                     if (e1RM && e1RM > bestE1RMInLog) {
@@ -372,6 +408,7 @@ export const findAndUpdateStrengthStats = (
                 }
             });
 
+<<<<<<< HEAD
             if (liftType === 'Knäböj' && bestE1RMInLog > currentPBs.squat1RMaxKg) {
                 newPBsFromLog.squat1RMaxKg = bestE1RMInLog;
                 needsUpdate = true;
@@ -392,6 +429,29 @@ export const findAndUpdateStrengthStats = (
     });
     
     // 3. Merge the current PBs with any new PBs to get the final, correct state for the NEW record.
+=======
+            const checkAndSetPB = (
+                key: 'squat1RMaxKg' | 'benchPress1RMaxKg' | 'deadlift1RMaxKg' | 'overheadPress1RMaxKg',
+                verificationKey: 'squatVerificationStatus' | 'benchPressVerificationStatus' | 'deadliftVerificationStatus' | 'overheadPressVerificationStatus'
+            ) => {
+                if (bestE1RMInLog > (currentPBs[key] || 0)) {
+                    newPBsFromLog[key] = bestE1RMInLog;
+                    // IMPORTANT: Reset verification status to pending on new PB
+                    newPBsFromLog[verificationKey] = 'pending';
+                    needsUpdate = true;
+                }
+            };
+
+            if (liftType === 'Knäböj') checkAndSetPB('squat1RMaxKg', 'squatVerificationStatus');
+            if (liftType === 'Bänkpress') checkAndSetPB('benchPress1RMaxKg', 'benchPressVerificationStatus');
+            if (liftType === 'Marklyft') checkAndSetPB('deadlift1RMaxKg', 'deadliftVerificationStatus');
+            if (liftType === 'Axelpress') checkAndSetPB('overheadPress1RMaxKg', 'overheadPressVerificationStatus');
+        }
+    });
+    
+    // 3. Merge the current PBs with any new PBs. 
+    // newPBsFromLog will override currentPBs, including resetting verification status.
+>>>>>>> origin/staging
     const updatedStats = { ...currentPBs, ...newPBsFromLog };
 
     return { needsUpdate, updatedStats };

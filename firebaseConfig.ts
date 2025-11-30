@@ -24,9 +24,12 @@ const env = (typeof import.meta !== "undefined" ? (import.meta as any).env : {})
 const isAIStudio = typeof window !== "undefined" && /(^|\.)ai\.studio$/i.test(window.location.hostname);
 const isAIStudioInDev = isAIStudio && env?.DEV;
 
+<<<<<<< HEAD
 export const isMockMode =
   env?.VITE_USE_MOCK === "true" || isAIStudioInDev || false;
 
+=======
+>>>>>>> origin/staging
 export const firebaseConfig = {
   apiKey:            env?.VITE_FB_API_KEY,
   authDomain:        env?.VITE_FB_AUTH_DOMAIN,
@@ -39,7 +42,14 @@ export const firebaseConfig = {
 
 const requiredConfigKeys: (keyof typeof firebaseConfig)[] = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
 const missingConfigKeys = requiredConfigKeys.filter(key => !firebaseConfig[key]);
+<<<<<<< HEAD
 
+=======
+const hasMissingConfig = missingConfigKeys.length > 0;
+
+export const isMockMode =
+  env?.VITE_USE_MOCK === "true" || isAIStudioInDev || hasMissingConfig || false;
+>>>>>>> origin/staging
 
 if (env?.MODE) {
   console.log(`[FB Compat] mode=${env.MODE}, aiStudio=${isAIStudio}, dev=${env.DEV}, mock=${isMockMode}, project=${firebaseConfig.projectId}`);
@@ -50,9 +60,13 @@ let auth: firebase.auth.Auth | undefined;
 let db: firebase.firestore.Firestore | undefined;
 
 if (isMockMode) {
+<<<<<<< HEAD
   console.warn("[FB Compat] Mock mode enabled – skipping Firebase init");
 } else if (missingConfigKeys.length > 0) {
     console.error(`[FB Compat] Firebase initialization failed! Missing VITE_FB_* env vars: ${missingConfigKeys.join(', ')}. Set these in your build environment (e.g., Netlify).`);
+=======
+  console.warn("[FB Compat] Mock mode enabled – skipping Firebase init. Reason: " + (hasMissingConfig ? "Missing Env Vars" : "Explicit Mock Mode"));
+>>>>>>> origin/staging
 } else {
   try {
     app = !firebase.apps.length ? firebase.initializeApp(firebaseConfig) : firebase.app();
@@ -71,4 +85,8 @@ if (isMockMode) {
   }
 }
 
+<<<<<<< HEAD
 export { app, auth, db };
+=======
+export { app, auth, db };
+>>>>>>> origin/staging

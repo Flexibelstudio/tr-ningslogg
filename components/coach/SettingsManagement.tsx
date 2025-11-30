@@ -189,6 +189,69 @@ const ReminderSettingsManager: React.FC = () => {
     );
 };
 
+<<<<<<< HEAD
+=======
+const GeneralActivitySettingsManager: React.FC = () => {
+    const { integrationSettings, setIntegrationSettingsData } = useAppContext();
+    const [newActivity, setNewActivity] = useState('');
+    const activities = integrationSettings.commonGeneralActivities || [];
+
+    const handleAdd = () => {
+        const trimmed = newActivity.trim();
+        if (trimmed && !activities.some(a => a.toLowerCase() === trimmed.toLowerCase())) {
+            setIntegrationSettingsData(prev => ({
+                ...prev,
+                commonGeneralActivities: [...(prev.commonGeneralActivities || []), trimmed].sort((a, b) => a.localeCompare(b, 'sv'))
+            }));
+            setNewActivity('');
+        }
+    };
+
+    const handleDelete = (activityToDelete: string) => {
+        setIntegrationSettingsData(prev => ({
+            ...prev,
+            commonGeneralActivities: (prev.commonGeneralActivities || []).filter(a => a !== activityToDelete)
+        }));
+    };
+
+    return (
+        <Card title="Vanliga Aktiviteter">
+            <p className="text-sm text-gray-600 mb-4">
+                Dessa aktiviteter visas som snabbval för medlemmarna när de klickar på "Logga Annan Aktivitet".
+            </p>
+            <div className="space-y-4">
+                <div className="flex gap-2">
+                    <Input 
+                        value={newActivity} 
+                        onChange={e => setNewActivity(e.target.value)} 
+                        placeholder="T.ex. Padel" 
+                        onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+                    />
+                    <Button onClick={handleAdd}>Lägg till</Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    {activities.map(activity => (
+                        <div key={activity} className="flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-full border border-gray-200">
+                            <span className="text-gray-800">{activity}</span>
+                            <button 
+                                onClick={() => handleDelete(activity)}
+                                className="text-gray-400 hover:text-red-500 transition-colors focus:outline-none"
+                                aria-label={`Ta bort ${activity}`}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                    ))}
+                    {activities.length === 0 && <p className="text-gray-500 italic text-sm">Inga aktiviteter inlagda.</p>}
+                </div>
+            </div>
+        </Card>
+    );
+};
+
+>>>>>>> origin/staging
 
 const LocationManager: React.FC = () => {
     const { locations, setLocationsData, participantDirectory, staffMembers } = useAppContext();
@@ -806,6 +869,10 @@ export const SettingsManagement: React.FC<{ loggedInStaff: StaffMember | null }>
             <BrandingManager />
             <ModuleSettingsManager />
             <ReminderSettingsManager />
+<<<<<<< HEAD
+=======
+            <GeneralActivitySettingsManager />
+>>>>>>> origin/staging
             <LocationManager />
             <MembershipManager />
             <WorkoutCategoryManager />

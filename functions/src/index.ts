@@ -1,9 +1,17 @@
+<<<<<<< HEAD
 // functions/src/index.ts
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp, FieldValue } from "firebase-admin/firestore";
+=======
+import { onCall, onRequest, HttpsError, Request as HttpsRequest } from "firebase-functions/v2/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
+import * as logger from "firebase-functions/logger";
+import { initializeApp } from "firebase-admin/app";
+import { getFirestore, Timestamp, FieldValue, QueryDocumentSnapshot, DocumentReference } from "firebase-admin/firestore";
+>>>>>>> origin/staging
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { getFunctions } from "firebase-admin/functions";
 import { GoogleGenAI } from "@google/genai";
@@ -67,7 +75,11 @@ function normalizeDateKey(input: string): string {
   return s.slice(0, 10);
 }
 
+<<<<<<< HEAD
 // Public VAPID (webbens nyckel) – behåll som tidigare
+=======
+// Public VAPID (webbens nyckel)
+>>>>>>> origin/staging
 const VAPID_PUBLIC_KEY =
   "BO21Yp3_p0o_5ce295-SC_pY9nZ8aGRi_SC2B5UF0jbl4M13nS2j52hce5C65a0gI55NUEM02eKYpOMYJ0pM5cE";
 
@@ -87,8 +99,11 @@ function tryInitWebPush(): boolean {
   }
 }
 
+<<<<<<< HEAD
 export { sendTestPush } from "./testPush";
 
+=======
+>>>>>>> origin/staging
 /* -----------------------------------------------------------------------------
  * HTTP: Körs av Cloud Tasks för att skicka pass-påminnelse
  * ---------------------------------------------------------------------------*/
@@ -97,7 +112,11 @@ export const sendSessionReminder = onRequest(
     region: "europe-west1",
     secrets: ["VAPID_PRIVATE_KEY"],
   },
+<<<<<<< HEAD
   async (request, response) => {
+=======
+  async (request: HttpsRequest, response: any) => {
+>>>>>>> origin/staging
     if (!request.headers["x-cloudtasks-queuename"]) {
       logger.error("Unauthorized: Missing Cloud Tasks header.");
       response.status(403).send("Unauthorized");
@@ -462,7 +481,11 @@ export const cancelClassInstance = onCall(
           .where("status", "in", ["BOOKED", "CHECKED-IN", "CONFIRMED", "ACTIVE"])
           .get();
 
+<<<<<<< HEAD
         const candidates: FirebaseFirestore.QueryDocumentSnapshot[] = [];
+=======
+        const candidates: QueryDocumentSnapshot[] = [];
+>>>>>>> origin/staging
         schedOnlySnap.forEach((d) => {
           const b = d.data() as any;
           const cd = String(b.classDate || "");
@@ -670,6 +693,164 @@ export const cancelClassInstance = onCall(
 );
 
 /* -----------------------------------------------------------------------------
+<<<<<<< HEAD
+=======
+ * HTTP: Calendar Feed (iCal)
+ * ---------------------------------------------------------------------------*/
+export const calendarFeed = onRequest({ region: "europe-west1" }, async (req: HttpsRequest, res: any) => {
+  const { userId, type } = req.query;
+
+  if (!userId || typeof userId !== "string") {
+    res.status(400).send("Bad Request: Missing userId.");
+    return;
+  }
+
+  try {
+    // 1. Hitta org + profil utifrån userId
+    const orgsSnap = await db.collection("organizations").get();
+    let foundOrgId = "";
+    let userProfile: any = null;
+
+    for (const orgDoc of orgsSnap.docs) {
+      if (type === "coach") {
+        const staffRef = orgDoc.ref.collection("staffMembers").doc(userId);
+        const staffSnap = await staffRef.get();
+        if (staffSnap.exists) {
+          foundOrgId = orgDoc.id;
+          userProfile = staffSnap.data();
+          break;
+        }
+      } else {
+        const partRef = orgDoc.ref.collection("participantDirectory").doc(userId);
+        const partSnap = await partRef.get();
+        if (partSnap.exists) {
+          foundOrgId = orgDoc.id;
+          userProfile = partSnap.data();
+          break;
+        }
+      }
+    }
+
+    if (!foundOrgId || !userProfile) {
+      res.status(404).send("User not found.");
+      return;
+    }
+
+    // 2. Hämta events
+    let events: string[] = [];
+    const now = new Date();
+
+    if (type === "coach") {
+      // Återkommande scheman där coachId == userId (ej expanderade än – TODO om du vill)
+      const schedulesSnap = await db
+        .collection("organizations")
+        .doc(foundOrgId)
+        .collection("groupClassSchedules")
+        .where("coachId", "==", userId)
+        .get();
+
+      if (!schedulesSnap.empty) {
+        logger.info(`Found ${schedulesSnap.size} recurring schedules for coach ${userId}, not yet expanded to iCal.`);
+      }
+
+      // 1-on-1 där coachId == userId
+      const sessionsSnap = await db
+        .collection("organizations")
+        .doc(foundOrgId)
+        .collection("oneOnOneSessions")
+        .where("coachId", "==", userId)
+        .where("startTime", ">=", now.toISOString())
+        .get();
+
+      sessionsSnap.forEach((sessionDoc) => {
+        const s = sessionDoc.data();
+        events.push(createVEVENT(s.title, s.purpose, new Date(s.startTime), new Date(s.endTime)));
+      });
+    } else {
+      // Participant: Bookings + 1-on-1
+      const bookingsSnap = await db
+        .collection("organizations")
+        .doc(foundOrgId)
+        .collection("participantBookings")
+        .where("participantId", "==", userId)
+        .where("status", "in", ["BOOKED", "CHECKED-IN"])
+        .where("classDate", ">=", normalizeDateKey(now.toISOString()))
+        .get();
+
+      for (const bookingDoc of bookingsSnap.docs) {
+        const b = bookingDoc.data();
+        const schedDoc = await db
+          .collection("organizations")
+          .doc(foundOrgId)
+          .collection("groupClassSchedules")
+          .doc(b.scheduleId)
+          .get();
+        if (schedDoc.exists) {
+          const s = schedDoc.data()!;
+          const defDoc = await db
+            .collection("organizations")
+            .doc(foundOrgId)
+            .collection("groupClassDefinitions")
+            .doc(s.groupClassId)
+            .get();
+          const className = defDoc.exists ? defDoc.data()!.name : "Pass";
+
+          const [h, m] = String(s.startTime).split(":").map(Number);
+          const start = new Date(b.classDate);
+          start.setHours(h, m, 0, 0);
+          const end = new Date(start.getTime() + s.durationMinutes * 60000);
+
+          events.push(createVEVENT(className, "Träning på Flexibel", start, end));
+        }
+      }
+
+      const sessionsSnap = await db
+        .collection("organizations")
+        .doc(foundOrgId)
+        .collection("oneOnOneSessions")
+        .where("participantId", "==", userId)
+        .where("startTime", ">=", now.toISOString())
+        .get();
+
+      sessionsSnap.forEach((sessionDoc) => {
+        const s = sessionDoc.data();
+        events.push(createVEVENT(s.title, s.purpose, new Date(s.startTime), new Date(s.endTime)));
+      });
+    }
+
+    // 3. Skapa ICS
+    const icsContent = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Flexibel//Träningslogg//SV
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Flexibel Träning
+${events.join("\n")}
+END:VCALENDAR`;
+
+    res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+    res.setHeader("Content-Disposition", 'attachment; filename="calendar.ics"');
+    res.send(icsContent);
+  } catch (e) {
+    logger.error("Calendar feed error", e);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+function createVEVENT(summary: string, description: string, start: Date, end: Date): string {
+  const formatDate = (date: Date) => date.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+  return `BEGIN:VEVENT
+UID:${Math.random().toString(36).substr(2)}@flexibel.se
+DTSTAMP:${formatDate(new Date())}
+DTSTART:${formatDate(start)}
+DTEND:${formatDate(end)}
+SUMMARY:${summary}
+DESCRIPTION:${description}
+END:VEVENT`;
+}
+
+/* -----------------------------------------------------------------------------
+>>>>>>> origin/staging
  * Zapier → skapa lead
  * ---------------------------------------------------------------------------*/
 export const createLeadFromZapier = onRequest(
@@ -766,6 +947,7 @@ export const callGeminiApi = onCall(
   },
   async (request) => {
     try {
+<<<<<<< HEAD
       const { model, contents, config } = (request.data ?? {}) as {
         model?: string;
         contents?: unknown;
@@ -777,6 +959,16 @@ export const callGeminiApi = onCall(
         return { error: "Bad Request: Missing 'model' or 'contents'." };
       }
 
+=======
+      const { model, contents, config, action, context } = (request.data ?? {}) as {
+        model?: string;
+        contents?: unknown;
+        config?: any;
+        action?: string;
+        context?: any;
+      };
+
+>>>>>>> origin/staging
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
         logger.error("GEMINI_API_KEY secret not found on the server.");
@@ -784,10 +976,150 @@ export const callGeminiApi = onCall(
       }
 
       const ai = new GoogleGenAI({ apiKey });
+<<<<<<< HEAD
       const resp = (await ai.models.generateContent({
         model,
         contents: contents as any,
         config,
+=======
+
+      let targetModel = model || "gemini-2.5-flash";
+      let targetContents = contents;
+      let targetConfig = config;
+
+      if (action) {
+        switch (action) {
+          case "generate_goal_prognosis": {
+            const { fitnessGoals, workoutsPerWeekTarget, targetDate, preferences } = context || {};
+            targetContents = `
+Du är en expert PT och coach. En klient har satt upp följande träningsmål:
+- Mål: "${fitnessGoals}"
+- Målfrekvens: ${workoutsPerWeekTarget} pass/vecka
+- Måldatum: ${targetDate || "Ej satt"}
+- Preferenser/Övrigt: "${preferences || "Inga"}"
+
+Ge en kort, peppande och realistisk prognos.
+1. Är målet realistiskt med tanke på frekvensen?
+2. Ge 2-3 konkreta tips på vad klienten bör fokusera på för att lyckas.
+3. Om måldatum saknas eller verkar orimligt, ge ett förslag.
+
+Svara direkt till klienten ("Du..."). Håll det under 150 ord. Använd Markdown.
+            `;
+            break;
+          }
+          case "generate_smart_goal": {
+            targetContents = `Du är en expert på att formulera SMART-mål för träning.\nAnvändaren har skrivit: "${context?.goalInput}"\n\nFormulera om detta till ett tydligt, inspirerande SMART-mål (Specifikt, Mätbart, Accepterat, Realistiskt, Tidsbundet) på svenska.\nSvara ENDAST med själva målformuleringen, ingen inledning eller förklaring.`;
+            break;
+          }
+          case "chat_with_coach": {
+            targetContents = `
+Du är en vänlig, peppande och kunnig AI-coach för Flexibel Hälsostudio. Du pratar med ${context?.participant?.name || "en medlem"}.
+
+**Profil:**
+- Mål: ${context?.goal}
+- Senaste träning: ${JSON.stringify(context?.recentWorkouts)}
+- Övrig aktivitet: ${JSON.stringify(context?.recentActivities)}
+
+**Användarens meddelande:** "${context?.userMessage}"
+
+Svara hjälpsamt, kortfattat och engagerande på svenska. Om de frågar om passförslag, utgå från: ${JSON.stringify(context?.availableWorkouts)}.
+            `;
+            break;
+          }
+          case "generate_workout_tips": {
+            targetContents = `
+Du är en expertcoach. Ge korta, peppande tips inför passet "${context?.workoutTitle}" för ${context?.participantName}.
+${context?.aiInstruction ? `Coach-instruktion: ${context?.aiInstruction}` : ""}
+${context?.previousLog ? `Förra gången: ${JSON.stringify(context?.previousLog)}` : "Första gången detta pass loggas."}
+Övningar: ${context?.exercisesList}
+
+Svara med strikt JSON: { "generalTips": "...", "exerciseTips": [{ "exerciseName": "...", "tip": "..." }] }
+            `;
+            targetConfig = { ...targetConfig, responseMimeType: "application/json" };
+            break;
+          }
+          case "generate_checkin_summary": {
+            targetContents = `
+Du är en coach. Skapa en kort sammanfattning av medlemmens aktivitet för ett avstämningssamtal.
+Namn: ${context?.participantName}
+Mål: ${context?.goal} (Mål: ${context?.goalTarget} pass/v)
+Senaste avstämning: ${context?.lastCheckinDate || "Aldrig"}
+Aktivitetssammanfattning: ${context?.logSummary}
+
+Ge en kort analys av trender och föreslå 1-2 frågor att ställa till medlemmen. Använd Markdown.
+            `;
+            break;
+          }
+          case "analyze_business_insights": {
+            const { dataSnapshot, question } = context;
+            targetContents = `Analysera denna data: ${dataSnapshot}. Svara på frågan: "${question}"`;
+            break;
+          }
+          case "analyze_member_insights": {
+            const { recentComments, avgMoodRating } = context;
+            targetContents = `Analysera medlemmens data för att hitta mönster.\nKommentarer: ${recentComments}. Mående: ${avgMoodRating}. Mål: ${context?.goal}\n\nGe en kort insikt om medlemmens mentala inställning och progression.`;
+            break;
+          }
+          case "generate_weekly_highlights": {
+            const { pbs, totalLogs } = context;
+            targetContents = `Skriv ett inlägg om veckans höjdpunkter. ${totalLogs} pass loggade. PBs: ${JSON.stringify(pbs)}.`;
+            break;
+          }
+          case "generate_workout_program": {
+            targetContents = `
+Du är en expertcoach som skapar träningsprogram.
+Medlem: ${context?.participantName} (${context?.age} år, ${context?.gender})
+Mål: ${context?.goal}
+Coach-recept: ${context?.coachPrescription}
+Specifika önskemål: ${context?.specificRequests}
+Tillgängliga baslyft: ${context?.availableBaseLifts}
+
+Skapa ett pass i Markdown-format.
+Struktur:
+**Titel:** [Passets namn]
+**Coachanteckning:** [Kort intro]
+
+### [Blocknamn 1]
+* [Övning 1]: [Set] x [Reps] @ [Vikt/RPE] (Baslyft: [Valfritt baslyft från listan])
+* [Övning 2]...
+
+Var kreativ men följ önskemålen.
+            `;
+            break;
+          }
+          case "analyze_activity_trends": {
+            const { summaryOfLogs } = context;
+            targetContents = `Analysera följande träningsloggar och ge en kort sammanfattning av trender, styrkor och vad som kan förbättras. Tilltala medlemmen direkt.\n\nLoggar: ${summaryOfLogs}`;
+            break;
+          }
+          case "identify_silent_heroes": {
+            const { candidates } = context;
+            targetContents = `Identifiera "Tysta hjältar" (hög aktivitet men lite interaktion) från listan. Returnera JSON array: [{ "participantId": "...", "name": "...", "reason": "..." }].\nLista: ${JSON.stringify(candidates)}`;
+            targetConfig = { ...targetConfig, responseMimeType: "application/json" };
+            break;
+          }
+          case "identify_churn_risks": {
+            const { candidates } = context;
+            targetContents = `Identifiera "Churn risk" (minskande aktivitet) från listan. Returnera JSON array: [{ "participantId": "...", "name": "...", "reason": "..." }].\nLista: ${JSON.stringify(candidates)}`;
+            targetConfig = { ...targetConfig, responseMimeType: "application/json" };
+            break;
+          }
+          default:
+            if (!targetContents && context?.prompt) targetContents = context.prompt;
+            break;
+        }
+      }
+
+      if (!targetContents) {
+        logger.error("Bad Request: Missing 'contents' or valid 'action'");
+        return { error: "Bad Request: Missing 'contents' or valid 'action'." };
+      }
+
+      const resp = (await ai.models.generateContent({
+        model: targetModel,
+        contents: targetContents as any,
+        config: targetConfig,
+>>>>>>> origin/staging
       })) as any;
 
       const text = resp.text as string | undefined;
@@ -831,7 +1163,14 @@ export const notifyFriendsOnBooking = onCall(
     };
 
     if (!orgId || !participantId || !scheduleId || !classDate) {
+<<<<<<< HEAD
       throw new HttpsError("invalid-argument", "Nödvändiga parametrar saknas (orgId, participantId, scheduleId, classDate).");
+=======
+      throw new HttpsError(
+        "invalid-argument",
+        "Nödvändiga parametrar saknas (orgId, participantId, scheduleId, classDate)."
+      );
+>>>>>>> origin/staging
     }
 
     try {
@@ -858,7 +1197,11 @@ export const notifyFriendsOnBooking = onCall(
 
       if (friendIds.size === 0) return { success: true, message: "No friends." };
 
+<<<<<<< HEAD
       const friendsToNotify: { id: string; doc: FirebaseFirestore.DocumentReference }[] = [];
+=======
+      const friendsToNotify: { id: string; doc: DocumentReference }[] = [];
+>>>>>>> origin/staging
       const participantDirectoryRef = db.collection("organizations").doc(orgId).collection("participantDirectory");
       const friendProfilePromises = Array.from(friendIds).map((id) => participantDirectoryRef.doc(id).get());
       const friendProfileDocs = await Promise.all(friendProfilePromises);
@@ -1159,4 +1502,8 @@ ${
       }
     }
   }
+<<<<<<< HEAD
 );
+=======
+);
+>>>>>>> origin/staging

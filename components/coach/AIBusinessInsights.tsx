@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/staging
 import React, { useState, useCallback } from 'react';
 import { Location, ParticipantProfile, ActivityLog, Workout, WorkoutLog, GeneralActivityLog, OneOnOneSession, StaffMember } from '../../types';
 import { Button } from '../Button';
@@ -81,6 +85,7 @@ export const AIBusinessInsights: React.FC<AIBusinessInsightsProps> = ({
             recentActivityStream: simplifiedLogs,
         });
 
+<<<<<<< HEAD
         const prompt = `System: Du är en expert på träningsdataanalys för Flexibel Hälsostudio. Ditt svar MÅSTE vara på svenska. Var koncis, datadriven och formatera ditt svar med Markdown (## rubriker, * punktlistor, **fet text**). Svara ENDAST på frågan baserat på den data du får. Spekulera inte. Om datan inte kan besvara frågan, säg det. Ignorera begreppet 'bokningar' och tolka det som 'loggade pass'.
 
 Här är en ögonblicksbild av relevant data:
@@ -93,6 +98,15 @@ Användarens Fråga: "${question}"`;
             const result = await callGeminiApiFn({
                 model: "gemini-2.5-flash",
                 contents: prompt,
+=======
+        try {
+            const result = await callGeminiApiFn({
+                action: 'analyze_business_insights',
+                context: {
+                    dataSnapshot,
+                    question
+                }
+>>>>>>> origin/staging
             });
 
             const { text, error } = result.data as { text?: string; error?: string };

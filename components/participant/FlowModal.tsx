@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/staging
 import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { Modal } from '../Modal';
 import {
@@ -82,11 +86,31 @@ interface FlowItemCardProps {
 }
 
 const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, currentUserId, allParticipants, onToggleReaction, onAddComment, onDeleteComment, onToggleCommentReaction }) => {
+<<<<<<< HEAD
     
     const renderReactions = () => {
         if (!item.log || !item.logType) return null;
 
         const allReactions = item.log.reactions || [];
+=======
+    const [isLikesExpanded, setIsLikesExpanded] = useState(false);
+    
+    // Lift reactions out to be available for both buttons and text summary
+    const allReactions = ((item.log as any)?.reactions || []) as Reaction[];
+
+    const reactionNames = useMemo(() => {
+        if (!allReactions.length) return [];
+        const names = allReactions.map(r => {
+            if (r.participantId === currentUserId) return 'Du';
+            return allParticipants.find(p => p.id === r.participantId)?.name?.split(' ')[0] || 'Okänd';
+        });
+        // Deduplicate names (in case user reacted with multiple emojis)
+        return Array.from(new Set(names));
+    }, [allReactions, allParticipants, currentUserId]);
+
+    const renderReactions = () => {
+        if (!item.log || !item.logType) return null;
+>>>>>>> origin/staging
         const isMyPost = (item.log as any).participantId === currentUserId;
 
         // --- RENDER MY POSTS (Summary View) ---
@@ -99,19 +123,28 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
                 );
             }
 
+<<<<<<< HEAD
             const reactionSummary = allReactions.reduce((acc, reaction) => {
+=======
+            const reactionSummary = allReactions.reduce<Record<string, string[]>>((acc, reaction) => {
+>>>>>>> origin/staging
                 if (!acc[reaction.emoji]) {
                     acc[reaction.emoji] = [];
                 }
                 acc[reaction.emoji].push(reaction.participantId);
                 return acc;
+<<<<<<< HEAD
             }, {} as Record<string, string[]>);
+=======
+            }, {});
+>>>>>>> origin/staging
 
             const sortedEmojiParticipantIds = Object.entries(reactionSummary).sort(([, a], [, b]) => b.length - a.length);
 
             return (
                 <div className="mt-3 pt-2 border-t flex flex-wrap items-center gap-2">
                     {sortedEmojiParticipantIds.map(([emoji, participantIds]) => {
+<<<<<<< HEAD
                         const whoReacted = participantIds.map(id => {
                             if (id === currentUserId) return 'Du';
                             return allParticipants.find(p => p.id === id)?.name?.split(' ')[0] || 'Okänd';
@@ -122,6 +155,12 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
                                 key={emoji}
                                 className="flex items-center text-base bg-gray-200 px-2 py-1 rounded-full cursor-help"
                                 title={whoReacted}
+=======
+                        return (
+                            <span
+                                key={emoji}
+                                className="flex items-center text-base bg-gray-200 px-2 py-1 rounded-full"
+>>>>>>> origin/staging
                             >
                                 {emoji}
                                 <span className="ml-1 font-semibold text-gray-600">{participantIds.length}</span>
@@ -133,10 +172,17 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
         }
 
         // --- RENDER OTHERS' POSTS (Interactive View) ---
+<<<<<<< HEAD
         const reactionSummary = allReactions.reduce((acc, reaction) => {
             acc[reaction.emoji] = (acc[reaction.emoji] || 0) + 1;
             return acc;
         }, {} as Record<string, number>);
+=======
+        const reactionSummary = allReactions.reduce<Record<string, number>>((acc, reaction) => {
+            acc[reaction.emoji] = (acc[reaction.emoji] || 0) + 1;
+            return acc;
+        }, {});
+>>>>>>> origin/staging
 
         const myReaction = allReactions.find(r => r.participantId === currentUserId);
 
@@ -144,6 +190,7 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
             <div className="mt-3 pt-2 border-t flex flex-wrap items-center gap-1.5">
                 {REACTION_EMOJIS.map(emoji => {
                     const count = reactionSummary[emoji] || 0;
+<<<<<<< HEAD
                     
                     const whoReacted = count > 0 ? allReactions
                         .filter(r => r.emoji === emoji)
@@ -152,6 +199,9 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
                             return allParticipants.find(p => p.id === r.participantId)?.name?.split(' ')[0] || 'Okänd';
                         })
                         .join(', ') : `Reagera med ${emoji}`;
+=======
+                    const label = `Reagera med ${emoji}`;
+>>>>>>> origin/staging
 
                     return (
                         <button
@@ -161,8 +211,12 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
                                 myReaction?.emoji === emoji ? 'bg-flexibel/20 ring-1 ring-flexibel' : 'bg-gray-200 hover:bg-gray-300'
                             }`}
                             aria-pressed={myReaction?.emoji === emoji}
+<<<<<<< HEAD
                             aria-label={whoReacted}
                             title={whoReacted}
+=======
+                            aria-label={label}
+>>>>>>> origin/staging
                         >
                             <span>{emoji}</span>
                             {count > 0 && <span className="font-semibold text-sm text-gray-600">{count}</span>}
@@ -228,6 +282,26 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
                 {item.log && item.logType && (
                     <>
                         {renderReactions()}
+<<<<<<< HEAD
+=======
+                        
+                        {/* Name Summary (Who liked) */}
+                        {reactionNames.length > 0 && (
+                            <button 
+                                onClick={() => setIsLikesExpanded(!isLikesExpanded)}
+                                className="mt-2 text-xs text-gray-500 hover:text-gray-700 text-left w-full focus:outline-none"
+                            >
+                                {isLikesExpanded 
+                                    ? reactionNames.join(', ') 
+                                    : (reactionNames.length <= 3 
+                                        ? reactionNames.join(', ') 
+                                        : `${reactionNames.slice(0, 2).join(', ')} och ${reactionNames.length - 2} till`)
+                                }
+                                {' '}har reagerat
+                            </button>
+                        )}
+
+>>>>>>> origin/staging
                         <CommentSection
                             logId={item.log.id}
                             logType={item.logType}
@@ -393,7 +467,11 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
             return acc;
         }, {} as Record<string, UserStrengthStat[]>);
 
+<<<<<<< HEAD
         Object.entries(statsByParticipant).forEach(([participantId, stats]) => {
+=======
+        Object.entries(statsByParticipant).forEach(([participantId, stats]: [string, UserStrengthStat[]]) => {
+>>>>>>> origin/staging
             if (!allowedParticipantIds.has(participantId) || (stats?.length || 0) < 2) return;
             const sortedStats = stats.sort((a, b) => new Date(a.lastUpdated).getTime() - new Date(b.lastUpdated).getTime());
             const author = data.allParticipants.find(p => p.id === participantId);
@@ -430,7 +508,11 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
             return acc;
         }, {} as Record<string, ParticipantPhysiqueStat[]>);
 
+<<<<<<< HEAD
         Object.entries(physiqueByParticipant).forEach(([participantId, history]) => {
+=======
+        Object.entries(physiqueByParticipant).forEach(([participantId, history]: [string, ParticipantPhysiqueStat[]]) => {
+>>>>>>> origin/staging
             if (!allowedParticipantIds.has(participantId) || (history?.length || 0) < 2) return;
             const sortedHistory = (history || []).sort((a, b) => new Date(a.lastUpdated).getTime() - new Date(b.lastUpdated).getTime());
             const author = data.allParticipants.find(p => p.id === participantId);
@@ -629,4 +711,8 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
     );
 };
 
+<<<<<<< HEAD
 export const FlowModal = React.memo(FlowModalFC);
+=======
+export const FlowModal = React.memo(FlowModalFC);
+>>>>>>> origin/staging

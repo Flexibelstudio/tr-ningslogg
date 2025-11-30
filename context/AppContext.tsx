@@ -50,6 +50,10 @@ interface AppContextType extends OrganizationData {
   
   // All other updater functions
   setParticipantDirectoryData: (updater: React.SetStateAction<AppData['participantDirectory']>) => void;
+<<<<<<< HEAD
+=======
+  setWorkoutsData: (updater: React.SetStateAction<AppData['workouts']>) => void;
+>>>>>>> origin/staging
   setWorkoutLogsData: (updater: React.SetStateAction<AppData['workoutLogs']>) => void;
   setParticipantGoalsData: (updater: React.SetStateAction<AppData['participantGoals']>) => void;
   setGeneralActivityLogsData: (updater: React.SetStateAction<AppData['generalActivityLogs']>) => void;
@@ -184,7 +188,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 try {
                     const data = await firebaseService.getAllOrgData(organizationId);
                     setParticipantDirectory(data.participantDirectory || []);
+<<<<<<< HEAD
                     setWorkouts(data.workouts || []);
+=======
+                    // Ensure workouts are sorted upon load
+                    setWorkouts(sortWorkoutsByCategoryThenTitle(data.workouts || []));
+>>>>>>> origin/staging
                     setWorkoutLogs(data.workoutLogs || []);
                     setParticipantGoals(data.participantGoals || []);
                     setGeneralActivityLogs(data.generalActivityLogs || []);
@@ -407,6 +416,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, ...data, id: userId } : u));
     }, []);
     
+<<<<<<< HEAD
+=======
+    // ENFORCE SORTING ON ADD/UPDATE WORKOUT
+>>>>>>> origin/staging
     const addWorkout = useCallback(async (workout: Workout) => {
         smartSetWorkouts(prev => sortWorkoutsByCategoryThenTitle([...prev, workout]));
     }, [smartSetWorkouts]);
@@ -419,8 +432,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const deleteWorkout = useCallback(async (workoutId: string) => {
         smartSetWorkouts(prev => prev.filter(w => w.id !== workoutId));
     }, [smartSetWorkouts]);
+<<<<<<< HEAD
 
   const sortedWorkouts = useMemo(() => sortWorkoutsByCategoryThenTitle(workouts), [workouts]);
+=======
+>>>>>>> origin/staging
   
   const getColorForCategory = useCallback((categoryName: string | undefined): string => {
     if (!categoryName) return "#9e9e9e"; // default gray
@@ -460,7 +476,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 }, [branding, user, organizationId, smartSetBranding]);
 
   const value: AppContextType = {
+<<<<<<< HEAD
     allOrganizations, allUsers, participantDirectory, workouts: sortedWorkouts, workoutLogs,
+=======
+    allOrganizations, allUsers, participantDirectory, workouts, workoutLogs,
+>>>>>>> origin/staging
     participantGoals, generalActivityLogs, goalCompletionLogs, coachNotes, userStrengthStats,
     userConditioningStatsHistory, participantPhysiqueHistory, participantMentalWellbeing,
     participantGamificationStats, clubMemberships, leaderboardSettings, coachEvents,
@@ -471,6 +491,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     isOrgDataFromFallback, orgDataError, getColorForCategory, addParticipant, updateParticipantProfile,
     updateUser, addWorkout, updateWorkout, deleteWorkout,
     setParticipantDirectoryData: smartSetParticipantDirectory,
+<<<<<<< HEAD
+=======
+    setWorkoutsData: (updater) => smartSetWorkouts(prev => {
+        const newVal = typeof updater === 'function' ? (updater as any)(prev) : updater;
+        return sortWorkoutsByCategoryThenTitle(newVal);
+    }),
+>>>>>>> origin/staging
     setWorkoutLogsData: smartSetWorkoutLogs,
     setParticipantGoalsData: smartSetParticipantGoals,
     setGeneralActivityLogsData: smartSetGeneralActivityLogs,

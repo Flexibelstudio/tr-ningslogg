@@ -1,6 +1,11 @@
 
+<<<<<<< HEAD
 import React, { useState, useMemo, useEffect } from 'react';
 import { ParticipantProfile, OneOnOneSession, ActivityLog, StaffMember, CoachNote, ParticipantGoalData, WorkoutLog, Membership, ProspectIntroCall, Lead, Location, LeadStatus } from '../../types';
+=======
+import React, { useState } from 'react';
+import { ParticipantProfile, OneOnOneSession, ActivityLog, StaffMember, CoachNote, ParticipantGoalData, WorkoutLog, Membership, ProspectIntroCall, Lead, Location, ContactAttempt } from '../../types';
+>>>>>>> origin/staging
 import { GoogleGenAI } from '@google/genai';
 import { Button } from '../Button';
 import { MemberNotesModal } from '../coach/MemberNotesModal';
@@ -8,13 +13,22 @@ import * as dateUtils from '../../utils/dateUtils';
 import { InfoModal } from '../participant/InfoModal';
 import { useAppContext } from '../../context/AppContext';
 import { IntroCallModal } from '../coach/IntroCallModal';
+<<<<<<< HEAD
 // FIX: Corrected import path for useAuth
+=======
+>>>>>>> origin/staging
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../Modal';
 import { Select, Input } from '../Input';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { CONTACT_ATTEMPT_METHOD_OPTIONS, CONTACT_ATTEMPT_OUTCOME_OPTIONS } from '../../constants';
 import { Textarea } from '../Textarea';
+<<<<<<< HEAD
+=======
+import { useClientJourney } from '../../features/coach/hooks/useClientJourney';
+
+type ClientJourneyTab = 'leads' | 'introCalls' | 'memberJourney';
+>>>>>>> origin/staging
 
 interface ClientJourneyViewProps {
   participants: ParticipantProfile[];
@@ -37,6 +51,7 @@ const EngagementIndicator: React.FC<{ level: 'green' | 'yellow' | 'red' | 'neutr
     return <span className={`inline-block h-3 w-3 rounded-full ${color}`} title={tooltip}></span>;
 };
 
+<<<<<<< HEAD
 interface ClientJourneyEntry extends ParticipantProfile {
   phase: 'Startprogram' | 'Medlem' | 'Riskzon';
   phaseColorClass: string;
@@ -52,6 +67,8 @@ type LeadFilter = 'all' | 'new' | 'contacted' | 'intro_booked' | 'converted' | '
 type IntroCallFilter = 'actionable' | 'archived';
 
 
+=======
+>>>>>>> origin/staging
 interface AddLeadModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -67,12 +84,20 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onSave, lo
     const [locationId, setLocationId] = useState('');
     const [errors, setErrors] = useState<Record<string, string>>({});
 
+<<<<<<< HEAD
     const locationOptions = useMemo(() => [
+=======
+    const locationOptions = React.useMemo(() => [
+>>>>>>> origin/staging
         { value: '', label: 'Välj studio/ort...' },
         ...locations.map(loc => ({ value: loc.id, label: loc.name }))
     ], [locations]);
     
+<<<<<<< HEAD
     useEffect(() => {
+=======
+    React.useEffect(() => {
+>>>>>>> origin/staging
         if (isOpen) {
             setFirstName('');
             setLastName('');
@@ -144,7 +169,11 @@ const LogContactAttemptModal: React.FC<LogContactAttemptModalProps> = ({ isOpen,
     const [outcome, setOutcome] = useState<'booked_intro' | 'not_interested' | 'no_answer' | 'left_voicemail' | 'follow_up'>('no_answer');
     const [notes, setNotes] = useState('');
 
+<<<<<<< HEAD
     useEffect(() => {
+=======
+    React.useEffect(() => {
+>>>>>>> origin/staging
         if (isOpen) {
             setMethod('phone');
             setOutcome('no_answer');
@@ -198,6 +227,29 @@ const LogContactAttemptModal: React.FC<LogContactAttemptModalProps> = ({ isOpen,
     );
 };
 
+<<<<<<< HEAD
+=======
+// Icons for UI
+const ChevronDownIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+    </svg>
+);
+const ChevronUpIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+    </svg>
+);
+
+const MethodIcon: React.FC<{ method: string }> = ({ method }) => {
+    switch (method) {
+        case 'phone': return <span title="Telefon">📞</span>;
+        case 'email': return <span title="E-post">✉️</span>;
+        case 'sms': return <span title="SMS">💬</span>;
+        default: return <span>📝</span>;
+    }
+};
+>>>>>>> origin/staging
 
 export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   participants,
@@ -209,6 +261,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   isOnline,
 }) => {
     const {
+<<<<<<< HEAD
         memberships,
         integrationSettings,
         workoutLogs,
@@ -216,6 +269,9 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         setGoalCompletionLogsData,
         setCoachNotesData,
         setOneOnOneSessionsData,
+=======
+        setCoachNotesData,
+>>>>>>> origin/staging
         workouts,
         addWorkout,
         updateWorkout,
@@ -228,6 +284,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         prospectIntroCalls,
         setProspectIntroCallsData,
         locations,
+<<<<<<< HEAD
         addParticipant,
     } = useAppContext();
     
@@ -245,6 +302,34 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
     }, [prospectIntroCalls]);
     
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
+=======
+    } = useAppContext();
+    
+    // Use the new custom hook
+    const {
+        activeTab, setActiveTab,
+        activeLeadFilter, setActiveLeadFilter,
+        activeFilter, setActiveFilter,
+        introCallView, setIntroCallView,
+        filteredAndSortedData,
+        leadCounts,
+        filteredLeads,
+        newLeadsList,
+        unlinkedCallsList,
+        actionableIntroCalls,
+        archivedIntroCalls,
+        counts,
+        handleSaveLead,
+        handleSaveIntroCall,
+        handleUpdateIntroCall,
+        handleConfirmLink,
+        handleConfirmMarkAsJunk,
+        handleConfirmConsent,
+        handleSaveContactAttempt,
+    } = useClientJourney(loggedInStaff);
+    
+  // Local UI State
+>>>>>>> origin/staging
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
   const [selectedParticipant, setSelectedParticipant] = useState<ParticipantProfile | null>(null);
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
@@ -252,11 +337,15 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   const [callToEdit, setCallToEdit] = useState<ProspectIntroCall | null>(null);
   const [callToLink, setCallToLink] = useState<ProspectIntroCall | null>(null);
   const [participantToLinkId, setParticipantToLinkId] = useState<string>('');
+<<<<<<< HEAD
   const [activeTab, setActiveTab] = useState<ClientJourneyTab>('leads');
+=======
+>>>>>>> origin/staging
   const [leadBeingConverted, setLeadBeingConverted] = useState<Lead | null>(null);
   const [leadToMarkAsJunk, setLeadToMarkAsJunk] = useState<Lead | null>(null);
   const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
   const [leadToConfirmConsent, setLeadToConfirmConsent] = useState<Lead | null>(null);
+<<<<<<< HEAD
 
   const [activeLeadFilter, setActiveLeadFilter] = useState<LeadFilter>('new');
   const [leadToLogContactFor, setLeadToLogContactFor] = useState<Lead | null>(null);
@@ -443,11 +532,21 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
     return { riskzon, startprogram, checkin };
   }, [journeyData]);
 
+=======
+  const [leadToLogContactFor, setLeadToLogContactFor] = useState<Lead | null>(null);
+
+  // State for expanded leads
+  const [expandedLeadIds, setExpandedLeadIds] = useState<Set<string>>(new Set());
+
+  const introCallsToShow = introCallView === 'actionable' ? actionableIntroCalls : archivedIntroCalls;
+
+>>>>>>> origin/staging
   const handleOpenNotesModal = (participant: ParticipantProfile) => {
     setSelectedParticipant(participant);
     setIsNotesModalOpen(true);
   };
   
+<<<<<<< HEAD
   const handleSaveIntroCall = (introCallData: Omit<ProspectIntroCall, 'id' | 'createdDate' | 'status' | 'coachId'>) => {
     if (!loggedInStaff) return;
     const newIntroCall: ProspectIntroCall = {
@@ -512,11 +611,14 @@ ${callToLink.coachSummary || 'Ej angivet.'}
     setParticipantToLinkId('');
   };
   
+=======
+>>>>>>> origin/staging
   const handleCreateIntroCallFromLead = (lead: Lead) => {
     setLeadBeingConverted(lead);
     setIsIntroCallModalOpen(true);
   };
 
+<<<<<<< HEAD
   const handleConfirmMarkAsJunk = () => {
     if (!leadToMarkAsJunk) return;
     setLeadsData(prev => prev.map(l => l.id === leadToMarkAsJunk.id ? { ...l, status: 'junk' } : l));
@@ -542,6 +644,24 @@ ${callToLink.coachSummary || 'Ej angivet.'}
 
   const handleSaveContactAttempt = (updatedLead: Lead) => {
       setLeadsData(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+=======
+  const toggleLeadExpand = (leadId: string) => {
+      setExpandedLeadIds(prev => {
+          const newSet = new Set(prev);
+          if (newSet.has(leadId)) {
+              newSet.delete(leadId);
+          } else {
+              newSet.add(leadId);
+          }
+          return newSet;
+      });
+  };
+
+  const getOutcomeLabel = (val: string) => CONTACT_ATTEMPT_OUTCOME_OPTIONS.find(o => o.value === val)?.label || val;
+
+  const getCoachName = (coachId: string) => {
+      return staffMembers.find(s => s.id === coachId)?.name || 'Okänd';
+>>>>>>> origin/staging
   };
 
   if (!loggedInStaff) return <div>Laddar...</div>;
@@ -635,6 +755,7 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             <div className="space-y-3">
                 {filteredLeads.map(lead => {
                     const location = locations.find(l => l.id === lead.locationId);
+<<<<<<< HEAD
                     return (
                         <div key={lead.id} className="p-4 bg-white rounded-lg border shadow-sm flex flex-col sm:flex-row justify-between items-start gap-3">
                             <div>
@@ -652,6 +773,94 @@ ${callToLink.coachSummary || 'Ej angivet.'}
                                 <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => setLeadToMarkAsJunk(lead)}>Skräp</Button>
                                 <Button size="sm" variant="primary" onClick={() => handleCreateIntroCallFromLead(lead)}>Skapa Introsamtal</Button>
                             </div>
+=======
+                    const history = lead.contactHistory || [];
+                    const sortedHistory = [...history].sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+                    const latestActivity = sortedHistory.length > 0 ? sortedHistory[0] : null;
+                    const isExpanded = expandedLeadIds.has(lead.id);
+
+                    return (
+                        <div key={lead.id} className="bg-white rounded-lg border shadow-sm overflow-hidden">
+                             <div className="p-4 flex flex-col sm:flex-row justify-between items-start gap-3">
+                                <div className="flex-grow">
+                                    <div className="flex items-center gap-2">
+                                        <p className="font-bold text-lg text-gray-900">{lead.firstName} {lead.lastName}</p>
+                                        {lead.consentGiven === false && (
+                                            <span title="Väntar på samtycke" className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">⚠️ Väntar samtycke</span>
+                                        )}
+                                    </div>
+                                    <p className="text-sm text-gray-600">{lead.email}</p>
+                                    {lead.phone && <p className="text-sm text-gray-600">{lead.phone}</p>}
+                                    
+                                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                                        <span className="font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{lead.source}</span>
+                                        {location && <span className="font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{location.name}</span>}
+                                        <span className="text-gray-400">Skapad: {new Date(lead.createdDate).toLocaleDateString('sv-SE')}</span>
+                                    </div>
+                                    
+                                    {/* Latest activity preview (when collapsed) */}
+                                    {!isExpanded && latestActivity && (
+                                        <div className="mt-3 text-sm text-gray-500 flex items-center gap-1.5 italic bg-gray-50 p-2 rounded border border-gray-100 w-fit">
+                                            <span>{dateUtils.formatRelativeTime(latestActivity.timestamp).relative}:</span>
+                                            <MethodIcon method={latestActivity.method} />
+                                            <span>{getOutcomeLabel(latestActivity.outcome)}</span>
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                <div className="flex flex-col items-end gap-2">
+                                    <div className="flex gap-2 self-start sm:self-center flex-shrink-0">
+                                        <Button size="sm" variant="outline" onClick={() => setLeadToLogContactFor(lead)}>➕ Logga kontakt</Button>
+                                        <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => setLeadToMarkAsJunk(lead)}>Skräp</Button>
+                                        <Button size="sm" variant="primary" onClick={() => handleCreateIntroCallFromLead(lead)}>Skapa Introsamtal</Button>
+                                    </div>
+                                     <button 
+                                        onClick={() => toggleLeadExpand(lead.id)} 
+                                        className="text-sm text-gray-500 hover:text-flexibel flex items-center gap-1 mt-2 focus:outline-none"
+                                    >
+                                        {isExpanded ? 'Dölj historik' : 'Visa historik'}
+                                        {isExpanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Expanded History Section */}
+                            {isExpanded && (
+                                <div className="bg-gray-50 border-t border-gray-200 p-4 animate-fade-in">
+                                    <h4 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Kontakt- & Händelsehistorik</h4>
+                                    {sortedHistory.length > 0 ? (
+                                        <div className="space-y-0 relative">
+                                            {/* Vertical line */}
+                                            <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-gray-300"></div>
+                                            
+                                            {sortedHistory.map((attempt) => (
+                                                <div key={attempt.id} className="relative pl-10 py-2">
+                                                    {/* Dot */}
+                                                    <div className="absolute left-[11px] top-3.5 w-2.5 h-2.5 bg-white border-2 border-flexibel rounded-full z-10"></div>
+                                                    
+                                                    <div className="bg-white p-3 rounded-md border border-gray-200 shadow-sm">
+                                                        <div className="flex justify-between items-start">
+                                                            <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+                                                                <span className="text-gray-500 font-normal text-xs">{new Date(attempt.timestamp).toLocaleString('sv-SE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'})}</span>
+                                                                <span className="text-gray-300">|</span>
+                                                                <MethodIcon method={attempt.method} />
+                                                                <span>{getOutcomeLabel(attempt.outcome)}</span>
+                                                            </div>
+                                                            <span className="text-xs text-gray-400">av {getCoachName(attempt.coachId)}</span>
+                                                        </div>
+                                                        {attempt.notes && (
+                                                            <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap border-l-2 border-gray-100 pl-2 ml-1">{attempt.notes}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-gray-500 italic pl-2">Inga kontaktförsök loggade än.</p>
+                                    )}
+                                </div>
+                            )}
+>>>>>>> origin/staging
                         </div>
                     );
                 })}
@@ -887,7 +1096,11 @@ ${callToLink.coachSummary || 'Ej angivet.'}
         <ConfirmationModal
             isOpen={!!leadToConfirmConsent}
             onClose={() => setLeadToConfirmConsent(null)}
+<<<<<<< HEAD
             onConfirm={handleConfirmConsent}
+=======
+            onConfirm={() => { if (leadToConfirmConsent) { handleConfirmConsent(leadToConfirmConsent); setLeadToConfirmConsent(null); } }}
+>>>>>>> origin/staging
             title="Bekräfta samtycke"
             message={`Jag bekräftar att jag har fått godkännande att kontakta ${leadToConfirmConsent?.firstName} ${leadToConfirmConsent?.lastName}.`}
             confirmButtonText="Ja, bekräfta"

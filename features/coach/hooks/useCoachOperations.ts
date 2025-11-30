@@ -2,7 +2,11 @@
 import { useCallback } from 'react';
 import { useAppContext } from '../../../context/AppContext';
 import { useAuth } from '../../../context/AuthContext';
+<<<<<<< HEAD
 import { CoachNote, OneOnOneSession, GroupClassSchedule, CoachEvent, WeeklyHighlightSettings, StaffMember, StaffAvailability, ParticipantProfile, GoalCompletionLog, ParticipantGoalData, Workout, FlowItemLogType } from '../../../types';
+=======
+import { CoachNote, OneOnOneSession, GroupClassSchedule, CoachEvent, WeeklyHighlightSettings, StaffMember, StaffAvailability, ParticipantProfile, GoalCompletionLog, ParticipantGoalData, Workout, FlowItemLogType, LiftType, UserStrengthStat } from '../../../types';
+>>>>>>> origin/staging
 import { useNotifications } from '../../../context/NotificationsContext';
 
 export const useCoachOperations = () => {
@@ -222,6 +226,39 @@ export const useCoachOperations = () => {
     }));
   }, [user, setWorkoutLogsData, setGeneralActivityLogsData, setCoachEventsData, setOneOnOneSessionsData, setGoalCompletionLogsData, setClubMembershipsData, setUserStrengthStatsData, setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData]);
 
+<<<<<<< HEAD
+=======
+  // --- Strength Verification ---
+  const handleVerifyStat = useCallback((statId: string, lift: LiftType, status: 'verified' | 'rejected' | 'unverified', coachName: string) => {
+    setUserStrengthStatsData(prev => prev.map(stat => {
+        if (stat.id !== statId) return stat;
+        const updates: Partial<UserStrengthStat> = {};
+        const dateStr = new Date().toISOString();
+        
+        const updateFields = (prefix: 'squat' | 'benchPress' | 'deadlift' | 'overheadPress') => {
+            updates[`${prefix}VerificationStatus`] = status;
+            if (status === 'verified') {
+                updates[`${prefix}VerifiedBy`] = coachName;
+                updates[`${prefix}VerifiedDate`] = dateStr;
+            } else if (status === 'unverified' || status === 'rejected') {
+                // We can keep the history or clear it. Let's clear 'verifiedBy' if rejected/unverified to be safe?
+                // Or maybe keep it to show who rejected it? For now, just set status.
+            }
+        };
+
+        if (lift === 'Knäböj') updateFields('squat');
+        if (lift === 'Bänkpress') updateFields('benchPress');
+        if (lift === 'Marklyft') updateFields('deadlift');
+        if (lift === 'Axelpress') updateFields('overheadPress');
+
+        return { ...stat, ...updates };
+    }));
+    
+    const actionText = status === 'verified' ? 'verifierat' : status === 'rejected' ? 'avfärdat' : 'uppdaterat';
+    addNotification({ type: 'SUCCESS', title: 'Statistik uppdaterad', message: `Lyftet har markerats som ${actionText}.` });
+  }, [setUserStrengthStatsData, addNotification]);
+
+>>>>>>> origin/staging
   return {
     handleAddNote,
     handleUpdateNote,
@@ -237,6 +274,10 @@ export const useCoachOperations = () => {
     handlePromoteFromWaitlist,
     handleCancelClassInstance,
     handleUpdateClassInstance,
+<<<<<<< HEAD
+=======
+    handleVerifyStat,
+>>>>>>> origin/staging
     
     // Comment/Reaction operations
     handleAddComment,

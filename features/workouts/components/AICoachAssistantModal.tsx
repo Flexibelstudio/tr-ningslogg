@@ -1,8 +1,11 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
+<<<<<<< HEAD
 // FIX: Alias the 'Type' enum from `@google/genai` to `GenAIType` to avoid a name collision
 import { Type as GenAIType } from '@google/genai';
 
+=======
+>>>>>>> origin/staging
 import { Modal } from '../../../components/Modal';
 import { Input } from '../../../components/Input';
 import { Textarea } from '../../../components/Textarea';
@@ -56,6 +59,7 @@ export const AICoachAssistantModal: React.FC<AICoachAssistantModalProps> = ({ is
     const availableBaseLiftsString = ALL_LIFT_TYPES.join(', ');
     const isForSpecificMember = !!participantToAssign;
 
+<<<<<<< HEAD
     const memberInfoPrompt = isForSpecificMember
       ? `
       **Medlemmens Information:**
@@ -101,6 +105,21 @@ export const AICoachAssistantModal: React.FC<AICoachAssistantModalProps> = ({ is
       const result = await callGeminiApiFn({
         model: 'gemini-2.5-flash',
         contents: prompt,
+=======
+    try {
+      const result = await callGeminiApiFn({
+        action: 'generate_workout_program',
+        context: {
+            participantName: participantToAssign?.name,
+            age: participantToAssign ? (calculateAge(participantToAssign.birthDate) || participantToAssign.age) : undefined,
+            gender: participantToAssign?.gender,
+            goal: participantGoal?.fitnessGoals,
+            goalTarget: participantGoal?.workoutsPerWeekTarget,
+            coachPrescription: participantGoal?.coachPrescription,
+            specificRequests: formData.specificRequests,
+            availableBaseLifts: availableBaseLiftsString
+        }
+>>>>>>> origin/staging
       });
 
       const { text, error } = result.data as { text?: string; error?: string };

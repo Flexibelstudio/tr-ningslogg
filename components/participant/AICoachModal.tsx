@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/staging
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
@@ -28,7 +32,10 @@ const SendIcon = () => (
     </svg>
 );
 
+<<<<<<< HEAD
 // FIX: Replaced JSX syntax with React.createElement to resolve "Cannot find namespace 'JSX'" error.
+=======
+>>>>>>> origin/staging
 const renderMarkdownContent = (text: string): React.ReactElement[] => {
     const lines = text.split('\n');
     const elements: React.ReactElement[] = [];
@@ -42,7 +49,10 @@ const renderMarkdownContent = (text: string): React.ReactElement[] => {
     };
 
     lines.forEach((line, index) => {
+<<<<<<< HEAD
         // Handle bold text first
+=======
+>>>>>>> origin/staging
         const boldedLine = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
         if (boldedLine.trim().startsWith('* ')) {
@@ -56,7 +66,11 @@ const renderMarkdownContent = (text: string): React.ReactElement[] => {
         }
     });
 
+<<<<<<< HEAD
     flushList(); // Ensure any trailing list items are rendered
+=======
+    flushList();
+>>>>>>> origin/staging
     return elements;
 };
 
@@ -91,7 +105,10 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
     }, [isOpen, participantProfile]);
 
     useEffect(() => {
+<<<<<<< HEAD
         // Scroll to bottom when new messages are added
+=======
+>>>>>>> origin/staging
         chatContainerRef.current?.scrollTo({ top: chatContainerRef.current.scrollHeight, behavior: 'smooth' });
     }, [messages]);
     
@@ -104,7 +121,10 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
         setIsLoading(true);
 
         try {
+<<<<<<< HEAD
             // Create a map of all known exercises for quick lookup
+=======
+>>>>>>> origin/staging
             const exerciseNameMap = new Map<string, string>();
             allWorkouts.forEach(workout => {
                 (workout.blocks || []).forEach(block => {
@@ -123,6 +143,7 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
                 }
             });
 
+<<<<<<< HEAD
             // Filter available workouts based on membership
             const availableWorkouts = allWorkouts.filter(w => {
                 // 1. Include all personally assigned workouts
@@ -142,6 +163,21 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
             }).map(w => ({ title: w.title, category: w.category, focusTags: w.focusTags }));
 
             // Create a more detailed workout history for the AI
+=======
+            const availableWorkouts = allWorkouts.filter(w => {
+                if (w.assignedToParticipantId === participantProfile.id) {
+                    return true;
+                }
+                if (w.isPublished && !w.assignedToParticipantId) {
+                    if (membership?.restrictedCategories && membership.restrictedCategories[w.category]) {
+                        return false;
+                    }
+                    return true;
+                }
+                return false;
+            }).map(w => ({ title: w.title, category: w.category, focusTags: w.focusTags }));
+
+>>>>>>> origin/staging
             const enrichedRecentWorkouts = myWorkoutLogs.slice(0, 10).map(log => {
                 const workoutTemplate = allWorkouts.find(w => w.id === log.workoutId);
                 return {
@@ -169,6 +205,7 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
                 recentActivities: myGeneralActivityLogs.slice(0, 5).map(log => ({
                     name: log.activityName, duration: log.durationMinutes, completedDate: log.completedDate
                 })),
+<<<<<<< HEAD
                 availableWorkouts: availableWorkouts
             };
 
@@ -187,6 +224,15 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({
             const result = await callGeminiApiFn({
                 model: 'gemini-2.5-flash',
                 contents: prompt,
+=======
+                availableWorkouts: availableWorkouts,
+                userMessage: text
+            };
+
+            const result = await callGeminiApiFn({
+                action: 'chat_with_coach',
+                context
+>>>>>>> origin/staging
             });
 
             const { text: responseText, error } = result.data as { text?: string; error?: string };

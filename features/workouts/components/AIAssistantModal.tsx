@@ -3,8 +3,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Modal } from '../../../components/Modal';
 import { Button } from '../../../components/Button';
 import { Workout, WorkoutLog, ParticipantProfile, Exercise } from '../../../types';
+<<<<<<< HEAD
 // FIX: Aliased the 'Type' enum to 'GenAIType' to resolve a name collision with other 'type' properties in the application.
 import { GoogleGenAI, GenerateContentResponse, Type as GenAIType } from "@google/genai";
+=======
+>>>>>>> origin/staging
 import { callGeminiApiFn } from '../../../firebaseClient';
 
 export interface AiWorkoutTips {
@@ -20,6 +23,7 @@ interface AIAssistantModalProps {
   onClose: () => void;
   onContinue: (tips: AiWorkoutTips) => void;
   workout: Workout;
+<<<<<<< HEAD
   previousLog: WorkoutLog;
   participant: ParticipantProfile;
 }
@@ -53,6 +57,41 @@ const renderTipsContent = (tips: AiWorkoutTips | null): React.ReactElement | nul
 };
 
 
+=======
+  previousLog?: WorkoutLog;
+  participant: ParticipantProfile;
+}
+
+const renderTipsContent = (tips: AiWorkoutTips | null): React.ReactElement | null => {
+    if (!tips) return null;
+    return (
+        <div className="space-y-4">
+            <div className="p-4 bg-gray-50 rounded-lg border">
+                <h3 className="text-lg font-semibold text-gray-800 flex items-center mb-2">
+                    <span className="text-2xl mr-2" role="img" aria-label="Robot">🤖</span>
+                    Sammanfattning & Fokus
+                </h3>
+                <p className="text-base text-gray-700 whitespace-pre-wrap">{tips.generalTips}</p>
+            </div>
+            {tips.exerciseTips.length > 0 && (
+                <div className="space-y-2">
+                    <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+                        <span className="text-2xl mr-2" role="img" aria-label="Måltavla">🎯</span>
+                        Tips för dagens pass
+                    </h3>
+                    {tips.exerciseTips.map((tip, index) => (
+                        <div key={index} className="p-3 bg-blue-50 border-l-4 border-blue-400 rounded-r-lg">
+                            <p className="font-semibold text-blue-800">{tip.exerciseName}</p>
+                            <p className="text-blue-700 mt-1">{tip.tip}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+>>>>>>> origin/staging
 export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
   isOpen,
   onClose,
@@ -70,19 +109,28 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
         setError(null);
         setTips(null);
         
+<<<<<<< HEAD
         const summaryOfPreviousLog = {
             workoutTitle: workout.title, // Use the current, correct workout title
+=======
+        const summaryOfPreviousLog = previousLog ? {
+            workoutTitle: workout.title, 
+>>>>>>> origin/staging
             completedDate: previousLog.completedDate,
             mood: previousLog.moodRating,
             comment: previousLog.postWorkoutComment,
             exercises: previousLog.entries.map(entry => {
+<<<<<<< HEAD
                 // Find the exercise detail from the *current* workout template, not a potentially non-existent old one.
+=======
+>>>>>>> origin/staging
                 const exerciseDetail = (workout.blocks || []).flatMap(b => b.exercises).find(ex => ex.id === entry.exerciseId);
                 return {
                     name: exerciseDetail?.name || 'Okänd övning',
                     sets: entry.loggedSets.map(s => ({ reps: s.reps, weight: s.weight, distanceMeters: s.distanceMeters, durationSeconds: s.durationSeconds, caloriesKcal: s.caloriesKcal }))
                 };
             })
+<<<<<<< HEAD
         };
         
         const hasCoachInstruction = workout.aiInstruction && workout.aiInstruction.trim() !== '';
@@ -161,6 +209,22 @@ Exempel på JSON-svar:
                 responseMimeType: "application/json",
                 responseSchema: responseSchema,
               },
+=======
+        } : null;
+        
+        const exercisesList = (workout.blocks || []).flatMap(b => b.exercises.map(e => e.name)).slice(0, 5).join(', ');
+
+        try {
+            const result = await callGeminiApiFn({
+              action: 'generate_workout_tips',
+              context: {
+                  workoutTitle: workout.title,
+                  aiInstruction: workout.aiInstruction,
+                  participantName: participant.name,
+                  previousLog: summaryOfPreviousLog,
+                  exercisesList: exercisesList
+              }
+>>>>>>> origin/staging
             });
       
             const { text, error } = result.data as { text?: string; error?: string };
@@ -168,7 +232,10 @@ Exempel på JSON-svar:
               throw new Error(`Cloud Function error: ${error}`);
             }
       
+<<<<<<< HEAD
             // FIX: Add check for empty text to prevent JSON.parse from crashing
+=======
+>>>>>>> origin/staging
             if (!text) {
                 throw new Error("Received empty response from AI.");
             }

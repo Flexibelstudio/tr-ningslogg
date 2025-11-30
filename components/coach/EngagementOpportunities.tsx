@@ -1,9 +1,16 @@
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/staging
 import React, { useState, useCallback } from 'react';
 import { ParticipantProfile, WorkoutLog, OneOnOneSession } from '../../types';
 import { Button } from '../Button';
 import { callGeminiApiFn } from '../../firebaseClient';
+<<<<<<< HEAD
 // FIX: Aliased the 'Type' enum to 'GenAIType' to resolve a name collision.
 import { Type as GenAIType } from '@google/genai';
+=======
+>>>>>>> origin/staging
 
 interface AIEngagementResult {
   participantId: string;
@@ -57,6 +64,7 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
       return;
     }
     
+<<<<<<< HEAD
     const prompt = `
       Du är en AI-assistent för en gymcoach. Ditt mål är att identifiera "Tysta Hjältar": medlemmar som tränar konsekvent men får lite engagemang (reaktioner) från communityt. 
       Analysera följande data och returnera en JSON-lista över de 3-5 mest relevanta medlemmarna som passar denna beskrivning. För varje medlem, ge en kort, positiv och action-orienterad anledning för coachen att nå ut.
@@ -88,6 +96,12 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
                 responseMimeType: "application/json",
                 responseSchema: responseSchema,
             }
+=======
+    try {
+        const result = await callGeminiApiFn({
+            action: 'identify_silent_heroes',
+            context: { candidates }
+>>>>>>> origin/staging
         });
 
         const { text, error } = result.data as { text?: string; error?: string };
@@ -155,6 +169,7 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
         return;
     }
 
+<<<<<<< HEAD
     const prompt = `
         Du är en AI-assistent som specialiserar sig på att identifiera medlemmar på ett gym som riskerar att avsluta sitt medlemskap ("churn"). Ditt svar MÅSTE vara på svenska.
         Analysera följande JSON-data över medlemmars aktivitet. Fokusera på att identifiera beteendeförändringar.
@@ -193,6 +208,12 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
                 responseMimeType: "application/json",
                 responseSchema: responseSchema,
             }
+=======
+    try {
+        const result = await callGeminiApiFn({
+            action: 'identify_churn_risks',
+            context: { candidates }
+>>>>>>> origin/staging
         });
 
         const { text, error } = result.data as { text?: string; error?: string };
@@ -239,7 +260,11 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
   };
 
   return (
+<<<<<<< HEAD
     <details className="mt-10 mb-8 p-4 sm:p-6 bg-gray-50 rounded-lg shadow-xl border" open>
+=======
+    <details className="p-4 sm:p-6 bg-gray-50 rounded-lg shadow-xl border h-full" open>
+>>>>>>> origin/staging
       <summary className="text-xl font-bold tracking-tight text-gray-800 cursor-pointer select-none">
         AI Engagemangsmöjligheter
       </summary>
