@@ -196,6 +196,9 @@ const ChevronUpIcon = () => (
         <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
     </svg>
 );
+const TrashIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+);
 
 const MethodIcon: React.FC<{ method: string }> = ({ method }) => {
     switch (method) {
@@ -248,6 +251,8 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         handleConfirmMarkAsJunk,
         handleConfirmConsent,
         handleSaveContactAttempt,
+        handleArchiveIntroCall,
+        handleDeleteIntroCall,
     } = useClientJourney(loggedInStaff);
     
   // Local UI State
@@ -257,6 +262,8 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   const [isIntroCallModalOpen, setIsIntroCallModalOpen] = useState(false);
   const [callToEdit, setCallToEdit] = useState<ProspectIntroCall | null>(null);
   const [callToLink, setCallToLink] = useState<ProspectIntroCall | null>(null);
+  const [callToArchive, setCallToArchive] = useState<ProspectIntroCall | null>(null);
+  const [callToDelete, setCallToDelete] = useState<ProspectIntroCall | null>(null);
   const [participantToLinkId, setParticipantToLinkId] = useState<string>('');
   const [leadBeingConverted, setLeadBeingConverted] = useState<Lead | null>(null);
   const [leadToMarkAsJunk, setLeadToMarkAsJunk] = useState<Lead | null>(null);
@@ -267,7 +274,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   // State for expanded leads
   const [expandedLeadIds, setExpandedLeadIds] = useState<Set<string>>(new Set());
 
-  const introCallsToShow = introCallView === 'actionable' ? actionableIntroCalls : archivedIntroCalls;
+  const introCallsToShow = unlinkedCallsList; // Using unlinkedCallsList as primary list based on existing code structure
 
   const handleOpenNotesModal = (participant: ParticipantProfile) => {
     setSelectedParticipant(participant);
@@ -295,6 +302,20 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
 
   const getCoachName = (coachId: string) => {
       return staffMembers.find(s => s.id === coachId)?.name || 'Okänd';
+  };
+  
+  const confirmArchiveCall = () => {
+    if (callToArchive) {
+        handleArchiveIntroCall(callToArchive.id);
+        setCallToArchive(null);
+    }
+  };
+
+  const confirmDeleteCall = () => {
+    if (callToDelete) {
+        handleDeleteIntroCall(callToDelete.id);
+        setCallToDelete(null);
+    }
   };
 
   if (!loggedInStaff) return <div>Laddar...</div>;
@@ -509,9 +530,11 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                                             <span className="text-gray-400">| {new Date(call.createdDate).toLocaleDateString('sv-SE')}</span>
                                         </div>
                                     </div>
-                                    <div className="flex gap-2 self-start sm:self-center flex-shrink-0">
+                                    <div className="flex flex-wrap gap-2 self-start sm:self-center flex-shrink-0 items-center">
                                         <Button size="sm" variant="outline" onClick={() => { setCallToEdit(call); setIsIntroCallModalOpen(true); }}>Redigera</Button>
                                         <Button size="sm" variant="primary" onClick={() => { setCallToLink(call); setParticipantToLinkId(''); }}>Länka</Button>
+                                        <Button size="sm" variant="ghost" className="!text-gray-500" onClick={() => setCallToArchive(call)} title="Arkivera">🗃️</Button>
+                                        <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => setCallToDelete(call)} title="Ta bort"><TrashIcon /></Button>
                                     </div>
                                 </div>
                              </div>
@@ -652,7 +675,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
             setLeadBeingConverted(null);
             setCallToEdit(null);
           }}
-          onSave={(data) => handleSaveIntroCall(data, leadBeingConverted)}
+          onSave={handleSaveIntroCall}
           introCallToEdit={callToEdit}
           onUpdate={handleUpdateIntroCall}
           initialData={leadBeingConverted ? {
@@ -673,13 +696,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                 />
                 <div className="flex justify-end gap-3 pt-4 border-t">
                     <Button variant="secondary" onClick={() => setCallToLink(null)}>Avbryt</Button>
-                    <Button onClick={() => {
-                        if (callToLink) {
-                            handleConfirmLink(callToLink, participantToLinkId);
-                            setCallToLink(null);
-                            setParticipantToLinkId('');
-                        }
-                    }} disabled={!participantToLinkId}>Länka och skapa anteckning</Button>
+                    <Button onClick={handleConfirmLink} disabled={!participantToLinkId}>Länka och skapa anteckning</Button>
                 </div>
             </div>
       </Modal>
@@ -687,12 +704,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
       <ConfirmationModal
         isOpen={!!leadToMarkAsJunk}
         onClose={() => setLeadToMarkAsJunk(null)}
-        onConfirm={() => {
-            if (leadToMarkAsJunk) {
-                handleConfirmMarkAsJunk(leadToMarkAsJunk);
-                setLeadToMarkAsJunk(null);
-            }
-        }}
+        onConfirm={handleConfirmMarkAsJunk}
         title="Ta bort lead?"
         message={`Är du säker på att du vill ta bort leadet för ${leadToMarkAsJunk?.firstName} ${leadToMarkAsJunk?.lastName}? Detta markerar det som 'skräp' och döljer det från listan.`}
         confirmButtonText="Ja, ta bort"
@@ -723,6 +735,26 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
             title="Bekräfta samtycke"
             message={`Jag bekräftar att jag har fått godkännande att kontakta ${leadToConfirmConsent?.firstName} ${leadToConfirmConsent?.lastName}.`}
             confirmButtonText="Ja, bekräfta"
+        />
+        
+        <ConfirmationModal
+            isOpen={!!callToArchive}
+            onClose={() => setCallToArchive(null)}
+            onConfirm={confirmArchiveCall}
+            title="Arkivera Introsamtal"
+            message={`Är du säker på att du vill arkivera detta introsamtal? Det flyttas då bort från listan över aktiva samtal.`}
+            confirmButtonText="Arkivera"
+            confirmButtonVariant="secondary"
+        />
+
+        <ConfirmationModal
+            isOpen={!!callToDelete}
+            onClose={() => setCallToDelete(null)}
+            onConfirm={confirmDeleteCall}
+            title="Ta bort Introsamtal"
+            message={`Är du säker på att du vill ta bort detta introsamtal permanent? Detta kan inte ångras.`}
+            confirmButtonText="Ja, ta bort"
+            confirmButtonVariant="danger"
         />
 
     </div>
