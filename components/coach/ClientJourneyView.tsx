@@ -199,9 +199,9 @@ const ChevronUpIcon = () => (
 
 const MethodIcon: React.FC<{ method: string }> = ({ method }) => {
     switch (method) {
-        case 'phone': return <span title="Telefon">📞</span>;
-        case 'email': return <span title="E-post">✉️</span>;
-        case 'sms': return <span title="SMS">💬</span>;
+        case 'phone': return <span title="Telefon" className="text-xl">📞</span>;
+        case 'email': return <span title="E-post" className="text-xl">✉️</span>;
+        case 'sms': return <span title="SMS" className="text-xl">💬</span>;
         default: return <span>📝</span>;
     }
 };
@@ -224,10 +224,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         workoutCategories,
         staffAvailability,
         staffMembers,
-        leads,
-        setLeadsData,
-        prospectIntroCalls,
-        setProspectIntroCallsData,
         locations,
     } = useAppContext();
     
@@ -367,12 +363,12 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
 
         <div className="flex flex-wrap gap-2 mb-4">
             {[
+                { key: 'all', label: 'Alla Aktiva' },
                 { key: 'new', label: 'Nya' },
                 { key: 'contacted', label: 'Kontaktade' },
                 { key: 'intro_booked', label: 'Bokade Intro' },
                 { key: 'converted', label: 'Konverterade' },
                 { key: 'junk', label: 'Skräp' },
-                { key: 'all', label: 'Alla' }
             ].map(filter => (
                  <button
                     key={filter.key}
@@ -398,7 +394,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                     const isExpanded = expandedLeadIds.has(lead.id);
 
                     return (
-                        <div key={lead.id} className="bg-white rounded-lg border shadow-sm overflow-hidden">
+                        <div key={lead.id} className="bg-white rounded-lg border shadow-sm overflow-hidden transition-all hover:shadow-md">
                              <div className="p-4 flex flex-col sm:flex-row justify-between items-start gap-3">
                                 <div className="flex-grow">
                                     <div className="flex items-center gap-2">
@@ -416,25 +412,25 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                                         <span className="text-gray-400">Skapad: {new Date(lead.createdDate).toLocaleDateString('sv-SE')}</span>
                                     </div>
                                     
-                                    {/* Latest activity preview (when collapsed) */}
-                                    {!isExpanded && latestActivity && (
-                                        <div className="mt-3 text-sm text-gray-500 flex items-center gap-1.5 italic bg-gray-50 p-2 rounded border border-gray-100 w-fit">
-                                            <span>{dateUtils.formatRelativeTime(latestActivity.timestamp).relative}:</span>
+                                    {/* Latest activity preview (always visible, emphasized) */}
+                                    {latestActivity && (
+                                        <div className="mt-3 flex items-center gap-2 text-sm text-gray-700 bg-blue-50 border-l-4 border-blue-400 p-2 rounded-r w-fit">
                                             <MethodIcon method={latestActivity.method} />
-                                            <span>{getOutcomeLabel(latestActivity.outcome)}</span>
+                                            <span className="font-medium">{getOutcomeLabel(latestActivity.outcome)}</span>
+                                            <span className="text-gray-500 text-xs">({dateUtils.formatRelativeTime(latestActivity.timestamp).relative})</span>
                                         </div>
                                     )}
                                 </div>
                                 
-                                <div className="flex flex-col items-end gap-2">
-                                    <div className="flex gap-2 self-start sm:self-center flex-shrink-0">
+                                <div className="flex flex-col items-end gap-2 w-full sm:w-auto">
+                                    <div className="flex gap-2 self-start sm:self-center flex-wrap">
                                         <Button size="sm" variant="outline" onClick={() => setLeadToLogContactFor(lead)}>➕ Logga kontakt</Button>
                                         <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => setLeadToMarkAsJunk(lead)}>Skräp</Button>
                                         <Button size="sm" variant="primary" onClick={() => handleCreateIntroCallFromLead(lead)}>Skapa Introsamtal</Button>
                                     </div>
                                      <button 
                                         onClick={() => toggleLeadExpand(lead.id)} 
-                                        className="text-sm text-gray-500 hover:text-flexibel flex items-center gap-1 mt-2 focus:outline-none"
+                                        className="text-sm text-gray-500 hover:text-flexibel flex items-center gap-1 mt-2 focus:outline-none self-end"
                                     >
                                         {isExpanded ? 'Dölj historik' : 'Visa historik'}
                                         {isExpanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
@@ -445,30 +441,29 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                             {/* Expanded History Section */}
                             {isExpanded && (
                                 <div className="bg-gray-50 border-t border-gray-200 p-4 animate-fade-in">
-                                    <h4 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Kontakt- & Händelsehistorik</h4>
+                                    <h4 className="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wider">Kontakt- & Händelsehistorik</h4>
                                     {sortedHistory.length > 0 ? (
-                                        <div className="space-y-0 relative">
+                                        <div className="space-y-0 relative ml-2">
                                             {/* Vertical line */}
-                                            <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-gray-300"></div>
+                                            <div className="absolute left-[7px] top-2 bottom-2 w-0.5 bg-gray-300"></div>
                                             
                                             {sortedHistory.map((attempt) => (
-                                                <div key={attempt.id} className="relative pl-10 py-2">
+                                                <div key={attempt.id} className="relative pl-8 py-3">
                                                     {/* Dot */}
-                                                    <div className="absolute left-[11px] top-3.5 w-2.5 h-2.5 bg-white border-2 border-flexibel rounded-full z-10"></div>
+                                                    <div className="absolute left-[3px] top-4 w-2.5 h-2.5 bg-white border-2 border-flexibel rounded-full z-10"></div>
                                                     
-                                                    <div className="bg-white p-3 rounded-md border border-gray-200 shadow-sm">
+                                                    <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
                                                         <div className="flex justify-between items-start">
                                                             <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-                                                                <span className="text-gray-500 font-normal text-xs">{new Date(attempt.timestamp).toLocaleString('sv-SE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'})}</span>
-                                                                <span className="text-gray-300">|</span>
                                                                 <MethodIcon method={attempt.method} />
                                                                 <span>{getOutcomeLabel(attempt.outcome)}</span>
                                                             </div>
-                                                            <span className="text-xs text-gray-400">av {getCoachName(attempt.coachId)}</span>
+                                                            <span className="text-xs text-gray-400">{new Date(attempt.timestamp).toLocaleString('sv-SE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'})}</span>
                                                         </div>
                                                         {attempt.notes && (
-                                                            <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap border-l-2 border-gray-100 pl-2 ml-1">{attempt.notes}</p>
+                                                            <p className="text-sm text-gray-600 mt-2 whitespace-pre-wrap border-l-2 border-gray-100 pl-2">{attempt.notes}</p>
                                                         )}
+                                                        <p className="text-xs text-gray-400 mt-2 text-right">Av: {getCoachName(attempt.coachId)}</p>
                                                     </div>
                                                 </div>
                                             ))}
@@ -484,7 +479,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
             </div>
         ) : (
             <div className="text-center p-8 bg-gray-50 rounded-lg">
-                <p className="text-lg text-gray-500">Inga leads att hantera. Bra jobbat!</p>
+                <p className="text-lg text-gray-500">Inga leads att hantera i denna vy.</p>
             </div>
         )}
       </div>
@@ -657,7 +652,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
             setLeadBeingConverted(null);
             setCallToEdit(null);
           }}
-          onSave={handleSaveIntroCall}
+          onSave={(data) => handleSaveIntroCall(data, leadBeingConverted)}
           introCallToEdit={callToEdit}
           onUpdate={handleUpdateIntroCall}
           initialData={leadBeingConverted ? {
@@ -678,7 +673,13 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                 />
                 <div className="flex justify-end gap-3 pt-4 border-t">
                     <Button variant="secondary" onClick={() => setCallToLink(null)}>Avbryt</Button>
-                    <Button onClick={handleConfirmLink} disabled={!participantToLinkId}>Länka och skapa anteckning</Button>
+                    <Button onClick={() => {
+                        if (callToLink) {
+                            handleConfirmLink(callToLink, participantToLinkId);
+                            setCallToLink(null);
+                            setParticipantToLinkId('');
+                        }
+                    }} disabled={!participantToLinkId}>Länka och skapa anteckning</Button>
                 </div>
             </div>
       </Modal>
@@ -686,7 +687,12 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
       <ConfirmationModal
         isOpen={!!leadToMarkAsJunk}
         onClose={() => setLeadToMarkAsJunk(null)}
-        onConfirm={handleConfirmMarkAsJunk}
+        onConfirm={() => {
+            if (leadToMarkAsJunk) {
+                handleConfirmMarkAsJunk(leadToMarkAsJunk);
+                setLeadToMarkAsJunk(null);
+            }
+        }}
         title="Ta bort lead?"
         message={`Är du säker på att du vill ta bort leadet för ${leadToMarkAsJunk?.firstName} ${leadToMarkAsJunk?.lastName}? Detta markerar det som 'skräp' och döljer det från listan.`}
         confirmButtonText="Ja, ta bort"
