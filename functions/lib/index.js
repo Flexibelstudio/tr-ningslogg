@@ -888,9 +888,16 @@ Du är en coach. Skapa en kort sammanfattning av medlemmens aktivitet för ett a
 Namn: ${context?.participantName}
 Mål: ${context?.goal} (Mål: ${context?.goalTarget} pass/v)
 Senaste avstämning: ${context?.lastCheckinDate || "Aldrig"}
-Aktivitetssammanfattning: ${context?.logSummary}
 
-Ge en kort analys av trender och föreslå 1-2 frågor att ställa till medlemmen. Använd Markdown.
+Data:
+${context?.logSummary}
+
+Instruktioner:
+1. Beröm medlemmen för den TOTALA historiken (långsiktighet) om den siffran är imponerande.
+2. Analysera den AKTUELLA PERIODEN för att ge feedback på nuläget (trender, snitt vs mål).
+3. Om aktiviteten i perioden är låg men totalen hög, uppmuntra att hitta tillbaka till rutinen.
+4. Föreslå 1-2 framåtblickande frågor.
+Använd Markdown. Håll det koncist.
             `;
                     break;
                 }
