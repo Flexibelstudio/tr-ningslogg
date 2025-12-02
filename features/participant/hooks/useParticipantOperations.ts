@@ -6,7 +6,7 @@ import { useNotifications } from '../../../context/NotificationsContext';
 import { logAnalyticsEvent } from '../../../utils/analyticsLogger';
 import firebaseService from '../../../services/firebaseService';
 import { notifyFriendsOnBookingFn } from '../../../firebaseClient';
-import { BookingStatus, FlowItemLogType, GeneralActivityLog } from '../../../types';
+import { BookingStatus, FlowItemLogType, GeneralActivityLog, UserNotification } from '../../../types';
 
 export const useParticipantOperations = (currentParticipantId: string) => {
     const {
@@ -26,7 +26,9 @@ export const useParticipantOperations = (currentParticipantId: string) => {
         setParticipantPhysiqueHistoryData,
         setParticipantGoalsData,
         setUserConditioningStatsHistoryData,
-        setOneOnOneSessionsData
+        setOneOnOneSessionsData,
+        connections,
+        setUserNotificationsData
     } = useAppContext();
     
     const { organizationId, currentParticipantId: authParticipantId } = useAuth();
@@ -95,18 +97,46 @@ export const useParticipantOperations = (currentParticipantId: string) => {
             return p;
           }));
           
-          if (authParticipantId === participantId && !firebaseService.isOffline()) {
-            const me = participantDirectory.find(p => p.id === participantId);
-            if (me?.shareMyBookings) {
-              notifyFriendsOnBookingFn({ orgId: organizationId, participantId, scheduleId, classDate }).catch(() => {});
-            }
+          // --- FRIEND NOTIFICATION LOGIC (Fan-out) ---
+          const bookerProfile = participantDirectory.find(p => p.id === participantId);
+          if (bookerProfile?.shareMyBookings) {
+             // 1. Push Notification via Cloud Function (for real mobile push)
+             if (authParticipantId === participantId && !firebaseService.isOffline()) {
+                notifyFriendsOnBookingFn({ orgId: organizationId, participantId, scheduleId, classDate }).catch(() => {});
+             }
+
+             // 2. In-App Feed Notification (Synthetic/Mock DB approach for immediate UI update)
+             const acceptedFriends = connections.filter(conn => 
+                 conn.status === 'accepted' && 
+                 (conn.requesterId === participantId || conn.receiverId === participantId)
+             );
+             
+             const friendIds = acceptedFriends.map(conn => 
+                 conn.requesterId === participantId ? conn.receiverId : conn.requesterId
+             );
+
+             const newNotifications: UserNotification[] = friendIds.map(friendId => ({
+                 id: crypto.randomUUID(),
+                 recipientId: friendId,
+                 type: 'FRIEND_BOOKING',
+                 title: `${bookerProfile.name?.split(' ')[0]} ska träna!`,
+                 body: `${bookerProfile.name?.split(' ')[0]} har bokat ${classDef?.name} den ${new Date(classDate).toLocaleDateString('sv-SE')}. Haka på!`,
+                 relatedScheduleId: scheduleId,
+                 relatedClassDate: classDate,
+                 createdAt: new Date().toISOString(),
+                 read: false
+             }));
+             
+             if (newNotifications.length > 0) {
+                 setUserNotificationsData(prev => [...prev, ...newNotifications]);
+             }
           }
         } else {
           addNotification({ type: 'INFO', title: 'Du är på kölistan', message: `Passet är fullt. Du har placerats på kölistan.` });
         }
         
         if (setOperationInProgress) setTimeout(() => setOperationInProgress(prev => prev.filter(id => id !== instanceId)), 1000);
-      }, [organizationId, authParticipantId, participantBookings, groupClassSchedules, groupClassDefinitions, memberships, participantDirectory, addNotification, setParticipantBookingsData, setParticipantDirectoryData]);
+      }, [organizationId, authParticipantId, participantBookings, groupClassSchedules, groupClassDefinitions, memberships, participantDirectory, connections, addNotification, setParticipantBookingsData, setParticipantDirectoryData, setUserNotificationsData]);
     
       const handleCancelBooking = useCallback((bookingId: string, setOperationInProgress?: React.Dispatch<React.SetStateAction<string[]>>) => {
         if (!organizationId) return;
@@ -173,6 +203,19 @@ export const useParticipantOperations = (currentParticipantId: string) => {
     
           if (promoted && classDef && schedule && authParticipantId !== promoted.id) {
              // Logic for notifying promoted user handled by backend/trigger usually, but simulated here
+             // Add a notification for the promoted user
+             const promotionNotification: UserNotification = {
+                id: crypto.randomUUID(),
+                recipientId: promoted.id,
+                type: 'WAITLISTED_PROMOTION' as any, // Casting as any to avoid strict type error if type def not fully updated everywhere yet, but added to types/user.ts
+                title: 'Du har fått en plats!',
+                body: `Du har flyttats från kön och har nu en plats på ${classDef.name} den ${new Date(booking.classDate).toLocaleDateString('sv-SE')}.`,
+                relatedScheduleId: schedule.id,
+                relatedClassDate: booking.classDate,
+                createdAt: new Date().toISOString(),
+                read: false
+             };
+             setUserNotificationsData(prev => [...prev, promotionNotification]);
           }
     
           return prev.map(b => {
@@ -184,7 +227,7 @@ export const useParticipantOperations = (currentParticipantId: string) => {
     
         addNotification({ type: 'SUCCESS', title: 'Avbokning bekräftad', message: `Du har avbokat dig från ${classDef?.name || 'passet'}.` });
         if (setOperationInProgress) setTimeout(() => setOperationInProgress(prev => prev.filter(id => id !== instanceId)), 1000);
-      }, [organizationId, authParticipantId, participantBookings, groupClassSchedules, groupClassDefinitions, memberships, participantDirectory, addNotification, setParticipantBookingsData, setParticipantDirectoryData]);
+      }, [organizationId, authParticipantId, participantBookings, groupClassSchedules, groupClassDefinitions, memberships, participantDirectory, addNotification, setParticipantBookingsData, setParticipantDirectoryData, setUserNotificationsData]);
 
     const handleSelfCheckIn = useCallback((participantId: string, classInstanceId: string, checkinType: 'self_qr' | 'location_qr'): boolean => {
         if (!organizationId) return false;

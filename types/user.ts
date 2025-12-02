@@ -161,3 +161,16 @@ export interface UserPushSubscription {
     participantId: string;
     subscription: PushSubscriptionJSON; // Store the JSON representation
 }
+
+export interface UserNotification {
+  id: string;
+  recipientId: string; // The user who should see this
+  type: 'FRIEND_BOOKING' | 'CLASS_CANCELLED' | 'CLASS_CHANGED' | 'WAITLIST_PROMOTION';
+  title: string;
+  body: string;
+  relatedScheduleId?: string;
+  relatedClassDate?: string;
+  createdAt: string; // ISO timestamp
+  read: boolean;
+  metadata?: any; // Flexible data (e.g. friend's avatar url, emoji)
+}
