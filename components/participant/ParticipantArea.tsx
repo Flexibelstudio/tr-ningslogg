@@ -1065,7 +1065,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 integrationSettings={integrationSettings}
             />
         ) : (
-            <div className="pb-4">
+            <div className="pb-2">
                 <div ref={mainContentRef} className="container mx-auto px-2 sm:px-4 py-4 space-y-3">
                     {/* ... (Notifications, Progress banners, etc. remain unchanged) */}
                     {showNotificationBanner && (
