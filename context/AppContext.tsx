@@ -43,6 +43,8 @@ interface AppContextType extends OrganizationData {
   addParticipant: (participant: ParticipantProfile) => Promise<void>;
   updateParticipantProfile: (participantId: string, data: Partial<ParticipantProfile>) => Promise<void>;
   updateUser: (userId: string, data: Partial<Omit<User, 'id'>>) => Promise<void>;
+  markNotificationAsRead: (notificationId: string) => Promise<void>;
+  markAllNotificationsAsRead: (recipientId: string) => Promise<void>;
   
   // Granular updaters for workouts
   addWorkout: (workout: Workout) => Promise<void>;
@@ -428,6 +430,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const deleteWorkout = useCallback(async (workoutId: string) => {
         smartSetWorkouts(prev => prev.filter(w => w.id !== workoutId));
     }, [smartSetWorkouts]);
+    
+    const markNotificationAsRead = useCallback(async (notificationId: string) => {
+        smartSetUserNotifications(prev => prev.map(n => 
+            n.id === notificationId ? { ...n, read: true } : n
+        ));
+    }, [smartSetUserNotifications]);
+    
+    const markAllNotificationsAsRead = useCallback(async (recipientId: string) => {
+        smartSetUserNotifications(prev => prev.map(n => 
+            n.recipientId === recipientId && !n.read ? { ...n, read: true } : n
+        ));
+    }, [smartSetUserNotifications]);
   
   const getColorForCategory = useCallback((categoryName: string | undefined): string => {
     if (!categoryName) return "#9e9e9e"; // default gray
@@ -476,7 +490,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     integrationSettings, groupClassDefinitions, groupClassSchedules, groupClassScheduleExceptions, participantBookings,
     leads, prospectIntroCalls, userPushSubscriptions, branding, userNotifications, isOrgDataLoading, isGlobalDataLoading,
     isOrgDataFromFallback, orgDataError, getColorForCategory, addParticipant, updateParticipantProfile,
-    updateUser, addWorkout, updateWorkout, deleteWorkout,
+    updateUser, addWorkout, updateWorkout, deleteWorkout, markNotificationAsRead, markAllNotificationsAsRead,
     setParticipantDirectoryData: smartSetParticipantDirectory,
     setWorkoutsData: (updater) => smartSetWorkouts(prev => {
         const newVal = typeof updater === 'function' ? (updater as any)(prev) : updater;

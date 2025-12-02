@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { UserRole, StaffMember, ParticipantProfile, Organization, User } from '../types';
 import { APP_NAME, FLEXIBEL_PRIMARY_COLOR } from '../constants';
@@ -5,11 +6,13 @@ import { Button } from './Button';
 import { Avatar } from './Avatar';
 import { useAuth } from '../context/AuthContext';
 import { useAppContext } from '../context/AppContext';
+import { NotificationDropdown } from './NotificationDropdown';
 
 // --- ICONS ---
 const GoalIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.5 10.5l-7.5 7.5-3.5-3.5" /></svg>;
 const FlowIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>;
 const CommunityIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>;
+const BellIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>;
 
 interface NavbarProps {
   onOpenProfile: () => void;
@@ -33,10 +36,12 @@ export const Navbar: React.FC<NavbarProps> = ({
     hasUnreadUpdate,
 }) => {
   const { user, logout, isImpersonating, stopImpersonating, isStaffViewingAsParticipant, viewAsParticipant, stopViewingAsParticipant, organizationId, currentParticipantId, currentRole } = useAuth();
-  const { staffMembers, participantDirectory, allOrganizations, branding } = useAppContext();
+  const { staffMembers, participantDirectory, allOrganizations, branding, userNotifications, markNotificationAsRead, markAllNotificationsAsRead } = useAppContext();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
 
   const currentUserProfile = useMemo(() => {
     if (currentRole === UserRole.PARTICIPANT) {
@@ -51,10 +56,22 @@ export const Navbar: React.FC<NavbarProps> = ({
   const loggedInStaff = staffMembers.find(s => s.email === user?.email);
   const currentOrganization = allOrganizations.find(o => o.id === organizationId);
 
+  const myNotifications = useMemo(() => {
+      if (!currentParticipantId) return [];
+      return userNotifications.filter(n => n.recipientId === currentParticipantId);
+  }, [userNotifications, currentParticipantId]);
+
+  const unreadNotificationCount = useMemo(() => {
+      return myNotifications.filter(n => !n.read).length;
+  }, [myNotifications]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsMenuOpen(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setIsNotificationsOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -135,6 +152,31 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{pendingRequestsCount}</span>
                   )}
                 </button>
+                
+                {/* Notification Bell */}
+                <div className="relative" ref={notifRef}>
+                    <button 
+                        onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                        className="relative p-2 rounded-full text-flexibel hover:bg-flexibel/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flexibel"
+                        title="Notiser"
+                        aria-label="Notiser"
+                        aria-haspopup="true"
+                        aria-expanded={isNotificationsOpen}
+                    >
+                        <BellIcon />
+                        {unreadNotificationCount > 0 && (
+                            <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{unreadNotificationCount}</span>
+                        )}
+                    </button>
+                    {isNotificationsOpen && (
+                        <NotificationDropdown 
+                            notifications={myNotifications}
+                            onMarkAsRead={markNotificationAsRead}
+                            onMarkAllAsRead={() => markAllNotificationsAsRead(currentParticipantId!)}
+                            onClose={() => setIsNotificationsOpen(false)}
+                        />
+                    )}
+                </div>
               </div>
             )}
 
