@@ -207,8 +207,8 @@ export const useClientJourney = (loggedInStaff: StaffMember | null) => {
         counts[l.status]++;
       }
     });
-    // "All" now means "Active Leads" (excluding junk and converted)
-    counts.all = counts.new + counts.contacted + counts.intro_booked;
+    // "All" means "Active Leads" (excluding junk)
+    counts.all = counts.new + counts.contacted + counts.intro_booked + counts.converted;
     return counts;
   }, [leads]);
 
@@ -218,8 +218,10 @@ export const useClientJourney = (loggedInStaff: StaffMember | null) => {
     );
     
     if (activeLeadFilter === 'all') {
-      // Filter out Junk and Converted when 'all' (All Active) is selected
-      return sortedLeads.filter(l => ['new', 'contacted', 'intro_booked'].includes(l.status));
+      // Filter out Junk when 'all' (All Active) is selected
+      // Usually 'converted' are also filtered out from 'active' pipeline views, but prompt implied "Alla" includes converted?
+      // Let's stick to standard: All Active = New + Contacted + Intro Booked + Converted (basically everything except junk)
+      return sortedLeads.filter(l => l.status !== 'junk');
     }
     
     return sortedLeads.filter((l) => l.status === activeLeadFilter);
@@ -255,7 +257,7 @@ export const useClientJourney = (loggedInStaff: StaffMember | null) => {
 
   const archivedIntroCalls = useMemo(() => {
     return prospectIntroCalls
-      .filter((c) => c.outcome === 'not_interested' || c.status === 'linked')
+      .filter((c) => c.outcome === 'not_interested' || c.status === 'linked' || c.status === 'archived')
       .sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
   }, [prospectIntroCalls]);
 
@@ -301,7 +303,7 @@ export const useClientJourney = (loggedInStaff: StaffMember | null) => {
   const handleUpdateIntroCall = (updatedCall: ProspectIntroCall) => {
     setProspectIntroCallsData((prev) => prev.map((c) => (c.id === updatedCall.id ? updatedCall : c)));
   };
-
+  
   const handleConfirmLink = (callToLink: ProspectIntroCall, participantToLinkId: string) => {
     // 1. Update the ProspectIntroCall
     const updatedCall = { ...callToLink, status: 'linked' as const, linkedParticipantId: participantToLinkId };
@@ -343,6 +345,14 @@ ${callToLink.coachSummary || 'Ej angivet.'}
   const handleConfirmMarkAsJunk = (leadToMarkAsJunk: Lead) => {
     setLeadsData((prev) => prev.map((l) => (l.id === leadToMarkAsJunk.id ? { ...l, status: 'junk' } : l)));
   };
+  
+  const handleRestoreLead = (lead: Lead) => {
+      setLeadsData((prev) => prev.map((l) => (l.id === lead.id ? { ...l, status: 'new' } : l)));
+  };
+
+  const handlePermanentDeleteLead = (lead: Lead) => {
+      setLeadsData((prev) => prev.filter((l) => l.id !== lead.id));
+  };
 
   const handleConfirmConsent = (leadToConfirmConsent: Lead) => {
     setLeadsData((prev) =>
@@ -352,6 +362,14 @@ ${callToLink.coachSummary || 'Ej angivet.'}
 
   const handleSaveContactAttempt = (updatedLead: Lead) => {
     setLeadsData((prev) => prev.map((l) => (l.id === updatedLead.id ? updatedLead : l)));
+  };
+  
+  const handleArchiveIntroCall = (callId: string) => {
+    setProspectIntroCallsData((prev) => prev.map(c => c.id === callId ? { ...c, status: 'archived' } : c));
+  };
+
+  const handleDeleteIntroCall = (callId: string) => {
+    setProspectIntroCallsData(prev => prev.filter(c => c.id !== callId));
   };
 
   return {
@@ -377,7 +395,11 @@ ${callToLink.coachSummary || 'Ej angivet.'}
     handleUpdateIntroCall,
     handleConfirmLink,
     handleConfirmMarkAsJunk,
+    handleRestoreLead,
+    handlePermanentDeleteLead,
     handleConfirmConsent,
     handleSaveContactAttempt,
+    handleArchiveIntroCall,
+    handleDeleteIntroCall,
   };
 };

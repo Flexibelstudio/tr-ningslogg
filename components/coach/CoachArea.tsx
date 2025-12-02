@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useCallback, lazy, Suspense, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { OneOnOneSession } from '../../types';
@@ -607,7 +606,6 @@ export const CoachArea: React.FC = () => {
           onCancelBooking={onCancelBooking}
           onPromoteFromWaitlist={onPromoteFromWaitlist}
           onCancelClassInstance={onCancelClassInstance}
-          onUpdateClassInstance={onUpdateClassInstance}
         />
       )}
     </div>

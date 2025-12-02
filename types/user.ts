@@ -139,7 +139,7 @@ export interface ProspectIntroCall {
   coachSummary?: string;
   
   // Status to handle linking later
-  status: 'unlinked' | 'linked';
+  status: 'unlinked' | 'linked' | 'archived';
   linkedParticipantId?: string; // Filled when the link is made
 
   // New: For call outcome

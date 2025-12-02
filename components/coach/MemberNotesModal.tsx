@@ -312,21 +312,36 @@ Ny kund? (GDPR!)
     setIsLoadingAiSummary(true);
     setAiSummary(null);
     
+    // 1. Total stats (Lifetime)
+    const totalAllTimeCount = myActivityLogs.length;
+
+    // 2. Determine period (Since last checkin or 30 days ago)
     const lastCheckinNote = notes
         .filter(n => n.noteType === 'check-in')
         .sort((a,b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime())[0];
 
-    const sinceDate = lastCheckinNote ? new Date(lastCheckinNote.createdDate) : new Date(0);
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const sinceDate = lastCheckinNote 
+        ? new Date(lastCheckinNote.createdDate) 
+        : thirtyDaysAgo;
+    
     const logsSinceLastCheckin = myActivityLogs.filter(log => new Date(log.completedDate) > sinceDate);
 
     let logSummaryForPrompt = "Ingen aktivitet sedan senaste avstämning.";
+
     if (logsSinceLastCheckin.length > 0) {
         const workoutLogs = logsSinceLastCheckin.filter(l => l.type === 'workout') as WorkoutLog[];
         const generalLogs = logsSinceLastCheckin.filter(l => l.type === 'general') as GeneralActivityLog[];
-        const totalCount = logsSinceLastCheckin.length;
-        const firstLogDate = new Date(logsSinceLastCheckin[logsSinceLastCheckin.length - 1].completedDate);
-        const periodDays = Math.max(1, (new Date().getTime() - firstLogDate.getTime()) / (1000 * 3600 * 24));
-        const weeklyAverage = (totalCount / periodDays * 7).toFixed(1);
+        
+        const totalCountPeriod = logsSinceLastCheckin.length;
+        
+        // Calculate period duration in days
+        const now = new Date();
+        const timeDiff = Math.abs(now.getTime() - sinceDate.getTime());
+        const periodDays = Math.ceil(timeDiff / (1000 * 3600 * 24)) || 1;
+        const weeklyAverage = (totalCountPeriod / periodDays * 7).toFixed(1);
 
         const progressionPBs = workoutLogs
             .flatMap(log => log.postWorkoutSummary?.newPBs || [])
@@ -337,12 +352,22 @@ Ny kund? (GDPR!)
         const avgMood = moodRatings.length > 0 ? (moodRatings.reduce((a, b) => a + b, 0) / moodRatings.length).toFixed(1) : 'N/A';
 
         logSummaryForPrompt = `
-- Period: Senaste ${Math.round(periodDays)} dagarna.
-- Totala aktiviteter: ${totalCount} (${workoutLogs.length} gympass, ${generalLogs.length} övriga).
-- Snitt per vecka: ${weeklyAverage} pass.
-- Nya Personliga Rekord (PBs):
+STATISTIK:
+- Total historik (sedan start): ${totalAllTimeCount} aktiviteter.
+- Aktuell period (${sinceDate.toLocaleDateString('sv-SE')} till idag):
+  * Antal pass i perioden: ${totalCountPeriod}
+  * Snitt per vecka i perioden: ${weeklyAverage}
+  * Fördelning i perioden: ${workoutLogs.length} gympass, ${generalLogs.length} övriga.
+  * Nya PBs i perioden:
 ${progressionPBs || '  - Inga nya PBs loggade.'}
-- Genomsnittligt mående (1-5): ${avgMood}
+- Genomsnittligt mående i perioden (1-5): ${avgMood}
+        `;
+    } else {
+        logSummaryForPrompt = `
+STATISTIK:
+- Total historik (sedan start): ${totalAllTimeCount} aktiviteter.
+- Aktuell period (${sinceDate.toLocaleDateString('sv-SE')} till idag):
+  * Ingen aktivitet loggad.
         `;
     }
 
