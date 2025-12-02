@@ -272,7 +272,7 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
 FlowItemCard.displayName = 'FlowItemCard';
 
 const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, onToggleReaction, onAddComment, onDeleteComment, onToggleCommentReaction, locations, userConditioningStatsHistory }) => {
-    const { lastFlowViewTimestamp, userNotifications } = useAppContext();
+    const { lastFlowViewTimestamp, userNotifications, markAllNotificationsAsRead, participantBookings } = useAppContext();
     const { handleBookClass } = useParticipantOperations(currentUserId);
     const data = { currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, locations, userConditioningStatsHistory, userNotifications };
     const [visibleCount, setVisibleCount] = useState(15);
@@ -281,8 +281,10 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
     useEffect(() => {
         if (isOpen) {
             setVisibleCount(15);
+            // Mark notifications as read when opening flow
+            markAllNotificationsAsRead(currentUserId);
         }
-    }, [isOpen]);
+    }, [isOpen, markAllNotificationsAsRead, currentUserId]);
 
     const allFlowItems = useMemo(() => {
         if (!isOpen) return [];
@@ -303,8 +305,9 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
 
         // 0. User Notifications (NEW)
         const myNotifications = (data.userNotifications || []).filter(n => n.recipientId === data.currentUserId);
+
         myNotifications.forEach(notif => {
-             // Only show "new" notifications in the feed to avoid clutter, e.g., from last 3 days
+             // Only show "new" notifications in the feed to avoid clutter
              const created = new Date(notif.createdAt);
              // Use consistent 3-day window as other items
              const threeDaysAgo = new Date();
@@ -314,13 +317,23 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
              if (created >= threeDaysAgo) {
                  let action = undefined;
                  if (notif.type === 'FRIEND_BOOKING' && notif.relatedScheduleId && notif.relatedClassDate) {
-                     action = {
-                         label: 'Boka samma pass',
-                         onClick: () => {
-                             handleBookClass(currentUserId, notif.relatedScheduleId!, notif.relatedClassDate!);
-                             onClose();
-                         }
-                     };
+                     // Check if already booked
+                     const isAlreadyBooked = participantBookings.some(b => 
+                         b.participantId === currentUserId && 
+                         b.scheduleId === notif.relatedScheduleId && 
+                         b.classDate === notif.relatedClassDate && 
+                         (b.status === 'BOOKED' || b.status === 'WAITLISTED' || b.status === 'CHECKED-IN')
+                     );
+
+                     if (!isAlreadyBooked) {
+                        action = {
+                            label: 'Boka samma pass',
+                            onClick: () => {
+                                handleBookClass(currentUserId, notif.relatedScheduleId!, notif.relatedClassDate!);
+                                onClose();
+                            }
+                        };
+                     }
                  }
 
                  items.push({
@@ -629,7 +642,7 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
 
         return (finalItems || []).filter(item => item.date >= threeDaysAgo);
 
-    }, [isOpen, data, lastFlowViewTimestamp, handleBookClass]);
+    }, [isOpen, data, lastFlowViewTimestamp, handleBookClass, participantBookings]);
 
     const flowItemsToShow = useMemo(() => {
         return allFlowItems.slice(0, visibleCount);
