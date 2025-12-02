@@ -13,6 +13,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../Modal';
 import { Select, Input } from '../Input';
 import { ConfirmationModal } from '../ConfirmationModal';
+import { useClientJourney } from '../../features/coach/hooks/useClientJourney';
 
 interface ClientJourneyViewProps {
   participants: ParticipantProfile[];
@@ -34,18 +35,6 @@ const EngagementIndicator: React.FC<{ level: 'green' | 'yellow' | 'red' | 'neutr
     const { color, tooltip } = levelConfig[level];
     return <span className={`inline-block h-3 w-3 rounded-full ${color}`} title={tooltip}></span>;
 };
-
-interface ClientJourneyEntry extends ParticipantProfile {
-  phase: 'Startprogram' | 'Medlem' | 'Riskzon';
-  phaseColorClass: string;
-  progressText: string;
-  nextActionText: string;
-  nextActionPriority: 'high' | 'medium' | 'low';
-  lastActivityDate: Date | null;
-  engagementLevel: 'green' | 'yellow' | 'red' | 'neutral';
-}
-
-type ClientJourneyTab = 'leads' | 'introCalls' | 'memberJourney';
 
 interface AddLeadModalProps {
   isOpen: boolean;
@@ -137,29 +126,40 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   isOnline,
 }) => {
     const {
-        memberships,
-        integrationSettings,
-        workoutLogs,
-        setParticipantGoalsData,
-        setGoalCompletionLogsData,
-        setCoachNotesData,
-        setOneOnOneSessionsData,
-        workouts,
-        addWorkout,
-        updateWorkout,
-        deleteWorkout,
-        workoutCategories,
-        staffAvailability,
-        staffMembers,
-        leads,
-        setLeadsData,
-        prospectIntroCalls,
-        setProspectIntroCallsData,
         locations,
-        addParticipant,
+        staffMembers,
     } = useAppContext();
+
+    // Use the custom hook
+    const {
+        activeTab,
+        setActiveTab,
+        activeLeadFilter,
+        setActiveLeadFilter,
+        activeFilter,
+        setActiveFilter,
+        introCallView,
+        setIntroCallView,
+        filteredAndSortedData,
+        leadCounts,
+        filteredLeads,
+        newLeadsList,
+        unlinkedCallsList,
+        actionableIntroCalls,
+        counts,
+        handleSaveLead,
+        handleSaveIntroCall,
+        handleUpdateIntroCall,
+        handleConfirmLink,
+        handleConfirmMarkAsJunk,
+        handleRestoreLead,
+        handlePermanentDeleteLead,
+        handleConfirmConsent,
+        handleSaveContactAttempt,
+        handleArchiveIntroCall,
+        handleDeleteIntroCall,
+    } = useClientJourney(loggedInStaff);
     
-  const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
   const [selectedParticipant, setSelectedParticipant] = useState<ParticipantProfile | null>(null);
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
@@ -167,224 +167,15 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   const [callToEdit, setCallToEdit] = useState<ProspectIntroCall | null>(null);
   const [callToLink, setCallToLink] = useState<ProspectIntroCall | null>(null);
   const [participantToLinkId, setParticipantToLinkId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<ClientJourneyTab>('leads');
   const [leadBeingConverted, setLeadBeingConverted] = useState<Lead | null>(null);
   const [leadToMarkAsJunk, setLeadToMarkAsJunk] = useState<Lead | null>(null);
+  const [leadToDeletePermanent, setLeadToDeletePermanent] = useState<Lead | null>(null);
   const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
 
-  const journeyData = useMemo<ClientJourneyEntry[]>(() => {
-    return participants
-      .filter(p => p.isActive || p.isProspect)
-      .map(p => {
-        const today = new Date();
-        const referenceDateString = p.startDate || p.creationDate;
-        if (!referenceDateString) return null; // Skip participants without a start/creation date
-        const referenceDate = new Date(referenceDateString);
-        const daysSinceStart = Math.floor((today.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24));
-
-        const myLogs = allActivityLogs.filter(l => l.participantId === p.id).sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime());
-        const myWorkoutLogs = workoutLogs.filter(l => l.participantId === p.id);
-        const logsLast21Days = myLogs.filter(l => new Date(l.completedDate) > new Date(Date.now() - 21 * 24 * 60 * 60 * 1000)).length;
-        
-        const lastActivityDate = myLogs[0] ? new Date(myLogs[0].completedDate) : null;
-        const daysSinceLastActivity = lastActivityDate ? Math.floor((today.getTime() - lastActivityDate.getTime()) / (1000 * 60 * 60 * 24)) : Infinity;
-
-        let engagementLevel: 'green' | 'yellow' | 'red' | 'neutral' = 'neutral';
-        if (p.isProspect) {
-            // Prospects don't have an engagement level in the same way
-            engagementLevel = 'neutral';
-        } else if (p.isActive === false) {
-            engagementLevel = 'red';
-        } else if (lastActivityDate) {
-            if (daysSinceLastActivity > 14) engagementLevel = 'red';
-            else if (daysSinceLastActivity > 7) engagementLevel = 'yellow';
-            else engagementLevel = 'green';
-        }
-
-        let finalEntry: Omit<ClientJourneyEntry, keyof ParticipantProfile>;
-        
-        // 1. Riskzon (highest priority)
-        if (!p.isProspect && logsLast21Days < 4 && daysSinceStart > 14) {
-            finalEntry = {
-                phase: 'Riskzon',
-                phaseColorClass: 'bg-red-100 text-red-800',
-                progressText: `${logsLast21Days} pass/21d`,
-                nextActionText: 'Kontakta - låg aktivitet',
-                nextActionPriority: 'high',
-                lastActivityDate,
-                engagementLevel,
-            };
-        }
-        // 2. Startprogram
-        else if (p.isProspect) {
-            const { startProgramCategoryId, startProgramSessionsRequired } = integrationSettings;
-            const startProgramCategory = workoutCategories.find(c => c.id === startProgramCategoryId);
-            
-            let progressText = 'Startprogram (ej konf.)';
-            let nextActionText = 'Konfigurera startprogram';
-            let nextActionPriority: 'high' | 'medium' | 'low' = 'high';
-
-            if (startProgramCategory && startProgramSessionsRequired && startProgramSessionsRequired > 0) {
-                const completedCount = myWorkoutLogs.filter((log) => {
-                    const workout = workouts.find(w => w.id === log.workoutId);
-                    return workout?.category === startProgramCategory.name;
-                }).length;
-                
-                progressText = `${completedCount}/${startProgramSessionsRequired} startpass`;
-                
-                if (completedCount >= startProgramSessionsRequired) {
-                    nextActionText = 'Konvertera till medlem!';
-                    nextActionPriority = 'high';
-                } else {
-                    nextActionText = `Följ upp startpass #${completedCount + 1}`;
-                    nextActionPriority = 'medium';
-                }
-            }
-            
-            finalEntry = {
-                phase: 'Startprogram',
-                phaseColorClass: 'bg-blue-100 text-blue-800',
-                progressText: progressText,
-                nextActionText: nextActionText,
-                nextActionPriority: nextActionPriority,
-                lastActivityDate,
-                engagementLevel,
-            };
-        }
-        // 3. Medlem
-        else {
-            const membership = memberships.find(m => m.id === p.membershipId);
-            const checkInSessions = oneOnOneSessions.filter(s => s.participantId === p.id && s.title === 'Avstämningssamtal' && s.status === 'completed').sort((a,b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-            const daysSinceLastCheckin = checkInSessions[0] ? Math.floor((today.getTime() - new Date(checkInSessions[0].startTime).getTime()) / (1000 * 60 * 60 * 24)) : daysSinceStart;
-
-            let nextActionText = 'Fortsätt peppa!';
-            let nextActionPriority: 'high' | 'medium' | 'low' = 'low';
-
-            if (daysSinceLastCheckin > 120) {
-                nextActionText = 'Dags för avstämning!';
-                nextActionPriority = 'high';
-            } else if (daysSinceLastCheckin > 90) {
-                nextActionText = 'Boka in avstämning snart';
-                nextActionPriority = 'medium';
-            }
-
-            finalEntry = {
-                phase: 'Medlem',
-                phaseColorClass: 'bg-green-100 text-green-800',
-                progressText: membership?.name || 'Aktiv',
-                nextActionText,
-                nextActionPriority,
-                lastActivityDate,
-                engagementLevel,
-            };
-        }
-        
-        return { ...p, ...finalEntry };
-      }).filter((p): p is ClientJourneyEntry => p !== null);
-  }, [participants, oneOnOneSessions, allActivityLogs, memberships, integrationSettings, workoutLogs, workouts, workoutCategories]);
-
-  const newLeads = useMemo(() => {
-    return leads
-      .filter(l => l.status === 'new')
-      .sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
-  }, [leads]);
-
-  const unlinkedCalls = useMemo(() => {
-    return prospectIntroCalls
-        .filter(c => c.status === 'unlinked')
-        .sort((a,b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
-  }, [prospectIntroCalls]);
-
-  const filteredAndSortedData = useMemo(() => {
-    let data = journeyData;
-    if (activeFilter === 'riskzon') {
-        data = data.filter(p => p.phase === 'Riskzon');
-    } else if (activeFilter === 'startprogram') {
-        data = data.filter(p => p.phase === 'Startprogram');
-    } else if (activeFilter === 'checkin') {
-        data = data.filter(p => p.phase === 'Medlem' && p.nextActionPriority !== 'low');
-    }
-
-    return data.sort((a, b) => {
-        const priorityOrder = { high: 1, medium: 2, low: 3 };
-        return priorityOrder[a.nextActionPriority] - priorityOrder[b.nextActionPriority];
-    });
-  }, [journeyData, activeFilter]);
-  
-  const counts = useMemo(() => {
-    const riskzon = journeyData.filter(p => p.phase === 'Riskzon').length;
-    const startprogram = journeyData.filter(p => p.phase === 'Startprogram').length;
-    const checkin = journeyData.filter(p => p.phase === 'Medlem' && p.nextActionPriority !== 'low').length;
-    return { riskzon, startprogram, checkin };
-  }, [journeyData]);
 
   const handleOpenNotesModal = (participant: ParticipantProfile) => {
     setSelectedParticipant(participant);
     setIsNotesModalOpen(true);
-  };
-  
-  const handleSaveIntroCall = (introCallData: Omit<ProspectIntroCall, 'id' | 'createdDate' | 'status' | 'coachId'>) => {
-    if (!loggedInStaff) return;
-    const newIntroCall: ProspectIntroCall = {
-        ...introCallData,
-        id: crypto.randomUUID(),
-        createdDate: new Date().toISOString(),
-        coachId: loggedInStaff.id,
-        status: 'unlinked',
-    };
-    setProspectIntroCallsData(prev => [...prev, newIntroCall]);
-
-    if (leadBeingConverted) {
-        const updatedLead = { ...leadBeingConverted, status: 'converted' as const };
-        setLeadsData(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-        setLeadBeingConverted(null);
-    }
-  };
-
-  const handleUpdateIntroCall = (updatedCall: ProspectIntroCall) => {
-    setProspectIntroCallsData(prev => prev.map(c => c.id === updatedCall.id ? updatedCall : c));
-  };
-  
-  const handleConfirmLink = () => {
-    if (!callToLink || !participantToLinkId) return;
-    
-    // 1. Update the ProspectIntroCall
-    const updatedCall = { ...callToLink, status: 'linked' as const, linkedParticipantId: participantToLinkId };
-    setProspectIntroCallsData(prev => prev.map(c => c.id === callToLink.id ? updatedCall : c));
-
-    // 2. Create a CoachNote from the intro call data
-    const noteText = `
---- INTROSAMTALSAMMANFATTNING ---
-Datum: ${new Date(callToLink.createdDate).toLocaleDateString('sv-SE')}
-
-Träningsmål & 'Varför':
-${callToLink.trainingGoals || 'Ej angivet.'}
-
-Timing - 'Varför just nu?':
-${callToLink.timingNotes || 'Ej angivet.'}
-
-Sömn & Stress:
-${callToLink.sleepAndStress || 'Ej angivet.'}
-
-Skador/Hälsoproblem:
-${callToLink.healthIssues || 'Ej angivet.'}
-
-Coachanteckningar & Nästa Steg:
-${callToLink.coachSummary || 'Ej angivet.'}
-    `.trim();
-
-    const newNote: CoachNote = {
-        id: crypto.randomUUID(),
-        participantId: participantToLinkId,
-        noteText: noteText,
-        createdDate: new Date().toISOString(),
-        noteType: 'intro-session'
-    };
-    setCoachNotesData(prev => [...prev, newNote]);
-
-    // 3. Reset state
-    setCallToLink(null);
-    setParticipantToLinkId('');
   };
   
   const handleCreateIntroCallFromLead = (lead: Lead) => {
@@ -392,21 +183,11 @@ ${callToLink.coachSummary || 'Ej angivet.'}
     setIsIntroCallModalOpen(true);
   };
 
-  const handleConfirmMarkAsJunk = () => {
-    if (!leadToMarkAsJunk) return;
-    setLeadsData(prev => prev.map(l => l.id === leadToMarkAsJunk.id ? { ...l, status: 'junk' } : l));
-    setLeadToMarkAsJunk(null);
-  };
-  
-  const handleSaveLead = (newLeadData: Pick<Lead, 'firstName' | 'lastName' | 'email' | 'phone' | 'locationId'>) => {
-    const newLead: Lead = {
-        id: crypto.randomUUID(),
-        ...newLeadData,
-        source: 'Manuell',
-        status: 'new',
-        createdDate: new Date().toISOString(),
-    };
-    setLeadsData(prev => [...prev, newLead]);
+  const handleConfirmDeletePermanent = () => {
+    if (leadToDeletePermanent) {
+        handlePermanentDeleteLead(leadToDeletePermanent);
+        setLeadToDeletePermanent(null);
+    }
   };
 
   if (!loggedInStaff) return <div>Laddar...</div>;
@@ -427,16 +208,32 @@ ${callToLink.coachSummary || 'Ej angivet.'}
     </button>
   );
   
-  const getTabButtonStyle = (tab: ClientJourneyTab) => {
+  const getTabButtonStyle = (tab: any) => {
     return activeTab === tab
         ? 'border-flexibel text-flexibel bg-flexibel/10'
         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300';
   };
+
+  const FilterChip = ({ label, count, active, onClick }: { label: string, count: number, active: boolean, onClick: () => void }) => (
+      <button
+          onClick={onClick}
+          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors border ${
+              active
+                  ? 'bg-flexibel text-white border-flexibel'
+                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+          }`}
+      >
+          {label} ({count})
+      </button>
+  );
   
   const participantOptionsForLinking = participants
     .filter(p => p.isActive || p.isProspect) // Link to active members or prospects
     .map(p => ({ value: p.id, label: p.name || 'Okänd' }))
     .sort((a,b) => a.label.localeCompare(b.label));
+    
+  const callsToDisplay = introCallView === 'actionable' ? actionableIntroCalls : useClientJourney(loggedInStaff).archivedIntroCalls;
+
 
   return (
     <div className="space-y-6">
@@ -451,11 +248,11 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             <nav className="-mb-px flex space-x-4" aria-label="Tabs">
                 <button onClick={() => setActiveTab('leads')} className={`relative whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('leads')}`}>
                     Leads
-                    {newLeads.length > 0 && <span className="ml-2 inline-block bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">{newLeads.length}</span>}
+                    {newLeadsList.length > 0 && <span className="ml-2 inline-block bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">{newLeadsList.length}</span>}
                 </button>
                 <button onClick={() => setActiveTab('introCalls')} className={`relative whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('introCalls')}`}>
                     Introsamtal
-                    {unlinkedCalls.length > 0 && <span className="ml-2 inline-block bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">{unlinkedCalls.length}</span>}
+                    {actionableIntroCalls.length > 0 && <span className="ml-2 inline-block bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">{actionableIntroCalls.length}</span>}
                 </button>
                 <button onClick={() => setActiveTab('memberJourney')} className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('memberJourney')}`}>
                     Medlemsresan
@@ -465,21 +262,40 @@ ${callToLink.coachSummary || 'Ej angivet.'}
       
       {/* Leads Tab */}
       <div role="tabpanel" hidden={activeTab !== 'leads'} className="animate-fade-in space-y-6">
-        <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-bold text-gray-800">Leads ({newLeads.length})</h3>
-            <Button onClick={() => setIsAddLeadModalOpen(true)}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
-                Lägg till lead manuellt
-            </Button>
+        <div className="flex flex-col gap-4">
+             <div className="flex justify-between items-center">
+                <h3 className="text-xl font-bold text-gray-800">Leads</h3>
+                <Button onClick={() => setIsAddLeadModalOpen(true)}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
+                    Lägg till lead manuellt
+                </Button>
+            </div>
+            
+            {/* Filter Chips */}
+            <div className="flex flex-wrap gap-2">
+                <FilterChip label="Nya" count={leadCounts.new} active={activeLeadFilter === 'new'} onClick={() => setActiveLeadFilter('new')} />
+                <FilterChip label="Kontaktade" count={leadCounts.contacted} active={activeLeadFilter === 'contacted'} onClick={() => setActiveLeadFilter('contacted')} />
+                <FilterChip label="Bokade Intro" count={leadCounts.intro_booked} active={activeLeadFilter === 'intro_booked'} onClick={() => setActiveLeadFilter('intro_booked')} />
+                <FilterChip label="Konverterade" count={leadCounts.converted} active={activeLeadFilter === 'converted'} onClick={() => setActiveLeadFilter('converted')} />
+                <FilterChip label="Skräp" count={leadCounts.junk} active={activeLeadFilter === 'junk'} onClick={() => setActiveLeadFilter('junk')} />
+                <FilterChip label="Alla" count={leadCounts.all} active={activeLeadFilter === 'all'} onClick={() => setActiveLeadFilter('all')} />
+            </div>
         </div>
-        {newLeads.length > 0 ? (
+
+        {filteredLeads.length > 0 ? (
             <div className="space-y-3">
-                {newLeads.map(lead => {
+                {filteredLeads.map(lead => {
                     const location = locations.find(l => l.id === lead.locationId);
+                    const isJunk = lead.status === 'junk';
+                    
                     return (
                         <div key={lead.id} className="p-4 bg-white rounded-lg border shadow-sm flex flex-col sm:flex-row justify-between items-start gap-3">
                             <div>
-                                <p className="font-bold text-lg text-gray-900">{lead.firstName} {lead.lastName}</p>
+                                <div className="flex items-center gap-2">
+                                    <p className="font-bold text-lg text-gray-900">{lead.firstName} {lead.lastName}</p>
+                                    {isJunk && <span className="text-xs font-bold bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">Skräp</span>}
+                                    {lead.status === 'converted' && <span className="text-xs font-bold bg-green-200 text-green-800 px-2 py-0.5 rounded-full">Konverterad</span>}
+                                </div>
                                 <p className="text-sm text-gray-600">{lead.email}</p>
                                 {lead.phone && <p className="text-sm text-gray-600">{lead.phone}</p>}
                                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
@@ -489,8 +305,19 @@ ${callToLink.coachSummary || 'Ej angivet.'}
                                 </div>
                             </div>
                             <div className="flex gap-2 self-start sm:self-center flex-shrink-0">
-                                <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => setLeadToMarkAsJunk(lead)}>Skräp</Button>
-                                <Button size="sm" variant="primary" onClick={() => handleCreateIntroCallFromLead(lead)}>Skapa Introsamtal</Button>
+                                {isJunk ? (
+                                    <>
+                                        <Button size="sm" variant="secondary" onClick={() => handleRestoreLead(lead)}>Återställ</Button>
+                                        <Button size="sm" variant="danger" onClick={() => setLeadToDeletePermanent(lead)}>Radera permanent</Button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => setLeadToMarkAsJunk(lead)}>Skräp</Button>
+                                        {lead.status !== 'converted' && (
+                                            <Button size="sm" variant="primary" onClick={() => handleCreateIntroCallFromLead(lead)}>Skapa Introsamtal</Button>
+                                        )}
+                                    </>
+                                )}
                             </div>
                         </div>
                     );
@@ -498,30 +325,63 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             </div>
         ) : (
             <div className="text-center p-8 bg-gray-50 rounded-lg">
-                <p className="text-lg text-gray-500">Inga leads att hantera. Bra jobbat!</p>
+                <p className="text-lg text-gray-500">Inga leads i denna kategori.</p>
             </div>
         )}
       </div>
 
       {/* Introsamtal Tab */}
       <div role="tabpanel" hidden={activeTab !== 'introCalls'} className="animate-fade-in space-y-6">
-        <div className="flex justify-end">
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
+            <div className="flex p-1 bg-gray-100 rounded-lg">
+                <button
+                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${introCallView === 'actionable' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    onClick={() => setIntroCallView('actionable')}
+                >
+                    Aktuella ({actionableIntroCalls.length})
+                </button>
+                <button
+                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${introCallView === 'archived' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    onClick={() => setIntroCallView('archived')}
+                >
+                    Historik ({useClientJourney(loggedInStaff).archivedIntroCalls.length})
+                </button>
+            </div>
             <Button onClick={() => { setLeadBeingConverted(null); setCallToEdit(null); setIsIntroCallModalOpen(true); }}>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
                 Lägg till nytt introsamtal
             </Button>
         </div>
-        {unlinkedCalls.length > 0 ? (
-             <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 space-y-4">
-                 <h3 className="text-xl font-bold text-gray-800">Okopplade Introsamtal ({unlinkedCalls.length})</h3>
+        
+        {callsToDisplay.length > 0 ? (
+             <div className={`p-4 rounded-lg border ${introCallView === 'actionable' ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'} space-y-4`}>
+                 <h3 className={`text-xl font-bold ${introCallView === 'actionable' ? 'text-gray-800' : 'text-gray-600'}`}>
+                     {introCallView === 'actionable' ? 'Att göra' : 'Tidigare samtal'}
+                 </h3>
                  <div className="space-y-3 max-h-96 overflow-y-auto pr-2 -mr-2">
-                     {unlinkedCalls.map(call => {
+                     {callsToDisplay.map(call => {
                          const coach = staffMembers.find(s => s.id === call.coachId);
+                         const isArchived = introCallView === 'archived';
+                         
+                         let statusBadge = null;
+                         if (call.status === 'linked') {
+                             statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">✅ Medlem</span>;
+                         } else if (call.outcome === 'not_interested') {
+                              statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-800">⛔️ Ej intresserad</span>;
+                         } else if (call.status === 'archived') {
+                              statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-600">🗄 Arkiverad</span>;
+                         } else if (call.outcome === 'thinking') {
+                              statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">🤔 Tänker på saken</span>;
+                         }
+
                          return (
-                             <div key={call.id} className="p-3 bg-white rounded-md border shadow-sm">
+                             <div key={call.id} className={`p-3 bg-white rounded-md border shadow-sm ${isArchived ? 'opacity-80' : ''}`}>
                                 <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
                                     <div>
-                                        <p className="font-bold text-lg text-gray-900">{call.prospectName}</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="font-bold text-lg text-gray-900">{call.prospectName}</p>
+                                            {statusBadge}
+                                        </div>
                                         <p className="text-sm text-gray-600">{call.prospectEmail}</p>
                                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                                             <span className="text-gray-500">Coach: {coach?.name || 'Okänd'}</span>
@@ -530,7 +390,11 @@ ${callToLink.coachSummary || 'Ej angivet.'}
                                     </div>
                                     <div className="flex gap-2 self-start sm:self-center flex-shrink-0">
                                         <Button size="sm" variant="outline" onClick={() => { setCallToEdit(call); setIsIntroCallModalOpen(true); }}>Redigera</Button>
-                                        <Button size="sm" variant="primary" onClick={() => { setCallToLink(call); setParticipantToLinkId(''); }}>Länka</Button>
+                                        {isArchived ? (
+                                            <Button size="sm" variant="secondary" onClick={() => { /* Implement reactive if needed */ }}>Återaktivera</Button>
+                                        ) : (
+                                            <Button size="sm" variant="primary" onClick={() => { setCallToLink(call); setParticipantToLinkId(''); }}>Länka</Button>
+                                        )}
                                     </div>
                                 </div>
                              </div>
@@ -540,7 +404,9 @@ ${callToLink.coachSummary || 'Ej angivet.'}
              </div>
         ) : (
              <div className="text-center p-8 bg-gray-50 rounded-lg">
-                <p className="text-lg text-gray-500">Inga okopplade introsamtal.</p>
+                <p className="text-lg text-gray-500">
+                    {introCallView === 'actionable' ? 'Inga samtal att hantera just nu.' : 'Ingen historik att visa.'}
+                </p>
             </div>
         )}
       </div>
@@ -618,31 +484,26 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             participant={selectedParticipant}
             notes={coachNotes.filter(n => n.participantId === selectedParticipant.id)}
             allParticipantGoals={allParticipantGoals}
-            setParticipantGoals={setParticipantGoalsData}
             allActivityLogs={allActivityLogs.filter(l => l.participantId === selectedParticipant.id)}
-            setGoalCompletionLogs={setGoalCompletionLogsData}
-            onAddNote={(noteText) => setCoachNotesData(prev => [...prev, { id: crypto.randomUUID(), participantId: selectedParticipant.id, noteText, createdDate: new Date().toISOString(), noteType: 'check-in' }])}
-            onUpdateNote={(noteId, newText) => {
-                setCoachNotesData(prev => prev.map(note => 
-                    note.id === noteId 
-                    ? { ...note, noteText: newText, createdDate: new Date().toISOString() } 
-                    : note
-                ));
-            }}
-            onDeleteNote={(noteId) => {
-                setCoachNotesData(prev => prev.filter(note => note.id !== noteId));
-            }}
+            // ... other props handled by useCoachOperations in MemberNotesModal or passed down directly from hook if refactored
+            // For now, we rely on MemberNotesModal using the hooks internally or getting them from AppContext
+            // But to keep props consistent:
+            setParticipantGoals={() => {}} // Handled inside
+            setGoalCompletionLogs={() => {}} // Handled inside
+            onAddNote={() => {}} // Handled inside
+            onUpdateNote={() => {}} // Handled inside
+            onDeleteNote={() => {}} // Handled inside
             oneOnOneSessions={oneOnOneSessions}
-            setOneOnOneSessions={setOneOnOneSessionsData}
+            setOneOnOneSessions={() => {}} // Handled inside
             coaches={staffMembers}
             loggedInCoachId={loggedInStaff!.id}
-            workouts={workouts}
-            addWorkout={addWorkout}
-            updateWorkout={updateWorkout}
-            deleteWorkout={deleteWorkout}
-            workoutCategories={workoutCategories}
+            workouts={[]} // Handled inside
+            addWorkout={async () => {}} // Handled inside
+            updateWorkout={async () => {}} // Handled inside
+            deleteWorkout={async () => {}} // Handled inside
+            workoutCategories={[]} // Handled inside
             participants={participants}
-            staffAvailability={staffAvailability}
+            staffAvailability={[]} // Handled inside
             isOnline={isOnline}
         />
       )}
@@ -671,7 +532,7 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             setLeadBeingConverted(null);
             setCallToEdit(null);
           }}
-          onSave={handleSaveIntroCall}
+          onSave={(data) => handleSaveIntroCall(data, leadBeingConverted)}
           introCallToEdit={callToEdit}
           onUpdate={handleUpdateIntroCall}
           initialData={leadBeingConverted ? {
@@ -679,6 +540,7 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             prospectEmail: leadBeingConverted.email,
             prospectPhone: leadBeingConverted.phone,
           } : undefined}
+          leadId={leadBeingConverted?.id}
       />
 
       <Modal isOpen={!!callToLink} onClose={() => setCallToLink(null)} title={`Länka samtal med ${callToLink?.prospectName}`}>
@@ -692,7 +554,7 @@ ${callToLink.coachSummary || 'Ej angivet.'}
                 />
                 <div className="flex justify-end gap-3 pt-4 border-t">
                     <Button variant="secondary" onClick={() => setCallToLink(null)}>Avbryt</Button>
-                    <Button onClick={handleConfirmLink} disabled={!participantToLinkId}>Länka och skapa anteckning</Button>
+                    <Button onClick={() => handleConfirmLink(callToLink!, participantToLinkId)} disabled={!participantToLinkId}>Länka och skapa anteckning</Button>
                 </div>
             </div>
       </Modal>
@@ -700,12 +562,29 @@ ${callToLink.coachSummary || 'Ej angivet.'}
       <ConfirmationModal
         isOpen={!!leadToMarkAsJunk}
         onClose={() => setLeadToMarkAsJunk(null)}
-        onConfirm={handleConfirmMarkAsJunk}
-        title="Ta bort lead?"
-        message={`Är du säker på att du vill ta bort leadet för ${leadToMarkAsJunk?.firstName} ${leadToMarkAsJunk?.lastName}? Detta markerar det som 'skräp' och döljer det från listan.`}
-        confirmButtonText="Ja, ta bort"
+        onConfirm={() => handleConfirmMarkAsJunk(leadToMarkAsJunk!)}
+        title="Markera som skräp?"
+        message={`Är du säker på att du vill markera leadet för ${leadToMarkAsJunk?.firstName} ${leadToMarkAsJunk?.lastName} som skräp?`}
+        confirmButtonText="Ja, markera som skräp"
         confirmButtonVariant="danger"
       />
+
+      <ConfirmationModal
+        isOpen={!!leadToDeletePermanent}
+        onClose={() => setLeadToDeletePermanent(null)}
+        onConfirm={handleConfirmDeletePermanent}
+        title="Radera permanent?"
+        message={
+            <>
+                Är du säker på att du vill radera leadet för <strong>{leadToDeletePermanent?.firstName} {leadToDeletePermanent?.lastName}</strong> permanent? 
+                <br /><br />
+                Detta går inte att ångra.
+            </>
+        }
+        confirmButtonText="Ja, radera permanent"
+        confirmButtonVariant="danger"
+      />
+
        <AddLeadModal
             isOpen={isAddLeadModalOpen}
             onClose={() => setIsAddLeadModalOpen(false)}

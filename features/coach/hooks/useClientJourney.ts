@@ -207,8 +207,8 @@ export const useClientJourney = (loggedInStaff: StaffMember | null) => {
         counts[l.status]++;
       }
     });
-    // "All" now means "Active Leads" (excluding junk and converted)
-    counts.all = counts.new + counts.contacted + counts.intro_booked;
+    // "All" means "Active Leads" (excluding junk)
+    counts.all = counts.new + counts.contacted + counts.intro_booked + counts.converted;
     return counts;
   }, [leads]);
 
@@ -218,8 +218,10 @@ export const useClientJourney = (loggedInStaff: StaffMember | null) => {
     );
     
     if (activeLeadFilter === 'all') {
-      // Filter out Junk and Converted when 'all' (All Active) is selected
-      return sortedLeads.filter(l => ['new', 'contacted', 'intro_booked'].includes(l.status));
+      // Filter out Junk when 'all' (All Active) is selected
+      // Usually 'converted' are also filtered out from 'active' pipeline views, but prompt implied "Alla" includes converted?
+      // Let's stick to standard: All Active = New + Contacted + Intro Booked + Converted (basically everything except junk)
+      return sortedLeads.filter(l => l.status !== 'junk');
     }
     
     return sortedLeads.filter((l) => l.status === activeLeadFilter);
@@ -343,6 +345,14 @@ ${callToLink.coachSummary || 'Ej angivet.'}
   const handleConfirmMarkAsJunk = (leadToMarkAsJunk: Lead) => {
     setLeadsData((prev) => prev.map((l) => (l.id === leadToMarkAsJunk.id ? { ...l, status: 'junk' } : l)));
   };
+  
+  const handleRestoreLead = (lead: Lead) => {
+      setLeadsData((prev) => prev.map((l) => (l.id === lead.id ? { ...l, status: 'new' } : l)));
+  };
+
+  const handlePermanentDeleteLead = (lead: Lead) => {
+      setLeadsData((prev) => prev.filter((l) => l.id !== lead.id));
+  };
 
   const handleConfirmConsent = (leadToConfirmConsent: Lead) => {
     setLeadsData((prev) =>
@@ -355,7 +365,7 @@ ${callToLink.coachSummary || 'Ej angivet.'}
   };
   
   const handleArchiveIntroCall = (callId: string) => {
-    setProspectIntroCallsData(prev => prev.map(c => c.id === callId ? { ...c, status: 'archived' } : c));
+    setProspectIntroCallsData((prev) => prev.map(c => c.id === callId ? { ...c, status: 'archived' } : c));
   };
 
   const handleDeleteIntroCall = (callId: string) => {
@@ -385,6 +395,8 @@ ${callToLink.coachSummary || 'Ej angivet.'}
     handleUpdateIntroCall,
     handleConfirmLink,
     handleConfirmMarkAsJunk,
+    handleRestoreLead,
+    handlePermanentDeleteLead,
     handleConfirmConsent,
     handleSaveContactAttempt,
     handleArchiveIntroCall,
