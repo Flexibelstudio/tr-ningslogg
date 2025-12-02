@@ -46,6 +46,7 @@ interface ClientJourneyEntry extends ParticipantProfile {
 }
 
 type ClientJourneyTab = 'leads' | 'introCalls' | 'memberJourney';
+type LeadViewMode = 'current' | 'trash';
 
 interface AddLeadModalProps {
   isOpen: boolean;
@@ -170,8 +171,10 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   const [activeTab, setActiveTab] = useState<ClientJourneyTab>('leads');
   const [leadBeingConverted, setLeadBeingConverted] = useState<Lead | null>(null);
   const [leadToMarkAsJunk, setLeadToMarkAsJunk] = useState<Lead | null>(null);
+  const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
   const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
   const [introCallView, setIntroCallView] = useState<'actionable' | 'archived'>('actionable');
+  const [leadViewMode, setLeadViewMode] = useState<LeadViewMode>('current');
 
   const journeyData = useMemo<ClientJourneyEntry[]>(() => {
     return participants
@@ -284,30 +287,23 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
       }).filter((p): p is ClientJourneyEntry => p !== null);
   }, [participants, oneOnOneSessions, allActivityLogs, memberships, integrationSettings, workoutLogs, workouts, workoutCategories]);
 
-  const newLeads = useMemo(() => {
-    return leads
-      .filter(l => l.status === 'new')
-      .sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
-  }, [leads]);
+  const leadsToDisplay = useMemo(() => {
+      const sortedLeads = [...leads].sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
+      
+      if (leadViewMode === 'trash') {
+          return sortedLeads.filter(l => l.status === 'junk');
+      }
+      
+      return sortedLeads.filter(l => ['new', 'contacted', 'intro_booked'].includes(l.status));
+  }, [leads, leadViewMode]);
 
-  const actionableIntroCalls = useMemo(() => {
+  const newLeadsCount = useMemo(() => leads.filter(l => l.status === 'new').length, [leads]);
+
+  const unlinkedCalls = useMemo(() => {
     return prospectIntroCalls
-        .filter(c => {
-            // Include unlinked calls that are not explicitly marked as 'not_interested'
-            // and also 'thinking' outcomes.
-            const isActionableUnlinked = c.status === 'unlinked' && (c.outcome === undefined || c.outcome === 'bought_starter' || c.outcome === 'bought_other' || c.outcome === 'thinking');
-            return isActionableUnlinked;
-        })
+        .filter(c => c.status === 'unlinked')
         .sort((a,b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
   }, [prospectIntroCalls]);
-
-  const archivedIntroCalls = useMemo(() => {
-    return prospectIntroCalls
-        .filter(c => c.status === 'linked' || c.status === 'archived' || c.outcome === 'not_interested')
-        .sort((a,b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
-  }, [prospectIntroCalls]);
-
-  const callsToDisplay = introCallView === 'actionable' ? actionableIntroCalls : archivedIntroCalls;
 
   const filteredAndSortedData = useMemo(() => {
     let data = journeyData;
@@ -359,14 +355,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
     setProspectIntroCallsData(prev => prev.map(c => c.id === updatedCall.id ? updatedCall : c));
   };
   
-  const handleReactivateIntroCall = (callId: string) => {
-      setProspectIntroCallsData(prev => prev.map(c => 
-        c.id === callId 
-            ? { ...c, status: 'unlinked' as const, outcome: c.outcome === 'not_interested' ? undefined : c.outcome } 
-            : c
-      ));
-  };
-
   const handleConfirmLink = () => {
     if (!callToLink || !participantToLinkId) return;
     
@@ -418,6 +406,16 @@ ${callToLink.coachSummary || 'Ej angivet.'}
     if (!leadToMarkAsJunk) return;
     setLeadsData(prev => prev.map(l => l.id === leadToMarkAsJunk.id ? { ...l, status: 'junk' } : l));
     setLeadToMarkAsJunk(null);
+  };
+
+  const handleRestoreLead = (lead: Lead) => {
+      setLeadsData(prev => prev.map(l => l.id === lead.id ? { ...l, status: 'new' } : l));
+  };
+
+  const handleConfirmDeleteLead = () => {
+      if (!leadToDelete) return;
+      setLeadsData(prev => prev.filter(l => l.id !== leadToDelete.id));
+      setLeadToDelete(null);
   };
   
   const handleSaveLead = (newLeadData: Pick<Lead, 'firstName' | 'lastName' | 'email' | 'phone' | 'locationId'>) => {
@@ -473,11 +471,11 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             <nav className="-mb-px flex space-x-4" aria-label="Tabs">
                 <button onClick={() => setActiveTab('leads')} className={`relative whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('leads')}`}>
                     Leads
-                    {newLeads.length > 0 && <span className="ml-2 inline-block bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">{newLeads.length}</span>}
+                    {newLeadsCount > 0 && <span className="ml-2 inline-block bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">{newLeadsCount}</span>}
                 </button>
                 <button onClick={() => setActiveTab('introCalls')} className={`relative whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('introCalls')}`}>
                     Introsamtal
-                    {actionableIntroCalls.length > 0 && <span className="ml-2 inline-block bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">{actionableIntroCalls.length}</span>}
+                    {unlinkedCalls.length > 0 && <span className="ml-2 inline-block bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">{unlinkedCalls.length}</span>}
                 </button>
                 <button onClick={() => setActiveTab('memberJourney')} className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('memberJourney')}`}>
                     Medlemsresan
@@ -487,19 +485,33 @@ ${callToLink.coachSummary || 'Ej angivet.'}
       
       {/* Leads Tab */}
       <div role="tabpanel" hidden={activeTab !== 'leads'} className="animate-fade-in space-y-6">
-        <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-bold text-gray-800">Leads ({newLeads.length})</h3>
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
+            <div className="flex p-1 bg-gray-100 rounded-lg">
+                <button
+                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${leadViewMode === 'current' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    onClick={() => setLeadViewMode('current')}
+                >
+                    Aktuella
+                </button>
+                <button
+                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${leadViewMode === 'trash' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    onClick={() => setLeadViewMode('trash')}
+                >
+                    Papperskorg
+                </button>
+            </div>
             <Button onClick={() => setIsAddLeadModalOpen(true)}>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
                 Lägg till lead manuellt
             </Button>
         </div>
-        {newLeads.length > 0 ? (
+
+        {leadsToDisplay.length > 0 ? (
             <div className="space-y-3">
-                {newLeads.map(lead => {
+                {leadsToDisplay.map(lead => {
                     const location = locations.find(l => l.id === lead.locationId);
                     return (
-                        <div key={lead.id} className="p-4 bg-white rounded-lg border shadow-sm flex flex-col sm:flex-row justify-between items-start gap-3">
+                        <div key={lead.id} className={`p-4 rounded-lg border shadow-sm flex flex-col sm:flex-row justify-between items-start gap-3 ${leadViewMode === 'trash' ? 'bg-gray-50 border-gray-300 opacity-80' : 'bg-white'}`}>
                             <div>
                                 <p className="font-bold text-lg text-gray-900">{lead.firstName} {lead.lastName}</p>
                                 <p className="text-sm text-gray-600">{lead.email}</p>
@@ -511,8 +523,17 @@ ${callToLink.coachSummary || 'Ej angivet.'}
                                 </div>
                             </div>
                             <div className="flex gap-2 self-start sm:self-center flex-shrink-0">
-                                <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => setLeadToMarkAsJunk(lead)}>Skräp</Button>
-                                <Button size="sm" variant="primary" onClick={() => handleCreateIntroCallFromLead(lead)}>Skapa Introsamtal</Button>
+                                {leadViewMode === 'current' ? (
+                                    <>
+                                        <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => setLeadToMarkAsJunk(lead)}>Skräp</Button>
+                                        <Button size="sm" variant="primary" onClick={() => handleCreateIntroCallFromLead(lead)}>Skapa Introsamtal</Button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Button size="sm" variant="outline" onClick={() => handleRestoreLead(lead)}>Återställ</Button>
+                                        <Button size="sm" variant="danger" onClick={() => setLeadToDelete(lead)}>Radera permanent</Button>
+                                    </>
+                                )}
                             </div>
                         </div>
                     );
@@ -520,7 +541,9 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             </div>
         ) : (
             <div className="text-center p-8 bg-gray-50 rounded-lg">
-                <p className="text-lg text-gray-500">Inga leads att hantera. Bra jobbat!</p>
+                <p className="text-lg text-gray-500">
+                    {leadViewMode === 'current' ? 'Inga leads att hantera. Bra jobbat!' : 'Papperskorgen är tom.'}
+                </p>
             </div>
         )}
       </div>
@@ -533,13 +556,13 @@ ${callToLink.coachSummary || 'Ej angivet.'}
                     className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${introCallView === 'actionable' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     onClick={() => setIntroCallView('actionable')}
                 >
-                    Aktuella ({actionableIntroCalls.length})
+                    Aktuella
                 </button>
                 <button
                     className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${introCallView === 'archived' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     onClick={() => setIntroCallView('archived')}
                 >
-                    Historik ({archivedIntroCalls.length})
+                    Historik
                 </button>
             </div>
             <Button onClick={() => { setLeadBeingConverted(null); setCallToEdit(null); setIsIntroCallModalOpen(true); }}>
@@ -548,35 +571,19 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             </Button>
         </div>
         
-        {callsToDisplay.length > 0 ? (
+        {unlinkedCalls.length > 0 ? (
              <div className={`p-4 rounded-lg border ${introCallView === 'actionable' ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'} space-y-4`}>
                  <h3 className={`text-xl font-bold ${introCallView === 'actionable' ? 'text-gray-800' : 'text-gray-600'}`}>
                      {introCallView === 'actionable' ? 'Att göra' : 'Tidigare samtal'}
                  </h3>
                  <div className="space-y-3 max-h-96 overflow-y-auto pr-2 -mr-2">
-                     {callsToDisplay.map(call => {
+                     {unlinkedCalls.map(call => {
                          const coach = staffMembers.find(s => s.id === call.coachId);
-                         const isArchived = introCallView === 'archived';
-                         
-                         let statusBadge = null;
-                         if (call.status === 'linked') {
-                             statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">✅ Medlem</span>;
-                         } else if (call.outcome === 'not_interested') {
-                              statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-800">⛔️ Ej intresserad</span>;
-                         } else if (call.status === 'archived') {
-                              statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-600">🗄 Arkiverad</span>;
-                         } else if (call.outcome === 'thinking') {
-                              statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">🤔 Tänker på saken</span>;
-                         }
-
                          return (
-                             <div key={call.id} className={`p-3 bg-white rounded-md border shadow-sm ${isArchived ? 'opacity-80' : ''}`}>
+                             <div key={call.id} className="p-3 bg-white rounded-md border shadow-sm">
                                 <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
                                     <div>
-                                        <div className="flex items-center gap-2">
-                                            <p className="font-bold text-lg text-gray-900">{call.prospectName}</p>
-                                            {statusBadge}
-                                        </div>
+                                        <p className="font-bold text-lg text-gray-900">{call.prospectName}</p>
                                         <p className="text-sm text-gray-600">{call.prospectEmail}</p>
                                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                                             <span className="text-gray-500">Coach: {coach?.name || 'Okänd'}</span>
@@ -585,11 +592,7 @@ ${callToLink.coachSummary || 'Ej angivet.'}
                                     </div>
                                     <div className="flex gap-2 self-start sm:self-center flex-shrink-0">
                                         <Button size="sm" variant="outline" onClick={() => { setCallToEdit(call); setIsIntroCallModalOpen(true); }}>Redigera</Button>
-                                        {isArchived ? (
-                                            <Button size="sm" variant="secondary" onClick={() => handleReactivateIntroCall(call.id)}>Återaktivera</Button>
-                                        ) : (
-                                            <Button size="sm" variant="primary" onClick={() => { setCallToLink(call); setParticipantToLinkId(''); }}>Länka</Button>
-                                        )}
+                                        <Button size="sm" variant="primary" onClick={() => { setCallToLink(call); setParticipantToLinkId(''); }}>Länka</Button>
                                     </div>
                                 </div>
                              </div>
@@ -599,9 +602,7 @@ ${callToLink.coachSummary || 'Ej angivet.'}
              </div>
         ) : (
              <div className="text-center p-8 bg-gray-50 rounded-lg">
-                <p className="text-lg text-gray-500">
-                    {introCallView === 'actionable' ? 'Inga samtal att hantera just nu.' : 'Ingen historik att visa.'}
-                </p>
+                <p className="text-lg text-gray-500">Inga introsamtal att visa.</p>
             </div>
         )}
       </div>
@@ -762,11 +763,22 @@ ${callToLink.coachSummary || 'Ej angivet.'}
         isOpen={!!leadToMarkAsJunk}
         onClose={() => setLeadToMarkAsJunk(null)}
         onConfirm={handleConfirmMarkAsJunk}
-        title="Ta bort lead?"
-        message={`Är du säker på att du vill ta bort leadet för ${leadToMarkAsJunk?.firstName} ${leadToMarkAsJunk?.lastName}? Detta markerar det som 'skräp' och döljer det från listan.`}
-        confirmButtonText="Ja, ta bort"
+        title="Markera som skräp?"
+        message={`Är du säker på att du vill flytta ${leadToMarkAsJunk?.firstName} till papperskorgen? Leadet kommer inte längre synas som aktuellt.`}
+        confirmButtonText="Ja, markera som skräp"
         confirmButtonVariant="danger"
       />
+
+      <ConfirmationModal
+        isOpen={!!leadToDelete}
+        onClose={() => setLeadToDelete(null)}
+        onConfirm={handleConfirmDeleteLead}
+        title="Radera lead permanent?"
+        message={`Är du säker på att du vill radera ${leadToDelete?.firstName} helt från systemet? Denna åtgärd kan inte ångras.`}
+        confirmButtonText="Ja, radera permanent"
+        confirmButtonVariant="danger"
+      />
+
        <AddLeadModal
             isOpen={isAddLeadModalOpen}
             onClose={() => setIsAddLeadModalOpen(false)}
