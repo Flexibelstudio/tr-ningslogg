@@ -244,9 +244,9 @@ export const ParticipantDashboardView: React.FC<ParticipantDashboardViewProps> =
                 />
             </div>
 
-            {/* Tools Grid - Bento style: 3 columns on desktop, 2 columns on mobile with spanning last item */}
+            {/* Tools Grid - Now consistent 3 columns */}
             <div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                     <ToolCard 
                         title="Styrka"
                         description="1RM & nivåer"
@@ -267,7 +267,6 @@ export const ParticipantDashboardView: React.FC<ParticipantDashboardViewProps> =
                         icon={<BodyIcon />}
                         onClick={() => onToolCardClick('physique')}
                         colorClass="bg-purple-500 text-purple-600"
-                        className="col-span-2 md:col-span-1"
                     />
                 </div>
             </div>
