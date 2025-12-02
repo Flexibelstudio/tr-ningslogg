@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { ParticipantProfile, OneOnOneSession, ActivityLog, StaffMember, CoachNote, ParticipantGoalData, WorkoutLog, Membership, ProspectIntroCall, Lead, Location, ContactAttempt } from '../../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { ParticipantProfile, OneOnOneSession, ActivityLog, StaffMember, CoachNote, ParticipantGoalData, WorkoutLog, Membership, ProspectIntroCall, Lead, Location } from '../../types';
 import { GoogleGenAI } from '@google/genai';
 import { Button } from '../Button';
 import { MemberNotesModal } from '../coach/MemberNotesModal';
@@ -8,15 +8,14 @@ import * as dateUtils from '../../utils/dateUtils';
 import { InfoModal } from '../participant/InfoModal';
 import { useAppContext } from '../../context/AppContext';
 import { IntroCallModal } from '../coach/IntroCallModal';
+// FIX: Corrected import path for useAuth
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../Modal';
 import { Select, Input } from '../Input';
 import { ConfirmationModal } from '../ConfirmationModal';
+import { useClientJourney } from '../../features/coach/hooks/useClientJourney';
 import { CONTACT_ATTEMPT_METHOD_OPTIONS, CONTACT_ATTEMPT_OUTCOME_OPTIONS } from '../../constants';
 import { Textarea } from '../Textarea';
-import { useClientJourney } from '../../features/coach/hooks/useClientJourney';
-
-type ClientJourneyTab = 'leads' | 'introCalls' | 'memberJourney';
 
 interface ClientJourneyViewProps {
   participants: ParticipantProfile[];
@@ -247,7 +246,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         handleSaveLead,
         handleSaveIntroCall,
         handleUpdateIntroCall,
-        handleConfirmLink,
+        handleConfirmLink: apiConfirmLink,
         handleConfirmMarkAsJunk,
         handleConfirmConsent,
         handleSaveContactAttempt,
@@ -315,6 +314,14 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
     if (callToDelete) {
         handleDeleteIntroCall(callToDelete.id);
         setCallToDelete(null);
+    }
+  };
+  
+  const handleConfirmLink = () => {
+    if (callToLink && participantToLinkId) {
+        apiConfirmLink(callToLink, participantToLinkId);
+        setCallToLink(null);
+        setParticipantToLinkId('');
     }
   };
 
