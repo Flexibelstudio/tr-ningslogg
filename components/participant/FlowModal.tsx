@@ -131,7 +131,6 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
             case 'COACH_EVENT':
                 return {
                     wrapper: 'bg-gradient-to-br from-flexibel to-teal-700 text-white shadow-lg border-none',
-                    iconBox: 'bg-white/20 text-white',
                     title: 'text-white',
                     meta: 'text-white/80',
                     desc: 'text-white/90',
@@ -145,7 +144,6 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
             case 'GOAL_COMPLETED':
                 return {
                     wrapper: 'bg-white border-amber-200 border-2 shadow-md',
-                    iconBox: 'bg-amber-100 text-amber-600',
                     title: 'text-gray-900',
                     meta: 'text-gray-500',
                     desc: 'text-gray-600',
@@ -157,7 +155,6 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
             default:
                 return {
                     wrapper: 'bg-white border-gray-100 border shadow-sm',
-                    iconBox: 'bg-blue-50 text-blue-600',
                     title: 'text-gray-900',
                     meta: 'text-gray-500',
                     desc: 'text-gray-600',
@@ -216,7 +213,7 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
             style={{ animation: `fadeInDown 0.5s ease-out ${index * 50}ms backwards` }}
         >
             {/* Header: Author & Time */}
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-3">
                     <Avatar name={item.authorName} photoURL={authorProfile?.photoURL} size="sm" className="border-2 border-white shadow-sm" />
                     <div className="flex flex-col">
@@ -224,56 +221,47 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
                         <span className={`text-xs ${styles.meta}`}>{formatRelativeTime(item.date).relative}</span>
                     </div>
                 </div>
-                {item.visibility && <span className={`text-xs ${styles.meta}`}>{item.visibility}</span>}
             </div>
 
-            {/* Content: Bento Box Style */}
-            <div className="flex items-start gap-4">
-                {/* Icon Box */}
-                <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-sm ${styles.iconBox}`}>
-                    {item.icon}
-                </div>
+            {/* Content - Simplified Layout without large icon */}
+            <div className="pl-1 pt-1">
+                <h3 className={`text-base font-bold leading-tight mb-1 ${styles.title}`}>{item.title}</h3>
+                {item.description && (
+                    <p className={`text-sm whitespace-pre-wrap leading-relaxed ${styles.desc}`}>{item.description}</p>
+                )}
+                
+                {/* Coach Event Link */}
+                {coachEvent?.linkUrl && (
+                        <a 
+                        href={coachEvent.linkUrl.startsWith('http') ? coachEvent.linkUrl : `https://${coachEvent.linkUrl}`}
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="inline-block mt-3"
+                    >
+                        <Button size="sm" variant={styles.isHero ? 'outline' : 'primary'} className={styles.isHero ? 'bg-white text-teal-700 border-white hover:bg-gray-100' : ''}>
+                            {coachEvent.linkButtonText || 'Läs mer'}
+                        </Button>
+                    </a>
+                )}
+                
+                    {/* Action Button (e.g. Friend Booking) */}
+                    {item.action && (
+                    <div className="mt-3">
+                        <Button size="sm" onClick={item.action.onClick}>{item.action.label}</Button>
+                    </div>
+                )}
 
-                {/* Main Text */}
-                <div className="flex-grow min-w-0 pt-0.5">
-                    <h3 className={`text-base font-bold leading-tight mb-1 ${styles.title}`}>{item.title}</h3>
-                    {item.description && (
-                        <p className={`text-sm whitespace-pre-wrap leading-relaxed ${styles.desc}`}>{item.description}</p>
-                    )}
-                    
-                    {/* Coach Event Link */}
-                    {coachEvent?.linkUrl && (
-                         <a 
-                            href={coachEvent.linkUrl.startsWith('http') ? coachEvent.linkUrl : `https://${coachEvent.linkUrl}`}
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="inline-block mt-3"
-                        >
-                            <Button size="sm" variant={styles.isHero ? 'outline' : 'primary'} className={styles.isHero ? 'bg-white text-teal-700 border-white hover:bg-gray-100' : ''}>
-                                {coachEvent.linkButtonText || 'Läs mer'}
-                            </Button>
-                        </a>
-                    )}
-                    
-                     {/* Action Button (e.g. Friend Booking) */}
-                     {item.action && (
-                        <div className="mt-3">
-                            <Button size="sm" onClick={item.action.onClick}>{item.action.label}</Button>
-                        </div>
-                    )}
-
-                    {/* Praise Items (PBs etc) */}
-                    {item.praiseItems && item.praiseItems.length > 0 && (
-                        <div className="mt-3 space-y-2">
-                            {item.praiseItems.map((praise, i) => (
-                                <div key={i} className="flex items-start gap-2 text-sm bg-white/50 p-2 rounded-lg">
-                                    <span>{praise.icon}</span>
-                                    <span className="font-medium text-gray-700">{praise.text}</span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                {/* Praise Items (PBs etc) */}
+                {item.praiseItems && item.praiseItems.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                        {item.praiseItems.map((praise, i) => (
+                            <div key={i} className="flex items-start gap-2 text-sm bg-white/50 p-2 rounded-lg">
+                                <span>{praise.icon}</span>
+                                <span className="font-medium text-gray-700">{praise.text}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Footer: Social Actions */}
