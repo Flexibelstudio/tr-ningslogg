@@ -105,14 +105,12 @@ interface FlowItemCardProps {
 
 const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, currentUserId, allParticipants, onToggleReaction, onAddComment, onDeleteComment, onToggleCommentReaction }) => {
     const [isLikesExpanded, setIsLikesExpanded] = useState(false);
-    const [showComments, setShowComments] = useState(false);
     
     // Helper to get author profile image
     const authorProfile = allParticipants.find(p => p.id === item.authorId);
     
     const allReactions = ((item.log as any)?.reactions || []) as Reaction[];
     const comments = (item.log as any)?.comments || [];
-    const hasComments = comments.length > 0;
 
     const reactionNames = useMemo(() => {
         if (!allReactions.length) return [];
@@ -206,8 +204,6 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
                     {/* Content */}
                     <div>
                         <div className="flex items-start gap-1.5">
-                            {/* Small Inline Icon */}
-                            <span className="text-lg leading-snug mt-px">{item.icon}</span>
                             <div className="flex-1">
                                 <p className={`text-base font-bold leading-snug ${textTitleClass}`}>
                                     {item.title}
@@ -222,7 +218,7 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
 
                         {/* Coach Link */}
                         {coachEvent?.linkUrl && (
-                            <div className="mt-3 pl-6">
+                            <div className="mt-3">
                                 <a 
                                     href={coachEvent.linkUrl.startsWith('http') ? coachEvent.linkUrl : `https://${coachEvent.linkUrl}`}
                                     target="_blank" 
@@ -238,14 +234,14 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
 
                         {/* Action Button */}
                         {item.action && (
-                             <div className="mt-3 pl-6">
+                             <div className="mt-3">
                                 <Button size="sm" onClick={item.action.onClick}>{item.action.label}</Button>
                             </div>
                         )}
 
                         {/* Praise Items (PBs, etc.) */}
                         {item.praiseItems && item.praiseItems.length > 0 && (
-                            <div className="mt-3 pl-6 space-y-1.5">
+                            <div className="mt-3 space-y-1.5">
                                 {item.praiseItems.map((praise, i) => (
                                     <div key={i} className={`flex items-center gap-2 text-xs py-1.5 px-3 rounded-lg w-fit ${isCoachEvent ? 'bg-white/20 text-white' : 'bg-yellow-50 text-yellow-900 border border-yellow-100'}`}>
                                         <span className="text-sm">{praise.icon}</span>
@@ -261,50 +257,41 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
             {/* Footer */}
             {item.log && item.logType && !isUserNotification && (
                 <div className={`mt-3 pt-3 border-t ${dividerClass} relative z-10`}>
-                    <div className="flex items-center justify-between">
-                        {renderReactions()}
-                        
-                        <button 
-                            onClick={() => setShowComments(!showComments)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${actionBtnClass}`}
-                        >
-                            <span className="text-base">💬</span>
-                            {hasComments ? <span className="font-bold">{comments.length}</span> : <span className="text-xs font-medium opacity-80">Kommentera</span>}
-                        </button>
-                    </div>
-
-                    {/* Likers Text */}
-                    {reactionNames.length > 0 && (
-                        <button 
-                            onClick={() => setIsLikesExpanded(!isLikesExpanded)}
-                            className={`mt-2 text-xs hover:underline text-left block ${textTimeClass}`}
-                        >
-                            {isLikesExpanded 
-                                ? reactionNames.join(', ') 
-                                : (reactionNames.length === 1
-                                    ? `${reactionNames[0]} gillar detta`
-                                    : `${reactionNames[0]} och ${reactionNames.length - 1} till gillar detta`)
-                            }
-                        </button>
-                    )}
-
-                    {/* Comments */}
-                    {showComments && (
-                        <div className="mt-3 animate-fade-in">
-                             <CommentSection
-                                logId={item.log.id}
-                                logType={item.logType}
-                                comments={comments}
-                                currentUserId={currentUserId}
-                                onAddComment={onAddComment}
-                                onDeleteComment={onDeleteComment}
-                                onToggleCommentReaction={onToggleCommentReaction}
-                                readOnly={false}
-                                className={isCoachEvent ? "bg-white/10 rounded-xl p-2 text-white placeholder-white/70" : "bg-gray-50 rounded-xl p-2"}
-                                isDarkBackground={isCoachEvent}
-                            />
+                    <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                            {renderReactions()}
                         </div>
-                    )}
+
+                        {/* Likers Text */}
+                        {reactionNames.length > 0 && (
+                            <button 
+                                onClick={() => setIsLikesExpanded(!isLikesExpanded)}
+                                className={`text-xs hover:underline text-left block ${textTimeClass}`}
+                            >
+                                {isLikesExpanded 
+                                    ? reactionNames.join(', ') 
+                                    : (reactionNames.length === 1
+                                        ? `${reactionNames[0]} gillar detta`
+                                        : `${reactionNames[0]} och ${reactionNames.length - 1} till gillar detta`)
+                                }
+                            </button>
+                        )}
+                        
+                        {/* Comments Section (Always Visible) */}
+                        <CommentSection
+                            logId={item.log.id}
+                            logType={item.logType}
+                            comments={comments}
+                            currentUserId={currentUserId}
+                            onAddComment={onAddComment}
+                            onDeleteComment={onDeleteComment}
+                            onToggleCommentReaction={onToggleCommentReaction}
+                            readOnly={false}
+                            inputClassName={isCoachEvent ? "bg-white/20 text-white placeholder-white/60 border-white/30 focus:bg-white/30 focus:ring-white" : "bg-white"}
+                            containerClassName="mt-1"
+                            isDarkBackground={isCoachEvent}
+                        />
+                    </div>
                 </div>
             )}
         </div>
