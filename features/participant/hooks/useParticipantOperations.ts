@@ -87,7 +87,11 @@ export const useParticipantOperations = (currentParticipantId: string) => {
         }
     
         if (newStatus === 'BOOKED') {
-          addNotification({ type: 'SUCCESS', title: 'Bokning Lyckades!', message: `Du är nu bokad på ${classDef?.name} den ${new Date(classDate).toLocaleDateString('sv-SE')}.` });
+          const dateObj = new Date(classDate);
+          const niceDate = dateObj.toLocaleDateString('sv-SE', { weekday: 'short', day: 'numeric', month: 'short' });
+          const time = schedule.startTime;
+
+          addNotification({ type: 'SUCCESS', title: 'Bokning Lyckades!', message: `Du är nu bokad på ${classDef?.name} ${niceDate} kl ${time}.` });
           setParticipantDirectoryData(prev => prev.map(p => {
             if (p.id !== participantId) return p;
             const m = memberships.find(m => m.id === p.membershipId);
@@ -106,21 +110,28 @@ export const useParticipantOperations = (currentParticipantId: string) => {
              }
 
              // 2. In-App Feed Notification (Synthetic/Mock DB approach for immediate UI update)
+             // Filter out friends who are ALREADY booked on this specific class instance
+             const alreadyBookedParticipantIds = new Set(
+                 participantBookings
+                    .filter(b => b.scheduleId === scheduleId && b.classDate === classDate && (b.status === 'BOOKED' || b.status === 'CHECKED-IN'))
+                    .map(b => b.participantId)
+             );
+
              const acceptedFriends = connections.filter(conn => 
                  conn.status === 'accepted' && 
                  (conn.requesterId === participantId || conn.receiverId === participantId)
              );
              
-             const friendIds = acceptedFriends.map(conn => 
-                 conn.requesterId === participantId ? conn.receiverId : conn.requesterId
-             );
+             const friendIdsToNotify = acceptedFriends
+                 .map(conn => conn.requesterId === participantId ? conn.receiverId : conn.requesterId)
+                 .filter(friendId => !alreadyBookedParticipantIds.has(friendId)); // Exclude if already booked
 
-             const newNotifications: UserNotification[] = friendIds.map(friendId => ({
+             const newNotifications: UserNotification[] = friendIdsToNotify.map(friendId => ({
                  id: crypto.randomUUID(),
                  recipientId: friendId,
                  type: 'FRIEND_BOOKING',
                  title: `${bookerProfile.name?.split(' ')[0]} ska träna!`,
-                 body: `${bookerProfile.name?.split(' ')[0]} har bokat ${classDef?.name} den ${new Date(classDate).toLocaleDateString('sv-SE')}. Haka på!`,
+                 body: `${bookerProfile.name?.split(' ')[0]} har bokat ${classDef?.name} ${niceDate} kl ${time}. Haka på!`,
                  relatedScheduleId: scheduleId,
                  relatedClassDate: classDate,
                  createdAt: new Date().toISOString(),
@@ -204,12 +215,16 @@ export const useParticipantOperations = (currentParticipantId: string) => {
           if (promoted && classDef && schedule && authParticipantId !== promoted.id) {
              // Logic for notifying promoted user handled by backend/trigger usually, but simulated here
              // Add a notification for the promoted user
+             const dateObj = new Date(booking.classDate);
+             const niceDate = dateObj.toLocaleDateString('sv-SE', { weekday: 'short', day: 'numeric', month: 'short' });
+             const time = schedule.startTime;
+
              const promotionNotification: UserNotification = {
                 id: crypto.randomUUID(),
                 recipientId: promoted.id,
                 type: 'WAITLISTED_PROMOTION' as any, // Casting as any to avoid strict type error if type def not fully updated everywhere yet, but added to types/user.ts
                 title: 'Du har fått en plats!',
-                body: `Du har flyttats från kön och har nu en plats på ${classDef.name} den ${new Date(booking.classDate).toLocaleDateString('sv-SE')}.`,
+                body: `Du har flyttats från kön och har nu en plats på ${classDef.name} ${niceDate} kl ${time}.`,
                 relatedScheduleId: schedule.id,
                 relatedClassDate: booking.classDate,
                 createdAt: new Date().toISOString(),

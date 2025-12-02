@@ -139,6 +139,7 @@ export const useCoachOperations = () => {
         const schedule = groupClassSchedules.find(s => s.id === scheduleId);
         const classDef = groupClassDefinitions.find(d => d.id === schedule?.groupClassId);
         const className = classDef?.name || 'Passet';
+        const time = schedule?.startTime || '';
         
         // Find affected bookings (Booked, Checked-in, Waitlisted)
         const affectedBookings = participantBookings.filter(b => 
@@ -146,13 +147,16 @@ export const useCoachOperations = () => {
             b.classDate === classDate && 
             ['BOOKED', 'CHECKED-IN', 'WAITLISTED'].includes(b.status)
         );
+        
+        const dateObj = new Date(classDate);
+        const niceDate = dateObj.toLocaleDateString('sv-SE', { weekday: 'short', day: 'numeric', month: 'short' });
 
         const newNotifications: UserNotification[] = affectedBookings.map(booking => ({
             id: crypto.randomUUID(),
             recipientId: booking.participantId,
             type: 'CLASS_CANCELLED',
             title: `Pass inställt: ${className}`,
-            body: `Tyvärr har passet ${className} den ${new Date(classDate).toLocaleDateString('sv-SE')} ställts in.`,
+            body: `Tyvärr har passet ${className} ${niceDate} kl ${time} ställts in.`,
             relatedScheduleId: scheduleId,
             relatedClassDate: classDate,
             createdAt: new Date().toISOString(),
