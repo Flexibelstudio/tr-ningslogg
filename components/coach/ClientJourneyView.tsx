@@ -171,7 +171,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   const [leadBeingConverted, setLeadBeingConverted] = useState<Lead | null>(null);
   const [leadToMarkAsJunk, setLeadToMarkAsJunk] = useState<Lead | null>(null);
   const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
-  const [introCallView, setIntroCallView] = useState<'actionable' | 'archived'>('actionable');
 
   const journeyData = useMemo<ClientJourneyEntry[]>(() => {
     return participants
@@ -219,7 +218,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         // 2. Startprogram
         else if (p.isProspect) {
             const { startProgramCategoryId, startProgramSessionsRequired } = integrationSettings;
-            const startProgramCategory = workoutCategories.find((c) => c.id === startProgramCategoryId);
+            const startProgramCategory = workoutCategories.find(c => c.id === startProgramCategoryId);
             
             let progressText = 'Startprogram (ej konf.)';
             let nextActionText = 'Konfigurera startprogram';
@@ -290,24 +289,11 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
       .sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
   }, [leads]);
 
-  const actionableIntroCalls = useMemo(() => {
+  const unlinkedCalls = useMemo(() => {
     return prospectIntroCalls
-        .filter(c => {
-            // Include unlinked calls that are not explicitly marked as 'not_interested'
-            // and also 'thinking' outcomes.
-            const isActionableUnlinked = c.status === 'unlinked' && (c.outcome === undefined || c.outcome === 'bought_starter' || c.outcome === 'bought_other' || c.outcome === 'thinking');
-            return isActionableUnlinked;
-        })
+        .filter(c => c.status === 'unlinked')
         .sort((a,b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
   }, [prospectIntroCalls]);
-
-  const archivedIntroCalls = useMemo(() => {
-    return prospectIntroCalls
-        .filter(c => c.status === 'linked' || c.status === 'archived' || c.outcome === 'not_interested')
-        .sort((a,b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
-  }, [prospectIntroCalls]);
-
-  const callsToDisplay = introCallView === 'actionable' ? actionableIntroCalls : archivedIntroCalls;
 
   const filteredAndSortedData = useMemo(() => {
     let data = journeyData;
@@ -359,14 +345,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
     setProspectIntroCallsData(prev => prev.map(c => c.id === updatedCall.id ? updatedCall : c));
   };
   
-  const handleReactivateIntroCall = (callId: string) => {
-      setProspectIntroCallsData(prev => prev.map(c => 
-        c.id === callId 
-            ? { ...c, status: 'unlinked' as const, outcome: c.outcome === 'not_interested' ? undefined : c.outcome } 
-            : c
-      ));
-  };
-
   const handleConfirmLink = () => {
     if (!callToLink || !participantToLinkId) return;
     
@@ -477,7 +455,7 @@ ${callToLink.coachSummary || 'Ej angivet.'}
                 </button>
                 <button onClick={() => setActiveTab('introCalls')} className={`relative whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('introCalls')}`}>
                     Introsamtal
-                    {actionableIntroCalls.length > 0 && <span className="ml-2 inline-block bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">{actionableIntroCalls.length}</span>}
+                    {unlinkedCalls.length > 0 && <span className="ml-2 inline-block bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">{unlinkedCalls.length}</span>}
                 </button>
                 <button onClick={() => setActiveTab('memberJourney')} className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('memberJourney')}`}>
                     Medlemsresan
@@ -527,56 +505,23 @@ ${callToLink.coachSummary || 'Ej angivet.'}
 
       {/* Introsamtal Tab */}
       <div role="tabpanel" hidden={activeTab !== 'introCalls'} className="animate-fade-in space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
-            <div className="flex p-1 bg-gray-100 rounded-lg">
-                <button
-                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${introCallView === 'actionable' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                    onClick={() => setIntroCallView('actionable')}
-                >
-                    Aktuella ({actionableIntroCalls.length})
-                </button>
-                <button
-                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${introCallView === 'archived' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                    onClick={() => setIntroCallView('archived')}
-                >
-                    Historik ({archivedIntroCalls.length})
-                </button>
-            </div>
+        <div className="flex justify-end">
             <Button onClick={() => { setLeadBeingConverted(null); setCallToEdit(null); setIsIntroCallModalOpen(true); }}>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
                 Lägg till nytt introsamtal
             </Button>
         </div>
-        
-        {callsToDisplay.length > 0 ? (
-             <div className={`p-4 rounded-lg border ${introCallView === 'actionable' ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'} space-y-4`}>
-                 <h3 className={`text-xl font-bold ${introCallView === 'actionable' ? 'text-gray-800' : 'text-gray-600'}`}>
-                     {introCallView === 'actionable' ? 'Att göra' : 'Tidigare samtal'}
-                 </h3>
+        {unlinkedCalls.length > 0 ? (
+             <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 space-y-4">
+                 <h3 className="text-xl font-bold text-gray-800">Okopplade Introsamtal ({unlinkedCalls.length})</h3>
                  <div className="space-y-3 max-h-96 overflow-y-auto pr-2 -mr-2">
-                     {callsToDisplay.map(call => {
+                     {unlinkedCalls.map(call => {
                          const coach = staffMembers.find(s => s.id === call.coachId);
-                         const isArchived = introCallView === 'archived';
-                         
-                         let statusBadge = null;
-                         if (call.status === 'linked') {
-                             statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">✅ Medlem</span>;
-                         } else if (call.outcome === 'not_interested') {
-                              statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-800">⛔️ Ej intresserad</span>;
-                         } else if (call.status === 'archived') {
-                              statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-600">🗄 Arkiverad</span>;
-                         } else if (call.outcome === 'thinking') {
-                              statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">🤔 Tänker på saken</span>;
-                         }
-
                          return (
-                             <div key={call.id} className={`p-3 bg-white rounded-md border shadow-sm ${isArchived ? 'opacity-80' : ''}`}>
+                             <div key={call.id} className="p-3 bg-white rounded-md border shadow-sm">
                                 <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
                                     <div>
-                                        <div className="flex items-center gap-2">
-                                            <p className="font-bold text-lg text-gray-900">{call.prospectName}</p>
-                                            {statusBadge}
-                                        </div>
+                                        <p className="font-bold text-lg text-gray-900">{call.prospectName}</p>
                                         <p className="text-sm text-gray-600">{call.prospectEmail}</p>
                                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                                             <span className="text-gray-500">Coach: {coach?.name || 'Okänd'}</span>
@@ -585,11 +530,7 @@ ${callToLink.coachSummary || 'Ej angivet.'}
                                     </div>
                                     <div className="flex gap-2 self-start sm:self-center flex-shrink-0">
                                         <Button size="sm" variant="outline" onClick={() => { setCallToEdit(call); setIsIntroCallModalOpen(true); }}>Redigera</Button>
-                                        {isArchived ? (
-                                            <Button size="sm" variant="secondary" onClick={() => handleReactivateIntroCall(call.id)}>Återaktivera</Button>
-                                        ) : (
-                                            <Button size="sm" variant="primary" onClick={() => { setCallToLink(call); setParticipantToLinkId(''); }}>Länka</Button>
-                                        )}
+                                        <Button size="sm" variant="primary" onClick={() => { setCallToLink(call); setParticipantToLinkId(''); }}>Länka</Button>
                                     </div>
                                 </div>
                              </div>
@@ -599,9 +540,7 @@ ${callToLink.coachSummary || 'Ej angivet.'}
              </div>
         ) : (
              <div className="text-center p-8 bg-gray-50 rounded-lg">
-                <p className="text-lg text-gray-500">
-                    {introCallView === 'actionable' ? 'Inga samtal att hantera just nu.' : 'Ingen historik att visa.'}
-                </p>
+                <p className="text-lg text-gray-500">Inga okopplade introsamtal.</p>
             </div>
         )}
       </div>
