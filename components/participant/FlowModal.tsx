@@ -23,21 +23,21 @@ import {
 } from '../../types';
 import { formatRelativeTime } from '../../utils/dateUtils';
 import { CLUB_DEFINITIONS, REACTION_EMOJIS, DEFAULT_COACH_EVENT_ICON } from '../../constants';
+import * as dateUtils from '../../utils/dateUtils';
 import { CommentSection } from './CommentSection';
+import { calculateFlexibelStrengthScoreInternal, getFssScoreInterpretation } from './StrengthComparisonTool';
 import { useAppContext } from '../../context/AppContext';
 import { getHighestClubAchievements } from '../../services/gamificationService';
 import { Button } from '../Button';
 import { useParticipantOperations } from '../../features/participant/hooks/useParticipantOperations';
-import { Avatar } from '../Avatar';
 
-// --- TYPES ---
+// --- NEW EXPANDED TYPES ---
 type FlowItemLog = WorkoutLog | GeneralActivityLog | CoachEvent | GoalCompletionLog | ParticipantClubMembership | UserStrengthStat | ParticipantPhysiqueStat | ParticipantGoalData | ParticipantConditioningStat | UserNotification;
-
-type FilterType = 'all' | 'mine' | 'coach' | 'pb' | 'club';
 
 interface FlowModalProps {
   isOpen: boolean;
   onClose: () => void;
+  // Data sources
   currentUserId: string;
   allParticipants: ParticipantProfile[];
   connections: Connection[];
@@ -67,30 +67,12 @@ interface FlowItem {
   title: string;
   description: string;
   authorName?: string;
-  authorId?: string;
   log?: FlowItemLog;
   logType?: FlowItemLogType;
+  visibility?: '(vänner)' | '(alla)';
   praiseItems?: { icon: string; text: string; type: 'pb' | 'baseline' | 'club' }[];
   action?: { label: string, onClick: () => void };
 }
-
-// --- HELPER COMPONENTS ---
-
-const FilterChip: React.FC<{ label: string; active: boolean; onClick: () => void; icon?: string }> = ({ label, active, onClick, icon }) => (
-  <button
-    onClick={onClick}
-    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap border ${
-      active
-        ? 'bg-gray-800 text-white border-gray-800 shadow-sm'
-        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-    }`}
-  >
-    {icon && <span className="text-base">{icon}</span>}
-    {label}
-  </button>
-);
-
-// --- MAIN CARD COMPONENT ---
 
 interface FlowItemCardProps { 
     item: FlowItem; 
@@ -106,11 +88,8 @@ interface FlowItemCardProps {
 const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, currentUserId, allParticipants, onToggleReaction, onAddComment, onDeleteComment, onToggleCommentReaction }) => {
     const [isLikesExpanded, setIsLikesExpanded] = useState(false);
     
-    // Helper to get author profile image
-    const authorProfile = allParticipants.find(p => p.id === item.authorId);
-    
+    // Lift reactions out to be available for both buttons and text summary
     const allReactions = ((item.log as any)?.reactions || []) as Reaction[];
-    const comments = (item.log as any)?.comments || [];
 
     const reactionNames = useMemo(() => {
         if (!allReactions.length) return [];
@@ -118,32 +97,52 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
             if (r.participantId === currentUserId) return 'Du';
             return allParticipants.find(p => p.id === r.participantId)?.name?.split(' ')[0] || 'Okänd';
         });
+        // Deduplicate names (in case user reacted with multiple emojis)
         return Array.from(new Set(names));
     }, [allReactions, allParticipants, currentUserId]);
 
-    const isCoachEvent = item.type === 'COACH_EVENT';
-    const isUserNotification = item.type === 'USER_NOTIFICATION';
-    const coachEvent = item.logType === 'coach_event' ? (item.log as CoachEvent) : null;
-
-    // --- STYLING CONFIG ---
-    const containerClass = isCoachEvent 
-        ? "bg-gradient-to-br from-flexibel to-teal-600 shadow-lg border-none text-white"
-        : "bg-white border border-gray-100 shadow-sm text-gray-800";
-
-    const textTitleClass = isCoachEvent ? "text-white" : "text-gray-900";
-    const textDescClass = isCoachEvent ? "text-white/90" : "text-gray-600";
-    const textTimeClass = isCoachEvent ? "text-white/70" : "text-gray-400";
-    const dividerClass = isCoachEvent ? "border-white/20" : "border-gray-100";
-    const actionBtnClass = isCoachEvent 
-        ? "bg-white/20 text-white hover:bg-white/30 border-transparent" 
-        : "bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200";
-    const activeReactionClass = isCoachEvent
-        ? "bg-white text-flexibel shadow-sm"
-        : "bg-blue-50 text-blue-600 border-blue-200";
-
     const renderReactions = () => {
-        if (!item.log || !item.logType || isUserNotification) return null;
-        
+        if (!item.log || !item.logType || item.type === 'USER_NOTIFICATION') return null;
+        const isMyPost = (item.log as any).participantId === currentUserId;
+
+        // --- RENDER MY POSTS (Summary View) ---
+        if (isMyPost) {
+            if (allReactions.length === 0) {
+                return (
+                    <div className="mt-3 pt-2 border-t">
+                        <p className="text-sm text-gray-400 italic">Inga reaktioner än.</p>
+                    </div>
+                );
+            }
+
+            const reactionSummary = allReactions.reduce<Record<string, string[]>>((acc, reaction) => {
+                if (!acc[reaction.emoji]) {
+                    acc[reaction.emoji] = [];
+                }
+                acc[reaction.emoji].push(reaction.participantId);
+                return acc;
+            }, {});
+
+            const sortedEmojiParticipantIds = Object.entries(reactionSummary).sort(([, a], [, b]) => b.length - a.length);
+
+            return (
+                <div className="mt-3 pt-2 border-t flex flex-wrap items-center gap-2">
+                    {sortedEmojiParticipantIds.map(([emoji, participantIds]) => {
+                        return (
+                            <span
+                                key={emoji}
+                                className="flex items-center text-base bg-gray-200 px-2 py-1 rounded-full"
+                            >
+                                {emoji}
+                                <span className="ml-1 font-semibold text-gray-600">{participantIds.length}</span>
+                            </span>
+                        );
+                    })}
+                </div>
+            );
+        }
+
+        // --- RENDER OTHERS' POSTS (Interactive View) ---
         const reactionSummary = allReactions.reduce<Record<string, number>>((acc, reaction) => {
             acc[reaction.emoji] = (acc[reaction.emoji] || 0) + 1;
             return acc;
@@ -152,168 +151,137 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
         const myReaction = allReactions.find(r => r.participantId === currentUserId);
 
         return (
-            <div className="flex flex-wrap gap-2">
+            <div className="mt-3 pt-2 border-t flex flex-wrap items-center gap-1.5">
                 {REACTION_EMOJIS.map(emoji => {
                     const count = reactionSummary[emoji] || 0;
-                    const isActive = myReaction?.emoji === emoji;
+                    const label = `Reagera med ${emoji}`;
+
                     return (
                         <button
                             key={emoji}
                             onClick={() => onToggleReaction(item.log!.id, item.logType!, emoji)}
-                            className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-sm transition-all active:scale-95 border ${isActive ? activeReactionClass : actionBtnClass}`}
+                            className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-base transition-colors duration-150 ${
+                                myReaction?.emoji === emoji ? 'bg-flexibel/20 ring-1 ring-flexibel' : 'bg-gray-200 hover:bg-gray-300'
+                            }`}
+                            aria-pressed={myReaction?.emoji === emoji}
+                            aria-label={label}
                         >
                             <span>{emoji}</span>
-                            {count > 0 && <span className="font-bold text-xs opacity-90 ml-0.5">{count}</span>}
+                            {count > 0 && <span className="font-semibold text-sm text-gray-600">{count}</span>}
                         </button>
                     );
                 })}
             </div>
         );
+    }
+    
+    const titlePrefix = item.authorName ? <span className="font-bold">{item.authorName}</span> : null;
+    const praiseTypeStyles: Record<'pb' | 'baseline' | 'club', string> = {
+        pb: 'bg-yellow-50 border-yellow-300',
+        baseline: 'bg-blue-50 border-blue-300',
+        club: 'bg-green-50 border-green-300',
     };
 
+    const coachEvent = item.logType === 'coach_event' ? (item.log as CoachEvent) : null;
+    const isUserNotification = item.type === 'USER_NOTIFICATION';
+
     return (
-        <div 
-            className={`rounded-2xl p-4 mb-3 relative overflow-hidden ${containerClass}`}
-            style={{ animation: `fadeInDown 0.4s ease-out ${index * 50}ms backwards` }}
-        >
-             {/* Decorative bg element for coach cards */}
-             {isCoachEvent && (
-                <div className="absolute -top-6 -right-6 w-24 h-24 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
-             )}
-
-            <div className="flex items-start gap-3 relative z-10">
-                {/* Avatar */}
-                <Avatar 
-                    name={item.authorName} 
-                    photoURL={authorProfile?.photoURL} 
-                    size="md" 
-                    className={`flex-shrink-0 shadow-sm ${isCoachEvent ? "ring-2 ring-white/30" : ""}`} 
-                />
-
-                <div className="flex-grow min-w-0 pt-0.5">
-                    {/* Header Row */}
-                    <div className="flex justify-between items-baseline mb-1">
-                         <h4 className={`text-base font-bold truncate ${textTitleClass}`}>
-                            {item.authorName}
-                        </h4>
-                        <span className={`text-xs ${textTimeClass} whitespace-nowrap ml-2 flex-shrink-0`}>
-                            {formatRelativeTime(item.date).relative}
+        <div className={`p-3 rounded-lg shadow-sm border ${isUserNotification ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`} style={{ animation: `fadeInDown 0.5s ease-out ${index * 50}ms backwards` }}>
+            <div className="flex-grow">
+                <div className="flex justify-between items-start">
+                    <h4 className="flex-grow text-base font-semibold text-gray-800 break-words">
+                        <span className="text-2xl mr-2 align-middle">{item.icon}</span>
+                        <span className="align-middle">
+                            {titlePrefix} {item.title} 
+                            {item.visibility && <span className="text-sm text-gray-400 font-normal ml-1">{item.visibility}</span>}
                         </span>
-                    </div>
-
-                    {/* Content */}
-                    <div>
-                        <div className="flex items-start gap-1.5">
-                            <div className="flex-1">
-                                <p className={`text-base font-bold leading-snug ${textTitleClass}`}>
-                                    {item.title}
-                                </p>
-                                {item.description && (
-                                    <p className={`text-sm mt-1 whitespace-pre-wrap leading-relaxed ${textDescClass}`}>
-                                        {item.description}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Coach Link */}
-                        {coachEvent?.linkUrl && (
-                            <div className="mt-3">
-                                <a 
-                                    href={coachEvent.linkUrl.startsWith('http') ? coachEvent.linkUrl : `https://${coachEvent.linkUrl}`}
-                                    target="_blank" 
-                                    rel="noopener noreferrer" 
-                                    className="inline-block"
-                                >
-                                    <Button size="sm" variant={isCoachEvent ? 'secondary' : 'primary'} className={isCoachEvent ? 'bg-white text-teal-700 border-none shadow-sm hover:bg-gray-100' : ''}>
-                                        {coachEvent.linkButtonText || 'Läs mer'}
-                                    </Button>
-                                </a>
-                            </div>
-                        )}
-
-                        {/* Action Button */}
-                        {item.action && (
-                             <div className="mt-3">
-                                <Button size="sm" onClick={item.action.onClick}>{item.action.label}</Button>
-                            </div>
-                        )}
-
-                        {/* Praise Items (PBs, etc.) */}
-                        {item.praiseItems && item.praiseItems.length > 0 && (
-                            <div className="mt-3 space-y-1.5">
-                                {item.praiseItems.map((praise, i) => (
-                                    <div key={i} className={`flex items-center gap-2 text-xs py-1.5 px-3 rounded-lg w-fit ${isCoachEvent ? 'bg-white/20 text-white' : 'bg-yellow-50 text-yellow-900 border border-yellow-100'}`}>
-                                        <span className="text-sm">{praise.icon}</span>
-                                        <span className="font-semibold">{praise.text}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                    </h4>
+                    <p className="text-sm text-gray-500 flex-shrink-0 ml-2">{formatRelativeTime(item.date).relative}</p>
                 </div>
-            </div>
+                {item.description && <p className="text-base text-gray-600 mt-0.5 whitespace-pre-wrap break-words">{item.description}</p>}
+                
+                {coachEvent?.linkUrl && (
+                    <div className="mt-3">
+                        <a 
+                          href={coachEvent.linkUrl.startsWith('http') ? coachEvent.linkUrl : `https://${coachEvent.linkUrl}`}
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="inline-block"
+                        >
+                            <Button>
+                                {coachEvent.linkButtonText || 'Läs mer här'}
+                            </Button>
+                        </a>
+                    </div>
+                )}
+                
+                {item.action && (
+                    <div className="mt-3">
+                        <Button size="sm" onClick={item.action.onClick}>{item.action.label}</Button>
+                    </div>
+                )}
 
-            {/* Footer */}
-            {item.log && item.logType && !isUserNotification && (
-                <div className={`mt-3 pt-3 border-t ${dividerClass} relative z-10`}>
-                    <div className="flex flex-col gap-3">
-                        <div className="flex items-center justify-between">
-                            {renderReactions()}
-                        </div>
+                {item.praiseItems && item.praiseItems.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                        {item.praiseItems.map((praise, index) => (
+                            <div key={index} className={`p-2 border-l-4 rounded-r-md ${praiseTypeStyles[praise.type]}`}>
+                                <p className="text-base font-medium text-gray-700">
+                                    <span className="text-2xl mr-2 align-middle">{praise.icon}</span>
+                                    <span className="align-middle">{praise.text}</span>
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                )}
 
-                        {/* Likers Text */}
+                {item.log && item.logType && !isUserNotification && (
+                    <>
+                        {renderReactions()}
+                        
+                        {/* Name Summary (Who liked) */}
                         {reactionNames.length > 0 && (
                             <button 
                                 onClick={() => setIsLikesExpanded(!isLikesExpanded)}
-                                className={`text-xs hover:underline text-left block ${textTimeClass}`}
+                                className="mt-2 text-xs text-gray-500 hover:text-gray-700 text-left w-full focus:outline-none"
                             >
                                 {isLikesExpanded 
                                     ? reactionNames.join(', ') 
-                                    : (reactionNames.length === 1
-                                        ? `${reactionNames[0]} gillar detta`
-                                        : `${reactionNames[0]} och ${reactionNames.length - 1} till gillar detta`)
+                                    : (reactionNames.length <= 3 
+                                        ? reactionNames.join(', ') 
+                                        : `${reactionNames.slice(0, 2).join(', ')} och ${reactionNames.length - 2} till`)
                                 }
+                                {' '}har reagerat
                             </button>
                         )}
-                        
-                        {/* Comments Section (Always Visible) */}
+
                         <CommentSection
                             logId={item.log.id}
                             logType={item.logType}
-                            comments={comments}
+                            comments={(item.log as any).comments || []}
                             currentUserId={currentUserId}
                             onAddComment={onAddComment}
                             onDeleteComment={onDeleteComment}
                             onToggleCommentReaction={onToggleCommentReaction}
-                            readOnly={false}
-                            inputClassName={isCoachEvent ? "bg-white/20 text-white placeholder-white/60 border-white/30 focus:bg-white/30 focus:ring-white" : "bg-white"}
-                            containerClassName="mt-1"
-                            isDarkBackground={isCoachEvent}
                         />
-                    </div>
-                </div>
-            )}
+                    </>
+                )}
+            </div>
         </div>
     );
 });
 FlowItemCard.displayName = 'FlowItemCard';
 
-// --- FLOW MODAL COMPONENT ---
-
 const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, onToggleReaction, onAddComment, onDeleteComment, onToggleCommentReaction, locations, userConditioningStatsHistory }) => {
     const { lastFlowViewTimestamp, userNotifications, markAllNotificationsAsRead, participantBookings } = useAppContext();
     const { handleBookClass } = useParticipantOperations(currentUserId);
-    
-    const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+    const data = { currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, locations, userConditioningStatsHistory, userNotifications };
     const [visibleCount, setVisibleCount] = useState(15);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-    const data = { currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, locations, userConditioningStatsHistory, userNotifications };
 
     useEffect(() => {
         if (isOpen) {
             setVisibleCount(15);
+            // Mark notifications as read when opening flow
             markAllNotificationsAsRead(currentUserId);
         }
     }, [isOpen, markAllNotificationsAsRead, currentUserId]);
@@ -331,47 +299,84 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
         });
         
         const items: FlowItem[] = [];
+        
         const currentUserProfile = data.allParticipants.find(p => p.id === data.currentUserId);
         const currentUserLocation = currentUserProfile ? data.locations.find(l => l.id === currentUserProfile.locationId) : null;
 
-        // 0. User Notifications
+        // 0. User Notifications (NEW)
         const myNotifications = (data.userNotifications || []).filter(n => n.recipientId === data.currentUserId);
+
         myNotifications.forEach(notif => {
+             // Only show "new" notifications in the feed to avoid clutter
              const created = new Date(notif.createdAt);
-             const threeDaysAgo = new Date(); threeDaysAgo.setDate(threeDaysAgo.getDate() - 3); threeDaysAgo.setHours(0, 0, 0, 0);
+             // Use consistent 3-day window as other items
+             const threeDaysAgo = new Date();
+             threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+             threeDaysAgo.setHours(0, 0, 0, 0);
+             
              if (created >= threeDaysAgo) {
                  let action = undefined;
                  if (notif.type === 'FRIEND_BOOKING' && notif.relatedScheduleId && notif.relatedClassDate) {
+                     // Check if already booked
                      const isAlreadyBooked = participantBookings.some(b => 
-                         b.participantId === currentUserId && b.scheduleId === notif.relatedScheduleId && b.classDate === notif.relatedClassDate && 
+                         b.participantId === currentUserId && 
+                         b.scheduleId === notif.relatedScheduleId && 
+                         b.classDate === notif.relatedClassDate && 
                          (b.status === 'BOOKED' || b.status === 'WAITLISTED' || b.status === 'CHECKED-IN')
                      );
+
                      if (!isAlreadyBooked) {
                         action = {
-                            label: 'Haka på (Boka)',
-                            onClick: () => { handleBookClass(currentUserId, notif.relatedScheduleId!, notif.relatedClassDate!); onClose(); }
+                            label: 'Boka samma pass',
+                            onClick: () => {
+                                handleBookClass(currentUserId, notif.relatedScheduleId!, notif.relatedClassDate!);
+                                onClose();
+                            }
                         };
                      }
                  }
+
                  items.push({
-                     id: `notif-${notif.id}`, date: created, type: 'USER_NOTIFICATION',
+                     id: `notif-${notif.id}`,
+                     date: created,
+                     type: 'USER_NOTIFICATION',
                      icon: notif.type === 'FRIEND_BOOKING' ? '👯‍♀️' : (notif.type === 'CLASS_CANCELLED' ? '🚫' : 'ℹ️'),
-                     title: notif.title, description: notif.body, log: notif, logType: 'user_notification', action, authorName: 'System'
+                     title: notif.title,
+                     description: notif.body,
+                     log: notif,
+                     logType: 'user_notification',
+                     action
                  });
              }
         });
 
         // 1. Coach Events
         (data.coachEvents || []).forEach(event => {
-            if (event.targetParticipantIds && !event.targetParticipantIds.includes(data.currentUserId)) return;
-            if (!event.targetParticipantIds && event.studioTarget && event.studioTarget !== 'all') {
-                if (!currentUserLocation || !currentUserLocation.name.toLowerCase().includes(event.studioTarget)) return;
+            // Check for participant-specific targeting first
+            if (event.targetParticipantIds) {
+                if (!event.targetParticipantIds.includes(data.currentUserId)) {
+                    return; // It's a targeted event, but not for this user.
+                }
+            } else {
+                // Original logic for public events
+                if (event.studioTarget && event.studioTarget !== 'all') {
+                    if (!currentUserLocation || !currentUserLocation.name.toLowerCase().includes(event.studioTarget)) {
+                        return; // Skip event not for this user's studio
+                    }
+                }
             }
+            
             items.push({
-                id: `coach-${event.id}`, date: new Date((event as any).createdDate || (event as any).date),
-                type: 'COACH_EVENT', icon: event.title.includes("INSTÄLLT") ? '❗️' : DEFAULT_COACH_EVENT_ICON,
-                title: `${event.title}`, description: (event.eventDate ? `Datum: ${new Date(event.eventDate).toLocaleDateString('sv-SE')}. ` : '') + (event.description || ''),
-                authorName: 'Coach', authorId: 'coach', log: event, logType: 'coach_event',
+                id: `coach-${event.id}`,
+                date: new Date((event as any).createdDate || (event as any).date), // Handle old data
+                type: 'COACH_EVENT',
+                icon: event.title.includes("INSTÄLLT") ? '❗️' : DEFAULT_COACH_EVENT_ICON,
+                title: `${event.title}`,
+                description: (event.eventDate ? `Datum: ${new Date(event.eventDate).toLocaleDateString('sv-SE')}. ` : '') + (event.description || ''),
+                authorName: 'Coach',
+                log: event,
+                logType: 'coach_event',
+                visibility: event.studioTarget === 'all' ? '(alla)' : undefined,
             });
         });
 
@@ -381,14 +386,33 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
             const author = data.allParticipants.find(p => p.id === log.participantId);
             const authorName = log.participantId === data.currentUserId ? 'Du' : author?.name || 'En vän';
             const workout = data.workouts.find(w => w.id === log.workoutId);
+            
             const hasPBs = log.postWorkoutSummary?.newPBs && log.postWorkoutSummary.newPBs.length > 0;
-            const praiseItems = hasPBs ? log.postWorkoutSummary!.newPBs.map(pb => ({ icon: '⭐', text: `Nytt PB: ${pb.exerciseName} (${pb.value})`, type: 'pb' as const })) : undefined;
+            const praiseItems: { icon: string; text: string; type: 'pb' | 'baseline' | 'club' }[] = [];
+            
+            if(hasPBs) {
+                log.postWorkoutSummary.newPBs.forEach(pb => {
+                    praiseItems.push({
+                        icon: '⭐',
+                        text: `Nytt Personligt Rekord i ${pb.exerciseName}: ${pb.value}.`,
+                        type: 'pb'
+                    });
+                });
+            }
+            const hasAchievements = praiseItems.length > 0;
 
             items.push({
-                id: `log-${log.id}`, date: new Date(log.completedDate),
-                type: hasPBs ? 'NEW_PB' : 'WORKOUT_LOGGED', icon: hasPBs ? '🔥' : '🏋️',
-                title: `loggade passet: ${workout?.title || 'Okänt pass'}`, description: log.postWorkoutComment || '', authorName, authorId: log.participantId,
-                log, logType: 'workout', praiseItems
+                id: `log-${log.id}`,
+                date: new Date(log.completedDate),
+                type: hasAchievements ? 'NEW_PB' : 'WORKOUT_LOGGED',
+                icon: hasAchievements ? '⭐' : '🏋️',
+                title: `loggade passet: ${workout?.title || 'Okänt pass'}`,
+                description: ``,
+                authorName,
+                log,
+                logType: 'workout',
+                visibility: log.participantId === data.currentUserId ? undefined : '(vänner)',
+                praiseItems: praiseItems.length > 0 ? praiseItems : undefined
             });
         });
         
@@ -397,109 +421,284 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
             if (!allowedParticipantIds.has(log.participantId)) return;
             const author = data.allParticipants.find(p => p.id === log.participantId);
             const authorName = log.participantId === data.currentUserId ? 'Du' : author?.name || 'En vän';
+            
+            const descParts = [`${log.durationMinutes} minuter`];
+            if (log.distanceKm) {
+                descParts.push(`- ${log.distanceKm} km`);
+            }
+
             items.push({
-                id: `general-${log.id}`, date: new Date(log.completedDate), type: 'GENERAL_ACTIVITY', icon: '🏃',
-                title: `loggade aktiviteten: ${log.activityName}`, description: `${log.durationMinutes} minuter ${log.distanceKm ? `• ${log.distanceKm} km` : ''} ${log.comment ? `\n"${log.comment}"` : ''}`,
-                authorName, authorId: log.participantId, log, logType: 'general',
+                id: `general-${log.id}`,
+                date: new Date(log.completedDate),
+                type: 'GENERAL_ACTIVITY',
+                icon: '🤸',
+                title: `loggade aktiviteten: ${log.activityName}`,
+                description: descParts.join(' '),
+                authorName,
+                log,
+                logType: 'general',
+                visibility: log.participantId === data.currentUserId ? undefined : '(vänner)',
             });
         });
 
-        // 4. Clubs
-        const allVisibleMemberships = (data.clubMemberships || []).filter(m => allowedParticipantIds.has(m.participantId));
-        const highestMemberships = getHighestClubAchievements(allVisibleMemberships); 
-        highestMemberships.forEach(membership => {
-            const club = CLUB_DEFINITIONS.find(c => c.id === membership.clubId);
-            const author = data.allParticipants.find(p => p.id === membership.participantId);
-            if (club && author) {
+        // 4. Goal Completion Logs
+        (data.goalCompletionLogs || []).forEach(log => {
+            if (!allowedParticipantIds.has(log.participantId)) return;
+            const author = data.allParticipants.find(p => p.id === log.participantId);
+            const authorName = log.participantId === data.currentUserId ? 'Du' : author?.name || 'En vän';
+            
+            items.push({
+                id: `goalcomp-${log.id}`,
+                date: new Date(log.completedDate),
+                type: 'GOAL_COMPLETED',
+                icon: '🏆',
+                title: `uppnådde ett mål!`,
+                description: `Starkt jobbat!`,
+                authorName,
+                log,
+                logType: 'goal_completion',
+                visibility: log.participantId === data.currentUserId ? undefined : '(vänner)',
+            });
+        });
+        
+        // 5. Standalone achievements
+        const statsByParticipant = (data.userStrengthStats || []).reduce((acc, stat) => {
+            if (!acc[stat.participantId]) acc[stat.participantId] = [];
+            acc[stat.participantId].push(stat);
+            return acc;
+        }, {} as Record<string, UserStrengthStat[]>);
+
+        Object.entries(statsByParticipant).forEach(([participantId, stats]: [string, UserStrengthStat[]]) => {
+            if (!allowedParticipantIds.has(participantId) || (stats?.length || 0) < 2) return;
+            const sortedStats = stats.sort((a, b) => new Date(a.lastUpdated).getTime() - new Date(b.lastUpdated).getTime());
+            const author = data.allParticipants.find(p => p.id === participantId);
+            if (!author) return;
+
+            const latestStat = sortedStats[sortedStats.length - 1];
+            const previousStat = sortedStats[sortedStats.length - 2];
+            const latestFss = calculateFlexibelStrengthScoreInternal(latestStat, author);
+            const previousFss = calculateFlexibelStrengthScoreInternal(previousStat, author);
+
+            if (latestFss && previousFss && latestFss.totalScore > previousFss.totalScore) {
+                const levelInfo = getFssScoreInterpretation(latestFss.totalScore);
+                const authorName = participantId === data.currentUserId ? 'Du' : author.name || 'En vän';
                 items.push({
-                    id: `club-${membership.id}`, date: new Date(membership.achievedDate), type: 'CLUB_MEMBERSHIP', icon: '🏅',
-                    title: 'gick med i en ny klubb!', description: `${membership.participantId === data.currentUserId ? 'Du' : author.name} har kvalificerat sig för ${club.name}.`,
-                    authorName: membership.participantId === data.currentUserId ? 'Du' : author.name, authorId: membership.participantId,
-                    log: membership, logType: 'participant_club_membership', praiseItems: [{ icon: club.icon, text: club.name, type: 'club' }]
+                    id: `fss-${latestStat.id}`,
+                    date: new Date(latestStat.lastUpdated),
+                    type: 'FSS_INCREASE',
+                    icon: '🚀',
+                    title: `ökade sin styrkepoäng (FSS)!`,
+                    description: levelInfo
+                        ? `Nådde nivån ${levelInfo.label} med ${latestFss.totalScore} poäng (från ${previousFss.totalScore}). Starkt!`
+                        : `Ny FSS: ${latestFss.totalScore} poäng (från ${previousFss.totalScore}). Starkt!`,
+                    authorName,
+                    log: latestStat,
+                    logType: 'user_strength_stat',
+                    visibility: participantId === data.currentUserId ? undefined : '(vänner)',
                 });
             }
         });
 
-        const sortedItems = items.sort((a, b) => b.date.getTime() - a.date.getTime());
-        const uniqueItems = Array.from(new Set(sortedItems.map(i => i.id))).map(id => sortedItems.find(i => i.id === id)!);
-        
-        // Filter out older than 14 days to keep list relevant
-        const cutoffDate = new Date(); cutoffDate.setDate(cutoffDate.getDate() - 14); cutoffDate.setHours(0, 0, 0, 0);
-        return uniqueItems.filter(item => item.date >= cutoffDate);
+        const physiqueByParticipant = (data.participantPhysiqueHistory || []).reduce((acc, history) => {
+            if (!acc[history.participantId]) acc[history.participantId] = [];
+            acc[history.participantId].push(history);
+            return acc;
+        }, {} as Record<string, ParticipantPhysiqueStat[]>);
 
-    }, [isOpen, data, handleBookClass, participantBookings]);
+        Object.entries(physiqueByParticipant).forEach(([participantId, history]: [string, ParticipantPhysiqueStat[]]) => {
+            if (!allowedParticipantIds.has(participantId) || (history?.length || 0) < 2) return;
+            const sortedHistory = (history || []).sort((a, b) => new Date(a.lastUpdated).getTime() - new Date(b.lastUpdated).getTime());
+            const author = data.allParticipants.find(p => p.id === participantId);
+            if (!author) return;
 
-    const filteredItems = useMemo(() => {
-        return allFlowItems.filter(item => {
-            if (item.type === 'WEEKLY_CHALLENGE') return false; 
+            const isCurrentUser = participantId === data.currentUserId;
+            if (!isCurrentUser && !author.enableInBodySharing) {
+                return; // Do not show InBody updates to friends if sharing is disabled
+            }
 
-            switch (activeFilter) {
-                case 'mine': return item.authorId === currentUserId;
-                case 'coach': return item.type === 'COACH_EVENT';
-                case 'pb': return item.type === 'NEW_PB' || item.type === 'FSS_INCREASE';
-                case 'club': return item.type === 'CLUB_MEMBERSHIP';
-                default: return true;
+            const latestHistory = sortedHistory[sortedHistory.length - 1];
+            const previousHistory = sortedHistory[sortedHistory.length - 2];
+
+            if (latestHistory.inbodyScore && previousHistory.inbodyScore && latestHistory.inbodyScore > previousHistory.inbodyScore) {
+                const authorName = isCurrentUser ? 'Du' : author.name || 'En vän';
+                items.push({
+                    id: `inbody-increase-${latestHistory.id}`,
+                    date: new Date(latestHistory.lastUpdated),
+                    type: 'PHYSIQUE_UPDATE',
+                    icon: '🧬',
+                    title: `höjde sin InBody-poäng!`,
+                    description: `Grym utveckling på InBody-mätningen! Ny poäng: ${latestHistory.inbodyScore} (från ${previousHistory.inbodyScore}).`,
+                    authorName,
+                    log: latestHistory,
+                    logType: 'participant_physique_stat',
+                    visibility: isCurrentUser ? undefined : '(vänner)',
+                });
             }
         });
-    }, [allFlowItems, activeFilter, currentUserId]);
+        
+        const allVisibleMemberships = (data.clubMemberships || []).filter(m => allowedParticipantIds.has(m.participantId));
+        const membershipsByParticipant = allVisibleMemberships.reduce((acc, membership) => {
+            if (!acc[membership.participantId]) {
+                acc[membership.participantId] = [];
+            }
+            acc[membership.participantId].push(membership);
+            return acc;
+        }, {} as Record<string, ParticipantClubMembership[]>);
 
-    const itemsToShow = filteredItems.slice(0, visibleCount);
+        const highestMembershipsToDisplay: ParticipantClubMembership[] = [];
+        for (const participantId in membershipsByParticipant) {
+            const participantMemberships = membershipsByParticipant[participantId];
+            const highest = getHighestClubAchievements(participantMemberships);
+            highestMembershipsToDisplay.push(...highest);
+        }
+        
+        highestMembershipsToDisplay.forEach(membership => {
+            const club = CLUB_DEFINITIONS.find(c => c.id === membership.clubId);
+            if (!club) return;
+            const author = data.allParticipants.find(p => p.id === membership.participantId);
+            if (!author) return;
+            const isCurrentUser = membership.participantId === data.currentUserId;
+            const authorName = isCurrentUser ? 'Du' : author.name || 'En vän';
+
+            items.push({
+                id: `club-${membership.id}`,
+                date: new Date(membership.achievedDate),
+                type: 'CLUB_MEMBERSHIP',
+                icon: '🏅',
+                title: 'gick med i en ny klubb!',
+                description: `${authorName} har kvalificerat ${isCurrentUser ? 'dig' : 'sig'} för ${club.name}. Starkt jobbat!`,
+                authorName: authorName,
+                log: membership,
+                logType: 'participant_club_membership',
+                visibility: isCurrentUser ? undefined : '(vänner)',
+            });
+        });
+        
+        (data.userConditioningStatsHistory || []).forEach(stat => {
+            if (!allowedParticipantIds.has(stat.participantId)) return;
+            const author = data.allParticipants.find(p => p.id === stat.participantId);
+            if (!author) return;
+            const isCurrentUser = stat.participantId === data.currentUserId;
+            const authorName = isCurrentUser ? 'Du' : author.name || 'En vän';
+
+            const results: string[] = [];
+            if (stat.airbike4MinKcal) results.push(`Airbike: ${stat.airbike4MinKcal} kcal`);
+            if (stat.skierg4MinMeters) results.push(`SkiErg: ${stat.skierg4MinMeters} m`);
+            if (stat.rower4MinMeters) results.push(`Rodd: ${stat.rower4MinMeters} m`);
+            if (stat.treadmill4MinMeters) results.push(`Löpband: ${stat.treadmill4MinMeters} m`);
+            if (stat.rower2000mTimeSeconds) {
+                const minutes = Math.floor(stat.rower2000mTimeSeconds / 60);
+                const seconds = stat.rower2000mTimeSeconds % 60;
+                results.push(`Rodd 2000m: ${minutes}:${String(seconds).padStart(2, '0')}`);
+            }
+
+            if (results.length > 0) {
+                items.push({
+                    id: `cond-${stat.id}`,
+                    date: new Date(stat.lastUpdated),
+                    type: 'CONDITIONING_TEST',
+                    icon: '💨',
+                    title: `loggade ett konditionstest!`,
+                    description: results.join(' | '),
+                    authorName,
+                    log: stat,
+                    logType: 'participant_conditioning_stat',
+                    visibility: isCurrentUser ? undefined : '(vänner)',
+                });
+            }
+        });
+
+        // 6. Weekly Challenge (synthetic)
+        if (data.leaderboardSettings.weeklyPBChallengeEnabled || data.leaderboardSettings.weeklySessionChallengeEnabled) {
+            const startOfWeek = dateUtils.getStartOfWeek(new Date());
+            items.push({
+                id: `challenge-${dateUtils.getEpochWeekId(startOfWeek)}`,
+                date: startOfWeek,
+                type: 'WEEKLY_CHALLENGE',
+                icon: '🔥',
+                title: 'Veckans Utmaning är igång!',
+                description: 'Logga pass och sätt nya PBs för att klättra på topplistan. Kör hårt!',
+                authorName: 'Systemet',
+                visibility: '(alla)',
+            });
+        }
+
+        const sortedItems = (items || []).sort((a, b) => b.date.getTime() - a.date.getTime());
+        
+        const finalItems: FlowItem[] = [];
+        const seenItemIds = new Set<string>();
+
+        for (const item of sortedItems) {
+            if (!seenItemIds.has(item.id)) {
+                finalItems.push(item);
+                seenItemIds.add(item.id);
+            }
+        }
+
+        // Apply the 3-day filter
+        const threeDaysAgo = new Date();
+        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+        threeDaysAgo.setHours(0, 0, 0, 0);
+
+        return (finalItems || []).filter(item => item.date >= threeDaysAgo);
+
+    }, [isOpen, data, lastFlowViewTimestamp, handleBookClass, participantBookings]);
+
+    const flowItemsToShow = useMemo(() => {
+        return allFlowItems.slice(0, visibleCount);
+    }, [allFlowItems, visibleCount]);
 
     const handleScroll = useCallback(() => {
         const container = scrollContainerRef.current;
         if (container) {
             const { scrollTop, scrollHeight, clientHeight } = container;
+            // Load more when user is 200px from the bottom
             if (scrollTop + clientHeight >= scrollHeight - 200) {
-                setVisibleCount(prev => Math.min(prev + 10, filteredItems.length));
+                setVisibleCount(prevCount => Math.min(prevCount + 10, allFlowItems.length));
             }
         }
-    }, [filteredItems.length]);
-
+    }, [allFlowItems.length]);
+    
+    const loadMore = useCallback(() => {
+        setVisibleCount(prevCount => Math.min(prevCount + 15, allFlowItems.length));
+    }, [allFlowItems.length]);
+    
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Flöde & Notiser" size="xl">
-            <div className="flex flex-col h-[80vh] -mx-4 sm:mx-0">
-                {/* Filter Bar */}
-                <div className="px-4 pt-2 pb-4 border-b border-gray-100 flex gap-2 overflow-x-auto no-scrollbar">
-                    <FilterChip label="Alla" active={activeFilter === 'all'} onClick={() => setActiveFilter('all')} />
-                    <FilterChip label="Mina" active={activeFilter === 'mine'} onClick={() => setActiveFilter('mine')} icon="👤" />
-                    <FilterChip label="Coach" active={activeFilter === 'coach'} onClick={() => setActiveFilter('coach')} icon="📣" />
-                    <FilterChip label="PBs" active={activeFilter === 'pb'} onClick={() => setActiveFilter('pb')} icon="💪" />
-                    <FilterChip label="Klubbar" active={activeFilter === 'club'} onClick={() => setActiveFilter('club')} icon="🏅" />
-                </div>
-
-                <div
-                  ref={scrollContainerRef}
-                  onScroll={handleScroll}
-                  className="flex-grow overflow-y-auto bg-gray-50 p-4 space-y-4"
-                >
-                    {itemsToShow.length > 0 ? (
-                        <>
-                            {itemsToShow.map((item, index) => (
-                                <FlowItemCard 
-                                    key={item.id} 
-                                    item={item} 
-                                    index={index}
-                                    currentUserId={data.currentUserId}
-                                    allParticipants={data.allParticipants}
-                                    onToggleReaction={onToggleReaction}
-                                    onAddComment={onAddComment}
-                                    onDeleteComment={onDeleteComment}
-                                    onToggleCommentReaction={onToggleCommentReaction}
-                                />
-                            ))}
-                            {filteredItems.length > visibleCount && (
-                                <div className="text-center py-6">
-                                    <Button onClick={() => setVisibleCount(p => p + 10)} variant="ghost">Visa fler</Button>
-                                </div>
-                            )}
-                        </>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-gray-400 py-10">
-                            <span className="text-5xl mb-4">📭</span>
-                            <p className="text-lg font-medium">Inget att visa just nu.</p>
-                        </div>
-                    )}
-                </div>
+        <Modal isOpen={isOpen} onClose={onClose} title="Flöde" size="2xl">
+            <div
+              ref={scrollContainerRef}
+              onScroll={handleScroll}
+              className="space-y-3 max-h-[70vh] overflow-y-auto bg-gray-100 p-3 rounded-md"
+            >
+                {flowItemsToShow.length > 0 ? (
+                    <>
+                        {flowItemsToShow.map((item, index) => (
+                            <FlowItemCard 
+                                key={item.id} 
+                                item={item} 
+                                index={index}
+                                currentUserId={data.currentUserId}
+                                allParticipants={data.allParticipants}
+                                onToggleReaction={onToggleReaction}
+                                onAddComment={onAddComment}
+                                onDeleteComment={onDeleteComment}
+                                onToggleCommentReaction={onToggleCommentReaction}
+                            />
+                        ))}
+                        {allFlowItems.length > visibleCount && (
+                            <div className="text-center py-4">
+                                <Button onClick={loadMore} variant="outline">
+                                    Läs in fler händelser
+                                </Button>
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <div className="text-center py-10">
+                        <p className="text-xl text-gray-500">Flödet är tomt.</p>
+                        <p className="text-lg text-gray-400">Logga ett pass eller sätt ett mål för att komma igång!</p>
+                    </div>
+                )}
             </div>
         </Modal>
     );

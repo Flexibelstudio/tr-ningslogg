@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { ParticipantProfile, OneOnOneSession, ActivityLog, StaffMember, CoachNote, ParticipantGoalData, WorkoutLog, Membership, ProspectIntroCall, Lead, Location } from '../../types';
+import { ParticipantProfile, OneOnOneSession, ActivityLog, StaffMember, CoachNote, ParticipantGoalData, WorkoutLog, Membership, ProspectIntroCall, Lead, Location, ContactAttempt } from '../../types';
 import { GoogleGenAI } from '@google/genai';
 import { Button } from '../Button';
 import { MemberNotesModal } from '../coach/MemberNotesModal';
@@ -14,6 +14,8 @@ import { Modal } from '../Modal';
 import { Select, Input } from '../Input';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { useClientJourney } from '../../features/coach/hooks/useClientJourney';
+import { LogContactModal } from './LogContactModal';
+import { CONTACT_ATTEMPT_OUTCOME_OPTIONS, CONTACT_ATTEMPT_METHOD_OPTIONS } from '../../constants';
 
 interface ClientJourneyViewProps {
   participants: ParticipantProfile[];
@@ -144,8 +146,8 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         leadCounts,
         filteredLeads,
         newLeadsList,
-        unlinkedCallsList,
         actionableIntroCalls,
+        archivedIntroCalls,
         counts,
         handleSaveLead,
         handleSaveIntroCall,
@@ -154,10 +156,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         handleConfirmMarkAsJunk,
         handleRestoreLead,
         handlePermanentDeleteLead,
-        handleConfirmConsent,
         handleSaveContactAttempt,
-        handleArchiveIntroCall,
-        handleDeleteIntroCall,
     } = useClientJourney(loggedInStaff);
     
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
@@ -171,7 +170,10 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   const [leadToMarkAsJunk, setLeadToMarkAsJunk] = useState<Lead | null>(null);
   const [leadToDeletePermanent, setLeadToDeletePermanent] = useState<Lead | null>(null);
   const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
-
+  
+  // New state for contact logging
+  const [leadToLogContact, setLeadToLogContact] = useState<Lead | null>(null);
+  const [expandedLeadHistoryIds, setExpandedLeadHistoryIds] = useState<Set<string>>(new Set());
 
   const handleOpenNotesModal = (participant: ParticipantProfile) => {
     setSelectedParticipant(participant);
@@ -188,6 +190,15 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         handlePermanentDeleteLead(leadToDeletePermanent);
         setLeadToDeletePermanent(null);
     }
+  };
+
+  const toggleHistory = (leadId: string) => {
+      setExpandedLeadHistoryIds(prev => {
+          const newSet = new Set(prev);
+          if (newSet.has(leadId)) newSet.delete(leadId);
+          else newSet.add(leadId);
+          return newSet;
+      });
   };
 
   if (!loggedInStaff) return <div>Laddar...</div>;
@@ -232,8 +243,22 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
     .map(p => ({ value: p.id, label: p.name || 'Okänd' }))
     .sort((a,b) => a.label.localeCompare(b.label));
     
-  const callsToDisplay = introCallView === 'actionable' ? actionableIntroCalls : useClientJourney(loggedInStaff).archivedIntroCalls;
+  const callsToDisplay = introCallView === 'actionable' ? actionableIntroCalls : archivedIntroCalls;
 
+  const getContactSummary = (contactHistory?: ContactAttempt[]) => {
+      if (!contactHistory || contactHistory.length === 0) {
+          return { text: "⚪️ Ej kontaktad än", colorClass: "text-gray-500" };
+      }
+      const last = contactHistory[contactHistory.length - 1];
+      const dateStr = dateUtils.formatRelativeTime(new Date(last.timestamp)).relative;
+      const methodIcon = last.method === 'email' ? '✉️' : last.method === 'sms' ? '💬' : '📞';
+      const outcomeLabel = CONTACT_ATTEMPT_OUTCOME_OPTIONS.find(o => o.value === last.outcome)?.label || last.outcome;
+      
+      return {
+          text: `${methodIcon} ${dateStr}: ${outcomeLabel}`,
+          colorClass: "text-gray-700"
+      };
+  };
 
   return (
     <div className="space-y-6">
@@ -287,38 +312,76 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                 {filteredLeads.map(lead => {
                     const location = locations.find(l => l.id === lead.locationId);
                     const isJunk = lead.status === 'junk';
+                    const contactSummary = getContactSummary(lead.contactHistory);
+                    const isExpanded = expandedLeadHistoryIds.has(lead.id);
                     
                     return (
-                        <div key={lead.id} className="p-4 bg-white rounded-lg border shadow-sm flex flex-col sm:flex-row justify-between items-start gap-3">
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <p className="font-bold text-lg text-gray-900">{lead.firstName} {lead.lastName}</p>
-                                    {isJunk && <span className="text-xs font-bold bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">Skräp</span>}
-                                    {lead.status === 'converted' && <span className="text-xs font-bold bg-green-200 text-green-800 px-2 py-0.5 rounded-full">Konverterad</span>}
+                        <div key={lead.id} className="p-4 bg-white rounded-lg border shadow-sm flex flex-col gap-3">
+                            <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <p className="font-bold text-lg text-gray-900">{lead.firstName} {lead.lastName}</p>
+                                        {isJunk && <span className="text-xs font-bold bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">Skräp</span>}
+                                        {lead.status === 'converted' && <span className="text-xs font-bold bg-green-200 text-green-800 px-2 py-0.5 rounded-full">Konverterad</span>}
+                                    </div>
+                                    <div className="flex flex-col gap-1 mt-1">
+                                        <p className="text-sm text-gray-600">{lead.email} {lead.phone ? `• ${lead.phone}` : ''}</p>
+                                        
+                                        {/* Contact Status Summary */}
+                                        <button onClick={() => toggleHistory(lead.id)} className="text-left focus:outline-none group">
+                                            <p className={`text-sm font-medium ${contactSummary.colorClass} flex items-center gap-1 group-hover:underline`}>
+                                                {contactSummary.text}
+                                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                                            </p>
+                                        </button>
+                                    </div>
+
+                                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                                        <span className="font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{lead.source}</span>
+                                        {location && <span className="font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{location.name}</span>}
+                                        <span className="text-gray-400">{new Date(lead.createdDate).toLocaleString('sv-SE')}</span>
+                                    </div>
                                 </div>
-                                <p className="text-sm text-gray-600">{lead.email}</p>
-                                {lead.phone && <p className="text-sm text-gray-600">{lead.phone}</p>}
-                                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                                    <span className="font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{lead.source}</span>
-                                    {location && <span className="font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{location.name}</span>}
-                                    <span className="text-gray-400">{new Date(lead.createdDate).toLocaleString('sv-SE')}</span>
+                                <div className="flex gap-2 self-start sm:self-center flex-shrink-0 flex-wrap">
+                                    {isJunk ? (
+                                        <>
+                                            <Button size="sm" variant="secondary" onClick={() => handleRestoreLead(lead)}>Återställ</Button>
+                                            <Button size="sm" variant="danger" onClick={() => setLeadToDeletePermanent(lead)}>Radera permanent</Button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Button size="sm" variant="outline" onClick={() => setLeadToLogContact(lead)}>Logga kontakt</Button>
+                                            <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => setLeadToMarkAsJunk(lead)}>Skräp</Button>
+                                            {lead.status !== 'converted' && (
+                                                <Button size="sm" variant="primary" onClick={() => handleCreateIntroCallFromLead(lead)}>Skapa Introsamtal</Button>
+                                            )}
+                                        </>
+                                    )}
                                 </div>
                             </div>
-                            <div className="flex gap-2 self-start sm:self-center flex-shrink-0">
-                                {isJunk ? (
-                                    <>
-                                        <Button size="sm" variant="secondary" onClick={() => handleRestoreLead(lead)}>Återställ</Button>
-                                        <Button size="sm" variant="danger" onClick={() => setLeadToDeletePermanent(lead)}>Radera permanent</Button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => setLeadToMarkAsJunk(lead)}>Skräp</Button>
-                                        {lead.status !== 'converted' && (
-                                            <Button size="sm" variant="primary" onClick={() => handleCreateIntroCallFromLead(lead)}>Skapa Introsamtal</Button>
-                                        )}
-                                    </>
-                                )}
-                            </div>
+                            
+                            {/* Expanded History */}
+                            {isExpanded && lead.contactHistory && lead.contactHistory.length > 0 && (
+                                <div className="mt-2 pt-2 border-t border-gray-100 animate-fade-in">
+                                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">Kontaktlogg</h4>
+                                    <div className="space-y-2">
+                                        {lead.contactHistory.map(attempt => (
+                                            <div key={attempt.id} className="text-sm bg-gray-50 p-2 rounded-md">
+                                                <div className="flex justify-between">
+                                                    <span className="font-medium text-gray-800">
+                                                        {CONTACT_ATTEMPT_METHOD_OPTIONS.find(m => m.value === attempt.method)?.label}
+                                                    </span>
+                                                    <span className="text-gray-500 text-xs">{new Date(attempt.timestamp).toLocaleString('sv-SE')}</span>
+                                                </div>
+                                                <p className="text-gray-600">
+                                                    {CONTACT_ATTEMPT_OUTCOME_OPTIONS.find(o => o.value === attempt.outcome)?.label}
+                                                </p>
+                                                {attempt.notes && <p className="text-gray-500 italic mt-1">"{attempt.notes}"</p>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     );
                 })}
@@ -344,7 +407,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                     className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${introCallView === 'archived' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     onClick={() => setIntroCallView('archived')}
                 >
-                    Historik ({useClientJourney(loggedInStaff).archivedIntroCalls.length})
+                    Historik ({archivedIntroCalls.length})
                 </button>
             </div>
             <Button onClick={() => { setLeadBeingConverted(null); setCallToEdit(null); setIsIntroCallModalOpen(true); }}>
@@ -485,25 +548,23 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
             notes={coachNotes.filter(n => n.participantId === selectedParticipant.id)}
             allParticipantGoals={allParticipantGoals}
             allActivityLogs={allActivityLogs.filter(l => l.participantId === selectedParticipant.id)}
-            // ... other props handled by useCoachOperations in MemberNotesModal or passed down directly from hook if refactored
-            // For now, we rely on MemberNotesModal using the hooks internally or getting them from AppContext
-            // But to keep props consistent:
-            setParticipantGoals={() => {}} // Handled inside
-            setGoalCompletionLogs={() => {}} // Handled inside
-            onAddNote={() => {}} // Handled inside
-            onUpdateNote={() => {}} // Handled inside
-            onDeleteNote={() => {}} // Handled inside
+            // ... handled internally
+            setParticipantGoals={() => {}} 
+            setGoalCompletionLogs={() => {}} 
+            onAddNote={() => {}} 
+            onUpdateNote={() => {}} 
+            onDeleteNote={() => {}} 
             oneOnOneSessions={oneOnOneSessions}
-            setOneOnOneSessions={() => {}} // Handled inside
+            setOneOnOneSessions={() => {}} 
             coaches={staffMembers}
             loggedInCoachId={loggedInStaff!.id}
-            workouts={[]} // Handled inside
-            addWorkout={async () => {}} // Handled inside
-            updateWorkout={async () => {}} // Handled inside
-            deleteWorkout={async () => {}} // Handled inside
-            workoutCategories={[]} // Handled inside
+            workouts={[]} 
+            addWorkout={async () => {}} 
+            updateWorkout={async () => {}} 
+            deleteWorkout={async () => {}} 
+            workoutCategories={[]} 
             participants={participants}
-            staffAvailability={[]} // Handled inside
+            staffAvailability={[]} 
             isOnline={isOnline}
         />
       )}
@@ -558,14 +619,21 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                 </div>
             </div>
       </Modal>
+      
+      <LogContactModal 
+        isOpen={!!leadToLogContact} 
+        onClose={() => setLeadToLogContact(null)} 
+        lead={leadToLogContact}
+        onSave={(attempt) => leadToLogContact && handleSaveContactAttempt(leadToLogContact.id, attempt)}
+      />
 
       <ConfirmationModal
         isOpen={!!leadToMarkAsJunk}
         onClose={() => setLeadToMarkAsJunk(null)}
         onConfirm={() => handleConfirmMarkAsJunk(leadToMarkAsJunk!)}
-        title="Markera som skräp?"
-        message={`Är du säker på att du vill markera leadet för ${leadToMarkAsJunk?.firstName} ${leadToMarkAsJunk?.lastName} som skräp?`}
-        confirmButtonText="Ja, markera som skräp"
+        title="Ta bort lead?"
+        message={`Är du säker på att du vill ta bort leadet för ${leadToMarkAsJunk?.firstName} ${leadToMarkAsJunk?.lastName}? Detta markerar det som 'skräp' och döljer det från listan.`}
+        confirmButtonText="Ja, ta bort"
         confirmButtonVariant="danger"
       />
 

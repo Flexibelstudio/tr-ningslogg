@@ -1,7 +1,7 @@
 
 import { useState, useMemo } from 'react';
 import { useAppContext } from '../../../context/AppContext';
-import { ParticipantProfile, Lead, ProspectIntroCall, StaffMember } from '../../../types';
+import { ParticipantProfile, Lead, ProspectIntroCall, StaffMember, ContactAttempt } from '../../../types';
 
 type LeadFilter = 'all' | 'new' | 'contacted' | 'intro_booked' | 'converted' | 'junk';
 type IntroCallFilter = 'actionable' | 'archived';
@@ -21,7 +21,7 @@ export const useClientJourney = (loggedInStaff: StaffMember | null) => {
   const {
     participantDirectory: participants,
     oneOnOneSessions,
-    workoutLogs: allWorkoutLogs, // Using raw logs for calculations
+    workoutLogs: allWorkoutLogs,
     generalActivityLogs,
     goalCompletionLogs,
     memberships,
@@ -41,10 +41,11 @@ export const useClientJourney = (loggedInStaff: StaffMember | null) => {
   );
 
   const [activeTab, setActiveTab] = useState<ClientJourneyTab>('leads');
-  const [activeLeadFilter, setActiveLeadFilter] = useState<LeadFilter>('all'); // Default to 'all' (Active)
-  const [activeFilter, setActiveFilter] = useState<string | null>(null); // For journey tab
+  const [activeLeadFilter, setActiveLeadFilter] = useState<LeadFilter>('all');
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [introCallView, setIntroCallView] = useState<IntroCallFilter>('actionable');
 
+  // --- JOURNEY LOGIC ---
   const journeyData = useMemo<ClientJourneyEntryExtended[]>(() => {
     return participants
       .filter((p) => p.isActive || p.isProspect)
@@ -193,6 +194,7 @@ export const useClientJourney = (loggedInStaff: StaffMember | null) => {
     });
   }, [journeyData, activeFilter]);
 
+  // --- LEADS LOGIC ---
   const leadCounts = useMemo(() => {
     const counts: Record<string, number> = {
       new: 0,
@@ -207,7 +209,6 @@ export const useClientJourney = (loggedInStaff: StaffMember | null) => {
         counts[l.status]++;
       }
     });
-    // "All" means "Active Leads" (excluding junk)
     counts.all = counts.new + counts.contacted + counts.intro_booked + counts.converted;
     return counts;
   }, [leads]);
@@ -218,9 +219,6 @@ export const useClientJourney = (loggedInStaff: StaffMember | null) => {
     );
     
     if (activeLeadFilter === 'all') {
-      // Filter out Junk when 'all' (All Active) is selected
-      // Usually 'converted' are also filtered out from 'active' pipeline views, but prompt implied "Alla" includes converted?
-      // Let's stick to standard: All Active = New + Contacted + Intro Booked + Converted (basically everything except junk)
       return sortedLeads.filter(l => l.status !== 'junk');
     }
     
@@ -235,6 +233,7 @@ export const useClientJourney = (loggedInStaff: StaffMember | null) => {
     [leads]
   );
 
+  // --- INTRO CALLS LOGIC ---
   const unlinkedCallsList = useMemo(
     () =>
       prospectIntroCalls
@@ -268,7 +267,8 @@ export const useClientJourney = (loggedInStaff: StaffMember | null) => {
     return { riskzon, startprogram, checkin };
   }, [journeyData]);
 
-  // Operations
+  // --- OPERATIONS ---
+
   const handleSaveLead = (newLeadData: Pick<Lead, 'firstName' | 'lastName' | 'email' | 'phone' | 'locationId'>) => {
     const newLead: Lead = {
       id: crypto.randomUUID(),
@@ -305,29 +305,14 @@ export const useClientJourney = (loggedInStaff: StaffMember | null) => {
   };
   
   const handleConfirmLink = (callToLink: ProspectIntroCall, participantToLinkId: string) => {
-    // 1. Update the ProspectIntroCall
     const updatedCall = { ...callToLink, status: 'linked' as const, linkedParticipantId: participantToLinkId };
     setProspectIntroCallsData((prev) => prev.map((c) => (c.id === callToLink.id ? updatedCall : c)));
 
-    // 2. Create a CoachNote
     const noteText = `
 --- INTROSAMTALSAMMANFATTNING ---
 Datum: ${new Date(callToLink.createdDate).toLocaleDateString('sv-SE')}
-
-Träningsmål & 'Varför':
-${callToLink.trainingGoals || 'Ej angivet.'}
-
-Timing - 'Varför just nu?':
-${callToLink.timingNotes || 'Ej angivet.'}
-
-Sömn & Stress:
-${callToLink.sleepAndStress || 'Ej angivet.'}
-
-Skador/Hälsoproblem:
-${callToLink.healthIssues || 'Ej angivet.'}
-
-Coachanteckningar & Nästa Steg:
-${callToLink.coachSummary || 'Ej angivet.'}
+Träningsmål: ${callToLink.trainingGoals || 'Ej angivet'}
+Coachanteckningar: ${callToLink.coachSummary || 'Ej angivet'}
     `.trim();
 
     setCoachNotesData((prev) => [
@@ -360,8 +345,39 @@ ${callToLink.coachSummary || 'Ej angivet.'}
     );
   };
 
-  const handleSaveContactAttempt = (updatedLead: Lead) => {
-    setLeadsData((prev) => prev.map((l) => (l.id === updatedLead.id ? updatedLead : l)));
+  const handleSaveContactAttempt = (leadId: string, attempt: Omit<ContactAttempt, 'id' | 'timestamp' | 'coachId'>) => {
+    if (!loggedInStaff) return;
+    
+    const fullAttempt: ContactAttempt = {
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        coachId: loggedInStaff.id,
+        ...attempt
+    };
+
+    setLeadsData(prev => prev.map(lead => {
+        if (lead.id !== leadId) return lead;
+        
+        const updatedHistory = [...(lead.contactHistory || []), fullAttempt];
+        
+        let newStatus = lead.status;
+        // Auto-update status from 'new' to 'contacted' if contact is made
+        if (lead.status === 'new') {
+            newStatus = 'contacted';
+        }
+        // Or if outcome is specific
+        if (attempt.outcome === 'booked_intro') {
+            newStatus = 'intro_booked';
+        } else if (attempt.outcome === 'not_interested') {
+            // Could potentially move to junk or keep as contacted but dead lead
+        }
+
+        return {
+            ...lead,
+            contactHistory: updatedHistory,
+            status: newStatus
+        };
+    }));
   };
   
   const handleArchiveIntroCall = (callId: string) => {
