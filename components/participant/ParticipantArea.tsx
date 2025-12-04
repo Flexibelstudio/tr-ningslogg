@@ -400,9 +400,13 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 lastUpdated: new Date().toISOString(),
                 bodyweightKg: latestStrengthStats?.bodyweightKg || participantProfile.bodyweightKg,
                 squat1RMaxKg: updatedStats.squat1RMaxKg,
+                squatVerificationStatus: updatedStats.squatVerificationStatus,
                 benchPress1RMaxKg: updatedStats.benchPress1RMaxKg,
+                benchPressVerificationStatus: updatedStats.benchPressVerificationStatus,
                 deadlift1RMaxKg: updatedStats.deadlift1RMaxKg,
+                deadliftVerificationStatus: updatedStats.deadliftVerificationStatus,
                 overheadPress1RMaxKg: updatedStats.overheadPress1RMaxKg,
+                overheadPressVerificationStatus: updatedStats.overheadPressVerificationStatus,
             };
         }
         
