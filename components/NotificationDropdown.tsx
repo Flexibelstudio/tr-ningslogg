@@ -32,6 +32,8 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
         case 'CLASS_CANCELLED': return '🚫';
         case 'CLASS_CHANGED': return '⚠️';
         case 'WAITLIST_PROMOTION': return '🎟️';
+        case 'VERIFICATION_APPROVED': return '✅';
+        case 'VERIFICATION_REJECTED': return '❌';
         default: return 'ℹ️';
     }
   };

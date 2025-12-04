@@ -263,8 +263,10 @@ export const useCoachOperations = () => {
 
   // --- Strength Verification ---
   const handleVerifyStat = useCallback((statId: string, lift: LiftType, status: 'verified' | 'rejected' | 'unverified', coachName: string) => {
+    let participantId = '';
     setUserStrengthStatsData(prev => prev.map(stat => {
         if (stat.id !== statId) return stat;
+        participantId = stat.participantId;
         const updates: Partial<UserStrengthStat> = {};
         const dateStr = new Date().toISOString();
         
@@ -273,9 +275,6 @@ export const useCoachOperations = () => {
             if (status === 'verified') {
                 updates[`${prefix}VerifiedBy`] = coachName;
                 updates[`${prefix}VerifiedDate`] = dateStr;
-            } else if (status === 'unverified' || status === 'rejected') {
-                // We can keep the history or clear it. Let's clear 'verifiedBy' if rejected/unverified to be safe?
-                // Or maybe keep it to show who rejected it? For now, just set status.
             }
         };
 
@@ -287,9 +286,32 @@ export const useCoachOperations = () => {
         return { ...stat, ...updates };
     }));
     
+    // Handle notifications for the user
+    if (participantId) {
+         const notificationType = status === 'verified' ? 'VERIFICATION_APPROVED' : (status === 'rejected' ? 'VERIFICATION_REJECTED' : null);
+         
+         if (notificationType) {
+             const title = status === 'verified' ? 'PB Verifierat! 🎉' : 'PB Avfärdat';
+             const body = status === 'verified' 
+                ? `Ditt PB i ${lift} har verifierats av ${coachName}!`
+                : `Ditt registrerade PB i ${lift} kunde inte verifieras. Prata med din coach för detaljer.`;
+
+             const notification: UserNotification = {
+                id: crypto.randomUUID(),
+                recipientId: participantId,
+                type: notificationType,
+                title,
+                body,
+                createdAt: new Date().toISOString(),
+                read: false
+             };
+             setUserNotificationsData(prev => [...prev, notification]);
+         }
+    }
+
     const actionText = status === 'verified' ? 'verifierat' : status === 'rejected' ? 'avfärdat' : 'uppdaterat';
     addNotification({ type: 'SUCCESS', title: 'Statistik uppdaterad', message: `Lyftet har markerats som ${actionText}.` });
-  }, [setUserStrengthStatsData, addNotification]);
+  }, [setUserStrengthStatsData, addNotification, setUserNotificationsData]);
 
   return {
     handleAddNote,

@@ -165,7 +165,7 @@ export interface UserPushSubscription {
 export interface UserNotification {
   id: string;
   recipientId: string; // The user who should see this
-  type: 'FRIEND_BOOKING' | 'CLASS_CANCELLED' | 'CLASS_CHANGED' | 'WAITLIST_PROMOTION';
+  type: 'FRIEND_BOOKING' | 'CLASS_CANCELLED' | 'CLASS_CHANGED' | 'WAITLIST_PROMOTION' | 'VERIFICATION_REJECTED' | 'VERIFICATION_APPROVED';
   title: string;
   body: string;
   relatedScheduleId?: string;

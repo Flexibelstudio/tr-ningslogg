@@ -62,16 +62,17 @@ interface FlowModalProps {
 interface FlowItem {
   id: string;
   date: Date;
-  type: 'COACH_EVENT' | 'NEW_PB' | 'CLUB_MEMBERSHIP' | 'WORKOUT_LOGGED' | 'GENERAL_ACTIVITY' | 'WEEKLY_CHALLENGE' | 'PHYSIQUE_UPDATE' | 'FSS_INCREASE' | 'GOAL_COMPLETED' | 'NEW_GOAL' | 'CONDITIONING_TEST' | 'USER_NOTIFICATION';
+  type: 'COACH_EVENT' | 'NEW_PB' | 'CLUB_MEMBERSHIP' | 'WORKOUT_LOGGED' | 'GENERAL_ACTIVITY' | 'WEEKLY_CHALLENGE' | 'PHYSIQUE_UPDATE' | 'FSS_INCREASE' | 'GOAL_COMPLETED' | 'NEW_GOAL' | 'CONDITIONING_TEST' | 'USER_NOTIFICATION' | 'VERIFIED_PB';
   icon: string;
   title: string;
   description: string;
   authorName?: string;
   log?: FlowItemLog;
   logType?: FlowItemLogType;
-  visibility?: '(vänner)' | '(alla)';
+  visibility?: '(vänner)' | '(alla)' | '(endast dig)';
   praiseItems?: { icon: string; text: string; type: 'pb' | 'baseline' | 'club' }[];
   action?: { label: string, onClick: () => void };
+  isRejected?: boolean;
 }
 
 interface FlowItemCardProps { 
@@ -184,12 +185,22 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
 
     const coachEvent = item.logType === 'coach_event' ? (item.log as CoachEvent) : null;
     const isUserNotification = item.type === 'USER_NOTIFICATION';
+    const isRejected = item.isRejected;
+
+    let cardStyle = 'bg-white border-gray-200';
+    if (isUserNotification) {
+        if (isRejected) {
+            cardStyle = 'bg-red-50 border-red-200'; // Special style for rejected items
+        } else {
+            cardStyle = 'bg-amber-50 border-amber-200';
+        }
+    }
 
     return (
-        <div className={`p-3 rounded-lg shadow-sm border ${isUserNotification ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`} style={{ animation: `fadeInDown 0.5s ease-out ${index * 50}ms backwards` }}>
+        <div className={`p-3 rounded-lg shadow-sm border ${cardStyle}`} style={{ animation: `fadeInDown 0.5s ease-out ${index * 50}ms backwards` }}>
             <div className="flex-grow">
                 <div className="flex justify-between items-start">
-                    <h4 className="flex-grow text-base font-semibold text-gray-800 break-words">
+                    <h4 className={`flex-grow text-base font-semibold break-words ${isRejected ? 'text-red-800' : 'text-gray-800'}`}>
                         <span className="text-2xl mr-2 align-middle">{item.icon}</span>
                         <span className="align-middle">
                             {titlePrefix} {item.title} 
@@ -198,7 +209,7 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
                     </h4>
                     <p className="text-sm text-gray-500 flex-shrink-0 ml-2">{formatRelativeTime(item.date).relative}</p>
                 </div>
-                {item.description && <p className="text-base text-gray-600 mt-0.5 whitespace-pre-wrap break-words">{item.description}</p>}
+                <p className={`text-base mt-0.5 whitespace-pre-wrap break-words ${isRejected ? 'text-red-700' : 'text-gray-600'}`}>{item.description}</p>
                 
                 {coachEvent?.linkUrl && (
                     <div className="mt-3">
@@ -315,6 +326,9 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
              threeDaysAgo.setHours(0, 0, 0, 0);
              
              if (created >= threeDaysAgo) {
+                 // Avoid duplicating approved verification notifications if they will appear as VERIFIED_PB cards
+                 if (notif.type === 'VERIFICATION_APPROVED') return;
+
                  let action = undefined;
                  if (notif.type === 'FRIEND_BOOKING' && notif.relatedScheduleId && notif.relatedClassDate) {
                      // Check if already booked
@@ -336,16 +350,20 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
                      }
                  }
 
+                 const isRejected = notif.type === 'VERIFICATION_REJECTED';
+
                  items.push({
                      id: `notif-${notif.id}`,
                      date: created,
                      type: 'USER_NOTIFICATION',
-                     icon: notif.type === 'FRIEND_BOOKING' ? '👯‍♀️' : (notif.type === 'CLASS_CANCELLED' ? '🚫' : 'ℹ️'),
+                     icon: notif.type === 'FRIEND_BOOKING' ? '👯‍♀️' : (notif.type === 'CLASS_CANCELLED' ? '🚫' : (isRejected ? '❌' : 'ℹ️')),
                      title: notif.title,
                      description: notif.body,
                      log: notif,
                      logType: 'user_notification',
-                     action
+                     action,
+                     isRejected,
+                     visibility: isRejected ? '(endast dig)' : undefined
                  });
              }
         });
@@ -461,7 +479,7 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
             });
         });
         
-        // 5. Standalone achievements
+        // 5. Standalone achievements (Stats & Verification)
         const statsByParticipant = (data.userStrengthStats || []).reduce((acc, stat) => {
             if (!acc[stat.participantId]) acc[stat.participantId] = [];
             acc[stat.participantId].push(stat);
@@ -469,34 +487,72 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
         }, {} as Record<string, UserStrengthStat[]>);
 
         Object.entries(statsByParticipant).forEach(([participantId, stats]: [string, UserStrengthStat[]]) => {
-            if (!allowedParticipantIds.has(participantId) || (stats?.length || 0) < 2) return;
+            if (!allowedParticipantIds.has(participantId)) return;
             const sortedStats = stats.sort((a, b) => new Date(a.lastUpdated).getTime() - new Date(b.lastUpdated).getTime());
             const author = data.allParticipants.find(p => p.id === participantId);
             if (!author) return;
+            const isCurrentUser = participantId === data.currentUserId;
+            const authorName = isCurrentUser ? 'Du' : author.name || 'En vän';
 
             const latestStat = sortedStats[sortedStats.length - 1];
-            const previousStat = sortedStats[sortedStats.length - 2];
-            const latestFss = calculateFlexibelStrengthScoreInternal(latestStat, author);
-            const previousFss = calculateFlexibelStrengthScoreInternal(previousStat, author);
+            
+            // A. FSS Increase (Existing Logic)
+            if (stats.length >= 2) {
+                const previousStat = sortedStats[sortedStats.length - 2];
+                const latestFss = calculateFlexibelStrengthScoreInternal(latestStat, author);
+                const previousFss = calculateFlexibelStrengthScoreInternal(previousStat, author);
 
-            if (latestFss && previousFss && latestFss.totalScore > previousFss.totalScore) {
-                const levelInfo = getFssScoreInterpretation(latestFss.totalScore);
-                const authorName = participantId === data.currentUserId ? 'Du' : author.name || 'En vän';
-                items.push({
-                    id: `fss-${latestStat.id}`,
-                    date: new Date(latestStat.lastUpdated),
-                    type: 'FSS_INCREASE',
-                    icon: '🚀',
-                    title: `ökade sin styrkepoäng (FSS)!`,
-                    description: levelInfo
-                        ? `Nådde nivån ${levelInfo.label} med ${latestFss.totalScore} poäng (från ${previousFss.totalScore}). Starkt!`
-                        : `Ny FSS: ${latestFss.totalScore} poäng (från ${previousFss.totalScore}). Starkt!`,
-                    authorName,
-                    log: latestStat,
-                    logType: 'user_strength_stat',
-                    visibility: participantId === data.currentUserId ? undefined : '(vänner)',
-                });
+                if (latestFss && previousFss && latestFss.totalScore > previousFss.totalScore) {
+                    const levelInfo = getFssScoreInterpretation(latestFss.totalScore);
+                    items.push({
+                        id: `fss-${latestStat.id}`,
+                        date: new Date(latestStat.lastUpdated),
+                        type: 'FSS_INCREASE',
+                        icon: '🚀',
+                        title: `ökade sin styrkepoäng (FSS)!`,
+                        description: levelInfo
+                            ? `Nådde nivån ${levelInfo.label} med ${latestFss.totalScore} poäng (från ${previousFss.totalScore}). Starkt!`
+                            : `Ny FSS: ${latestFss.totalScore} poäng (från ${previousFss.totalScore}). Starkt!`,
+                        authorName,
+                        log: latestStat,
+                        logType: 'user_strength_stat',
+                        visibility: isCurrentUser ? undefined : '(vänner)',
+                    });
+                }
             }
+
+            // B. Verified Lifts (New Logic)
+            const liftsToCheck = [
+                { key: 'squat' as const, label: 'Knäböj' },
+                { key: 'benchPress' as const, label: 'Bänkpress' },
+                { key: 'deadlift' as const, label: 'Marklyft' },
+                { key: 'overheadPress' as const, label: 'Axelpress' }
+            ];
+
+            liftsToCheck.forEach(({ key, label }) => {
+                // Type casting to access dynamic properties safely
+                const status = (latestStat as any)[`${key}VerificationStatus`];
+                const dateStr = (latestStat as any)[`${key}VerifiedDate`];
+                const coach = (latestStat as any)[`${key}VerifiedBy`];
+                const weight = (latestStat as any)[`${key}1RMaxKg`];
+
+                if (status === 'verified' && dateStr) {
+                    const verifiedDate = new Date(dateStr);
+                    // Check if this verified date is recent relative to the stat update or just use it as the event date
+                    items.push({
+                        id: `verified-${key}-${latestStat.id}`,
+                        date: verifiedDate,
+                        type: 'VERIFIED_PB',
+                        icon: '✅',
+                        title: `fick sitt PB verifierat!`,
+                        description: `Coach ${coach || 'en'} har verifierat ${label} på ${weight} kg.`,
+                        authorName,
+                        log: latestStat,
+                        logType: 'user_strength_stat',
+                        visibility: isCurrentUser ? undefined : '(vänner)',
+                    });
+                }
+            });
         });
 
         const physiqueByParticipant = (data.participantPhysiqueHistory || []).reduce((acc, history) => {
