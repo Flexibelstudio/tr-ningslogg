@@ -7,6 +7,7 @@ import { Button } from '../Button';
 import { calculateEstimated1RM } from '../../utils/workoutUtils';
 import { calculateAge } from '../../utils/dateUtils';
 import html2canvas from 'html2canvas';
+import { InfoModal } from './InfoModal';
 
 export interface LiftScoreDetails {
   lift: LiftType;
@@ -311,6 +312,8 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
     const [benchPress1RMax, setBenchPress1RMax] = useState('');
     const [deadlift1RMax, setDeadlift1RMax] = useState('');
     const [overheadPress1RMax, setOverheadPress1RMax] = useState('');
+    
+    const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
 
     const [calcWeight, setCalcWeight] = useState('');
     const [calcReps, setCalcReps] = useState('');
@@ -480,9 +483,20 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
       <div className="space-y-6">
         {areAllStatsFilled ? (
           <div className="space-y-4">
-            <div ref={shareableFssRef} className="p-4 bg-gray-100 rounded-lg text-center space-y-3">
-              <div>
+            <div ref={shareableFssRef} className="p-4 bg-gray-100 rounded-lg text-center space-y-3 relative">
+              <div className="flex items-center justify-center gap-1">
                 <h4 className="text-base font-semibold text-gray-600">Flexibel Strength Score (FSS)</h4>
+                <button 
+                  onClick={() => setIsInfoModalOpen(true)} 
+                  className="text-gray-400 hover:text-flexibel transition-colors p-0.5 rounded-full hover:bg-gray-200 focus:outline-none"
+                  title="Hur räknas detta?"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+              <div>
                 <p className="text-5xl font-bold" style={{ color: FLEXIBEL_PRIMARY_COLOR }}>
                   {fssData?.totalScore ?? '-'}
                 </p>
@@ -662,6 +676,30 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
           </div>
         )}
       </div>
+
+      <InfoModal 
+        isOpen={isInfoModalOpen} 
+        onClose={() => setIsInfoModalOpen(false)} 
+        title="Hur räknas FSS?"
+      >
+        <div className="space-y-4 text-gray-700 text-base leading-relaxed">
+          <p><strong>Vad är FSS?</strong><br/>
+          Flexibel Strength Score är ett mått på din <strong>relativa styrka</strong>. Det handlar inte bara om hur många kilon du lyfter, utan vad du lyfter i förhållande till dina förutsättningar.</p>
+          
+          <div>
+            <strong>Så fungerar det:</strong>
+            <ol className="list-decimal pl-5 space-y-1 mt-1">
+              <li><strong>Dina Lyft:</strong> Vi tittar på ditt 1RM (maxlyft) i de fyra baslyften: Knäböj, Bänkpress, Marklyft och Axelpress.</li>
+              <li><strong>Kroppsvikt:</strong> En lättare person som lyfter tungt får högre poäng än en tyngre person som lyfter samma vikt. Detta gör jämförelsen rättvis.</li>
+              <li><strong>Ålder:</strong> Vi applicerar en åldersfaktor. Eftersom muskelmassa naturligt förändras över tid, justeras poängen så att du kan jämföra din prestation rättvist oavsett ålder.</li>
+              <li><strong>Kön:</strong> Basvärdena är anpassade efter biologiska skillnader för män och kvinnor.</li>
+            </ol>
+          </div>
+
+          <p><strong>Poängen:</strong><br/>
+          Varje lyft ger poäng baserat på en skala. Totalpoängen avgör din nivå (t.ex. "Stark" eller "Atlet"). Målet är att ge dig en siffra att tävla mot dig själv med!</p>
+        </div>
+      </InfoModal>
     );
   }
 );
