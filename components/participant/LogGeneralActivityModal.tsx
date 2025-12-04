@@ -249,10 +249,10 @@ export const LogGeneralActivityModal: React.FC<LogGeneralActivityModalProps> = (
                     <p className="font-bold mb-1">RPE (Upplevd ansträngning)</p>
                     <ul className="space-y-1 text-blue-900/80">
                         <li><span className="font-semibold">1-3:</span> Mycket lätt.</li>
-                        <li><span className="font-semibold">4-6:</span> Medel. Kan prata obehindrat.</li>
-                        <li><span className="font-semibold">7-8:</span> Hårt. Ansträngd andning.</li>
-                        <li><span className="font-semibold">9:</span> Mycket hårt. En repetition kvar i tanken.</li>
-                        <li><span className="font-semibold">10:</span> Maximalt. Helt slut.</li>
+                        <li><span className="font-semibold">4-6:</span> Medel.</li>
+                        <li><span className="font-semibold">7-8:</span> Jobbigt.</li>
+                        <li><span className="font-semibold">9:</span> Mycket jobbigt.</li>
+                        <li><span className="font-semibold">10:</span> Sjukt jobbigt.</li>
                     </ul>
                 </div>
             )}
