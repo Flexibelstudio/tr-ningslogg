@@ -480,226 +480,228 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
     });
 
     return (
-      <div className="space-y-6">
-        {areAllStatsFilled ? (
-          <div className="space-y-4">
-            <div ref={shareableFssRef} className="p-4 bg-gray-100 rounded-lg text-center space-y-3 relative">
-              <div className="flex items-center justify-center gap-1">
-                <h4 className="text-base font-semibold text-gray-600">Flexibel Strength Score (FSS)</h4>
-                <button 
-                  onClick={() => setIsInfoModalOpen(true)} 
-                  className="text-gray-400 hover:text-flexibel transition-colors p-0.5 rounded-full hover:bg-gray-200 focus:outline-none"
-                  title="Hur räknas detta?"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </div>
-              <div>
-                <p className="text-5xl font-bold" style={{ color: FLEXIBEL_PRIMARY_COLOR }}>
-                  {fssData?.totalScore ?? '-'}
-                </p>
-              </div>
-              {fssInterpretation && (
+      <>
+        <div className="space-y-6">
+          {areAllStatsFilled ? (
+            <div className="space-y-4">
+              <div ref={shareableFssRef} className="p-4 bg-gray-100 rounded-lg text-center space-y-3 relative">
+                <div className="flex items-center justify-center gap-1">
+                  <h4 className="text-base font-semibold text-gray-600">Flexibel Strength Score (FSS)</h4>
+                  <button 
+                    onClick={() => setIsInfoModalOpen(true)} 
+                    className="text-gray-400 hover:text-flexibel transition-colors p-0.5 rounded-full hover:bg-gray-200 focus:outline-none"
+                    title="Hur räknas detta?"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
                 <div>
-                  <p className="text-base font-semibold text-gray-600">Nivå</p>
-                  <p className="text-2xl font-bold" style={{ color: fssInterpretation.color }}>
-                    {fssInterpretation.label}
+                  <p className="text-5xl font-bold" style={{ color: FLEXIBEL_PRIMARY_COLOR }}>
+                    {fssData?.totalScore ?? '-'}
                   </p>
                 </div>
-              )}
-            </div>
-            <Button onClick={handleShare} fullWidth variant="secondary">
-              Dela resultat
-            </Button>
-          </div>
-        ) : !profile.bodyweightKg ? (
-          <div className="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-lg">
-            <h3 className="text-lg font-bold text-yellow-800">Kroppsvikt saknas</h3>
-            <p className="text-base text-yellow-700 mt-1">Ange din kroppsvikt i "Min kropp" för att beräkna din FSS-poäng och se din styrkenivå.</p>
-            <Button onClick={onOpenPhysiqueModal} className="mt-3">
-              Ange kroppsvikt
-            </Button>
-          </div>
-        ) : (
-          <div className="p-4 bg-blue-50 border-l-4 border-blue-400 rounded-r-lg">
-            <h3 className="text-xl font-bold text-gray-800">Kom igång!</h3>
-            <p className="text-base text-gray-700 mt-1">Fyll i dina maxlyft för att se din FSS-poäng och styrkenivå.</p>
-            {missingStats.length > 0 && (
-              <ul className="mt-3 space-y-2">
-                {missingStats.map((stat) => (
-                  <li key={stat.key} className="flex items-center text-base">
-                    <span className="text-lg mr-2">❌</span>
-                    <span>{stat.label}</span>
-                    <button onClick={() => inputRefs[stat.key].current?.focus()} className="ml-auto text-sm text-flexibel hover:underline">
-                      Fyll i
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-
-        <div className="pb-4 mb-4 border-b">
-          <Button variant="outline" fullWidth size="md" className="!text-lg justify-center" onClick={() => setIsCalculatorOpen((prev) => !prev)} aria-expanded={isCalculatorOpen}>
-            <CalculatorIcon /> Beräkna Estimerat 1RM
-          </Button>
-          {isCalculatorOpen && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg border space-y-3 animate-fade-in-down">
-              <div className="grid grid-cols-2 gap-3">
-                <Input label="Vikt (kg)" type="number" value={calcWeight} onChange={(e) => setCalcWeight(e.target.value)} placeholder="T.ex. 80" inputSize="sm" />
-                <Input label="Reps" type="number" value={calcReps} onChange={(e) => setCalcReps(e.target.value)} placeholder="T.ex. 5" inputSize="sm" max="12" />
+                {fssInterpretation && (
+                  <div>
+                    <p className="text-base font-semibold text-gray-600">Nivå</p>
+                    <p className="text-2xl font-bold" style={{ color: fssInterpretation.color }}>
+                      {fssInterpretation.label}
+                    </p>
+                  </div>
+                )}
               </div>
-              {estimated1RM !== null && (
-                <div className="text-center p-2 bg-white rounded-md border">
-                  <p className="text-sm text-gray-500">Estimerat 1RM</p>
-                  <p className="text-2xl font-bold text-flexibel">{estimated1RM.toFixed(1)} kg</p>
-                </div>
+              <Button onClick={handleShare} fullWidth variant="secondary">
+                Dela resultat
+              </Button>
+            </div>
+          ) : !profile.bodyweightKg ? (
+            <div className="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-lg">
+              <h3 className="text-lg font-bold text-yellow-800">Kroppsvikt saknas</h3>
+              <p className="text-base text-yellow-700 mt-1">Ange din kroppsvikt i "Min kropp" för att beräkna din FSS-poäng och se din styrkenivå.</p>
+              <Button onClick={onOpenPhysiqueModal} className="mt-3">
+                Ange kroppsvikt
+              </Button>
+            </div>
+          ) : (
+            <div className="p-4 bg-blue-50 border-l-4 border-blue-400 rounded-r-lg">
+              <h3 className="text-xl font-bold text-gray-800">Kom igång!</h3>
+              <p className="text-base text-gray-700 mt-1">Fyll i dina maxlyft för att se din FSS-poäng och styrkenivå.</p>
+              {missingStats.length > 0 && (
+                <ul className="mt-3 space-y-2">
+                  {missingStats.map((stat) => (
+                    <li key={stat.key} className="flex items-center text-base">
+                      <span className="text-lg mr-2">❌</span>
+                      <span>{stat.label}</span>
+                      <button onClick={() => inputRefs[stat.key].current?.focus()} className="ml-auto text-sm text-flexibel hover:underline">
+                        Fyll i
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           )}
-        </div>
 
-        <div className="space-y-4">
-          <h3 className="text-xl font-semibold text-gray-700">Dina 1RM</h3>
-          {profile?.bodyweightKg && (
-            <div className="p-3 bg-gray-100 rounded-lg flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Beräknas med kroppsvikt</p>
-                <p className="text-xl font-bold text-gray-800">{profile.bodyweightKg} kg</p>
+          <div className="pb-4 mb-4 border-b">
+            <Button variant="outline" fullWidth size="md" className="!text-lg justify-center" onClick={() => setIsCalculatorOpen((prev) => !prev)} aria-expanded={isCalculatorOpen}>
+              <CalculatorIcon /> Beräkna Estimerat 1RM
+            </Button>
+            {isCalculatorOpen && (
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg border space-y-3 animate-fade-in-down">
+                <div className="grid grid-cols-2 gap-3">
+                  <Input label="Vikt (kg)" type="number" value={calcWeight} onChange={(e) => setCalcWeight(e.target.value)} placeholder="T.ex. 80" inputSize="sm" />
+                  <Input label="Reps" type="number" value={calcReps} onChange={(e) => setCalcReps(e.target.value)} placeholder="T.ex. 5" inputSize="sm" max="12" />
+                </div>
+                {estimated1RM !== null && (
+                  <div className="text-center p-2 bg-white rounded-md border">
+                    <p className="text-sm text-gray-500">Estimerat 1RM</p>
+                    <p className="text-2xl font-bold text-flexibel">{estimated1RM.toFixed(1)} kg</p>
+                  </div>
+                )}
               </div>
-              <Button variant="ghost" size="sm" onClick={onOpenPhysiqueModal}>
-                Ändra
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-xl font-semibold text-gray-700">Dina 1RM</h3>
+            {profile?.bodyweightKg && (
+              <div className="p-3 bg-gray-100 rounded-lg flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Beräknas med kroppsvikt</p>
+                  <p className="text-xl font-bold text-gray-800">{profile.bodyweightKg} kg</p>
+                </div>
+                <Button variant="ghost" size="sm" onClick={onOpenPhysiqueModal}>
+                  Ändra
+                </Button>
+              </div>
+            )}
+
+            {MAIN_LIFTS_CONFIG_HEADER.map(({ lift, statKey, label }) => {
+              const liftState = { squat1RMaxKg: squat1RMax, benchPress1RMaxKg: benchPress1RMax, deadlift1RMaxKg: deadlift1RMax, overheadPress1RMaxKg: overheadPress1RMax }[
+                statKey
+              ];
+              const setStateAction = { squat1RMaxKg: setSquat1RMax, benchPress1RMaxKg: setBenchPress1RMax, deadlift1RMaxKg: setDeadlift1RMax, overheadPress1RMaxKg: setOverheadPress1RMax }[
+                statKey
+              ];
+              const liftScoreData = fssData?.liftScores.find((l) => l.lift === lift);
+              
+              const verificationData = {
+                  squat1RMaxKg: { status: latestStats?.squatVerificationStatus, by: latestStats?.squatVerifiedBy, date: latestStats?.squatVerifiedDate },
+                  benchPress1RMaxKg: { status: latestStats?.benchPressVerificationStatus, by: latestStats?.benchPressVerifiedBy, date: latestStats?.benchPressVerifiedDate },
+                  deadlift1RMaxKg: { status: latestStats?.deadliftVerificationStatus, by: latestStats?.deadliftVerifiedBy, date: latestStats?.deadliftVerifiedDate },
+                  overheadPress1RMaxKg: { status: latestStats?.overheadPressVerificationStatus, by: latestStats?.overheadPressVerifiedBy, date: latestStats?.overheadPressVerifiedDate },
+              }[statKey];
+
+              return (
+                <details key={statKey} className="bg-white p-3 rounded-lg shadow-sm border border-gray-200" open={expandedLifts[lift]}>
+                  <summary
+                    className="font-semibold text-lg text-gray-800 cursor-pointer list-none flex justify-between items-center"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setExpandedLifts((p) => ({ ...p, [lift]: !p[lift] }));
+                    }}
+                  >
+                    <span className="flex items-center">
+                      {lift}:{' '}
+                      <span className="font-bold text-flexibel ml-1">
+                        {liftState || '-'} kg
+                      </span>
+                      {verificationData && <VerificationBadge status={verificationData.status} by={verificationData.by} date={verificationData.date} />}
+                    </span>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className={`h-5 w-5 text-gray-500 transition-transform ${expandedLifts[lift] ? 'rotate-180' : ''}`}
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </summary>
+                  <div className="mt-3 pt-3 border-t space-y-4">
+                    {liftScoreData && (
+                      <div className="p-3 border rounded-md bg-gray-50 text-center">
+                        <h5 className="font-semibold text-base text-gray-700">Poäng & Nivå</h5>
+                        <p className="text-3xl font-bold" style={{ color: LEVEL_COLORS_HEADER[liftScoreData.level] }}>
+                          {liftScoreData.score}
+                        </p>
+                        <p className="text-lg font-semibold" style={{ color: LEVEL_COLORS_HEADER[liftScoreData.level] }}>
+                          {liftScoreData.level}
+                        </p>
+                      </div>
+                    )}
+                    <FocusedClubDisplay liftType={lift} oneRepMax={Number((liftState || '0').replace(',', '.')) || 0} />
+                    <Input
+                      label={`Uppdatera ${label}`}
+                      id={statKey}
+                      name={statKey}
+                      type="number"
+                      step="0.5"
+                      value={liftState}
+                      onChange={(e) => {
+                        setStateAction(e.target.value);
+                        validateField(e.target.value, statKey);
+                      }}
+                      error={errors[statKey]}
+                      ref={inputRefs[statKey]}
+                    />
+                  </div>
+                </details>
+              );
+            })}
+          </div>
+
+          <details className="mt-8 pt-6 border-t">
+            <summary className="text-xl font-semibold text-gray-700 cursor-pointer list-none flex justify-between items-center py-2 group hover:text-flexibel transition-colors">
+              Historik
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5 text-gray-500 transition-transform duration-200 group-open:rotate-180"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </summary>
+            <div className="mt-2 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+              <p className="text-base text-gray-600">Här kan du se din historiska utveckling. Spara nya mätpunkter för att se grafen växa!</p>
+              {/* Future chart component would go here */}
+            </div>
+          </details>
+
+          {!isEmbedded && (
+            <div className="flex justify-end space-x-3 pt-6 border-t">
+              <Button onClick={handleSave} variant="primary">
+                Spara Styrkestatus
               </Button>
             </div>
           )}
+        </div>
 
-          {MAIN_LIFTS_CONFIG_HEADER.map(({ lift, statKey, label }) => {
-            const liftState = { squat1RMaxKg: squat1RMax, benchPress1RMaxKg: benchPress1RMax, deadlift1RMaxKg: deadlift1RMax, overheadPress1RMaxKg: overheadPress1RMax }[
-              statKey
-            ];
-            const setStateAction = { squat1RMaxKg: setSquat1RMax, benchPress1RMaxKg: setBenchPress1RMax, deadlift1RMaxKg: setDeadlift1RMax, overheadPress1RMaxKg: setOverheadPress1RMax }[
-              statKey
-            ];
-            const liftScoreData = fssData?.liftScores.find((l) => l.lift === lift);
+        <InfoModal 
+          isOpen={isInfoModalOpen} 
+          onClose={() => setIsInfoModalOpen(false)} 
+          title="Hur räknas FSS?"
+        >
+          <div className="space-y-4 text-gray-700 text-base leading-relaxed">
+            <p><strong>Vad är FSS?</strong><br/>
+            Flexibel Strength Score är ett mått på din <strong>relativa styrka</strong>. Det handlar inte bara om hur många kilon du lyfter, utan vad du lyfter i förhållande till dina förutsättningar.</p>
             
-            const verificationData = {
-                squat1RMaxKg: { status: latestStats?.squatVerificationStatus, by: latestStats?.squatVerifiedBy, date: latestStats?.squatVerifiedDate },
-                benchPress1RMaxKg: { status: latestStats?.benchPressVerificationStatus, by: latestStats?.benchPressVerifiedBy, date: latestStats?.benchPressVerifiedDate },
-                deadlift1RMaxKg: { status: latestStats?.deadliftVerificationStatus, by: latestStats?.deadliftVerifiedBy, date: latestStats?.deadliftVerifiedDate },
-                overheadPress1RMaxKg: { status: latestStats?.overheadPressVerificationStatus, by: latestStats?.overheadPressVerifiedBy, date: latestStats?.overheadPressVerifiedDate },
-            }[statKey];
+            <div>
+              <strong>Så fungerar det:</strong>
+              <ol className="list-decimal pl-5 space-y-1 mt-1">
+                <li><strong>Dina Lyft:</strong> Vi tittar på ditt 1RM (maxlyft) i de fyra baslyften: Knäböj, Bänkpress, Marklyft och Axelpress.</li>
+                <li><strong>Kroppsvikt:</strong> En lättare person som lyfter tungt får högre poäng än en tyngre person som lyfter samma vikt. Detta gör jämförelsen rättvis.</li>
+                <li><strong>Ålder:</strong> Vi applicerar en åldersfaktor. Eftersom muskelmassa naturligt förändras över tid, justeras poängen så att du kan jämföra din prestation rättvist oavsett ålder.</li>
+                <li><strong>Kön:</strong> Basvärdena är anpassade efter biologiska skillnader för män och kvinnor.</li>
+              </ol>
+            </div>
 
-            return (
-              <details key={statKey} className="bg-white p-3 rounded-lg shadow-sm border border-gray-200" open={expandedLifts[lift]}>
-                <summary
-                  className="font-semibold text-lg text-gray-800 cursor-pointer list-none flex justify-between items-center"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setExpandedLifts((p) => ({ ...p, [lift]: !p[lift] }));
-                  }}
-                >
-                  <span className="flex items-center">
-                    {lift}:{' '}
-                    <span className="font-bold text-flexibel ml-1">
-                      {liftState || '-'} kg
-                    </span>
-                    {verificationData && <VerificationBadge status={verificationData.status} by={verificationData.by} date={verificationData.date} />}
-                  </span>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className={`h-5 w-5 text-gray-500 transition-transform ${expandedLifts[lift] ? 'rotate-180' : ''}`}
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </summary>
-                <div className="mt-3 pt-3 border-t space-y-4">
-                  {liftScoreData && (
-                    <div className="p-3 border rounded-md bg-gray-50 text-center">
-                      <h5 className="font-semibold text-base text-gray-700">Poäng & Nivå</h5>
-                      <p className="text-3xl font-bold" style={{ color: LEVEL_COLORS_HEADER[liftScoreData.level] }}>
-                        {liftScoreData.score}
-                      </p>
-                      <p className="text-lg font-semibold" style={{ color: LEVEL_COLORS_HEADER[liftScoreData.level] }}>
-                        {liftScoreData.level}
-                      </p>
-                    </div>
-                  )}
-                  <FocusedClubDisplay liftType={lift} oneRepMax={Number((liftState || '0').replace(',', '.')) || 0} />
-                  <Input
-                    label={`Uppdatera ${label}`}
-                    id={statKey}
-                    name={statKey}
-                    type="number"
-                    step="0.5"
-                    value={liftState}
-                    onChange={(e) => {
-                      setStateAction(e.target.value);
-                      validateField(e.target.value, statKey);
-                    }}
-                    error={errors[statKey]}
-                    ref={inputRefs[statKey]}
-                  />
-                </div>
-              </details>
-            );
-          })}
-        </div>
-
-        <details className="mt-8 pt-6 border-t">
-          <summary className="text-xl font-semibold text-gray-700 cursor-pointer list-none flex justify-between items-center py-2 group hover:text-flexibel transition-colors">
-            Historik
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5 text-gray-500 transition-transform duration-200 group-open:rotate-180"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </summary>
-          <div className="mt-2 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-            <p className="text-base text-gray-600">Här kan du se din historiska utveckling. Spara nya mätpunkter för att se grafen växa!</p>
-            {/* Future chart component would go here */}
+            <p><strong>Poängen:</strong><br/>
+            Varje lyft ger poäng baserat på en skala. Totalpoängen avgör din nivå (t.ex. "Stark" eller "Atlet"). Målet är att ge dig en siffra att tävla mot dig själv med!</p>
           </div>
-        </details>
-
-        {!isEmbedded && (
-          <div className="flex justify-end space-x-3 pt-6 border-t">
-            <Button onClick={handleSave} variant="primary">
-              Spara Styrkestatus
-            </Button>
-          </div>
-        )}
-      </div>
-
-      <InfoModal 
-        isOpen={isInfoModalOpen} 
-        onClose={() => setIsInfoModalOpen(false)} 
-        title="Hur räknas FSS?"
-      >
-        <div className="space-y-4 text-gray-700 text-base leading-relaxed">
-          <p><strong>Vad är FSS?</strong><br/>
-          Flexibel Strength Score är ett mått på din <strong>relativa styrka</strong>. Det handlar inte bara om hur många kilon du lyfter, utan vad du lyfter i förhållande till dina förutsättningar.</p>
-          
-          <div>
-            <strong>Så fungerar det:</strong>
-            <ol className="list-decimal pl-5 space-y-1 mt-1">
-              <li><strong>Dina Lyft:</strong> Vi tittar på ditt 1RM (maxlyft) i de fyra baslyften: Knäböj, Bänkpress, Marklyft och Axelpress.</li>
-              <li><strong>Kroppsvikt:</strong> En lättare person som lyfter tungt får högre poäng än en tyngre person som lyfter samma vikt. Detta gör jämförelsen rättvis.</li>
-              <li><strong>Ålder:</strong> Vi applicerar en åldersfaktor. Eftersom muskelmassa naturligt förändras över tid, justeras poängen så att du kan jämföra din prestation rättvist oavsett ålder.</li>
-              <li><strong>Kön:</strong> Basvärdena är anpassade efter biologiska skillnader för män och kvinnor.</li>
-            </ol>
-          </div>
-
-          <p><strong>Poängen:</strong><br/>
-          Varje lyft ger poäng baserat på en skala. Totalpoängen avgör din nivå (t.ex. "Stark" eller "Atlet"). Målet är att ge dig en siffra att tävla mot dig själv med!</p>
-        </div>
-      </InfoModal>
+        </InfoModal>
+      </>
     );
   }
 );
