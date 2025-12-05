@@ -4,6 +4,79 @@ import { WorkoutLog, Workout, UserStrengthStat, PostWorkoutSummaryData, NewPB, N
 import { WEIGHT_COMPARISONS } from '../constants';
 import { calculateEstimated1RM } from '../utils/workoutUtils';
 
+/**
+ * Calculates the "Effective" strength stats.
+ * It looks backwards through history for EACH lift independently.
+ * A lift is considered valid if:
+ * 1. It is marked as 'verified'.
+ * 2. It has NO verification status (legacy data).
+ * 
+ * Rejected or Pending lifts are skipped for the effective calculation (but Pending might still be shown as UI state elsewhere).
+ */
+export const calculateEffectiveStrengthStats = (history: UserStrengthStat[]): UserStrengthStat | null => {
+    if (!history || history.length === 0) return null;
+
+    // Sort descending (newest first)
+    const sortedHistory = [...history].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime());
+    
+    // Start with the latest record to get base metadata (id, participantId, bodyweight etc from the latest entry)
+    // We clone it to avoid mutating the original
+    const effectiveStats: UserStrengthStat = { ...sortedHistory[0] };
+
+    const lifts: Array<{ valKey: keyof UserStrengthStat, statusKey: keyof UserStrengthStat }> = [
+        { valKey: 'squat1RMaxKg', statusKey: 'squatVerificationStatus' },
+        { valKey: 'benchPress1RMaxKg', statusKey: 'benchPressVerificationStatus' },
+        { valKey: 'deadlift1RMaxKg', statusKey: 'deadliftVerificationStatus' },
+        { valKey: 'overheadPress1RMaxKg', statusKey: 'overheadPressVerificationStatus' },
+    ];
+
+    // For each lift, find the most recent VALID entry
+    for (const lift of lifts) {
+        const validEntry = sortedHistory.find(stat => {
+            const val = stat[lift.valKey];
+            const status = stat[lift.statusKey] as string | undefined;
+            
+            // Must have a value
+            if (val === undefined || val === null) return false;
+
+            // Valid if: Legacy (no status) OR Verified
+            // Invalid if: Rejected OR Pending
+            if (!status || status === 'verified') return true;
+            
+            return false;
+        });
+
+        if (validEntry) {
+            (effectiveStats as any)[lift.valKey] = validEntry[lift.valKey];
+            (effectiveStats as any)[lift.statusKey] = validEntry[lift.statusKey];
+            
+            // Also grab the verification metadata if available
+            if (lift.valKey === 'squat1RMaxKg') {
+                effectiveStats.squatVerifiedBy = validEntry.squatVerifiedBy;
+                effectiveStats.squatVerifiedDate = validEntry.squatVerifiedDate;
+            }
+            if (lift.valKey === 'benchPress1RMaxKg') {
+                effectiveStats.benchPressVerifiedBy = validEntry.benchPressVerifiedBy;
+                effectiveStats.benchPressVerifiedDate = validEntry.benchPressVerifiedDate;
+            }
+            if (lift.valKey === 'deadlift1RMaxKg') {
+                effectiveStats.deadliftVerifiedBy = validEntry.deadliftVerifiedBy;
+                effectiveStats.deadliftVerifiedDate = validEntry.deadliftVerifiedDate;
+            }
+            if (lift.valKey === 'overheadPress1RMaxKg') {
+                effectiveStats.overheadPressVerifiedBy = validEntry.overheadPressVerifiedBy;
+                effectiveStats.overheadPressVerifiedDate = validEntry.overheadPressVerifiedDate;
+            }
+        } else {
+            // If no valid entry found in history, reset to undefined (or 0 if preferred, but undefined is safer for "no data")
+            (effectiveStats as any)[lift.valKey] = undefined;
+            (effectiveStats as any)[lift.statusKey] = undefined;
+        }
+    }
+
+    return effectiveStats;
+};
+
 export const calculatePostWorkoutSummary = (
     log: WorkoutLog,
     allWorkouts: Workout[],
@@ -27,13 +100,26 @@ export const calculatePostWorkoutSummary = (
         : (workoutTemplate?.blocks || []).reduce((acc, block) => acc.concat(block.exercises), [] as Exercise[]) || [];
 
     const allTimePBs: Partial<UserStrengthStat> = {};
+    
+    // Use effective stats for PB comparison if available, otherwise fallback to simple max
     if (strengthStatsHistory && strengthStatsHistory.length > 0) {
-        strengthStatsHistory.forEach(stat => {
-            if (stat.squat1RMaxKg && stat.squat1RMaxKg > (allTimePBs.squat1RMaxKg || 0)) allTimePBs.squat1RMaxKg = stat.squat1RMaxKg;
-            if (stat.benchPress1RMaxKg && stat.benchPress1RMaxKg > (allTimePBs.benchPress1RMaxKg || 0)) allTimePBs.benchPress1RMaxKg = stat.benchPress1RMaxKg;
-            if (stat.deadlift1RMaxKg && stat.deadlift1RMaxKg > (allTimePBs.deadlift1RMaxKg || 0)) allTimePBs.deadlift1RMaxKg = stat.deadlift1RMaxKg;
-            if (stat.overheadPress1RMaxKg && stat.overheadPress1RMaxKg > (allTimePBs.overheadPress1RMaxKg || 0)) allTimePBs.overheadPress1RMaxKg = stat.overheadPress1RMaxKg;
-        });
+        // Get the official effective stats first
+        const effectiveStats = calculateEffectiveStrengthStats(strengthStatsHistory);
+        
+        if (effectiveStats) {
+            allTimePBs.squat1RMaxKg = effectiveStats.squat1RMaxKg;
+            allTimePBs.benchPress1RMaxKg = effectiveStats.benchPress1RMaxKg;
+            allTimePBs.deadlift1RMaxKg = effectiveStats.deadlift1RMaxKg;
+            allTimePBs.overheadPress1RMaxKg = effectiveStats.overheadPress1RMaxKg;
+        } else {
+            // Fallback (should generally be covered by effectiveStats, but for safety)
+            strengthStatsHistory.forEach(stat => {
+                if (stat.squat1RMaxKg && stat.squat1RMaxKg > (allTimePBs.squat1RMaxKg || 0)) allTimePBs.squat1RMaxKg = stat.squat1RMaxKg;
+                if (stat.benchPress1RMaxKg && stat.benchPress1RMaxKg > (allTimePBs.benchPress1RMaxKg || 0)) allTimePBs.benchPress1RMaxKg = stat.benchPress1RMaxKg;
+                if (stat.deadlift1RMaxKg && stat.deadlift1RMaxKg > (allTimePBs.deadlift1RMaxKg || 0)) allTimePBs.deadlift1RMaxKg = stat.deadlift1RMaxKg;
+                if (stat.overheadPress1RMaxKg && stat.overheadPress1RMaxKg > (allTimePBs.overheadPress1RMaxKg || 0)) allTimePBs.overheadPress1RMaxKg = stat.overheadPress1RMaxKg;
+            });
+        }
     }
 
     log.entries.forEach(entry => {
@@ -331,31 +417,32 @@ export const findAndUpdateStrengthStats = (
     strengthStatsHistory: UserStrengthStat[]
 ): { needsUpdate: boolean, updatedStats: Partial<UserStrengthStat> } => {
     
-    // 1. Find the LATEST strength stat record for the user to use as the current baseline.
-    const latestStat = strengthStatsHistory.length > 0 
-        ? [...strengthStatsHistory].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0]
-        : null;
+    // 1. Calculate "Effective" stats first (ignoring rejected/pending unless we are the one updating)
+    // The previous logic just took the latest row. We should base "current PBs" on what counts as valid.
+    // If the latest stat was rejected, we fall back. If it was verified, we use it.
+    // Note: calculateEffectiveStrengthStats returns ONE object with the best valid values for each lift.
+    const effectiveStats = calculateEffectiveStrengthStats(strengthStatsHistory);
 
     const currentPBs: Partial<UserStrengthStat> = {
-        squat1RMaxKg: latestStat?.squat1RMaxKg || 0,
-        squatVerificationStatus: latestStat?.squatVerificationStatus,
-        squatVerifiedBy: latestStat?.squatVerifiedBy,
-        squatVerifiedDate: latestStat?.squatVerifiedDate,
+        squat1RMaxKg: effectiveStats?.squat1RMaxKg || 0,
+        squatVerificationStatus: effectiveStats?.squatVerificationStatus,
+        squatVerifiedBy: effectiveStats?.squatVerifiedBy,
+        squatVerifiedDate: effectiveStats?.squatVerifiedDate,
 
-        benchPress1RMaxKg: latestStat?.benchPress1RMaxKg || 0,
-        benchPressVerificationStatus: latestStat?.benchPressVerificationStatus,
-        benchPressVerifiedBy: latestStat?.benchPressVerifiedBy,
-        benchPressVerifiedDate: latestStat?.benchPressVerifiedDate,
+        benchPress1RMaxKg: effectiveStats?.benchPress1RMaxKg || 0,
+        benchPressVerificationStatus: effectiveStats?.benchPressVerificationStatus,
+        benchPressVerifiedBy: effectiveStats?.benchPressVerifiedBy,
+        benchPressVerifiedDate: effectiveStats?.benchPressVerifiedDate,
 
-        deadlift1RMaxKg: latestStat?.deadlift1RMaxKg || 0,
-        deadliftVerificationStatus: latestStat?.deadliftVerificationStatus,
-        deadliftVerifiedBy: latestStat?.deadliftVerifiedBy,
-        deadliftVerifiedDate: latestStat?.deadliftVerifiedDate,
+        deadlift1RMaxKg: effectiveStats?.deadlift1RMaxKg || 0,
+        deadliftVerificationStatus: effectiveStats?.deadliftVerificationStatus,
+        deadliftVerifiedBy: effectiveStats?.deadliftVerifiedBy,
+        deadliftVerifiedDate: effectiveStats?.deadliftVerifiedDate,
 
-        overheadPress1RMaxKg: latestStat?.overheadPress1RMaxKg || 0,
-        overheadPressVerificationStatus: latestStat?.overheadPressVerificationStatus,
-        overheadPressVerifiedBy: latestStat?.overheadPressVerifiedBy,
-        overheadPressVerifiedDate: latestStat?.overheadPressVerifiedDate,
+        overheadPress1RMaxKg: effectiveStats?.overheadPress1RMaxKg || 0,
+        overheadPressVerificationStatus: effectiveStats?.overheadPressVerificationStatus,
+        overheadPressVerifiedBy: effectiveStats?.overheadPressVerifiedBy,
+        overheadPressVerifiedDate: effectiveStats?.overheadPressVerifiedDate,
     };
     
     // 2. Calculate potential new PBs from the current workout log.
@@ -390,6 +477,7 @@ export const findAndUpdateStrengthStats = (
                 key: 'squat1RMaxKg' | 'benchPress1RMaxKg' | 'deadlift1RMaxKg' | 'overheadPress1RMaxKg',
                 verificationKey: 'squatVerificationStatus' | 'benchPressVerificationStatus' | 'deadliftVerificationStatus' | 'overheadPressVerificationStatus'
             ) => {
+                // Check against the EFFECTIVE current PB
                 if (bestE1RMInLog > (currentPBs[key] || 0)) {
                     newPBsFromLog[key] = bestE1RMInLog;
                     // IMPORTANT: Reset verification status to pending on new PB
@@ -407,6 +495,27 @@ export const findAndUpdateStrengthStats = (
     
     // 3. Merge the current PBs with any new PBs. 
     // newPBsFromLog will override currentPBs, including resetting verification status.
+    // Note: We keep the other fields (like verifiedBy/Date) from currentPBs if they are not overwritten, 
+    // though typically if status becomes pending, we should probably clear verifiedBy/Date.
+    // Let's explicitly clear verified metadata if we have a new pending value.
+    
+    if (newPBsFromLog.squatVerificationStatus === 'pending') { 
+        newPBsFromLog.squatVerifiedBy = undefined; 
+        newPBsFromLog.squatVerifiedDate = undefined; 
+    }
+    if (newPBsFromLog.benchPressVerificationStatus === 'pending') { 
+        newPBsFromLog.benchPressVerifiedBy = undefined; 
+        newPBsFromLog.benchPressVerifiedDate = undefined; 
+    }
+    if (newPBsFromLog.deadliftVerificationStatus === 'pending') { 
+        newPBsFromLog.deadliftVerifiedBy = undefined; 
+        newPBsFromLog.deadliftVerifiedDate = undefined; 
+    }
+    if (newPBsFromLog.overheadPressVerificationStatus === 'pending') { 
+        newPBsFromLog.overheadPressVerifiedBy = undefined; 
+        newPBsFromLog.overheadPressVerifiedDate = undefined; 
+    }
+
     const updatedStats = { ...currentPBs, ...newPBsFromLog };
 
     return { needsUpdate, updatedStats };
