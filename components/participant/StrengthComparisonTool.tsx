@@ -8,7 +8,6 @@ import { calculateEstimated1RM } from '../../utils/workoutUtils';
 import { calculateAge } from '../../utils/dateUtils';
 import html2canvas from 'html2canvas';
 import { InfoModal } from './InfoModal';
-import { calculateEffectiveStrengthStats } from '../../services/workoutService';
 
 export interface LiftScoreDetails {
   lift: LiftType;
@@ -304,11 +303,7 @@ const CalculatorIcon = () => (
 
 export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, StrengthComparisonToolProps>(
   ({ profile, strengthStatsHistory, onSaveStrengthStats, isEmbedded, onOpenPhysiqueModal }, ref) => {
-    // Calculate Effective Stats (valid ones)
-    const effectiveStats = useMemo(() => calculateEffectiveStrengthStats(strengthStatsHistory), [strengthStatsHistory]);
-    
-    // Find absolute latest raw entry to check for rejected status
-    const latestRawEntry = useMemo(
+    const latestStats = useMemo(
       () => (strengthStatsHistory.length > 0 ? [...strengthStatsHistory].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0] : null),
       [strengthStatsHistory]
     );
@@ -338,14 +333,12 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
     const estimated1RM = useMemo(() => calculateEstimated1RM(calcWeight, calcReps), [calcWeight, calcReps]);
 
     useEffect(() => {
-      // Populate fields with EFFECTIVE stats, so the user sees their current valid standing.
-      // If they want to re-submit a rejected value, they type it in again.
-      setSquat1RMax(effectiveStats?.squat1RMaxKg?.toString() || '');
-      setBenchPress1RMax(effectiveStats?.benchPress1RMaxKg?.toString() || '');
-      setDeadlift1RMax(effectiveStats?.deadlift1RMaxKg?.toString() || '');
-      setOverheadPress1RMax(effectiveStats?.overheadPress1RMaxKg?.toString() || '');
+      setSquat1RMax(latestStats?.squat1RMaxKg?.toString() || '');
+      setBenchPress1RMax(latestStats?.benchPress1RMaxKg?.toString() || '');
+      setDeadlift1RMax(latestStats?.deadlift1RMaxKg?.toString() || '');
+      setOverheadPress1RMax(latestStats?.overheadPress1RMaxKg?.toString() || '');
       setErrors({});
-    }, [effectiveStats]);
+    }, [latestStats]);
 
     const areAllStatsFilled = useMemo(() => {
       return !!(profile?.bodyweightKg && squat1RMax.trim() && benchPress1RMax.trim() && deadlift1RMax.trim() && overheadPress1RMax.trim());
@@ -410,23 +403,22 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
         bodyweightKg: profile.bodyweightKg,
         
         squat1RMaxKg: squat1RMax.trim() ? Number(squat1RMax.replace(',', '.')) : undefined,
-        // If value changed from effective stats, set to pending. Otherwise keep current status.
-        squatVerificationStatus: (squat1RMax !== effectiveStats?.squat1RMaxKg?.toString()) ? 'pending' : effectiveStats?.squatVerificationStatus,
+        squatVerificationStatus: (squat1RMax !== latestStats?.squat1RMaxKg?.toString()) ? 'pending' : latestStats?.squatVerificationStatus,
 
         benchPress1RMaxKg: benchPress1RMax.trim() ? Number(benchPress1RMax.replace(',', '.')) : undefined,
-        benchPressVerificationStatus: (benchPress1RMax !== effectiveStats?.benchPress1RMaxKg?.toString()) ? 'pending' : effectiveStats?.benchPressVerificationStatus,
+        benchPressVerificationStatus: (benchPress1RMax !== latestStats?.benchPress1RMaxKg?.toString()) ? 'pending' : latestStats?.benchPressVerificationStatus,
 
         deadlift1RMaxKg: deadlift1RMax.trim() ? Number(deadlift1RMax.replace(',', '.')) : undefined,
-        deadliftVerificationStatus: (deadlift1RMax !== effectiveStats?.deadlift1RMaxKg?.toString()) ? 'pending' : effectiveStats?.deadliftVerificationStatus,
+        deadliftVerificationStatus: (deadlift1RMax !== latestStats?.deadlift1RMaxKg?.toString()) ? 'pending' : latestStats?.deadliftVerificationStatus,
 
         overheadPress1RMaxKg: overheadPress1RMax.trim() ? Number(overheadPress1RMax.replace(',', '.')) : undefined,
-        overheadPressVerificationStatus: (overheadPress1RMax !== effectiveStats?.overheadPress1RMaxKg?.toString()) ? 'pending' : effectiveStats?.overheadPressVerificationStatus,
+        overheadPressVerificationStatus: (overheadPress1RMax !== latestStats?.overheadPress1RMaxKg?.toString()) ? 'pending' : latestStats?.overheadPressVerificationStatus,
 
         lastUpdated: new Date().toISOString(),
       };
       onSaveStrengthStats(newStat);
       return true;
-    }, [squat1RMax, benchPress1RMax, deadlift1RMax, overheadPress1RMax, profile, onSaveStrengthStats, onOpenPhysiqueModal, effectiveStats]);
+    }, [squat1RMax, benchPress1RMax, deadlift1RMax, overheadPress1RMax, profile, onSaveStrengthStats, onOpenPhysiqueModal, latestStats]);
 
     useImperativeHandle(ref, () => ({
       submitForm: () => {
@@ -458,7 +450,6 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
       const numericBw = profile?.bodyweightKg ?? 0;
       if (!profile || !numericBw) return null;
 
-      // Using effective stats for the calculation to reflect current valid standing
       const currentStats: UserStrengthStat = {
         id: '',
         participantId: profile.id,
@@ -595,35 +586,12 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
               ];
               const liftScoreData = fssData?.liftScores.find((l) => l.lift === lift);
               
-              // Show verification badge based on EFFECTIVE stats
-              const effectiveVerificationData = {
-                  squat1RMaxKg: { status: effectiveStats?.squatVerificationStatus, by: effectiveStats?.squatVerifiedBy, date: effectiveStats?.squatVerifiedDate },
-                  benchPress1RMaxKg: { status: effectiveStats?.benchPressVerificationStatus, by: effectiveStats?.benchPressVerifiedBy, date: effectiveStats?.benchPressVerifiedDate },
-                  deadlift1RMaxKg: { status: effectiveStats?.deadliftVerificationStatus, by: effectiveStats?.deadliftVerifiedBy, date: effectiveStats?.deadliftVerifiedDate },
-                  overheadPress1RMaxKg: { status: effectiveStats?.overheadPressVerificationStatus, by: effectiveStats?.overheadPressVerifiedBy, date: effectiveStats?.overheadPressVerifiedDate },
+              const verificationData = {
+                  squat1RMaxKg: { status: latestStats?.squatVerificationStatus, by: latestStats?.squatVerifiedBy, date: latestStats?.squatVerifiedDate },
+                  benchPress1RMaxKg: { status: latestStats?.benchPressVerificationStatus, by: latestStats?.benchPressVerifiedBy, date: latestStats?.benchPressVerifiedDate },
+                  deadlift1RMaxKg: { status: latestStats?.deadliftVerificationStatus, by: latestStats?.deadliftVerifiedBy, date: latestStats?.deadliftVerifiedDate },
+                  overheadPress1RMaxKg: { status: latestStats?.overheadPressVerificationStatus, by: latestStats?.overheadPressVerifiedBy, date: latestStats?.overheadPressVerifiedDate },
               }[statKey];
-
-              // Check if there was a RECENT rejection that differs from the effective stat
-              // This happens if the *latest* row is rejected, but effective is showing an older valid row.
-              let rejectionAlert = null;
-              if (latestRawEntry) {
-                  const latestStatus = {
-                      squat1RMaxKg: latestRawEntry.squatVerificationStatus,
-                      benchPress1RMaxKg: latestRawEntry.benchPressVerificationStatus,
-                      deadlift1RMaxKg: latestRawEntry.deadliftVerificationStatus,
-                      overheadPress1RMaxKg: latestRawEntry.overheadPressVerificationStatus,
-                  }[statKey];
-                  
-                  if (latestStatus === 'rejected') {
-                      const latestWeight = latestRawEntry[statKey];
-                      rejectionAlert = (
-                          <div className="bg-red-50 border-l-4 border-red-400 p-2 mt-2 mb-2 text-sm text-red-800 rounded-r">
-                              <p className="font-bold">Ej godkänt</p>
-                              <p>Ditt senaste försök på <strong>{latestWeight} kg</strong> godkändes inte. Din nivå baseras på ditt tidigare godkända lyft ({liftState || 0} kg).</p>
-                          </div>
-                      );
-                  }
-              }
 
               return (
                 <details key={statKey} className="bg-white p-3 rounded-lg shadow-sm border border-gray-200" open={expandedLifts[lift]}>
@@ -639,7 +607,7 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
                       <span className="font-bold text-flexibel ml-1">
                         {liftState || '-'} kg
                       </span>
-                      {effectiveVerificationData && <VerificationBadge status={effectiveVerificationData.status} by={effectiveVerificationData.by} date={effectiveVerificationData.date} />}
+                      {verificationData && <VerificationBadge status={verificationData.status} by={verificationData.by} date={verificationData.date} />}
                     </span>
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -651,7 +619,6 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
                     </svg>
                   </summary>
                   <div className="mt-3 pt-3 border-t space-y-4">
-                    {rejectionAlert}
                     {liftScoreData && (
                       <div className="p-3 border rounded-md bg-gray-50 text-center">
                         <h5 className="font-semibold text-base text-gray-700">Poäng & Nivå</h5>

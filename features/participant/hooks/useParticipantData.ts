@@ -5,7 +5,6 @@ import { useAuth } from '../../../context/AuthContext';
 import * as dateUtils from '../../../utils/dateUtils';
 import { calculateFlexibelStrengthScoreInternal, getFssScoreInterpretation } from '../../../components/participant/StrengthComparisonTool';
 import { ParticipantConditioningStat, ActivityLog } from '../../../types';
-import { calculateEffectiveStrengthStats } from '../../../services/workoutService';
 
 export const useParticipantData = (currentParticipantId: string) => {
     const {
@@ -68,8 +67,7 @@ export const useParticipantData = (currentParticipantId: string) => {
 
     const latestStrengthStats = useMemo(() => {
         if (!myStrengthStats || myStrengthStats.length === 0) return null;
-        // Use the new effective logic
-        return calculateEffectiveStrengthStats(myStrengthStats);
+        return myStrengthStats.sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0];
     }, [myStrengthStats]);
 
     const myConditioningStats = useMemo(() => 
