@@ -8,7 +8,6 @@ import * as dateUtils from '../../utils/dateUtils';
 import { InfoModal } from '../participant/InfoModal';
 import { useAppContext } from '../../context/AppContext';
 import { IntroCallModal } from '../coach/IntroCallModal';
-// FIX: Corrected import path for useAuth
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../Modal';
 import { Select, Input } from '../Input';
@@ -504,13 +503,31 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                 <tbody className="bg-white divide-y divide-gray-200">
                     {filteredAndSortedData.map(p => {
                         const { relative: relativeDate } = dateUtils.formatRelativeTime(p.lastActivityDate);
+                        // Calculate days until binding ends if applicable
+                        const today = new Date();
+                        const bindingEnd = p.bindingEndDate ? new Date(p.bindingEndDate) : null;
+                        const daysToBindingEnd = bindingEnd ? Math.ceil((bindingEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : Infinity;
+                        
+                        const isExpiringSoon = bindingEnd && daysToBindingEnd <= 35 && daysToBindingEnd >= 0;
+
                         return (
                             <tr key={p.id} className="hover:bg-gray-50">
                                 <td className="px-4 py-4 whitespace-nowrap">
                                     <button onClick={() => handleOpenNotesModal(p)} className="text-left w-full">
                                         <div className="flex items-center gap-2">
                                             <EngagementIndicator level={p.engagementLevel} />
-                                            <div className="text-sm font-medium text-gray-900">{p.name}</div>
+                                            <div className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                                                {p.name}
+                                                {bindingEnd && (
+                                                    <span 
+                                                        title={isExpiringSoon ? `Bindningstid går ut ${bindingEnd.toLocaleDateString('sv-SE')} (${daysToBindingEnd} dagar kvar)` : `Bunden t.o.m. ${bindingEnd.toLocaleDateString('sv-SE')}`} 
+                                                        className={`cursor-help text-base ${isExpiringSoon ? 'animate-pulse' : 'opacity-60'}`}
+                                                        style={{ transform: 'scale(0.8)' }}
+                                                    >
+                                                        {isExpiringSoon ? '🔒⏳' : '🔒'}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="text-xs text-gray-500">{p.email}</div>
                                     </button>

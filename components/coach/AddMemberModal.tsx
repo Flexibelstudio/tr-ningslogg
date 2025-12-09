@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Modal } from '../Modal';
 import { Input, Select } from '../Input';
@@ -31,6 +32,7 @@ const getInitialFormState = (memberToEdit: ParticipantProfile | null, isAdmin: b
         membershipId: memberToEdit?.membershipId || memberships[0]?.id || '',
         startDate: memberToEdit?.startDate || '',
         endDate: memberToEdit?.endDate || '',
+        bindingEndDate: memberToEdit?.bindingEndDate || '',
         remainingClips: memberToEdit?.clipCardStatus?.remainingClips?.toString() || '',
         clipCardExpiryDate: memberToEdit?.clipCardStatus?.expiryDate || '',
         isStaff: !!existingStaff,
@@ -146,6 +148,7 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
         locationId: formState.locationId,
         creationDate: memberToEdit?.creationDate || new Date().toISOString(),
         lastUpdated: new Date().toISOString(),
+        bindingEndDate: formState.bindingEndDate || undefined,
     };
     
     let finalMembershipId: string | undefined;
@@ -359,14 +362,28 @@ export const AddMemberModal: React.FC<AddEditMemberModalProps> = ({ isOpen, onCl
                   />
                   {isAdmin && (
                       <Input
-                          label="Slutdatum"
+                          label="Slutdatum (Access)"
                           id="member-end-date"
                           type="date"
                           value={formState.endDate}
                           onChange={(e) => handleInputChange('endDate', e.target.value)}
+                          placeholder="Lämnas tom för tillsvidare"
                       />
                   )}
               </div>
+              {isAdmin && !isClipCardMembership && (
+                  <div className="mt-4">
+                       <Input
+                          label="Bunden t.o.m."
+                          id="member-binding-end-date"
+                          type="date"
+                          value={formState.bindingEndDate}
+                          onChange={(e) => handleInputChange('bindingEndDate', e.target.value)}
+                          placeholder="Datum då bindningstiden går ut"
+                      />
+                      <p className="text-xs text-gray-500 mt-1 ml-1">Används för uppföljning av bindningstid. Påverkar inte inloggning.</p>
+                  </div>
+              )}
           </div>
           
           {isAdmin && memberToEdit && (

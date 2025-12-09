@@ -4,6 +4,7 @@ import { useAppContext } from '../../../context/AppContext';
 import { useAuth } from '../../../context/AuthContext';
 import { CoachNote, OneOnOneSession, GroupClassSchedule, CoachEvent, WeeklyHighlightSettings, StaffMember, StaffAvailability, ParticipantProfile, GoalCompletionLog, ParticipantGoalData, Workout, FlowItemLogType, LiftType, UserStrengthStat, UserNotification } from '../../../types';
 import { useNotifications } from '../../../context/NotificationsContext';
+import { addMonths, addDays } from '../../../utils/dateUtils';
 
 export const useCoachOperations = () => {
   const {
@@ -31,6 +32,7 @@ export const useCoachOperations = () => {
     setParticipantPhysiqueHistoryData,
     setUserConditioningStatsHistoryData,
     setUserNotificationsData,
+    updateParticipantProfile,
     // Data needed for logic
     participantBookings,
     groupClassSchedules,
@@ -312,6 +314,62 @@ export const useCoachOperations = () => {
     const actionText = status === 'verified' ? 'verifierat' : status === 'rejected' ? 'avfärdat' : 'uppdaterat';
     addNotification({ type: 'SUCCESS', title: 'Statistik uppdaterad', message: `Lyftet har markerats som ${actionText}.` });
   }, [setUserStrengthStatsData, addNotification, setUserNotificationsData]);
+  
+  // --- Contract / Binding Operations ---
+  const handleContractAction = useCallback(async (action: 'renew' | 'terminate' | 'rolling' | 'custom', participantId: string, customDate?: string) => {
+      let update: Partial<ParticipantProfile> = {};
+      let noteText = '';
+      
+      const today = new Date();
+      
+      switch (action) {
+          case 'renew':
+              const nextYear = addMonths(today, 12);
+              const renewDate = nextYear.toISOString().split('T')[0];
+              update = { bindingEndDate: renewDate };
+              noteText = `System: Bindningstid förlängd 12 månader t.o.m. ${renewDate}.`;
+              break;
+          case 'terminate':
+              // Default termination logic: 3 months notice? Or just allow setting date.
+              // For now, let's assume termination sets an End Date.
+              const terminationDate = customDate || addMonths(today, 3).toISOString().split('T')[0];
+              update = { endDate: terminationDate };
+              noteText = `System: Medlemskap uppsagt. Sista giltighetsdag satt till ${terminationDate}.`;
+              break;
+          case 'rolling':
+              // Clear binding end date
+              // We need to explicitly set it to undefined or empty string to "remove" it in our update logic
+              // Note: Firestore might need FieldValue.delete() but our wrapper handles undefined/null sometimes, 
+              // or we pass empty string if the type allows. Type says string | undefined.
+              // Let's pass null/undefined via 'as any' trick or ensure service handles it.
+              // In this codebase, usually empty string is treated as "no value" in UI forms.
+              update = { bindingEndDate: '' }; // Assuming empty string clears it visually
+              noteText = `System: Övergick till löpande avtal (bindningstid borttagen).`;
+              break;
+          case 'custom':
+              if (customDate) {
+                  update = { bindingEndDate: customDate };
+                  noteText = `System: Bindningstid manuellt satt t.o.m. ${customDate}.`;
+              }
+              break;
+      }
+      
+      if (Object.keys(update).length > 0) {
+          await updateParticipantProfile(participantId, update);
+          
+          // Add system note
+          const newNote: CoachNote = {
+              id: crypto.randomUUID(),
+              participantId,
+              noteText,
+              createdDate: new Date().toISOString(),
+              noteType: 'check-in' // Using check-in type as generic system note for now
+          };
+          setCoachNotesData(prev => [...prev, newNote]);
+          
+          addNotification({ type: 'SUCCESS', title: 'Avtal uppdaterat', message: 'Medlemmens avtalsstatus har uppdaterats.' });
+      }
+  }, [updateParticipantProfile, setCoachNotesData, addNotification]);
 
   return {
     handleAddNote,
@@ -329,6 +387,7 @@ export const useCoachOperations = () => {
     handleCancelClassInstance,
     handleUpdateClassInstance,
     handleVerifyStat,
+    handleContractAction,
     
     // Comment/Reaction operations
     handleAddComment,

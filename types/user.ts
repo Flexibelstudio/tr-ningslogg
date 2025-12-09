@@ -57,6 +57,7 @@ export interface ParticipantProfile {
   membershipId?: string; // FK to Membership.id
   startDate?: string; // ISO date string YYYY-MM-DD
   endDate?: string; // ISO date string YYYY-MM-DD
+  bindingEndDate?: string; // ISO date string YYYY-MM-DD. Date when the binding period expires.
   clipCardStatus?: {
     remainingClips: number;
     expiryDate?: string; // ISO date string YYYY-MM-DD. If not present, it doesn't expire.
