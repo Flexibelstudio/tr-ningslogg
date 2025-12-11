@@ -44,6 +44,7 @@ interface VerificationBadgeProps {
 }
 
 const VerificationBadge: React.FC<VerificationBadgeProps> = ({ status, by, date, onResubmit }) => {
+    // Treat undefined/unverified as Legacy (Hidden or explicit "Legacy" if preferred, currently hidden to look clean)
     if (!status || status === 'unverified') return null;
 
     if (status === 'pending') {
@@ -57,7 +58,7 @@ const VerificationBadge: React.FC<VerificationBadgeProps> = ({ status, by, date,
     if (status === 'rejected') {
          return (
             <div className="inline-flex items-center ml-2 gap-2">
-                <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full font-semibold" title="Kunde ej verifieras av coach">Ej verifierad ⚠️</span>
+                <span className="text-xs bg-yellow-100 text-yellow-800 border border-yellow-200 px-2 py-0.5 rounded-full font-semibold" title="Kunde ej verifieras av coach.">Ej verifierad ⚠️</span>
                 {onResubmit && (
                     <button 
                         onClick={(e) => { e.preventDefault(); onResubmit(); }}
@@ -523,17 +524,26 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
 
     // Calculate Aggregate Verification Status
     const aggregateStatus = useMemo(() => {
-        if (!latestRawEntry) return 'unverified';
+        if (!latestRawEntry) return 'verified'; // Default to verified (assuming legacy) if no history, though inputs likely empty.
         
-        const statuses: VerificationStatus[] = [];
-        if (squat1RMax.trim()) statuses.push(latestRawEntry.squatVerificationStatus || 'unverified');
-        if (benchPress1RMax.trim()) statuses.push(latestRawEntry.benchPressVerificationStatus || 'unverified');
-        if (deadlift1RMax.trim()) statuses.push(latestRawEntry.deadliftVerificationStatus || 'unverified');
-        if (overheadPress1RMax.trim()) statuses.push(latestRawEntry.overheadPressVerificationStatus || 'unverified');
+        const statuses: (VerificationStatus | undefined)[] = [];
+        if (squat1RMax.trim()) statuses.push(latestRawEntry.squatVerificationStatus);
+        if (benchPress1RMax.trim()) statuses.push(latestRawEntry.benchPressVerificationStatus);
+        if (deadlift1RMax.trim()) statuses.push(latestRawEntry.deadliftVerificationStatus);
+        if (overheadPress1RMax.trim()) statuses.push(latestRawEntry.overheadPressVerificationStatus);
+        
+        // Filter out empty entries (if partially filled)
+        const validStatuses = statuses.filter(s => s !== undefined); // Note: 'unverified' string vs undefined legacy
+        
+        // Logic:
+        // 1. If ANY is rejected -> Rejected (Preliminär)
+        // 2. If ANY is pending -> Pending (Preliminär)
+        // 3. Else (Verified OR undefined/Legacy) -> Verified (Officiell)
 
-        if (statuses.length === 0) return 'unverified';
         if (statuses.some(s => s === 'rejected')) return 'rejected';
-        if (statuses.some(s => s === 'pending' || s === 'unverified')) return 'pending';
+        if (statuses.some(s => s === 'pending')) return 'pending';
+        
+        // Explicitly treating undefined (legacy) as verified for status check
         return 'verified';
     }, [latestRawEntry, squat1RMax, benchPress1RMax, deadlift1RMax, overheadPress1RMax]);
 
@@ -591,7 +601,7 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
                     )}
                     {aggregateStatus === 'rejected' && (
                          <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full font-semibold border border-gray-300">
-                             ⚠️ Preliminär (Ej verifierad)
+                             ⚠️ Preliminär (Innehåller icke-verifierade lyft)
                          </span>
                     )}
                   </div>
@@ -743,6 +753,11 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
                       error={errors[statKey]}
                       ref={inputRefs[statKey]}
                     />
+                    {currentVerificationData?.status === 'rejected' && (
+                        <div className="flex justify-end">
+                            <Button size="sm" variant="outline" onClick={() => handleSave()}>Uppdatera / Skicka in igen</Button>
+                        </div>
+                    )}
                   </div>
                 </details>
               );
@@ -799,7 +814,7 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
             Varje lyft ger poäng baserat på en skala. Totalpoängen avgör din nivå (t.ex. "Stark" eller "Atlet").</p>
             
             <p><strong>Status:</strong><br/>
-            Din FSS är <em>Officiell</em> när alla dina fyra lyft har verifierats av en coach. Innan dess visas den som <em>Preliminär</em>.</p>
+            Din FSS är <em>Officiell</em> när alla dina fyra lyft har verifierats av en coach (eller är gamla nog att räknas som verifierade). Innan dess visas den som <em>Preliminär</em>.</p>
           </div>
         </InfoModal>
       </>
