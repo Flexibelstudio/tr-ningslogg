@@ -201,7 +201,11 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
             if (!latestStats) return null;
 
             const getVerifiedValue = (val: number | undefined, status: string | undefined) => {
-                 if (showVerifiedOnly && status !== 'verified') return undefined;
+                 if (showVerifiedOnly) {
+                     // Filter out if explicitly unverified (pending/rejected).
+                     // Legacy data (undefined status) counts as verified.
+                     if (status === 'pending' || status === 'rejected') return undefined;
+                 }
                  return val;
             }
 
@@ -213,16 +217,13 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
                 overheadPress1RMaxKg: getVerifiedValue(latestStats.overheadPress1RMaxKg, latestStats.overheadPressVerificationStatus),
             } : latestStats;
 
-            // Determine if this entry is considered "verified". In this context, it's verified if all contributed lifts are verified or if checking individual lifts. 
-            // For FSS total score, let's verify if *any* contributing lift is verified? No, typically means all are valid.
-            // But for filtering purposes above, we just exclude unverified numbers.
-            // Let's mark the entry as verified if all 4 lifts used in FSS calculation are verified.
-            const isFullyVerified = 
-                latestStats.squatVerificationStatus === 'verified' && 
-                latestStats.benchPressVerificationStatus === 'verified' &&
-                latestStats.deadliftVerificationStatus === 'verified' &&
-                latestStats.overheadPressVerificationStatus === 'verified';
+            const isLiftVerified = (status?: string) => status === 'verified' || !status; // Verified or Legacy (undefined)
 
+            const isFullyVerified = 
+                isLiftVerified(latestStats.squatVerificationStatus) && 
+                isLiftVerified(latestStats.benchPressVerificationStatus) &&
+                isLiftVerified(latestStats.deadliftVerificationStatus) &&
+                isLiftVerified(latestStats.overheadPressVerificationStatus);
 
             const scoreData = calculateFlexibelStrengthScoreInternal(filteredStats, participant);
             
