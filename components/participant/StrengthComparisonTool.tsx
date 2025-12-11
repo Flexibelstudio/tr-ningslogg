@@ -8,6 +8,7 @@ import { calculateEstimated1RM } from '../../utils/workoutUtils';
 import { calculateAge } from '../../utils/dateUtils';
 import html2canvas from 'html2canvas';
 import { InfoModal } from './InfoModal';
+import { calculateEffectiveStrengthStats } from '../../services/workoutService';
 
 export interface LiftScoreDetails {
   lift: LiftType;
@@ -35,19 +36,39 @@ const FSS_STAT_KEY_MAPPING = {
   'Axelpress': 'overheadPress1RMaxKg',
 } as const;
 
-const VerificationBadge: React.FC<{ status?: VerificationStatus, by?: string, date?: string }> = ({ status, by, date }) => {
+interface VerificationBadgeProps { 
+    status?: VerificationStatus; 
+    by?: string; 
+    date?: string; 
+    onResubmit?: () => void;
+}
+
+const VerificationBadge: React.FC<VerificationBadgeProps> = ({ status, by, date, onResubmit }) => {
     if (!status || status === 'unverified') return null;
 
     if (status === 'pending') {
-        return <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full font-semibold ml-2" title="Väntar på coach-granskning">Väntar ⏳</span>;
+        return <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full font-semibold ml-2 inline-flex items-center" title="Väntar på coach-granskning">Väntar ⏳</span>;
     }
 
     if (status === 'verified') {
-        return <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-semibold ml-2 flex items-center gap-1" title={`Verifierat av ${by} den ${date ? new Date(date).toLocaleDateString('sv-SE') : ''}`}>Verified ✅</span>;
+        return <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-semibold ml-2 inline-flex items-center gap-1" title={`Verifierat av ${by} den ${date ? new Date(date).toLocaleDateString('sv-SE') : ''}`}>Verifierad ✅</span>;
     }
     
     if (status === 'rejected') {
-         return <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-semibold ml-2" title="Avfärdad av coach">Ej godkänd ❌</span>;
+         return (
+            <div className="inline-flex items-center ml-2 gap-2">
+                <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full font-semibold" title="Kunde ej verifieras av coach">Ej verifierad ⚠️</span>
+                {onResubmit && (
+                    <button 
+                        onClick={(e) => { e.preventDefault(); onResubmit(); }}
+                        className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
+                        title="Skicka in samma värde för granskning igen"
+                    >
+                        Skicka in igen
+                    </button>
+                )}
+            </div>
+         );
     }
 
     return null;
@@ -160,14 +181,11 @@ export const calculateFlexibelStrengthScoreInternal = (userStats: UserStrengthSt
 export const getFssScoreInterpretation = (score: number | undefined | null): { label: StrengthLevel; color: string } | null => {
   if (score === undefined || score === null || isNaN(score)) return null;
   
-  // Find the last level where the score is greater than or equal to the minimum.
-  // This correctly handles any score, including those on boundaries.
-  let foundLevel: StrengthLevel = FSS_CONFIG.fssLevels[0].label; // Default to the first level
+  let foundLevel: StrengthLevel = FSS_CONFIG.fssLevels[0].label; 
   for (const level of FSS_CONFIG.fssLevels) {
     if (score >= level.min) {
       foundLevel = level.label;
     } else {
-      // Since the levels are sorted by 'min', we can stop searching.
       break;
     }
   }
@@ -303,7 +321,9 @@ const CalculatorIcon = () => (
 
 export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, StrengthComparisonToolProps>(
   ({ profile, strengthStatsHistory, onSaveStrengthStats, isEmbedded, onOpenPhysiqueModal }, ref) => {
-    const latestStats = useMemo(
+    
+    // Find absolute latest raw entry to populate fields (user wants to see what they typed last)
+    const latestRawEntry = useMemo(
       () => (strengthStatsHistory.length > 0 ? [...strengthStatsHistory].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0] : null),
       [strengthStatsHistory]
     );
@@ -333,12 +353,14 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
     const estimated1RM = useMemo(() => calculateEstimated1RM(calcWeight, calcReps), [calcWeight, calcReps]);
 
     useEffect(() => {
-      setSquat1RMax(latestStats?.squat1RMaxKg?.toString() || '');
-      setBenchPress1RMax(latestStats?.benchPress1RMaxKg?.toString() || '');
-      setDeadlift1RMax(latestStats?.deadlift1RMaxKg?.toString() || '');
-      setOverheadPress1RMax(latestStats?.overheadPress1RMaxKg?.toString() || '');
+      // Always populate with the LATEST entry, even if rejected.
+      // This is so users can see "Rejected" status on their value and click "Try Again".
+      setSquat1RMax(latestRawEntry?.squat1RMaxKg?.toString() || '');
+      setBenchPress1RMax(latestRawEntry?.benchPress1RMaxKg?.toString() || '');
+      setDeadlift1RMax(latestRawEntry?.deadlift1RMaxKg?.toString() || '');
+      setOverheadPress1RMax(latestRawEntry?.overheadPress1RMaxKg?.toString() || '');
       setErrors({});
-    }, [latestStats]);
+    }, [latestRawEntry]);
 
     const areAllStatsFilled = useMemo(() => {
       return !!(profile?.bodyweightKg && squat1RMax.trim() && benchPress1RMax.trim() && deadlift1RMax.trim() && overheadPress1RMax.trim());
@@ -397,28 +419,62 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
         return false;
       }
 
+      // Check against LATEST raw entry to determine verification status change
+      // Logic: If value changed => 'pending'. 
+      // If value is same AND current status is 'rejected', we allow resubmit => 'pending'.
+      // If value is same AND current status is 'verified', we keep 'verified'.
       const newStat: UserStrengthStat = {
         id: crypto.randomUUID(),
         participantId: profile.id,
         bodyweightKg: profile.bodyweightKg,
-        
-        squat1RMaxKg: squat1RMax.trim() ? Number(squat1RMax.replace(',', '.')) : undefined,
-        squatVerificationStatus: (squat1RMax !== latestStats?.squat1RMaxKg?.toString()) ? 'pending' : latestStats?.squatVerificationStatus,
-
-        benchPress1RMaxKg: benchPress1RMax.trim() ? Number(benchPress1RMax.replace(',', '.')) : undefined,
-        benchPressVerificationStatus: (benchPress1RMax !== latestStats?.benchPress1RMaxKg?.toString()) ? 'pending' : latestStats?.benchPressVerificationStatus,
-
-        deadlift1RMaxKg: deadlift1RMax.trim() ? Number(deadlift1RMax.replace(',', '.')) : undefined,
-        deadliftVerificationStatus: (deadlift1RMax !== latestStats?.deadlift1RMaxKg?.toString()) ? 'pending' : latestStats?.deadliftVerificationStatus,
-
-        overheadPress1RMaxKg: overheadPress1RMax.trim() ? Number(overheadPress1RMax.replace(',', '.')) : undefined,
-        overheadPressVerificationStatus: (overheadPress1RMax !== latestStats?.overheadPress1RMaxKg?.toString()) ? 'pending' : latestStats?.overheadPressVerificationStatus,
-
         lastUpdated: new Date().toISOString(),
       };
+      
+      const setLiftStatus = (key: 'squat' | 'benchPress' | 'deadlift' | 'overheadPress', newValueStr: string) => {
+          const valKey = `${key}1RMaxKg` as keyof UserStrengthStat;
+          const statusKey = `${key}VerificationStatus` as keyof UserStrengthStat;
+          
+          if (!newValueStr.trim()) {
+              (newStat as any)[valKey] = undefined;
+              (newStat as any)[statusKey] = undefined;
+              return;
+          }
+
+          const newValue = Number(newValueStr.replace(',', '.'));
+          (newStat as any)[valKey] = newValue;
+
+          const oldVal = latestRawEntry?.[valKey];
+          const oldStatus = latestRawEntry?.[statusKey];
+          
+          if (oldVal !== newValue) {
+              // Value changed -> Pending
+              (newStat as any)[statusKey] = 'pending';
+          } else {
+              // Value same. 
+              // If previously rejected/unverified, user likely clicked "Update" to resubmit -> Pending.
+              // If previously verified/pending, keep status.
+              // Since handleSave creates a NEW entry, we default to 'pending' if it was 'rejected'.
+              if (oldStatus === 'rejected' || oldStatus === 'unverified') {
+                  (newStat as any)[statusKey] = 'pending';
+              } else {
+                  (newStat as any)[statusKey] = oldStatus;
+                  // Copy metadata if preserved
+                  if (statusKey === 'squatVerificationStatus') { newStat.squatVerifiedBy = latestRawEntry?.squatVerifiedBy; newStat.squatVerifiedDate = latestRawEntry?.squatVerifiedDate; }
+                  if (statusKey === 'benchPressVerificationStatus') { newStat.benchPressVerifiedBy = latestRawEntry?.benchPressVerifiedBy; newStat.benchPressVerifiedDate = latestRawEntry?.benchPressVerifiedDate; }
+                  if (statusKey === 'deadliftVerificationStatus') { newStat.deadliftVerifiedBy = latestRawEntry?.deadliftVerifiedBy; newStat.deadliftVerifiedDate = latestRawEntry?.deadliftVerifiedDate; }
+                  if (statusKey === 'overheadPressVerificationStatus') { newStat.overheadPressVerifiedBy = latestRawEntry?.overheadPressVerifiedBy; newStat.overheadPressVerifiedDate = latestRawEntry?.overheadPressVerifiedDate; }
+              }
+          }
+      };
+      
+      setLiftStatus('squat', squat1RMax);
+      setLiftStatus('benchPress', benchPress1RMax);
+      setLiftStatus('deadlift', deadlift1RMax);
+      setLiftStatus('overheadPress', overheadPress1RMax);
+
       onSaveStrengthStats(newStat);
       return true;
-    }, [squat1RMax, benchPress1RMax, deadlift1RMax, overheadPress1RMax, profile, onSaveStrengthStats, onOpenPhysiqueModal, latestStats]);
+    }, [squat1RMax, benchPress1RMax, deadlift1RMax, overheadPress1RMax, profile, onSaveStrengthStats, onOpenPhysiqueModal, latestRawEntry]);
 
     useImperativeHandle(ref, () => ({
       submitForm: () => {
@@ -465,6 +521,22 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
 
     const fssInterpretation = getFssScoreInterpretation(fssData?.totalScore);
 
+    // Calculate Aggregate Verification Status
+    const aggregateStatus = useMemo(() => {
+        if (!latestRawEntry) return 'unverified';
+        
+        const statuses: VerificationStatus[] = [];
+        if (squat1RMax.trim()) statuses.push(latestRawEntry.squatVerificationStatus || 'unverified');
+        if (benchPress1RMax.trim()) statuses.push(latestRawEntry.benchPressVerificationStatus || 'unverified');
+        if (deadlift1RMax.trim()) statuses.push(latestRawEntry.deadliftVerificationStatus || 'unverified');
+        if (overheadPress1RMax.trim()) statuses.push(latestRawEntry.overheadPressVerificationStatus || 'unverified');
+
+        if (statuses.length === 0) return 'unverified';
+        if (statuses.some(s => s === 'rejected')) return 'rejected';
+        if (statuses.some(s => s === 'pending' || s === 'unverified')) return 'pending';
+        return 'verified';
+    }, [latestRawEntry, squat1RMax, benchPress1RMax, deadlift1RMax, overheadPress1RMax]);
+
     if (!profile || !profile.gender || (!profile.birthDate && !profile.age)) {
       return <p className="text-center p-4 bg-yellow-100 text-yellow-800 rounded-md">Vänligen fyll i kön och födelsedatum i din profil för att kunna se och jämföra din styrka.</p>;
     }
@@ -484,9 +556,9 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
         <div className="space-y-6">
           {areAllStatsFilled ? (
             <div className="space-y-4">
-              <div ref={shareableFssRef} className="p-4 bg-gray-100 rounded-lg text-center space-y-3 relative">
-                <div className="flex items-center justify-center gap-1">
-                  <h4 className="text-base font-semibold text-gray-600">Flexibel Strength Score (FSS)</h4>
+              <div ref={shareableFssRef} className="p-4 bg-gray-100 rounded-lg text-center space-y-3 relative border border-gray-200">
+                <div className="flex items-center justify-center gap-2">
+                  <h4 className="text-base font-semibold text-gray-600">Flexibel Strength Score</h4>
                   <button 
                     onClick={() => setIsInfoModalOpen(true)} 
                     className="text-gray-400 hover:text-flexibel transition-colors p-0.5 rounded-full hover:bg-gray-200 focus:outline-none"
@@ -503,11 +575,25 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
                   </p>
                 </div>
                 {fssInterpretation && (
-                  <div>
-                    <p className="text-base font-semibold text-gray-600">Nivå</p>
+                  <div className="flex flex-col items-center gap-1">
                     <p className="text-2xl font-bold" style={{ color: fssInterpretation.color }}>
                       {fssInterpretation.label}
                     </p>
+                    {aggregateStatus === 'verified' && (
+                         <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-semibold border border-green-200">
+                             ✅ Officiell Poäng
+                         </span>
+                    )}
+                    {aggregateStatus === 'pending' && (
+                         <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full font-semibold border border-yellow-200">
+                             ⏳ Preliminär (Väntar på granskning)
+                         </span>
+                    )}
+                    {aggregateStatus === 'rejected' && (
+                         <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full font-semibold border border-gray-300">
+                             ⚠️ Preliminär (Ej verifierad)
+                         </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -586,12 +672,13 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
               ];
               const liftScoreData = fssData?.liftScores.find((l) => l.lift === lift);
               
-              const verificationData = {
-                  squat1RMaxKg: { status: latestStats?.squatVerificationStatus, by: latestStats?.squatVerifiedBy, date: latestStats?.squatVerifiedDate },
-                  benchPress1RMaxKg: { status: latestStats?.benchPressVerificationStatus, by: latestStats?.benchPressVerifiedBy, date: latestStats?.benchPressVerifiedDate },
-                  deadlift1RMaxKg: { status: latestStats?.deadliftVerificationStatus, by: latestStats?.deadliftVerifiedBy, date: latestStats?.deadliftVerifiedDate },
-                  overheadPress1RMaxKg: { status: latestStats?.overheadPressVerificationStatus, by: latestStats?.overheadPressVerifiedBy, date: latestStats?.overheadPressVerifiedDate },
-              }[statKey];
+              // Use LATEST raw entry to determine current status
+              const currentVerificationData = latestRawEntry ? {
+                  squat1RMaxKg: { status: latestRawEntry.squatVerificationStatus, by: latestRawEntry.squatVerifiedBy, date: latestRawEntry.squatVerifiedDate },
+                  benchPress1RMaxKg: { status: latestRawEntry.benchPressVerificationStatus, by: latestRawEntry.benchPressVerifiedBy, date: latestRawEntry.benchPressVerifiedDate },
+                  deadlift1RMaxKg: { status: latestRawEntry.deadliftVerificationStatus, by: latestRawEntry.deadliftVerifiedBy, date: latestRawEntry.deadliftVerifiedDate },
+                  overheadPress1RMaxKg: { status: latestRawEntry.overheadPressVerificationStatus, by: latestRawEntry.overheadPressVerifiedBy, date: latestRawEntry.overheadPressVerifiedDate },
+              }[statKey] : undefined;
 
               return (
                 <details key={statKey} className="bg-white p-3 rounded-lg shadow-sm border border-gray-200" open={expandedLifts[lift]}>
@@ -602,13 +689,24 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
                       setExpandedLifts((p) => ({ ...p, [lift]: !p[lift] }));
                     }}
                   >
-                    <span className="flex items-center">
-                      {lift}:{' '}
-                      <span className="font-bold text-flexibel ml-1">
-                        {liftState || '-'} kg
+                    <div className="flex flex-col sm:flex-row sm:items-center w-full">
+                      <span className="flex items-center">
+                          {lift}:{' '}
+                          <span className="font-bold text-flexibel ml-1">
+                            {liftState || '-'} kg
+                          </span>
                       </span>
-                      {verificationData && <VerificationBadge status={verificationData.status} by={verificationData.by} date={verificationData.date} />}
-                    </span>
+                      {currentVerificationData && (
+                          <div className="mt-1 sm:mt-0 sm:ml-auto mr-2">
+                             <VerificationBadge 
+                                status={currentVerificationData.status} 
+                                by={currentVerificationData.by} 
+                                date={currentVerificationData.date}
+                                onResubmit={() => handleSave()}
+                             />
+                          </div>
+                      )}
+                    </div>
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       className={`h-5 w-5 text-gray-500 transition-transform ${expandedLifts[lift] ? 'rotate-180' : ''}`}
@@ -698,7 +796,10 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
             </div>
 
             <p><strong>Poängen:</strong><br/>
-            Varje lyft ger poäng baserat på en skala. Totalpoängen avgör din nivå (t.ex. "Stark" eller "Atlet"). Målet är att ge dig en siffra att tävla mot dig själv med!</p>
+            Varje lyft ger poäng baserat på en skala. Totalpoängen avgör din nivå (t.ex. "Stark" eller "Atlet").</p>
+            
+            <p><strong>Status:</strong><br/>
+            Din FSS är <em>Officiell</em> när alla dina fyra lyft har verifierats av en coach. Innan dess visas den som <em>Preliminär</em>.</p>
           </div>
         </InfoModal>
       </>
