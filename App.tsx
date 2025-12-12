@@ -1,3 +1,4 @@
+
 // App.tsx
 import React, { useState, useEffect, useCallback, lazy, Suspense, useMemo } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
@@ -140,7 +141,7 @@ const AppContent: React.FC = () => {
     }
   }, [auth.user, hasCheckedTerms]);
 
-  const UPDATE_NOTICE_KEY = 'updateNotice_v4_Verification';
+  const UPDATE_NOTICE_KEY = 'updateNotice_v5_Verification_Live';
   const LAST_SEEN_UPDATE_KEY = 'flexibel_lastSeenUpdateNotice';
   useEffect(() => {
     if (auth.user && auth.currentRole === 'participant') {
