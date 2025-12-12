@@ -57,6 +57,7 @@ export interface ParticipantProfile {
   membershipId?: string; // FK to Membership.id
   startDate?: string; // ISO date string YYYY-MM-DD
   endDate?: string; // ISO date string YYYY-MM-DD
+  bindingEndDate?: string; // ISO date string YYYY-MM-DD. Date when the binding period expires.
   clipCardStatus?: {
     remainingClips: number;
     expiryDate?: string; // ISO date string YYYY-MM-DD. If not present, it doesn't expire.
@@ -160,4 +161,17 @@ export interface UserPushSubscription {
     id: string; // doc id
     participantId: string;
     subscription: PushSubscriptionJSON; // Store the JSON representation
+}
+
+export interface UserNotification {
+  id: string;
+  recipientId: string; // The user who should see this
+  type: 'FRIEND_BOOKING' | 'CLASS_CANCELLED' | 'CLASS_CHANGED' | 'WAITLIST_PROMOTION' | 'VERIFICATION_REJECTED' | 'VERIFICATION_APPROVED';
+  title: string;
+  body: string;
+  relatedScheduleId?: string;
+  relatedClassDate?: string;
+  createdAt: string; // ISO timestamp
+  read: boolean;
+  metadata?: any; // Flexible data (e.g. friend's avatar url, emoji)
 }

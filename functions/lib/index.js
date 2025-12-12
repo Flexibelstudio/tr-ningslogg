@@ -66,14 +66,11 @@ function getBearerToken(req) {
         "";
     return typeof h === "string" && h.startsWith("Bearer ") ? h.slice(7) : "";
 }
-// Normalisera olika datumformat till "YYYY-MM-DD"
 function normalizeDateKey(input) {
     const s = String(input ?? "");
-    // redan rätt format?
     const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (m)
         return `${m[1]}-${m[2]}-${m[3]}`;
-    // försök parsa
     const d = new Date(s);
     if (!isNaN(d.getTime())) {
         const y = d.getFullYear();
@@ -81,15 +78,24 @@ function normalizeDateKey(input) {
         const dd = String(d.getDate()).padStart(2, "0");
         return `${y}-${mm}-${dd}`;
     }
-    // fallback: första 10 tecken
     return s.slice(0, 10);
 }
-// Public VAPID (webbens nyckel)
+// Skapar ett Date-objekt från en datumsträng (YYYY-MM-DD) och tid (HH:MM)
+// Antar att tiderna är i "lokal tid" men skapar UTC-datum för beräkningar
+function createDateTime(dateStr, timeStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const [h, min] = timeStr.split(':').map(Number);
+    // Note: We construct it using local time components but let Date object handle it.
+    // Ideally we would use a library like luxon for explicit timezone handling (Europe/Stockholm).
+    // For now, we assume the server time or simple ISO construction works sufficiently for iCal.
+    return new Date(y, m - 1, d, h, min);
+}
+function addDays(date, days) {
+    const result = new Date(date);
+    result.setDate(result.getDate() + days);
+    return result;
+}
 const VAPID_PUBLIC_KEY = "BO21Yp3_p0o_5ce295-SC_pY9nZ8aGRi_SC2B5UF0jbl4M13nS2j52hce5C65a0gI55NUEM02eKYpOMYJ0pM5cE";
-/**
- * Initiera webpush när möjligt. Om något fel uppstår loggas det och PUSH stängs
- * av (så att API:erna inte kastar 500).
- */
 function tryInitWebPush() {
     try {
         const priv = process.env.VAPID_PRIVATE_KEY;
@@ -367,7 +373,7 @@ exports.onBookingUpdate = (0, firestore_2.onDocumentUpdated)({
     }
 });
 /* -----------------------------------------------------------------------------
- * Callable: Ställ in ett helt pass (ROBUST, push icke-kritisk)
+ * Callable: Ställ in ett helt pass
  * ---------------------------------------------------------------------------*/
 exports.cancelClassInstance = (0, https_1.onCall)({
     region: "europe-west1",
@@ -381,8 +387,6 @@ exports.cancelClassInstance = (0, https_1.onCall)({
     if (!orgId || !scheduleId || !classDate) {
         throw new https_1.HttpsError("invalid-argument", "Nödvändiga parametrar saknas (orgId, scheduleId, classDate).");
     }
-    const opId = `${scheduleId}-${Date.now()}`;
-    logger.info("cancelClassInstance called", { opId, orgId, scheduleId, classDate, coachUid: uid, coachName: name });
     try {
         // 1) Skapa exception
         const exceptionRef = db
@@ -396,43 +400,18 @@ exports.cancelClassInstance = (0, https_1.onCall)({
             createdBy: { uid, name },
             createdAt: new Date().toISOString(),
         });
-        logger.info(`[${opId}] WROTE exception`, { exceptionId: exceptionRef.id });
-        // 2) Hitta bokningar (robust)
+        // 2) Hitta bokningar
         const dateKey = normalizeDateKey(String(classDate));
-        logger.info(`[${opId}] Booking lookup input`, {
-            scheduleId,
-            classDateInput: classDate,
-            normalizedDateKey: dateKey,
-        });
         const bookingsRef = db.collection("organizations").doc(orgId).collection("participantBookings");
         let bookingsSnap = await bookingsRef
             .where("scheduleId", "==", scheduleId)
             .where("classDate", "==", dateKey)
             .where("status", "in", ["BOOKED", "CHECKED-IN", "CONFIRMED", "ACTIVE"])
             .get();
-        logger.info(`[${opId}] Primary bookings query`, { count: bookingsSnap.size });
         if (bookingsSnap.empty) {
-            const schedOnlySnap = await bookingsRef
-                .where("scheduleId", "==", scheduleId)
-                .where("status", "in", ["BOOKED", "CHECKED-IN", "CONFIRMED", "ACTIVE"])
-                .get();
-            const candidates = [];
-            schedOnlySnap.forEach((d) => {
-                const b = d.data();
-                const cd = String(b.classDate || "");
-                if (cd.slice(0, 10) === dateKey)
-                    candidates.push(d);
-            });
-            if (candidates.length > 0) {
-                bookingsSnap = { empty: false, size: candidates.length, docs: candidates };
-                logger.info(`[${opId}] Fallback hit (scheduleId-only + in-memory date filter)`, { count: candidates.length });
-            }
-        }
-        if (bookingsSnap.empty) {
-            logger.info(`[${opId}] No active bookings found for schedule ${scheduleId} on ${dateKey}. Exception created.`);
             return { success: true, message: "Class cancelled, no active bookings found." };
         }
-        // 3) Uppdatera bokningar + ev. refund + event + in-app notiser
+        // 3) Uppdatera bokningar + ev. refund
         const batch = db.batch();
         const participantIdsToRefundClips = new Set();
         const affectedParticipantIds = new Set();
@@ -472,6 +451,7 @@ exports.cancelClassInstance = (0, https_1.onCall)({
                 .doc(participantId);
             batch.update(participantRef, { "clipCardStatus.remainingClips": firestore_1.FieldValue.increment(1) });
         }
+        // 4) In-app notiser och flödeshändelse
         const scheduleDoc = await db
             .collection("organizations")
             .doc(orgId)
@@ -539,12 +519,7 @@ exports.cancelClassInstance = (0, https_1.onCall)({
             });
         }
         await batch.commit();
-        logger.info(`[${opId}] Bookings updated`, {
-            cancelledCount: bookingsSnap.size,
-            affectedParticipants: Array.from(affectedParticipantIds).length,
-            refunds: participantIdsToRefundClips.size,
-        });
-        // 4) Push – gör icke-kritiskt (svälj fel)
+        // 5) Push Notiser
         const payload = JSON.stringify({
             title: `Pass inställt: ${className}`,
             body: `Ditt pass ${className} den ${dateString} kl ${classTime} har tyvärr ställts in.`,
@@ -579,21 +554,14 @@ exports.cancelClassInstance = (0, https_1.onCall)({
                             notificationsSent++;
                         }
                         catch (err) {
-                            logger.error(`Push send error for participant ${participantId}:`, err);
                             if (err?.statusCode === 404 || err?.statusCode === 410) {
                                 await doc.ref.delete();
-                                await participantProfileDoc.ref.update({ "notificationSettings.pushEnabled": false });
                             }
                         }
                     }));
                 }
             }
-            logger.info(`[${opId}] SENT push`, { notificationsSent });
         }
-        else {
-            logger.info("[Push] Skippas i cancelClassInstance (ej initierad).");
-        }
-        logger.info(`[${opId}] DONE`);
         return { success: true, cancelledCount: bookingsSnap.size, notificationsSent };
     }
     catch (error) {
@@ -604,7 +572,7 @@ exports.cancelClassInstance = (0, https_1.onCall)({
     }
 });
 /* -----------------------------------------------------------------------------
- * HTTP: Calendar Feed (iCal)
+ * HTTP: Calendar Feed (iCal) - UPDATED AND FIXED
  * ---------------------------------------------------------------------------*/
 exports.calendarFeed = (0, https_1.onRequest)({ region: "europe-west1" }, async (req, res) => {
     const { userId, type } = req.query;
@@ -641,65 +609,152 @@ exports.calendarFeed = (0, https_1.onRequest)({ region: "europe-west1" }, async 
             res.status(404).send("User not found.");
             return;
         }
-        // 2. Hämta events
         let events = [];
         const now = new Date();
+        // Tidsintervall för export (t.ex. 3 månader bakåt, 6 månader framåt)
+        const exportStart = new Date(now);
+        exportStart.setMonth(exportStart.getMonth() - 3);
+        const exportEnd = new Date(now);
+        exportEnd.setMonth(exportEnd.getMonth() + 6);
+        // Hämta klass-definitioner och plats-info en gång för prestanda
+        const classDefsSnap = await db.collection("organizations").doc(foundOrgId).collection("groupClassDefinitions").get();
+        const classDefs = new Map(); // id -> name
+        classDefsSnap.forEach(d => classDefs.set(d.id, d.data().name));
+        const locationsSnap = await db.collection("organizations").doc(foundOrgId).collection("locations").get();
+        const locations = new Map();
+        locationsSnap.forEach(l => locations.set(l.id, l.data().name));
         if (type === "coach") {
-            // Återkommande scheman där coachId == userId (ej expanderade än – TODO om du vill)
+            // ---------------- COACH LOGIC ----------------
+            // Hämta återkommande scheman för coachen
             const schedulesSnap = await db
                 .collection("organizations")
                 .doc(foundOrgId)
                 .collection("groupClassSchedules")
                 .where("coachId", "==", userId)
                 .get();
-            if (!schedulesSnap.empty) {
-                logger.info(`Found ${schedulesSnap.size} recurring schedules for coach ${userId}, not yet expanded to iCal.`);
-            }
-            // 1-on-1 där coachId == userId
+            // Hämta exceptions för hela org (kan optimeras, men datasetet är oftast litet)
+            const exceptionsSnap = await db
+                .collection("organizations")
+                .doc(foundOrgId)
+                .collection("groupClassScheduleExceptions")
+                .get();
+            const exceptionsMap = new Map(); // scheduleId-date -> exception
+            exceptionsSnap.forEach(doc => {
+                const ex = doc.data();
+                exceptionsMap.set(`${ex.scheduleId}-${ex.date}`, ex);
+            });
+            // Loopa igenom scheman och expandera
+            schedulesSnap.forEach(doc => {
+                const schedule = doc.data();
+                const className = classDefs.get(schedule.groupClassId) || "Pass";
+                const locationName = locations.get(schedule.locationId) || "Studio";
+                // Bestäm datumintervall för just detta schema
+                const schedStart = new Date(schedule.startDate);
+                const schedEnd = new Date(schedule.endDate);
+                // Loopa varje dag i export-intervallet
+                let loopDate = new Date(Math.max(exportStart.getTime(), schedStart.getTime()));
+                const loopEnd = new Date(Math.min(exportEnd.getTime(), schedEnd.getTime()));
+                loopEnd.setHours(23, 59, 59);
+                // Skapa datum för att loopa
+                while (loopDate <= loopEnd) {
+                    // Kolla veckodag (JS: 0=Sun, App: 1=Mon, 7=Sun)
+                    const jsDay = loopDate.getDay();
+                    const appDay = jsDay === 0 ? 7 : jsDay;
+                    if (schedule.daysOfWeek.includes(appDay)) {
+                        const dateStr = normalizeDateKey(loopDate.toISOString());
+                        const exception = exceptionsMap.get(`${doc.id}-${dateStr}`);
+                        // Om passet är DELETED eller CANCELLED, hoppa över
+                        if (exception && (exception.status === 'DELETED' || exception.status === 'CANCELLED')) {
+                            // Skapa INTE eventet
+                        }
+                        else {
+                            // Hantera MODIFIED eller normalt
+                            const startTimeStr = exception?.newStartTime || schedule.startTime;
+                            const duration = exception?.newDurationMinutes || schedule.durationMinutes;
+                            // Bygg start- och slutdatum
+                            // Använd datumsträngen + tiden för att skapa ett datumobjekt
+                            const startDt = createDateTime(dateStr, startTimeStr);
+                            const endDt = new Date(startDt.getTime() + duration * 60000);
+                            events.push(createVEVENT(className, `Gruppass på ${locationName}`, startDt, endDt, `coach-sched-${doc.id}-${dateStr}`));
+                        }
+                    }
+                    // Gå till nästa dag
+                    loopDate = addDays(loopDate, 1);
+                }
+            });
+            // Lägg till 1-on-1 sessions
             const sessionsSnap = await db
                 .collection("organizations")
                 .doc(foundOrgId)
                 .collection("oneOnOneSessions")
                 .where("coachId", "==", userId)
-                .where("startTime", ">=", now.toISOString())
+                .where("startTime", ">=", exportStart.toISOString())
                 .get();
             sessionsSnap.forEach((sessionDoc) => {
                 const s = sessionDoc.data();
-                events.push(createVEVENT(s.title, s.purpose, new Date(s.startTime), new Date(s.endTime)));
+                // Filtrera bort sessions som ligger för långt fram
+                if (new Date(s.startTime) <= exportEnd) {
+                    events.push(createVEVENT(s.title, s.purpose || "1-on-1 Coaching", new Date(s.startTime), new Date(s.endTime), `session-${sessionDoc.id}`));
+                }
             });
         }
         else {
-            // Participant: Bookings + 1-on-1
+            // ---------------- PARTICIPANT LOGIC ----------------
             const bookingsSnap = await db
                 .collection("organizations")
                 .doc(foundOrgId)
                 .collection("participantBookings")
                 .where("participantId", "==", userId)
                 .where("status", "in", ["BOOKED", "CHECKED-IN"])
-                .where("classDate", ">=", normalizeDateKey(now.toISOString()))
+                .where("classDate", ">=", normalizeDateKey(exportStart.toISOString()))
                 .get();
+            // Hämta exceptions en gång
+            const exceptionsSnap = await db
+                .collection("organizations")
+                .doc(foundOrgId)
+                .collection("groupClassScheduleExceptions")
+                .get();
+            const exceptionsMap = new Map();
+            exceptionsSnap.forEach(doc => {
+                const ex = doc.data();
+                exceptionsMap.set(`${ex.scheduleId}-${ex.date}`, ex);
+            });
+            // Vi måste hämta alla relevanta schedules för att veta tiderna
+            // Optimering: Hämta unika scheduleIds först
+            const scheduleIds = new Set();
+            bookingsSnap.forEach(b => scheduleIds.add(b.data().scheduleId));
+            const scheduleMap = new Map();
+            if (scheduleIds.size > 0) {
+                // Firestore 'in' limit is 10. Split if needed, but for simplicity fetching individually or in chunks.
+                // Since this is iCal export, prestanda är inte superkritisk (händer sällan).
+                // Loopa och hämta.
+                for (const sId of Array.from(scheduleIds)) {
+                    const sDoc = await db.collection("organizations").doc(foundOrgId).collection("groupClassSchedules").doc(sId).get();
+                    if (sDoc.exists) {
+                        scheduleMap.set(sId, { id: sDoc.id, ...sDoc.data() });
+                    }
+                }
+            }
             for (const bookingDoc of bookingsSnap.docs) {
                 const b = bookingDoc.data();
-                const schedDoc = await db
-                    .collection("organizations")
-                    .doc(foundOrgId)
-                    .collection("groupClassSchedules")
-                    .doc(b.scheduleId)
-                    .get();
-                if (schedDoc.exists) {
-                    const s = schedDoc.data();
-                    const defDoc = await db
-                        .collection("organizations")
-                        .doc(foundOrgId)
-                        .collection("groupClassDefinitions")
-                        .doc(s.groupClassId)
-                        .get();
-                    const className = defDoc.exists ? defDoc.data().name : "Pass";
-                    const [h, m] = String(s.startTime).split(":").map(Number);
-                    const start = new Date(b.classDate);
-                    start.setHours(h, m, 0, 0);
-                    const end = new Date(start.getTime() + s.durationMinutes * 60000);
-                    events.push(createVEVENT(className, "Träning på Flexibel", start, end));
+                // Filtrera bort bokningar som ligger för långt fram
+                if (new Date(b.classDate) > exportEnd)
+                    continue;
+                const schedule = scheduleMap.get(b.scheduleId);
+                if (schedule) {
+                    // Kolla exceptions
+                    const exception = exceptionsMap.get(`${schedule.id}-${b.classDate}`);
+                    // Om passet är inställt men bokningen fortfarande finns som BOOKED (borde inte hända om logik funkar, men för säkerhets skull)
+                    if (exception && (exception.status === 'CANCELLED' || exception.status === 'DELETED')) {
+                        continue;
+                    }
+                    const startTimeStr = exception?.newStartTime || schedule.startTime;
+                    const duration = exception?.newDurationMinutes || schedule.durationMinutes;
+                    const className = classDefs.get(schedule.groupClassId) || "Pass";
+                    const locationName = locations.get(schedule.locationId) || "Studio";
+                    const startDt = createDateTime(b.classDate, startTimeStr);
+                    const endDt = new Date(startDt.getTime() + duration * 60000);
+                    events.push(createVEVENT(className, `Bokat pass på ${locationName}`, startDt, endDt, `booking-${bookingDoc.id}`));
                 }
             }
             const sessionsSnap = await db
@@ -707,11 +762,13 @@ exports.calendarFeed = (0, https_1.onRequest)({ region: "europe-west1" }, async 
                 .doc(foundOrgId)
                 .collection("oneOnOneSessions")
                 .where("participantId", "==", userId)
-                .where("startTime", ">=", now.toISOString())
+                .where("startTime", ">=", exportStart.toISOString())
                 .get();
             sessionsSnap.forEach((sessionDoc) => {
                 const s = sessionDoc.data();
-                events.push(createVEVENT(s.title, s.purpose, new Date(s.startTime), new Date(s.endTime)));
+                if (new Date(s.startTime) <= exportEnd) {
+                    events.push(createVEVENT(s.title, s.purpose || "Personligt möte", new Date(s.startTime), new Date(s.endTime), `session-${sessionDoc.id}`));
+                }
             });
         }
         // 3. Skapa ICS
@@ -732,10 +789,13 @@ END:VCALENDAR`;
         res.status(500).send("Internal Server Error");
     }
 });
-function createVEVENT(summary, description, start, end) {
+function createVEVENT(summary, description, start, end, uidPrefix) {
     const formatDate = (date) => date.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+    // Använd en deterministisk UID om möjligt för att undvika dubbletter vid uppdatering, men random funkar.
+    // Här använder vi uidPrefix om det skickas in.
+    const uid = uidPrefix ? `${uidPrefix}@flexibel.se` : `${Math.random().toString(36).substr(2)}@flexibel.se`;
     return `BEGIN:VEVENT
-UID:${Math.random().toString(36).substr(2)}@flexibel.se
+UID:${uid}
 DTSTAMP:${formatDate(new Date())}
 DTSTART:${formatDate(start)}
 DTEND:${formatDate(end)}

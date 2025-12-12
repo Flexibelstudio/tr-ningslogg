@@ -7,6 +7,8 @@ import { Button } from '../Button';
 import { calculateEstimated1RM } from '../../utils/workoutUtils';
 import { calculateAge } from '../../utils/dateUtils';
 import html2canvas from 'html2canvas';
+import { InfoModal } from './InfoModal';
+import { calculateEffectiveStrengthStats } from '../../services/workoutService';
 
 export interface LiftScoreDetails {
   lift: LiftType;
@@ -34,19 +36,40 @@ const FSS_STAT_KEY_MAPPING = {
   'Axelpress': 'overheadPress1RMaxKg',
 } as const;
 
-const VerificationBadge: React.FC<{ status?: VerificationStatus, by?: string, date?: string }> = ({ status, by, date }) => {
+interface VerificationBadgeProps { 
+    status?: VerificationStatus; 
+    by?: string; 
+    date?: string; 
+    onResubmit?: () => void;
+}
+
+const VerificationBadge: React.FC<VerificationBadgeProps> = ({ status, by, date, onResubmit }) => {
+    // Treat undefined/unverified as Legacy (Hidden or explicit "Legacy" if preferred, currently hidden to look clean)
     if (!status || status === 'unverified') return null;
 
     if (status === 'pending') {
-        return <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full font-semibold ml-2" title="Väntar på coach-granskning">Väntar ⏳</span>;
+        return <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full font-semibold ml-2 inline-flex items-center" title="Väntar på coach-granskning">Väntar ⏳</span>;
     }
 
     if (status === 'verified') {
-        return <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-semibold ml-2 flex items-center gap-1" title={`Verifierat av ${by} den ${date ? new Date(date).toLocaleDateString('sv-SE') : ''}`}>Verified ✅</span>;
+        return <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-semibold ml-2 inline-flex items-center gap-1" title={`Verifierat av ${by} den ${date ? new Date(date).toLocaleDateString('sv-SE') : ''}`}>Verifierad ✅</span>;
     }
     
     if (status === 'rejected') {
-         return <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-semibold ml-2" title="Avfärdad av coach">Ej godkänd ❌</span>;
+         return (
+            <div className="inline-flex items-center ml-2 gap-2">
+                <span className="text-xs bg-yellow-100 text-yellow-800 border border-yellow-200 px-2 py-0.5 rounded-full font-semibold" title="Kunde ej verifieras av coach.">Ej verifierad ⚠️</span>
+                {onResubmit && (
+                    <button 
+                        onClick={(e) => { e.preventDefault(); onResubmit(); }}
+                        className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
+                        title="Skicka in samma värde för granskning igen"
+                    >
+                        Skicka in igen
+                    </button>
+                )}
+            </div>
+         );
     }
 
     return null;
@@ -159,14 +182,11 @@ export const calculateFlexibelStrengthScoreInternal = (userStats: UserStrengthSt
 export const getFssScoreInterpretation = (score: number | undefined | null): { label: StrengthLevel; color: string } | null => {
   if (score === undefined || score === null || isNaN(score)) return null;
   
-  // Find the last level where the score is greater than or equal to the minimum.
-  // This correctly handles any score, including those on boundaries.
-  let foundLevel: StrengthLevel = FSS_CONFIG.fssLevels[0].label; // Default to the first level
+  let foundLevel: StrengthLevel = FSS_CONFIG.fssLevels[0].label; 
   for (const level of FSS_CONFIG.fssLevels) {
     if (score >= level.min) {
       foundLevel = level.label;
     } else {
-      // Since the levels are sorted by 'min', we can stop searching.
       break;
     }
   }
@@ -302,7 +322,9 @@ const CalculatorIcon = () => (
 
 export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, StrengthComparisonToolProps>(
   ({ profile, strengthStatsHistory, onSaveStrengthStats, isEmbedded, onOpenPhysiqueModal }, ref) => {
-    const latestStats = useMemo(
+    
+    // Find absolute latest raw entry to populate fields (user wants to see what they typed last)
+    const latestRawEntry = useMemo(
       () => (strengthStatsHistory.length > 0 ? [...strengthStatsHistory].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0] : null),
       [strengthStatsHistory]
     );
@@ -311,6 +333,8 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
     const [benchPress1RMax, setBenchPress1RMax] = useState('');
     const [deadlift1RMax, setDeadlift1RMax] = useState('');
     const [overheadPress1RMax, setOverheadPress1RMax] = useState('');
+    
+    const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
 
     const [calcWeight, setCalcWeight] = useState('');
     const [calcReps, setCalcReps] = useState('');
@@ -330,12 +354,14 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
     const estimated1RM = useMemo(() => calculateEstimated1RM(calcWeight, calcReps), [calcWeight, calcReps]);
 
     useEffect(() => {
-      setSquat1RMax(latestStats?.squat1RMaxKg?.toString() || '');
-      setBenchPress1RMax(latestStats?.benchPress1RMaxKg?.toString() || '');
-      setDeadlift1RMax(latestStats?.deadlift1RMaxKg?.toString() || '');
-      setOverheadPress1RMax(latestStats?.overheadPress1RMaxKg?.toString() || '');
+      // Always populate with the LATEST entry, even if rejected.
+      // This is so users can see "Rejected" status on their value and click "Try Again".
+      setSquat1RMax(latestRawEntry?.squat1RMaxKg?.toString() || '');
+      setBenchPress1RMax(latestRawEntry?.benchPress1RMaxKg?.toString() || '');
+      setDeadlift1RMax(latestRawEntry?.deadlift1RMaxKg?.toString() || '');
+      setOverheadPress1RMax(latestRawEntry?.overheadPress1RMaxKg?.toString() || '');
       setErrors({});
-    }, [latestStats]);
+    }, [latestRawEntry]);
 
     const areAllStatsFilled = useMemo(() => {
       return !!(profile?.bodyweightKg && squat1RMax.trim() && benchPress1RMax.trim() && deadlift1RMax.trim() && overheadPress1RMax.trim());
@@ -394,28 +420,62 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
         return false;
       }
 
+      // Check against LATEST raw entry to determine verification status change
+      // Logic: If value changed => 'pending'. 
+      // If value is same AND current status is 'rejected', we allow resubmit => 'pending'.
+      // If value is same AND current status is 'verified', we keep 'verified'.
       const newStat: UserStrengthStat = {
         id: crypto.randomUUID(),
         participantId: profile.id,
         bodyweightKg: profile.bodyweightKg,
-        
-        squat1RMaxKg: squat1RMax.trim() ? Number(squat1RMax.replace(',', '.')) : undefined,
-        squatVerificationStatus: (squat1RMax !== latestStats?.squat1RMaxKg?.toString()) ? 'pending' : latestStats?.squatVerificationStatus,
-
-        benchPress1RMaxKg: benchPress1RMax.trim() ? Number(benchPress1RMax.replace(',', '.')) : undefined,
-        benchPressVerificationStatus: (benchPress1RMax !== latestStats?.benchPress1RMaxKg?.toString()) ? 'pending' : latestStats?.benchPressVerificationStatus,
-
-        deadlift1RMaxKg: deadlift1RMax.trim() ? Number(deadlift1RMax.replace(',', '.')) : undefined,
-        deadliftVerificationStatus: (deadlift1RMax !== latestStats?.deadlift1RMaxKg?.toString()) ? 'pending' : latestStats?.deadliftVerificationStatus,
-
-        overheadPress1RMaxKg: overheadPress1RMax.trim() ? Number(overheadPress1RMax.replace(',', '.')) : undefined,
-        overheadPressVerificationStatus: (overheadPress1RMax !== latestStats?.overheadPress1RMaxKg?.toString()) ? 'pending' : latestStats?.overheadPressVerificationStatus,
-
         lastUpdated: new Date().toISOString(),
       };
+      
+      const setLiftStatus = (key: 'squat' | 'benchPress' | 'deadlift' | 'overheadPress', newValueStr: string) => {
+          const valKey = `${key}1RMaxKg` as keyof UserStrengthStat;
+          const statusKey = `${key}VerificationStatus` as keyof UserStrengthStat;
+          
+          if (!newValueStr.trim()) {
+              (newStat as any)[valKey] = undefined;
+              (newStat as any)[statusKey] = undefined;
+              return;
+          }
+
+          const newValue = Number(newValueStr.replace(',', '.'));
+          (newStat as any)[valKey] = newValue;
+
+          const oldVal = latestRawEntry?.[valKey];
+          const oldStatus = latestRawEntry?.[statusKey];
+          
+          if (oldVal !== newValue) {
+              // Value changed -> Pending
+              (newStat as any)[statusKey] = 'pending';
+          } else {
+              // Value same. 
+              // If previously rejected/unverified, user likely clicked "Update" to resubmit -> Pending.
+              // If previously verified/pending, keep status.
+              // Since handleSave creates a NEW entry, we default to 'pending' if it was 'rejected'.
+              if (oldStatus === 'rejected' || oldStatus === 'unverified') {
+                  (newStat as any)[statusKey] = 'pending';
+              } else {
+                  (newStat as any)[statusKey] = oldStatus;
+                  // Copy metadata if preserved
+                  if (statusKey === 'squatVerificationStatus') { newStat.squatVerifiedBy = latestRawEntry?.squatVerifiedBy; newStat.squatVerifiedDate = latestRawEntry?.squatVerifiedDate; }
+                  if (statusKey === 'benchPressVerificationStatus') { newStat.benchPressVerifiedBy = latestRawEntry?.benchPressVerifiedBy; newStat.benchPressVerifiedDate = latestRawEntry?.benchPressVerifiedDate; }
+                  if (statusKey === 'deadliftVerificationStatus') { newStat.deadliftVerifiedBy = latestRawEntry?.deadliftVerifiedBy; newStat.deadliftVerifiedDate = latestRawEntry?.deadliftVerifiedDate; }
+                  if (statusKey === 'overheadPressVerificationStatus') { newStat.overheadPressVerifiedBy = latestRawEntry?.overheadPressVerifiedBy; newStat.overheadPressVerifiedDate = latestRawEntry?.overheadPressVerifiedDate; }
+              }
+          }
+      };
+      
+      setLiftStatus('squat', squat1RMax);
+      setLiftStatus('benchPress', benchPress1RMax);
+      setLiftStatus('deadlift', deadlift1RMax);
+      setLiftStatus('overheadPress', overheadPress1RMax);
+
       onSaveStrengthStats(newStat);
       return true;
-    }, [squat1RMax, benchPress1RMax, deadlift1RMax, overheadPress1RMax, profile, onSaveStrengthStats, onOpenPhysiqueModal, latestStats]);
+    }, [squat1RMax, benchPress1RMax, deadlift1RMax, overheadPress1RMax, profile, onSaveStrengthStats, onOpenPhysiqueModal, latestRawEntry]);
 
     useImperativeHandle(ref, () => ({
       submitForm: () => {
@@ -462,6 +522,31 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
 
     const fssInterpretation = getFssScoreInterpretation(fssData?.totalScore);
 
+    // Calculate Aggregate Verification Status
+    const aggregateStatus = useMemo(() => {
+        if (!latestRawEntry) return 'verified'; // Default to verified (assuming legacy) if no history, though inputs likely empty.
+        
+        const statuses: (VerificationStatus | undefined)[] = [];
+        if (squat1RMax.trim()) statuses.push(latestRawEntry.squatVerificationStatus);
+        if (benchPress1RMax.trim()) statuses.push(latestRawEntry.benchPressVerificationStatus);
+        if (deadlift1RMax.trim()) statuses.push(latestRawEntry.deadliftVerificationStatus);
+        if (overheadPress1RMax.trim()) statuses.push(latestRawEntry.overheadPressVerificationStatus);
+        
+        // Filter out empty entries (if partially filled)
+        const validStatuses = statuses.filter(s => s !== undefined); // Note: 'unverified' string vs undefined legacy
+        
+        // Logic:
+        // 1. If ANY is rejected -> Rejected (Preliminär)
+        // 2. If ANY is pending -> Pending (Preliminär)
+        // 3. Else (Verified OR undefined/Legacy) -> Verified (Officiell)
+
+        if (statuses.some(s => s === 'rejected')) return 'rejected';
+        if (statuses.some(s => s === 'pending')) return 'pending';
+        
+        // Explicitly treating undefined (legacy) as verified for status check
+        return 'verified';
+    }, [latestRawEntry, squat1RMax, benchPress1RMax, deadlift1RMax, overheadPress1RMax]);
+
     if (!profile || !profile.gender || (!profile.birthDate && !profile.age)) {
       return <p className="text-center p-4 bg-yellow-100 text-yellow-800 rounded-md">Vänligen fyll i kön och födelsedatum i din profil för att kunna se och jämföra din styrka.</p>;
     }
@@ -477,191 +562,262 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
     });
 
     return (
-      <div className="space-y-6">
-        {areAllStatsFilled ? (
-          <div className="space-y-4">
-            <div ref={shareableFssRef} className="p-4 bg-gray-100 rounded-lg text-center space-y-3">
-              <div>
-                <h4 className="text-base font-semibold text-gray-600">Flexibel Strength Score (FSS)</h4>
-                <p className="text-5xl font-bold" style={{ color: FLEXIBEL_PRIMARY_COLOR }}>
-                  {fssData?.totalScore ?? '-'}
-                </p>
-              </div>
-              {fssInterpretation && (
+      <>
+        <div className="space-y-6">
+          {areAllStatsFilled ? (
+            <div className="space-y-4">
+              <div ref={shareableFssRef} className="p-4 bg-gray-100 rounded-lg text-center space-y-3 relative border border-gray-200">
+                <div className="flex items-center justify-center gap-2">
+                  <h4 className="text-base font-semibold text-gray-600">Flexibel Strength Score</h4>
+                  <button 
+                    onClick={() => setIsInfoModalOpen(true)} 
+                    className="text-gray-400 hover:text-flexibel transition-colors p-0.5 rounded-full hover:bg-gray-200 focus:outline-none"
+                    title="Hur räknas detta?"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
                 <div>
-                  <p className="text-base font-semibold text-gray-600">Nivå</p>
-                  <p className="text-2xl font-bold" style={{ color: fssInterpretation.color }}>
-                    {fssInterpretation.label}
+                  <p className="text-5xl font-bold" style={{ color: FLEXIBEL_PRIMARY_COLOR }}>
+                    {fssData?.totalScore ?? '-'}
                   </p>
                 </div>
-              )}
-            </div>
-            <Button onClick={handleShare} fullWidth variant="secondary">
-              Dela resultat
-            </Button>
-          </div>
-        ) : !profile.bodyweightKg ? (
-          <div className="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-lg">
-            <h3 className="text-lg font-bold text-yellow-800">Kroppsvikt saknas</h3>
-            <p className="text-base text-yellow-700 mt-1">Ange din kroppsvikt i "Min kropp" för att beräkna din FSS-poäng och se din styrkenivå.</p>
-            <Button onClick={onOpenPhysiqueModal} className="mt-3">
-              Ange kroppsvikt
-            </Button>
-          </div>
-        ) : (
-          <div className="p-4 bg-blue-50 border-l-4 border-blue-400 rounded-r-lg">
-            <h3 className="text-xl font-bold text-gray-800">Kom igång!</h3>
-            <p className="text-base text-gray-700 mt-1">Fyll i dina maxlyft för att se din FSS-poäng och styrkenivå.</p>
-            {missingStats.length > 0 && (
-              <ul className="mt-3 space-y-2">
-                {missingStats.map((stat) => (
-                  <li key={stat.key} className="flex items-center text-base">
-                    <span className="text-lg mr-2">❌</span>
-                    <span>{stat.label}</span>
-                    <button onClick={() => inputRefs[stat.key].current?.focus()} className="ml-auto text-sm text-flexibel hover:underline">
-                      Fyll i
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-
-        <div className="pb-4 mb-4 border-b">
-          <Button variant="outline" fullWidth size="md" className="!text-lg justify-center" onClick={() => setIsCalculatorOpen((prev) => !prev)} aria-expanded={isCalculatorOpen}>
-            <CalculatorIcon /> Beräkna Estimerat 1RM
-          </Button>
-          {isCalculatorOpen && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg border space-y-3 animate-fade-in-down">
-              <div className="grid grid-cols-2 gap-3">
-                <Input label="Vikt (kg)" type="number" value={calcWeight} onChange={(e) => setCalcWeight(e.target.value)} placeholder="T.ex. 80" inputSize="sm" />
-                <Input label="Reps" type="number" value={calcReps} onChange={(e) => setCalcReps(e.target.value)} placeholder="T.ex. 5" inputSize="sm" max="12" />
+                {fssInterpretation && (
+                  <div className="flex flex-col items-center gap-1">
+                    <p className="text-2xl font-bold" style={{ color: fssInterpretation.color }}>
+                      {fssInterpretation.label}
+                    </p>
+                    {aggregateStatus === 'verified' && (
+                         <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-semibold border border-green-200">
+                             ✅ Officiell Poäng
+                         </span>
+                    )}
+                    {aggregateStatus === 'pending' && (
+                         <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full font-semibold border border-yellow-200">
+                             ⏳ Preliminär (Väntar på granskning)
+                         </span>
+                    )}
+                    {aggregateStatus === 'rejected' && (
+                         <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full font-semibold border border-gray-300">
+                             ⚠️ Preliminär (Innehåller icke-verifierade lyft)
+                         </span>
+                    )}
+                  </div>
+                )}
               </div>
-              {estimated1RM !== null && (
-                <div className="text-center p-2 bg-white rounded-md border">
-                  <p className="text-sm text-gray-500">Estimerat 1RM</p>
-                  <p className="text-2xl font-bold text-flexibel">{estimated1RM.toFixed(1)} kg</p>
-                </div>
+              <Button onClick={handleShare} fullWidth variant="secondary">
+                Dela resultat
+              </Button>
+            </div>
+          ) : !profile.bodyweightKg ? (
+            <div className="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-lg">
+              <h3 className="text-lg font-bold text-yellow-800">Kroppsvikt saknas</h3>
+              <p className="text-base text-yellow-700 mt-1">Ange din kroppsvikt i "Min kropp" för att beräkna din FSS-poäng och se din styrkenivå.</p>
+              <Button onClick={onOpenPhysiqueModal} className="mt-3">
+                Ange kroppsvikt
+              </Button>
+            </div>
+          ) : (
+            <div className="p-4 bg-blue-50 border-l-4 border-blue-400 rounded-r-lg">
+              <h3 className="text-xl font-bold text-gray-800">Kom igång!</h3>
+              <p className="text-base text-gray-700 mt-1">Fyll i dina maxlyft för att se din FSS-poäng och styrkenivå.</p>
+              {missingStats.length > 0 && (
+                <ul className="mt-3 space-y-2">
+                  {missingStats.map((stat) => (
+                    <li key={stat.key} className="flex items-center text-base">
+                      <span className="text-lg mr-2">❌</span>
+                      <span>{stat.label}</span>
+                      <button onClick={() => inputRefs[stat.key].current?.focus()} className="ml-auto text-sm text-flexibel hover:underline">
+                        Fyll i
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           )}
-        </div>
 
-        <div className="space-y-4">
-          <h3 className="text-xl font-semibold text-gray-700">Dina 1RM</h3>
-          {profile?.bodyweightKg && (
-            <div className="p-3 bg-gray-100 rounded-lg flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Beräknas med kroppsvikt</p>
-                <p className="text-xl font-bold text-gray-800">{profile.bodyweightKg} kg</p>
+          <div className="pb-4 mb-4 border-b">
+            <Button variant="outline" fullWidth size="md" className="!text-lg justify-center" onClick={() => setIsCalculatorOpen((prev) => !prev)} aria-expanded={isCalculatorOpen}>
+              <CalculatorIcon /> Beräkna Estimerat 1RM
+            </Button>
+            {isCalculatorOpen && (
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg border space-y-3 animate-fade-in-down">
+                <div className="grid grid-cols-2 gap-3">
+                  <Input label="Vikt (kg)" type="number" value={calcWeight} onChange={(e) => setCalcWeight(e.target.value)} placeholder="T.ex. 80" inputSize="sm" />
+                  <Input label="Reps" type="number" value={calcReps} onChange={(e) => setCalcReps(e.target.value)} placeholder="T.ex. 5" inputSize="sm" max="12" />
+                </div>
+                {estimated1RM !== null && (
+                  <div className="text-center p-2 bg-white rounded-md border">
+                    <p className="text-sm text-gray-500">Estimerat 1RM</p>
+                    <p className="text-2xl font-bold text-flexibel">{estimated1RM.toFixed(1)} kg</p>
+                  </div>
+                )}
               </div>
-              <Button variant="ghost" size="sm" onClick={onOpenPhysiqueModal}>
-                Ändra
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-xl font-semibold text-gray-700">Dina 1RM</h3>
+            {profile?.bodyweightKg && (
+              <div className="p-3 bg-gray-100 rounded-lg flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Beräknas med kroppsvikt</p>
+                  <p className="text-xl font-bold text-gray-800">{profile.bodyweightKg} kg</p>
+                </div>
+                <Button variant="ghost" size="sm" onClick={onOpenPhysiqueModal}>
+                  Ändra
+                </Button>
+              </div>
+            )}
+
+            {MAIN_LIFTS_CONFIG_HEADER.map(({ lift, statKey, label }) => {
+              const liftState = { squat1RMaxKg: squat1RMax, benchPress1RMaxKg: benchPress1RMax, deadlift1RMaxKg: deadlift1RMax, overheadPress1RMaxKg: overheadPress1RMax }[
+                statKey
+              ];
+              const setStateAction = { squat1RMaxKg: setSquat1RMax, benchPress1RMaxKg: setBenchPress1RMax, deadlift1RMaxKg: setDeadlift1RMax, overheadPress1RMaxKg: setOverheadPress1RMax }[
+                statKey
+              ];
+              const liftScoreData = fssData?.liftScores.find((l) => l.lift === lift);
+              
+              // Use LATEST raw entry to determine current status
+              const currentVerificationData = latestRawEntry ? {
+                  squat1RMaxKg: { status: latestRawEntry.squatVerificationStatus, by: latestRawEntry.squatVerifiedBy, date: latestRawEntry.squatVerifiedDate },
+                  benchPress1RMaxKg: { status: latestRawEntry.benchPressVerificationStatus, by: latestRawEntry.benchPressVerifiedBy, date: latestRawEntry.benchPressVerifiedDate },
+                  deadlift1RMaxKg: { status: latestRawEntry.deadliftVerificationStatus, by: latestRawEntry.deadliftVerifiedBy, date: latestRawEntry.deadliftVerifiedDate },
+                  overheadPress1RMaxKg: { status: latestRawEntry.overheadPressVerificationStatus, by: latestRawEntry.overheadPressVerifiedBy, date: latestRawEntry.overheadPressVerifiedDate },
+              }[statKey] : undefined;
+
+              return (
+                <details key={statKey} className="bg-white p-3 rounded-lg shadow-sm border border-gray-200" open={expandedLifts[lift]}>
+                  <summary
+                    className="font-semibold text-lg text-gray-800 cursor-pointer list-none flex justify-between items-center"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setExpandedLifts((p) => ({ ...p, [lift]: !p[lift] }));
+                    }}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center w-full">
+                      <span className="flex items-center">
+                          {lift}:{' '}
+                          <span className="font-bold text-flexibel ml-1">
+                            {liftState || '-'} kg
+                          </span>
+                      </span>
+                      {currentVerificationData && (
+                          <div className="mt-1 sm:mt-0 sm:ml-auto mr-2">
+                             <VerificationBadge 
+                                status={currentVerificationData.status} 
+                                by={currentVerificationData.by} 
+                                date={currentVerificationData.date}
+                                onResubmit={() => handleSave()}
+                             />
+                          </div>
+                      )}
+                    </div>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className={`h-5 w-5 text-gray-500 transition-transform ${expandedLifts[lift] ? 'rotate-180' : ''}`}
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </summary>
+                  <div className="mt-3 pt-3 border-t space-y-4">
+                    {liftScoreData && (
+                      <div className="p-3 border rounded-md bg-gray-50 text-center">
+                        <h5 className="font-semibold text-base text-gray-700">Poäng & Nivå</h5>
+                        <p className="text-3xl font-bold" style={{ color: LEVEL_COLORS_HEADER[liftScoreData.level] }}>
+                          {liftScoreData.score}
+                        </p>
+                        <p className="text-lg font-semibold" style={{ color: LEVEL_COLORS_HEADER[liftScoreData.level] }}>
+                          {liftScoreData.level}
+                        </p>
+                      </div>
+                    )}
+                    <FocusedClubDisplay liftType={lift} oneRepMax={Number((liftState || '0').replace(',', '.')) || 0} />
+                    <Input
+                      label={`Uppdatera ${label}`}
+                      id={statKey}
+                      name={statKey}
+                      type="number"
+                      step="0.5"
+                      value={liftState}
+                      onChange={(e) => {
+                        setStateAction(e.target.value);
+                        validateField(e.target.value, statKey);
+                      }}
+                      error={errors[statKey]}
+                      ref={inputRefs[statKey]}
+                    />
+                    {currentVerificationData?.status === 'rejected' && (
+                        <div className="flex justify-end">
+                            <Button size="sm" variant="outline" onClick={() => handleSave()}>Uppdatera / Skicka in igen</Button>
+                        </div>
+                    )}
+                  </div>
+                </details>
+              );
+            })}
+          </div>
+
+          <details className="mt-8 pt-6 border-t">
+            <summary className="text-xl font-semibold text-gray-700 cursor-pointer list-none flex justify-between items-center py-2 group hover:text-flexibel transition-colors">
+              Historik
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5 text-gray-500 transition-transform duration-200 group-open:rotate-180"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </summary>
+            <div className="mt-2 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+              <p className="text-base text-gray-600">Här kan du se din historiska utveckling. Spara nya mätpunkter för att se grafen växa!</p>
+              {/* Future chart component would go here */}
+            </div>
+          </details>
+
+          {!isEmbedded && (
+            <div className="flex justify-end space-x-3 pt-6 border-t">
+              <Button onClick={handleSave} variant="primary">
+                Spara Styrkestatus
               </Button>
             </div>
           )}
-
-          {MAIN_LIFTS_CONFIG_HEADER.map(({ lift, statKey, label }) => {
-            const liftState = { squat1RMaxKg: squat1RMax, benchPress1RMaxKg: benchPress1RMax, deadlift1RMaxKg: deadlift1RMax, overheadPress1RMaxKg: overheadPress1RMax }[
-              statKey
-            ];
-            const setStateAction = { squat1RMaxKg: setSquat1RMax, benchPress1RMaxKg: setBenchPress1RMax, deadlift1RMaxKg: setDeadlift1RMax, overheadPress1RMaxKg: setOverheadPress1RMax }[
-              statKey
-            ];
-            const liftScoreData = fssData?.liftScores.find((l) => l.lift === lift);
-            
-            const verificationData = {
-                squat1RMaxKg: { status: latestStats?.squatVerificationStatus, by: latestStats?.squatVerifiedBy, date: latestStats?.squatVerifiedDate },
-                benchPress1RMaxKg: { status: latestStats?.benchPressVerificationStatus, by: latestStats?.benchPressVerifiedBy, date: latestStats?.benchPressVerifiedDate },
-                deadlift1RMaxKg: { status: latestStats?.deadliftVerificationStatus, by: latestStats?.deadliftVerifiedBy, date: latestStats?.deadliftVerifiedDate },
-                overheadPress1RMaxKg: { status: latestStats?.overheadPressVerificationStatus, by: latestStats?.overheadPressVerifiedBy, date: latestStats?.overheadPressVerifiedDate },
-            }[statKey];
-
-            return (
-              <details key={statKey} className="bg-white p-3 rounded-lg shadow-sm border border-gray-200" open={expandedLifts[lift]}>
-                <summary
-                  className="font-semibold text-lg text-gray-800 cursor-pointer list-none flex justify-between items-center"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setExpandedLifts((p) => ({ ...p, [lift]: !p[lift] }));
-                  }}
-                >
-                  <span className="flex items-center">
-                    {lift}:{' '}
-                    <span className="font-bold text-flexibel ml-1">
-                      {liftState || '-'} kg
-                    </span>
-                    {verificationData && <VerificationBadge status={verificationData.status} by={verificationData.by} date={verificationData.date} />}
-                  </span>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className={`h-5 w-5 text-gray-500 transition-transform ${expandedLifts[lift] ? 'rotate-180' : ''}`}
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </summary>
-                <div className="mt-3 pt-3 border-t space-y-4">
-                  {liftScoreData && (
-                    <div className="p-3 border rounded-md bg-gray-50 text-center">
-                      <h5 className="font-semibold text-base text-gray-700">Poäng & Nivå</h5>
-                      <p className="text-3xl font-bold" style={{ color: LEVEL_COLORS_HEADER[liftScoreData.level] }}>
-                        {liftScoreData.score}
-                      </p>
-                      <p className="text-lg font-semibold" style={{ color: LEVEL_COLORS_HEADER[liftScoreData.level] }}>
-                        {liftScoreData.level}
-                      </p>
-                    </div>
-                  )}
-                  <FocusedClubDisplay liftType={lift} oneRepMax={Number((liftState || '0').replace(',', '.')) || 0} />
-                  <Input
-                    label={`Uppdatera ${label}`}
-                    id={statKey}
-                    name={statKey}
-                    type="number"
-                    step="0.5"
-                    value={liftState}
-                    onChange={(e) => {
-                      setStateAction(e.target.value);
-                      validateField(e.target.value, statKey);
-                    }}
-                    error={errors[statKey]}
-                    ref={inputRefs[statKey]}
-                  />
-                </div>
-              </details>
-            );
-          })}
         </div>
 
-        <details className="mt-8 pt-6 border-t">
-          <summary className="text-xl font-semibold text-gray-700 cursor-pointer list-none flex justify-between items-center py-2 group hover:text-flexibel transition-colors">
-            Historik
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5 text-gray-500 transition-transform duration-200 group-open:rotate-180"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </summary>
-          <div className="mt-2 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-            <p className="text-base text-gray-600">Här kan du se din historiska utveckling. Spara nya mätpunkter för att se grafen växa!</p>
-            {/* Future chart component would go here */}
-          </div>
-        </details>
+        <InfoModal 
+          isOpen={isInfoModalOpen} 
+          onClose={() => setIsInfoModalOpen(false)} 
+          title="Hur räknas FSS?"
+        >
+          <div className="space-y-4 text-gray-700 text-base leading-relaxed">
+            <p><strong>Vad är FSS?</strong><br/>
+            Flexibel Strength Score är ett mått på din <strong>relativa styrka</strong>. Det handlar inte bara om hur många kilon du lyfter, utan vad du lyfter i förhållande till dina förutsättningar.</p>
+            
+            <div>
+              <strong>Så fungerar det:</strong>
+              <ol className="list-decimal pl-5 space-y-1 mt-1">
+                <li><strong>Dina Lyft:</strong> Vi tittar på ditt 1RM (maxlyft) i de fyra baslyften: Knäböj, Bänkpress, Marklyft och Axelpress.</li>
+                <li><strong>Kroppsvikt:</strong> En lättare person som lyfter tungt får högre poäng än en tyngre person som lyfter samma vikt. Detta gör jämförelsen rättvis.</li>
+                <li><strong>Ålder:</strong> Vi applicerar en åldersfaktor. Eftersom muskelmassa naturligt förändras över tid, justeras poängen så att du kan jämföra din prestation rättvist oavsett ålder.</li>
+                <li><strong>Kön:</strong> Basvärdena är anpassade efter biologiska skillnader för män och kvinnor.</li>
+              </ol>
+            </div>
 
-        {!isEmbedded && (
-          <div className="flex justify-end space-x-3 pt-6 border-t">
-            <Button onClick={handleSave} variant="primary">
-              Spara Styrkestatus
-            </Button>
+            <p><strong>Poängen:</strong><br/>
+            Varje lyft ger poäng baserat på en skala. Totalpoängen avgör din nivå (t.ex. "Stark" eller "Atlet").</p>
+            
+            <p><strong>Status:</strong><br/>
+            Din FSS är <em>Officiell</em> när alla dina fyra lyft har verifierats av en coach (eller är gamla nog att räknas som verifierade). Innan dess visas den som <em>Preliminär</em>.</p>
           </div>
-        )}
-      </div>
+        </InfoModal>
+      </>
     );
   }
 );

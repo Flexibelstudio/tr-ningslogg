@@ -31,8 +31,9 @@ interface LeaderboardEntry {
 }
 
 const VerifiedIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-600 inline ml-1" viewBox="0 0 20 20" fill="currentColor" title="Verifierat resultat">
-        <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-600 inline ml-1" viewBox="0 0 20 20" fill="currentColor">
+        <title>Verifierat resultat</title>
+        <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
     </svg>
 );
 
@@ -200,7 +201,11 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
             if (!latestStats) return null;
 
             const getVerifiedValue = (val: number | undefined, status: string | undefined) => {
-                 if (showVerifiedOnly && status !== 'verified') return undefined;
+                 if (showVerifiedOnly) {
+                     // Filter out if explicitly unverified (pending/rejected).
+                     // Legacy data (undefined status) counts as verified.
+                     if (status === 'pending' || status === 'rejected') return undefined;
+                 }
                  return val;
             }
 
@@ -212,16 +217,13 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
                 overheadPress1RMaxKg: getVerifiedValue(latestStats.overheadPress1RMaxKg, latestStats.overheadPressVerificationStatus),
             } : latestStats;
 
-            // Determine if this entry is considered "verified". In this context, it's verified if all contributed lifts are verified or if checking individual lifts. 
-            // For FSS total score, let's verify if *any* contributing lift is verified? No, typically means all are valid.
-            // But for filtering purposes above, we just exclude unverified numbers.
-            // Let's mark the entry as verified if all 4 lifts used in FSS calculation are verified.
-            const isFullyVerified = 
-                latestStats.squatVerificationStatus === 'verified' && 
-                latestStats.benchPressVerificationStatus === 'verified' &&
-                latestStats.deadliftVerificationStatus === 'verified' &&
-                latestStats.overheadPressVerificationStatus === 'verified';
+            const isLiftVerified = (status?: string) => status === 'verified' || !status; // Verified or Legacy (undefined)
 
+            const isFullyVerified = 
+                isLiftVerified(latestStats.squatVerificationStatus) && 
+                isLiftVerified(latestStats.benchPressVerificationStatus) &&
+                isLiftVerified(latestStats.deadliftVerificationStatus) &&
+                isLiftVerified(latestStats.overheadPressVerificationStatus);
 
             const scoreData = calculateFlexibelStrengthScoreInternal(filteredStats, participant);
             
@@ -231,7 +233,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
                     value: scoreData.totalScore, 
                     isCurrentUser: participant.id === currentParticipantId,
                     isVerified: isFullyVerified
-                };
+                } as Omit<LeaderboardEntry, 'rank'>;
             }
             return null;
         })
@@ -250,7 +252,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
             .filter(p => p.enableInBodySharing)
             .map(participant => {
             if (participant.inbodyScore === undefined || participant.inbodyScore === null) return null;
-            return { participant, value: participant.inbodyScore, isCurrentUser: participant.id === currentParticipantId };
+            return { participant, value: participant.inbodyScore, isCurrentUser: participant.id === currentParticipantId } as Omit<LeaderboardEntry, 'rank'>;
         })
         .filter((e): e is Omit<LeaderboardEntry, 'rank'> => e !== null)
         .sort((a, b) => b.value - a.value)

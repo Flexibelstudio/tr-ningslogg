@@ -1,4 +1,3 @@
-
 // App.tsx
 import React, { useState, useEffect, useCallback, lazy, Suspense, useMemo } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
@@ -88,11 +87,17 @@ const AppContent: React.FC = () => {
     if (auth.currentRole !== 'participant' || !auth.currentParticipantId) {
       return { pendingRequestsCount: 0, newFlowItemsCount: 0 };
     }
-    const { connections, lastFlowViewTimestamp, coachEvents, workoutLogs, generalActivityLogs, goalCompletionLogs, clubMemberships, userStrengthStats, participantPhysiqueHistory, participantGoals, userConditioningStatsHistory } = appContext;
+    const { connections, lastFlowViewTimestamp, coachEvents, workoutLogs, generalActivityLogs, goalCompletionLogs, clubMemberships, userStrengthStats, participantPhysiqueHistory, participantGoals, userConditioningStatsHistory, userNotifications } = appContext;
     
     const requests = connections.filter(c => c.receiverId === auth.currentParticipantId && c.status === 'pending').length;
 
     let count = 0;
+    
+    // 1. Unread notifications count
+    const unreadNotifications = userNotifications.filter(n => n.recipientId === auth.currentParticipantId && !n.read).length;
+    count += unreadNotifications;
+
+    // 2. New timeline items count
     if (lastFlowViewTimestamp) {
       const lastView = +new Date(lastFlowViewTimestamp);
       const myId = auth.currentParticipantId;
@@ -117,14 +122,14 @@ const AppContent: React.FC = () => {
           item.reactions?.forEach((r: any) => { if (r.participantId !== myId && +new Date(r.createdDate) > lastView) newItems.add(`reaction-${item.id}-${r.participantId}-${r.emoji}`); });
         }
       });
-      count = newItems.size;
+      count += newItems.size;
     }
     return { pendingRequestsCount: requests, newFlowItemsCount: count };
   }, [
     auth.currentRole, auth.currentParticipantId, appContext.connections, appContext.lastFlowViewTimestamp, 
     appContext.coachEvents, appContext.workoutLogs, appContext.generalActivityLogs, appContext.goalCompletionLogs, 
     appContext.clubMemberships, appContext.userStrengthStats, appContext.participantPhysiqueHistory, 
-    appContext.participantGoals, appContext.userConditioningStatsHistory,
+    appContext.participantGoals, appContext.userConditioningStatsHistory, appContext.userNotifications
   ]);
 
   // --- Effects ---
@@ -135,7 +140,7 @@ const AppContent: React.FC = () => {
     }
   }, [auth.user, hasCheckedTerms]);
 
-  const UPDATE_NOTICE_KEY = 'updateNotice_v3_AICoach';
+  const UPDATE_NOTICE_KEY = 'updateNotice_v4_Verification';
   const LAST_SEEN_UPDATE_KEY = 'flexibel_lastSeenUpdateNotice';
   useEffect(() => {
     if (auth.user && auth.currentRole === 'participant') {

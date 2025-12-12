@@ -63,6 +63,7 @@ export const createInitialOrgData = (orgId: string): OrganizationData => {
         prospectIntroCalls: [],
         userPushSubscriptions: [],
         branding: { categoryColorMap: {} },
+        userNotifications: [],
     };
 
     // Add specific seeded data

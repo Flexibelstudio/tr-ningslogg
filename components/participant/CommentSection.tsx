@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 // FIX: Import `FlowItemLogType` from the central types file instead of defining it locally.
 import { Comment, FlowItemLogType } from '../../types';
@@ -16,6 +17,9 @@ interface CommentSectionProps {
   onDeleteComment: (logId: string, logType: FlowItemLogType, commentId: string) => void;
   onToggleCommentReaction: (logId: string, logType: FlowItemLogType, commentId: string) => void;
   readOnly?: boolean;
+  containerClassName?: string;
+  inputClassName?: string;
+  isDarkBackground?: boolean;
 }
 
 const TrashIcon = () => (
@@ -33,6 +37,9 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
   onDeleteComment,
   onToggleCommentReaction,
   readOnly = false,
+  containerClassName = "mt-3 pt-3 border-t",
+  inputClassName,
+  isDarkBackground = false,
 }) => {
   const [newComment, setNewComment] = useState('');
   const [isFocused, setIsFocused] = useState(false);
@@ -48,45 +55,50 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
 
   const sortedComments = [...comments].sort((a, b) => new Date(a.createdDate).getTime() - new Date(b.createdDate).getTime());
 
+  const textClass = isDarkBackground ? "text-white/90" : "text-gray-700";
+  const nameClass = isDarkBackground ? "text-white font-bold" : "text-gray-800 font-semibold";
+  const timeClass = isDarkBackground ? "text-white/60" : "text-gray-500";
+  const hoverBgClass = isDarkBackground ? "hover:bg-white/10" : "hover:bg-gray-100";
+
   return (
-    <div className="mt-3 pt-3 border-t">
+    <div className={containerClassName}>
       {sortedComments.length > 0 && (
         <div className="space-y-1 mb-3">
           {sortedComments.map(comment => {
             const myLike = comment.reactions?.find(r => r.participantId === currentUserId && r.emoji === '❤️');
             const likeCount = comment.reactions?.filter(r => r.emoji === '❤️').length || 0;
             return (
-              <div key={comment.id} className="group flex items-start gap-2 text-base p-1.5 rounded-md hover:bg-gray-100 active:bg-gray-200">
+              <div key={comment.id} className={`group flex items-start gap-2 text-base p-1.5 rounded-md ${hoverBgClass}`}>
                 <div className="flex-grow">
                   <div>
-                    <span className="font-semibold text-gray-800">
+                    <span className={nameClass}>
                         {comment.authorId === currentUserId ? 'Du' : comment.authorName.split(' ')[0]}
                     </span>
-                    <span className="text-gray-500 ml-2 text-sm">{formatRelativeTime(comment.createdDate).relative}</span>
+                    <span className={`${timeClass} ml-2 text-xs`}>{formatRelativeTime(comment.createdDate).relative}</span>
                   </div>
-                  <p className="text-gray-700 whitespace-pre-wrap break-words mt-0.5">{comment.text}</p>
+                  <p className={`${textClass} whitespace-pre-wrap break-words mt-0.5 text-sm`}>{comment.text}</p>
                   
                   {/* LIKE BUTTON AND COUNT */}
                   <div className="mt-1 flex items-center">
                       <button
                           onClick={() => onToggleCommentReaction(logId, logType, comment.id)}
-                          className="flex items-center gap-1 text-sm text-gray-500 hover:text-red-500 transition-colors rounded-full p-1.5 -ml-1.5"
+                          className={`flex items-center gap-1 text-xs transition-colors rounded-full p-1 -ml-1 ${myLike ? 'text-red-500' : (isDarkBackground ? 'text-white/50 hover:text-red-400' : 'text-gray-400 hover:text-red-400')}`}
                           aria-pressed={!!myLike}
                           aria-label={myLike ? 'Ta bort gilla-markering' : 'Gilla kommentar'}
                       >
-                          <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-all duration-150 ${myLike ? 'text-red-500' : 'text-gray-400 hover:text-red-400'}`} fill={myLike ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-all duration-150`} fill={myLike ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                           </svg>
                       </button>
                       {likeCount > 0 && (
-                          <span className="text-sm font-semibold text-gray-600">{likeCount}</span>
+                          <span className={`text-xs font-semibold ${isDarkBackground ? 'text-white/70' : 'text-gray-600'}`}>{likeCount}</span>
                       )}
                   </div>
                 </div>
                 {comment.authorId === currentUserId && (
                   <button
                     onClick={() => onDeleteComment(logId, logType, comment.id)}
-                    className="opacity-40 hover:opacity-100 focus:opacity-100 text-red-500 hover:text-red-700 p-2 rounded-full transition-opacity flex-shrink-0"
+                    className={`opacity-40 hover:opacity-100 focus:opacity-100 p-2 rounded-full transition-opacity flex-shrink-0 ${isDarkBackground ? 'text-white hover:text-red-300' : 'text-red-500 hover:text-red-700'}`}
                     aria-label="Ta bort kommentar"
                     title="Ta bort kommentar"
                   >
@@ -107,7 +119,7 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
             onBlur={() => !newComment && setIsFocused(false)}
             placeholder="Skriv en kommentar..."
             rows={isFocused || newComment ? 2 : 1}
-            className="text-base !py-2 !px-3 flex-grow transition-all duration-200"
+            className={`text-sm !py-2 !px-3 flex-grow transition-all duration-200 ${inputClassName || ''}`}
             />
             {(isFocused || newComment) && (
                 <Button type="submit" size="sm" className="!py-2 !px-3 self-end" disabled={!newComment.trim()}>

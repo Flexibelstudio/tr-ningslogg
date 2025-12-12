@@ -18,7 +18,8 @@ import {
   UserStrengthStat,
   Location,
   ParticipantConditioningStat,
-  FlowItemLogType
+  FlowItemLogType,
+  UserNotification
 } from '../../types';
 import { formatRelativeTime } from '../../utils/dateUtils';
 import { CLUB_DEFINITIONS, REACTION_EMOJIS, DEFAULT_COACH_EVENT_ICON } from '../../constants';
@@ -28,9 +29,10 @@ import { calculateFlexibelStrengthScoreInternal, getFssScoreInterpretation } fro
 import { useAppContext } from '../../context/AppContext';
 import { getHighestClubAchievements } from '../../services/gamificationService';
 import { Button } from '../Button';
+import { useParticipantOperations } from '../../features/participant/hooks/useParticipantOperations';
 
 // --- NEW EXPANDED TYPES ---
-type FlowItemLog = WorkoutLog | GeneralActivityLog | CoachEvent | GoalCompletionLog | ParticipantClubMembership | UserStrengthStat | ParticipantPhysiqueStat | ParticipantGoalData | ParticipantConditioningStat;
+type FlowItemLog = WorkoutLog | GeneralActivityLog | CoachEvent | GoalCompletionLog | ParticipantClubMembership | UserStrengthStat | ParticipantPhysiqueStat | ParticipantGoalData | ParticipantConditioningStat | UserNotification;
 
 interface FlowModalProps {
   isOpen: boolean;
@@ -54,21 +56,23 @@ interface FlowModalProps {
   onDeleteComment: (logId: string, logType: FlowItemLogType, commentId: string) => void;
   onToggleCommentReaction: (logId: string, logType: FlowItemLogType, commentId: string) => void;
   locations: Location[];
-  userConditioningStatsHistory: ParticipantConditioningStat[]; // Added for new event type
+  userConditioningStatsHistory: ParticipantConditioningStat[];
 }
 
 interface FlowItem {
   id: string;
   date: Date;
-  type: 'COACH_EVENT' | 'NEW_PB' | 'CLUB_MEMBERSHIP' | 'WORKOUT_LOGGED' | 'GENERAL_ACTIVITY' | 'WEEKLY_CHALLENGE' | 'PHYSIQUE_UPDATE' | 'FSS_INCREASE' | 'GOAL_COMPLETED' | 'NEW_GOAL' | 'CONDITIONING_TEST';
+  type: 'COACH_EVENT' | 'NEW_PB' | 'CLUB_MEMBERSHIP' | 'WORKOUT_LOGGED' | 'GENERAL_ACTIVITY' | 'WEEKLY_CHALLENGE' | 'PHYSIQUE_UPDATE' | 'FSS_INCREASE' | 'GOAL_COMPLETED' | 'NEW_GOAL' | 'CONDITIONING_TEST' | 'USER_NOTIFICATION' | 'VERIFIED_PB';
   icon: string;
   title: string;
   description: string;
   authorName?: string;
   log?: FlowItemLog;
   logType?: FlowItemLogType;
-  visibility?: '(vänner)' | '(alla)';
+  visibility?: '(vänner)' | '(alla)' | '(endast dig)';
   praiseItems?: { icon: string; text: string; type: 'pb' | 'baseline' | 'club' }[];
+  action?: { label: string, onClick: () => void };
+  isRejected?: boolean;
 }
 
 interface FlowItemCardProps { 
@@ -99,7 +103,7 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
     }, [allReactions, allParticipants, currentUserId]);
 
     const renderReactions = () => {
-        if (!item.log || !item.logType) return null;
+        if (!item.log || !item.logType || item.type === 'USER_NOTIFICATION') return null;
         const isMyPost = (item.log as any).participantId === currentUserId;
 
         // --- RENDER MY POSTS (Summary View) ---
@@ -180,12 +184,23 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
     };
 
     const coachEvent = item.logType === 'coach_event' ? (item.log as CoachEvent) : null;
+    const isUserNotification = item.type === 'USER_NOTIFICATION';
+    const isRejected = item.isRejected;
+
+    let cardStyle = 'bg-white border-gray-200';
+    if (isUserNotification) {
+        if (isRejected) {
+            cardStyle = 'bg-red-50 border-red-200'; // Special style for rejected items
+        } else {
+            cardStyle = 'bg-amber-50 border-amber-200';
+        }
+    }
 
     return (
-        <div className="p-3 bg-white rounded-lg shadow-sm border border-gray-200" style={{ animation: `fadeInDown 0.5s ease-out ${index * 50}ms backwards` }}>
+        <div className={`p-3 rounded-lg shadow-sm border ${cardStyle}`} style={{ animation: `fadeInDown 0.5s ease-out ${index * 50}ms backwards` }}>
             <div className="flex-grow">
                 <div className="flex justify-between items-start">
-                    <h4 className="flex-grow text-base font-semibold text-gray-800 break-words">
+                    <h4 className={`flex-grow text-base font-semibold break-words ${isRejected ? 'text-red-800' : 'text-gray-800'}`}>
                         <span className="text-2xl mr-2 align-middle">{item.icon}</span>
                         <span className="align-middle">
                             {titlePrefix} {item.title} 
@@ -194,7 +209,7 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
                     </h4>
                     <p className="text-sm text-gray-500 flex-shrink-0 ml-2">{formatRelativeTime(item.date).relative}</p>
                 </div>
-                {item.description && <p className="text-base text-gray-600 mt-0.5 whitespace-pre-wrap break-words">{item.description}</p>}
+                <p className={`text-base mt-0.5 whitespace-pre-wrap break-words ${isRejected ? 'text-red-700' : 'text-gray-600'}`}>{item.description}</p>
                 
                 {coachEvent?.linkUrl && (
                     <div className="mt-3">
@@ -208,6 +223,12 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
                                 {coachEvent.linkButtonText || 'Läs mer här'}
                             </Button>
                         </a>
+                    </div>
+                )}
+                
+                {item.action && (
+                    <div className="mt-3">
+                        <Button size="sm" onClick={item.action.onClick}>{item.action.label}</Button>
                     </div>
                 )}
 
@@ -224,7 +245,7 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
                     </div>
                 )}
 
-                {item.log && item.logType && (
+                {item.log && item.logType && !isUserNotification && (
                     <>
                         {renderReactions()}
                         
@@ -247,7 +268,7 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
                         <CommentSection
                             logId={item.log.id}
                             logType={item.logType}
-                            comments={item.log.comments || []}
+                            comments={(item.log as any).comments || []}
                             currentUserId={currentUserId}
                             onAddComment={onAddComment}
                             onDeleteComment={onDeleteComment}
@@ -262,16 +283,19 @@ const FlowItemCard: React.FC<FlowItemCardProps> = React.memo(({ item, index, cur
 FlowItemCard.displayName = 'FlowItemCard';
 
 const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, onToggleReaction, onAddComment, onDeleteComment, onToggleCommentReaction, locations, userConditioningStatsHistory }) => {
-    const data = { currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, locations, userConditioningStatsHistory };
-    const { lastFlowViewTimestamp } = useAppContext();
+    const { lastFlowViewTimestamp, userNotifications, markAllNotificationsAsRead, participantBookings } = useAppContext();
+    const { handleBookClass } = useParticipantOperations(currentUserId);
+    const data = { currentUserId, allParticipants, connections, workoutLogs, generalActivityLogs, goalCompletionLogs, coachEvents, workouts, clubMemberships, participantGoals, participantPhysiqueHistory, userStrengthStats, leaderboardSettings, locations, userConditioningStatsHistory, userNotifications };
     const [visibleCount, setVisibleCount] = useState(15);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (isOpen) {
             setVisibleCount(15);
+            // Mark notifications as read when opening flow
+            markAllNotificationsAsRead(currentUserId);
         }
-    }, [isOpen]);
+    }, [isOpen, markAllNotificationsAsRead, currentUserId]);
 
     const allFlowItems = useMemo(() => {
         if (!isOpen) return [];
@@ -286,10 +310,63 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
         });
         
         const items: FlowItem[] = [];
-        const lastViewDate = new Date(lastFlowViewTimestamp || 0);
         
         const currentUserProfile = data.allParticipants.find(p => p.id === data.currentUserId);
         const currentUserLocation = currentUserProfile ? data.locations.find(l => l.id === currentUserProfile.locationId) : null;
+
+        // 0. User Notifications (NEW)
+        const myNotifications = (data.userNotifications || []).filter(n => n.recipientId === data.currentUserId);
+
+        myNotifications.forEach(notif => {
+             // Only show "new" notifications in the feed to avoid clutter
+             const created = new Date(notif.createdAt);
+             // Use consistent 3-day window as other items
+             const threeDaysAgo = new Date();
+             threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+             threeDaysAgo.setHours(0, 0, 0, 0);
+             
+             if (created >= threeDaysAgo) {
+                 // Avoid duplicating approved verification notifications if they will appear as VERIFIED_PB cards
+                 if (notif.type === 'VERIFICATION_APPROVED') return;
+
+                 let action = undefined;
+                 if (notif.type === 'FRIEND_BOOKING' && notif.relatedScheduleId && notif.relatedClassDate) {
+                     // Check if already booked
+                     const isAlreadyBooked = participantBookings.some(b => 
+                         b.participantId === currentUserId && 
+                         b.scheduleId === notif.relatedScheduleId && 
+                         b.classDate === notif.relatedClassDate && 
+                         (b.status === 'BOOKED' || b.status === 'WAITLISTED' || b.status === 'CHECKED-IN')
+                     );
+
+                     if (!isAlreadyBooked) {
+                        action = {
+                            label: 'Boka samma pass',
+                            onClick: () => {
+                                handleBookClass(currentUserId, notif.relatedScheduleId!, notif.relatedClassDate!);
+                                onClose();
+                            }
+                        };
+                     }
+                 }
+
+                 const isRejected = notif.type === 'VERIFICATION_REJECTED';
+
+                 items.push({
+                     id: `notif-${notif.id}`,
+                     date: created,
+                     type: 'USER_NOTIFICATION',
+                     icon: notif.type === 'FRIEND_BOOKING' ? '👯‍♀️' : (notif.type === 'CLASS_CANCELLED' ? '🚫' : (isRejected ? '❌' : 'ℹ️')),
+                     title: notif.title,
+                     description: notif.body,
+                     log: notif,
+                     logType: 'user_notification',
+                     action,
+                     isRejected,
+                     visibility: isRejected ? '(endast dig)' : undefined
+                 });
+             }
+        });
 
         // 1. Coach Events
         (data.coachEvents || []).forEach(event => {
@@ -402,7 +479,7 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
             });
         });
         
-        // 5. Standalone achievements
+        // 5. Standalone achievements (Stats & Verification)
         const statsByParticipant = (data.userStrengthStats || []).reduce((acc, stat) => {
             if (!acc[stat.participantId]) acc[stat.participantId] = [];
             acc[stat.participantId].push(stat);
@@ -410,34 +487,72 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
         }, {} as Record<string, UserStrengthStat[]>);
 
         Object.entries(statsByParticipant).forEach(([participantId, stats]: [string, UserStrengthStat[]]) => {
-            if (!allowedParticipantIds.has(participantId) || (stats?.length || 0) < 2) return;
+            if (!allowedParticipantIds.has(participantId)) return;
             const sortedStats = stats.sort((a, b) => new Date(a.lastUpdated).getTime() - new Date(b.lastUpdated).getTime());
             const author = data.allParticipants.find(p => p.id === participantId);
             if (!author) return;
+            const isCurrentUser = participantId === data.currentUserId;
+            const authorName = isCurrentUser ? 'Du' : author.name || 'En vän';
 
             const latestStat = sortedStats[sortedStats.length - 1];
-            const previousStat = sortedStats[sortedStats.length - 2];
-            const latestFss = calculateFlexibelStrengthScoreInternal(latestStat, author);
-            const previousFss = calculateFlexibelStrengthScoreInternal(previousStat, author);
+            
+            // A. FSS Increase (Existing Logic)
+            if (stats.length >= 2) {
+                const previousStat = sortedStats[sortedStats.length - 2];
+                const latestFss = calculateFlexibelStrengthScoreInternal(latestStat, author);
+                const previousFss = calculateFlexibelStrengthScoreInternal(previousStat, author);
 
-            if (latestFss && previousFss && latestFss.totalScore > previousFss.totalScore) {
-                const levelInfo = getFssScoreInterpretation(latestFss.totalScore);
-                const authorName = participantId === data.currentUserId ? 'Du' : author.name || 'En vän';
-                items.push({
-                    id: `fss-${latestStat.id}`,
-                    date: new Date(latestStat.lastUpdated),
-                    type: 'FSS_INCREASE',
-                    icon: '🚀',
-                    title: `ökade sin styrkepoäng (FSS)!`,
-                    description: levelInfo
-                        ? `Nådde nivån ${levelInfo.label} med ${latestFss.totalScore} poäng (från ${previousFss.totalScore}). Starkt!`
-                        : `Ny FSS: ${latestFss.totalScore} poäng (från ${previousFss.totalScore}). Starkt!`,
-                    authorName,
-                    log: latestStat,
-                    logType: 'user_strength_stat',
-                    visibility: participantId === data.currentUserId ? undefined : '(vänner)',
-                });
+                if (latestFss && previousFss && latestFss.totalScore > previousFss.totalScore) {
+                    const levelInfo = getFssScoreInterpretation(latestFss.totalScore);
+                    items.push({
+                        id: `fss-${latestStat.id}`,
+                        date: new Date(latestStat.lastUpdated),
+                        type: 'FSS_INCREASE',
+                        icon: '🚀',
+                        title: `ökade sin styrkepoäng (FSS)!`,
+                        description: levelInfo
+                            ? `Nådde nivån ${levelInfo.label} med ${latestFss.totalScore} poäng (från ${previousFss.totalScore}). Starkt!`
+                            : `Ny FSS: ${latestFss.totalScore} poäng (från ${previousFss.totalScore}). Starkt!`,
+                        authorName,
+                        log: latestStat,
+                        logType: 'user_strength_stat',
+                        visibility: isCurrentUser ? undefined : '(vänner)',
+                    });
+                }
             }
+
+            // B. Verified Lifts (New Logic)
+            const liftsToCheck = [
+                { key: 'squat' as const, label: 'Knäböj' },
+                { key: 'benchPress' as const, label: 'Bänkpress' },
+                { key: 'deadlift' as const, label: 'Marklyft' },
+                { key: 'overheadPress' as const, label: 'Axelpress' }
+            ];
+
+            liftsToCheck.forEach(({ key, label }) => {
+                // Type casting to access dynamic properties safely
+                const status = (latestStat as any)[`${key}VerificationStatus`];
+                const dateStr = (latestStat as any)[`${key}VerifiedDate`];
+                const coach = (latestStat as any)[`${key}VerifiedBy`];
+                const weight = (latestStat as any)[`${key}1RMaxKg`];
+
+                if (status === 'verified' && dateStr) {
+                    const verifiedDate = new Date(dateStr);
+                    // Check if this verified date is recent relative to the stat update or just use it as the event date
+                    items.push({
+                        id: `verified-${key}-${latestStat.id}`,
+                        date: verifiedDate,
+                        type: 'VERIFIED_PB',
+                        icon: '✅',
+                        title: `fick sitt PB verifierat!`,
+                        description: `Coach ${coach || 'en'} har verifierat ${label} på ${weight} kg.`,
+                        authorName,
+                        log: latestStat,
+                        logType: 'user_strength_stat',
+                        visibility: isCurrentUser ? undefined : '(vänner)',
+                    });
+                }
+            });
         });
 
         const physiqueByParticipant = (data.participantPhysiqueHistory || []).reduce((acc, history) => {
@@ -583,7 +698,7 @@ const FlowModalFC: React.FC<FlowModalProps> = ({ isOpen, onClose, currentUserId,
 
         return (finalItems || []).filter(item => item.date >= threeDaysAgo);
 
-    }, [isOpen, data, lastFlowViewTimestamp]);
+    }, [isOpen, data, lastFlowViewTimestamp, handleBookClass, participantBookings]);
 
     const flowItemsToShow = useMemo(() => {
         return allFlowItems.slice(0, visibleCount);

@@ -60,7 +60,7 @@ export const VerificationRequests: React.FC<VerificationRequestsProps> = ({ user
                             <p className="text-xs text-gray-500">Uppdaterad: {new Date(req.date).toLocaleDateString('sv-SE')}</p>
                         </div>
                         <div className="flex gap-2 flex-shrink-0 self-end sm:self-center">
-                            <Button size="sm" variant="ghost" className="!text-gray-500 hover:!text-red-600 hover:!bg-red-50" onClick={() => onVerify(req.statId, req.lift, 'unverified')}>Avfärda</Button>
+                            <Button size="sm" variant="ghost" className="!text-gray-600 hover:!bg-gray-100 border-gray-300" onClick={() => onVerify(req.statId, req.lift, 'rejected')}>Markera ej verifierad</Button>
                             <Button size="sm" variant="primary" className="!bg-green-600 hover:!bg-green-700 border-green-600" onClick={() => onVerify(req.statId, req.lift, 'verified')}>Verifiera ✅</Button>
                         </div>
                     </div>

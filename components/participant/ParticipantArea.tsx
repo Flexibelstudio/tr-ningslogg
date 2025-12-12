@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
     Workout, WorkoutLog, GeneralActivityLog,
@@ -401,9 +400,13 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 lastUpdated: new Date().toISOString(),
                 bodyweightKg: latestStrengthStats?.bodyweightKg || participantProfile.bodyweightKg,
                 squat1RMaxKg: updatedStats.squat1RMaxKg,
+                squatVerificationStatus: updatedStats.squatVerificationStatus,
                 benchPress1RMaxKg: updatedStats.benchPress1RMaxKg,
+                benchPressVerificationStatus: updatedStats.benchPressVerificationStatus,
                 deadlift1RMaxKg: updatedStats.deadlift1RMaxKg,
+                deadliftVerificationStatus: updatedStats.deadliftVerificationStatus,
                 overheadPress1RMaxKg: updatedStats.overheadPress1RMaxKg,
+                overheadPressVerificationStatus: updatedStats.overheadPressVerificationStatus,
             };
         }
         
@@ -495,8 +498,8 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
 
             if (logWithSummary.entries.length > 0) {
                 setLogForSummaryModal(logWithSummary);
-                const workoutTemplateForSummary = workouts.find(w => w.id === logWithSummary.workoutId);
-                setWorkoutForSummaryModal(workoutTemplateForSummary || null);
+                const workoutTemplate = workouts.find(w => w.id === logWithSummary.workoutId);
+                setWorkoutForSummaryModal(workoutTemplate || null); // Fix: workoutTemplateForSummary -> workoutTemplate
                 setIsNewCompletion(true);
                 setIsPostWorkoutSummaryModalOpen(true);
             } else if (logWithSummary.postWorkoutComment || logWithSummary.moodRating) {
@@ -1066,7 +1069,7 @@ export const ParticipantArea: React.FC<ParticipantAreaProps> = ({
                 integrationSettings={integrationSettings}
             />
         ) : (
-            <div className="pb-40">
+            <div className="pb-0">
                 <div ref={mainContentRef} className="container mx-auto px-2 sm:px-4 py-4 space-y-3">
                     {/* ... (Notifications, Progress banners, etc. remain unchanged) */}
                     {showNotificationBanner && (
