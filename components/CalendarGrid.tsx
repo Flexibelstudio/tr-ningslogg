@@ -14,6 +14,12 @@ interface CalendarGridProps {
   className?: string; // New prop
 }
 
+const StarIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 text-red-400">
+    <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" clipRule="evenodd" />
+  </svg>
+);
+
 const CalendarGridFC: React.FC<CalendarGridProps> = ({
   currentDate,
   setCurrentDate,
@@ -69,8 +75,9 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
           const holiday = getHolidayForDay ? getHolidayForDay(day) : null;
           const isToday = dateUtils.isSameDay(day, today);
           const isCurrentMonth = day.getMonth() === currentDate.getMonth();
-          const dayOfWeek = day.getDay(); // Sunday=0, Saturday=6
-          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+          
+          // Allow clicking if there is content OR it is a holiday
+          const isClickable = hasContent || !!holiday;
 
           // --- Button Classes ---
           const buttonClasses = [
@@ -82,7 +89,7 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
             'border border-transparent', // Start transparent
           ];
 
-          if (hasContent) {
+          if (isClickable) {
             buttonClasses.push(
               'cursor-pointer',
               'hover:bg-gray-50 hover:border-gray-200 hover:shadow-sm',
@@ -129,10 +136,16 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
           return (
             <button
               key={day.toISOString()}
-              onClick={() => onDayClick(day)}
-              disabled={!hasContent}
+              onClick={() => isClickable && onDayClick(day)}
+              disabled={!isClickable}
               className={buttonClasses.join(' ')}
             >
+              {holiday && (
+                  <div className="absolute top-1 right-1" title={holiday.name}>
+                      <StarIcon />
+                  </div>
+              )}
+
               <time
                 dateTime={day.toISOString()}
                 className={timeClasses.join(' ')}
@@ -141,13 +154,6 @@ const CalendarGridFC: React.FC<CalendarGridProps> = ({
               </time>
               
               <div className="mt-0 flex-grow w-full flex flex-col gap-0.5">
-                {holiday && (
-                    <div className="flex justify-center mb-0.5">
-                        <span title={holiday.name} className="text-xs" role="img" aria-label={holiday.name}>
-                            {holiday.icon || '🔴'}
-                        </span>
-                    </div>
-                )}
                 {renderDayContent(day)}
               </div>
             </button>
