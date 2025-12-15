@@ -238,13 +238,6 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
     if (!selectedDate) return false;
     return activeGoal?.targetDate ? dateUtils.isSameDay(new Date(activeGoal.targetDate), selectedDate) : false;
   }, [selectedDate, activeGoal]);
-  
-  const holiday = useMemo(() => {
-    if (!selectedDate) return null;
-    const year = selectedDate.getFullYear();
-    const holidays = dateUtils.getSwedishHolidays(year);
-    return holidays.find(h => dateUtils.isSameDay(h.date, selectedDate)) || null;
-  }, [selectedDate]);
 
 
   if (!isOpen || !selectedDate) return null;
@@ -303,9 +296,7 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
     onClose(); // Stänger aktivitetsvyn efter avbokning
   };
 
-  const modalTitle = holiday 
-    ? `${holiday.name}` 
-    : `Aktiviteter ${selectedDate.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}`;
+  const modalTitle = `Aktiviteter ${selectedDate.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}`;
 
   return (
     <>
