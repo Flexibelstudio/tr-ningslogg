@@ -304,7 +304,7 @@ export const DayActivitiesModal: React.FC<DayActivitiesModalProps> = ({
   };
 
   const modalTitle = holiday 
-    ? `${holiday.name} ${holiday.icon || ''}` 
+    ? `${holiday.name}` 
     : `Aktiviteter ${selectedDate.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}`;
 
   return (

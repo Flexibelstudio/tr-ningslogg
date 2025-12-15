@@ -1,6 +1,5 @@
 
 import React, { useMemo, useCallback } from 'react';
-import { Button } from './Button';
 import * as dateUtils from '../utils/dateUtils';
 import { Holiday } from '../utils/dateUtils';
 
@@ -11,7 +10,7 @@ interface CalendarGridProps {
   renderDayContent: (day: Date) => React.ReactNode;
   getDayProps: (day: Date) => { hasContent: boolean };
   getHolidayForDay?: (date: Date) => Holiday | null;
-  className?: string; // New prop
+  className?: string;
 }
 
 const StarIcon = () => (
