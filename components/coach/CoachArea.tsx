@@ -1,7 +1,7 @@
 
-import React, { useState, useMemo, useCallback, lazy, Suspense, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { OneOnOneSession } from '../../types';
+import { OneOnOneSession, ParticipantProfile } from '../../types';
 import { MemberManagement } from './MemberManagement';
 import { WorkoutManagement } from '../../features/workouts/components/WorkoutManagement';
 import { LeaderboardManagement } from './LeaderboardManagement';
@@ -13,7 +13,7 @@ import { AIBusinessInsights } from './AIBusinessInsights';
 import { ClientJourneyView } from './ClientJourneyView';
 import { MeetingDetailsModal } from '../../features/booking/components/MeetingDetailsModal';
 import { EngagementOpportunities } from './EngagementOpportunities';
-import { BirthdayWidget } from './BirthdayWidget'; // Import
+import { BirthdayWidget } from './BirthdayWidget'; 
 import { ConfirmationModal } from '../ConfirmationModal';
 import { CalendarView } from '../../features/booking/components/CalendarView';
 import { ClassManagementModal } from '../../features/booking/components/ClassManagementModal';
@@ -25,7 +25,8 @@ import { ToggleSwitch } from '../ToggleSwitch';
 import { Select } from '../Input';
 import { useCoachData } from '../../features/coach/hooks/useCoachData';
 import { useCoachOperations } from '../../features/coach/hooks/useCoachOperations';
-import { VerificationRequests } from '../../features/coach'; // Import the new component
+import { VerificationRequests } from '../../features/coach'; 
+import * as dateUtils from '../../utils/dateUtils';
 
 const AnalyticsDashboard = lazy(() => import('./AnalyticsDashboard'));
 
@@ -35,8 +36,55 @@ const LoadingSpinner = () => (
   </div>
 );
 
+// --- DASHBOARD COMPONENTS ---
+const DashboardCard = ({ title, value, subtext, icon, colorClass, onClick }: { title: string, value: string | number, subtext?: string, icon: React.ReactNode, colorClass: string, onClick?: () => void }) => (
+    <div onClick={onClick} className={`bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-full transition-all duration-200 ${onClick ? 'cursor-pointer hover:shadow-md hover:scale-[1.02]' : ''}`}>
+        <div className="flex justify-between items-start mb-2">
+            <div className={`p-3 rounded-xl bg-opacity-10 ${colorClass} text-${colorClass.split(' ')[0].replace('bg-', '')}-600`}>
+                {icon}
+            </div>
+            {value !== undefined && <span className="text-3xl font-extrabold text-gray-900">{value}</span>}
+        </div>
+        <div>
+            <h3 className="text-base font-bold text-gray-700">{title}</h3>
+            {subtext && <p className="text-xs text-gray-500 mt-1">{subtext}</p>}
+        </div>
+    </div>
+);
+
+const NavCard = ({ title, description, icon, color, onClick }: { title: string, description: string, icon: React.ReactNode, color: string, onClick: () => void }) => (
+    <button onClick={onClick} className="w-full text-left bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-flexibel/30 transition-all duration-200 group flex items-center gap-4">
+        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl group-hover:scale-110 transition-transform ${color}`}>
+            {icon}
+        </div>
+        <div>
+            <h3 className="text-lg font-bold text-gray-800 group-hover:text-flexibel transition-colors">{title}</h3>
+            <p className="text-sm text-gray-500">{description}</p>
+        </div>
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-300 ml-auto group-hover:text-flexibel transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+    </button>
+);
+
+const ActionItem = ({ title, count, type, onClick }: { title: string, count: number, type: 'urgent' | 'info' | 'success', onClick: () => void }) => {
+    if (count === 0) return null;
+    const styles = {
+        urgent: 'bg-red-50 text-red-700 border-red-100 hover:bg-red-100',
+        info: 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100',
+        success: 'bg-green-50 text-green-700 border-green-100 hover:bg-green-100',
+    };
+    return (
+        <button onClick={onClick} className={`w-full flex justify-between items-center p-3 rounded-xl border mb-2 transition-colors ${styles[type]}`}>
+            <span className="font-semibold text-sm">{title}</span>
+            <span className="font-bold bg-white/50 px-2 py-0.5 rounded-full text-xs">{count}</span>
+        </button>
+    );
+}
+
+// --- MAIN COMPONENT ---
+
 type CoachTab =
   | 'overview'
+  | 'members' // New separate tab for list
   | 'klientresan'
   | 'programs'
   | 'bookings'
@@ -92,34 +140,42 @@ export const CoachArea: React.FC = () => {
   const onCancelBooking = ops.handleCancelBooking;
   const onPromoteFromWaitlist = ops.handlePromoteFromWaitlist;
   const onCancelClassInstance = ops.handleCancelClassInstance;
-  const onUpdateClassInstance = ops.handleUpdateClassInstance;
   const { handleAddComment, handleDeleteComment, handleToggleCommentReaction, handleVerifyStat } = ops;
 
   const { user } = useAuth();
   const { isOnline } = useNetworkStatus();
   
-  const newLeadsList = useMemo(() => {
-      return (leads || []).filter(l => l.status === 'new');
-  }, [leads]);
+  // -- DASHBOARD STATS CALCULATIONS --
+  const dashboardStats = useMemo(() => {
+      const activeMembers = participantsForView.filter(p => p.isActive).length;
+      const pendingApprovals = participantsForView.filter(p => p.approvalStatus === 'pending').length;
+      
+      const newLeadsCount = (leads || []).filter(l => l.status === 'new').length;
+      const unlinkedCallsCount = (prospectIntroCalls || []).filter(c => c.status === 'unlinked').length;
+      
+      const today = dateUtils.toYYYYMMDD(new Date());
+      const todaysBookings = participantBookings.filter(b => b.classDate === today && b.status !== 'CANCELLED').length;
+      
+      const expiringSoon = participantsForView.filter(p => {
+          if (!p.bindingEndDate) return false;
+          const daysLeft = Math.ceil((new Date(p.bindingEndDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+          return daysLeft >= 0 && daysLeft <= 30;
+      }).length;
 
-  const unlinkedCallsList = useMemo(() => {
-      return (prospectIntroCalls || []).filter(c => c.status === 'unlinked');
-  }, [prospectIntroCalls]);
-
-  const newLeadsCount = newLeadsList.length;
-  const unlinkedCallsCount = unlinkedCallsList.length;
-  const totalJourneyBadge = newLeadsCount + unlinkedCallsCount;
+      return { activeMembers, pendingApprovals, newLeadsCount, unlinkedCallsCount, todaysBookings, expiringSoon };
+  }, [participantsForView, leads, prospectIntroCalls, participantBookings]);
 
   const allTabs: { id: CoachTab; label: string }[] = [
-    { id: 'overview', label: 'Medlemmar' },
-    { id: 'klientresan', label: `Klientresan${totalJourneyBadge > 0 ? ` (${totalJourneyBadge})` : ''}` },
+    { id: 'overview', label: 'Översikt' },
+    { id: 'members', label: 'Register' },
+    { id: 'klientresan', label: `Klientresan${(dashboardStats.newLeadsCount + dashboardStats.unlinkedCallsCount) > 0 ? ` (${dashboardStats.newLeadsCount + dashboardStats.unlinkedCallsCount})` : ''}` },
     { id: 'bookings', label: 'Bokningar' },
-    { id: 'programs', label: 'Program & Pass' },
+    { id: 'programs', label: 'Program' },
     { id: 'events', label: 'Händelser' },
     { id: 'leaderboards', label: 'Topplistor' },
-    { id: 'insights', label: 'Insikter' },
-    { id: 'analytics', label: 'Analytics' },
-    { id: 'personal', label: 'Personal & Schema' },
+    { id: 'insights', label: 'AI Insikter' },
+    { id: 'analytics', label: 'Data' },
+    { id: 'personal', label: 'Personal' },
     { id: 'settings', label: 'Inställningar' },
   ];
 
@@ -128,9 +184,9 @@ export const CoachArea: React.FC = () => {
       return allTabs;
     }
     return allTabs.filter((tab) =>
-      ['overview', 'klientresan', 'bookings', 'programs'].includes(tab.id)
+      ['overview', 'members', 'klientresan', 'bookings', 'programs'].includes(tab.id)
     );
-  }, [loggedInStaff, totalJourneyBadge]);
+  }, [loggedInStaff, dashboardStats]);
 
   const tabsToShow = useMemo(
     () =>
@@ -238,8 +294,8 @@ export const CoachArea: React.FC = () => {
 
   const getTabButtonStyle = (tabName: CoachTab) => {
     return activeTab === tabName
-      ? 'border-flexibel text-flexibel'
-      : 'border-transparent text-gray-500 active:text-gray-700 active:border-gray-300';
+      ? 'border-flexibel text-flexibel bg-flexibel/5'
+      : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50';
   };
 
   const handleOpenMeetingModal = useCallback((session: OneOnOneSession) => {
@@ -271,16 +327,15 @@ export const CoachArea: React.FC = () => {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
+    <div className="space-y-8 pb-10">
+      {/* Top Navigation */}
+      <div className="border-b border-gray-200 sticky top-0 bg-white/95 backdrop-blur z-20 -mx-4 px-4 sm:mx-0 sm:px-0">
+        <nav className="-mb-px flex space-x-2 overflow-x-auto hide-scrollbar" aria-label="Tabs">
           {tabsToShow.map((tab) => (
             <button
               key={tab.id}
               onClick={() => navigate(`/coach/${tab.id}`)}
-              className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg ${getTabButtonStyle(
-                tab.id
-              )}`}
+              className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-base transition-colors ${getTabButtonStyle(tab.id)}`}
               aria-current={activeTab === tab.id ? 'page' : undefined}
             >
               {tab.label}
@@ -289,26 +344,153 @@ export const CoachArea: React.FC = () => {
         </nav>
       </div>
 
-      <div role="tabpanel" hidden={activeTab !== 'overview'}>
-        {activeTab === 'overview' && (
-          <>
-            <div className="mt-6">
-                <VerificationRequests 
-                    userStrengthStats={userStrengthStatsForView}
-                    participants={participantsForView}
-                    onVerify={(statId, lift, status) => handleVerifyStat(statId, lift, status, loggedInStaff?.name || 'Coach')}
-                />
-            </div>
-            <div className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-              <EngagementOpportunities
-                participants={participantsForView}
-                workoutLogs={workoutLogsForView}
-                oneOnOneSessions={oneOnOneSessionsForView}
-                isOnline={isOnline}
-              />
-              <BirthdayWidget participants={participantsForView} />
-            </div>
-            <MemberManagement
+      {/* DASHBOARD VIEW */}
+      {activeTab === 'overview' && loggedInStaff && (
+         <div className="animate-fade-in space-y-6">
+             <header className="flex flex-col gap-1 mb-4">
+                 <h1 className="text-3xl font-extrabold text-gray-900">Hej {loggedInStaff.name.split(' ')[0]}! 👋</h1>
+                 <p className="text-gray-500">Här är läget i din studio idag.</p>
+             </header>
+
+             {/* KPI Grid */}
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                 <DashboardCard 
+                    title="Aktiva Medlemmar" 
+                    value={dashboardStats.activeMembers} 
+                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>}
+                    colorClass="bg-blue-50 text-blue-600"
+                    onClick={() => navigate('/coach/members')}
+                 />
+                 <DashboardCard 
+                    title="Bokningar Idag" 
+                    value={dashboardStats.todaysBookings} 
+                    subtext="passbokningar"
+                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
+                    colorClass="bg-purple-50 text-purple-600"
+                    onClick={() => navigate('/coach/bookings')}
+                 />
+                 <DashboardCard 
+                    title="Nya Leads" 
+                    value={dashboardStats.newLeadsCount}
+                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>}
+                    colorClass="bg-orange-50 text-orange-600"
+                    onClick={() => navigate('/coach/klientresan')}
+                 />
+                  <DashboardCard 
+                    title="Utgående avtal" 
+                    value={dashboardStats.expiringSoon}
+                    subtext="inom 30 dagar"
+                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                    colorClass="bg-yellow-50 text-yellow-600"
+                    onClick={() => navigate('/coach/klientresan')}
+                 />
+             </div>
+
+             {/* Main Content Grid */}
+             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* Left Col: Navigation */}
+                <div className="lg:col-span-2 space-y-6">
+                    <h2 className="text-xl font-bold text-gray-800">Genvägar</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <NavCard 
+                            title="Register & Klientkort" 
+                            description="Hantera medlemmar, anteckningar och status." 
+                            icon="👥" 
+                            color="bg-blue-100 text-blue-700"
+                            onClick={() => navigate('/coach/members')}
+                        />
+                        <NavCard 
+                            title="Kalender & Schema" 
+                            description="Boka 1-on-1, se gruppass och schema." 
+                            icon="🗓️" 
+                            color="bg-purple-100 text-purple-700"
+                            onClick={() => navigate('/coach/bookings')}
+                        />
+                         <NavCard 
+                            title="Klientresan & Sälj" 
+                            description="Bearbeta leads och följ upp riskzoner." 
+                            icon="🚀" 
+                            color="bg-orange-100 text-orange-700"
+                            onClick={() => navigate('/coach/klientresan')}
+                        />
+                         <NavCard 
+                            title="Bygg Program" 
+                            description="Skapa och tilldela pass." 
+                            icon="💪" 
+                            color="bg-green-100 text-green-700"
+                            onClick={() => navigate('/coach/programs')}
+                        />
+                    </div>
+
+                    {/* Quick Stats Widgets */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+                        <EngagementOpportunities
+                            participants={participantsForView}
+                            workoutLogs={workoutLogsForView}
+                            oneOnOneSessions={oneOnOneSessionsForView}
+                            isOnline={isOnline}
+                        />
+                        <BirthdayWidget participants={participantsForView} />
+                    </div>
+                </div>
+
+                {/* Right Col: Action Center */}
+                <div className="space-y-6">
+                    <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-5 sticky top-24">
+                        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <span className="w-2 h-6 bg-flexibel rounded-full"></span>
+                            Action Center
+                        </h3>
+                        
+                        {dashboardStats.pendingApprovals > 0 ? (
+                            <ActionItem 
+                                title="Väntar på godkännande" 
+                                count={dashboardStats.pendingApprovals} 
+                                type="urgent" 
+                                onClick={() => navigate('/coach/members')} 
+                            />
+                        ) : (
+                            <p className="text-sm text-gray-400 italic mb-2">Inga konton att godkänna.</p>
+                        )}
+                        
+                        {dashboardStats.newLeadsCount > 0 ? (
+                            <ActionItem 
+                                title="Nya leads att kontakta" 
+                                count={dashboardStats.newLeadsCount} 
+                                type="urgent" 
+                                onClick={() => navigate('/coach/klientresan')} 
+                            />
+                        ) : (
+                             <p className="text-sm text-gray-400 italic mb-2">Inga nya leads.</p>
+                        )}
+                        
+                        {dashboardStats.unlinkedCallsCount > 0 && (
+                             <ActionItem 
+                                title="Okopplade Introsamtal" 
+                                count={dashboardStats.unlinkedCallsCount} 
+                                type="info" 
+                                onClick={() => navigate('/coach/klientresan')} 
+                            />
+                        )}
+
+                        <div className="mt-4 pt-4 border-t border-gray-100">
+                             <VerificationRequests 
+                                userStrengthStats={userStrengthStatsForView}
+                                participants={participantsForView}
+                                onVerify={(statId, lift, status) => handleVerifyStat(statId, lift, status, loggedInStaff?.name || 'Coach')}
+                            />
+                        </div>
+                    </div>
+                </div>
+             </div>
+         </div>
+      )}
+
+      {/* MEMBERS LIST VIEW */}
+      {activeTab === 'members' && (
+         <div className="animate-fade-in">
+             <MemberManagement
               participants={participantsForView}
               allParticipantGoals={participantGoalsForView}
               allActivityLogs={allActivityLogsForView}
@@ -317,13 +499,12 @@ export const CoachArea: React.FC = () => {
               loggedInStaff={loggedInStaff}
               isOnline={isOnline}
             />
-          </>
-        )}
-      </div>
+         </div>
+      )}
 
-      <div role="tabpanel" hidden={activeTab !== 'klientresan'}>
-        {activeTab === 'klientresan' && loggedInStaff && (
-          <ClientJourneyView
+      {/* CLIENT JOURNEY VIEW */}
+      {activeTab === 'klientresan' && loggedInStaff && (
+        <ClientJourneyView
             participants={participantsForView}
             allActivityLogs={allActivityLogsForView}
             oneOnOneSessions={oneOnOneSessionsForView}
@@ -331,9 +512,8 @@ export const CoachArea: React.FC = () => {
             allParticipantGoals={participantGoalsForView}
             coachNotes={coachNotesForView}
             isOnline={isOnline}
-          />
-        )}
-      </div>
+        />
+      )}
 
       <div role="tabpanel" hidden={activeTab !== 'programs'}>
         {activeTab === 'programs' && (
@@ -343,15 +523,15 @@ export const CoachArea: React.FC = () => {
 
       <div role="tabpanel" hidden={activeTab !== 'bookings'}>
         {activeTab === 'bookings' && loggedInStaff && (
-          <div className="space-y-8">
+          <div className="space-y-8 animate-fade-in">
             <div className="border-b border-gray-200">
               <nav className="-mb-px flex space-x-4 overflow-x-auto" aria-label="Location Tabs">
                 <button
                   onClick={() => setSelectedLocationTabId('all')}
                   className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-base rounded-t-lg ${
                     selectedLocationTabId === 'all'
-                      ? 'border-flexibel text-flexibel'
-                      : 'border-transparent text-gray-500 active:text-gray-700 active:border-gray-300'
+                      ? 'border-flexibel text-flexibel bg-flexibel/5'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                   }`}
                 >
                   Alla orter
@@ -362,8 +542,8 @@ export const CoachArea: React.FC = () => {
                     onClick={() => setSelectedLocationTabId(loc.id)}
                     className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-base rounded-t-lg ${
                       selectedLocationTabId === loc.id
-                        ? 'border-flexibel text-flexibel'
-                        : 'border-transparent text-gray-500 active:text-gray-700 active:border-gray-300'
+                        ? 'border-flexibel text-flexibel bg-flexibel/5'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                     }`}
                   >
                     {loc.name}
