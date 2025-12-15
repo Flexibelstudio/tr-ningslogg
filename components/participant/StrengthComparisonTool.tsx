@@ -75,52 +75,6 @@ const VerificationBadge: React.FC<VerificationBadgeProps> = ({ status, by, date,
     return null;
 };
 
-// --- Strength Spectrum Component ---
-const StrengthSpectrum: React.FC<{ score: number }> = ({ score }) => {
-  // Define visual widths for the bars roughly proportional to the difficulty jumps
-  // Range is approx 0 to 160 (Toppform starts at 130)
-  const ranges = [
-    { width: 60, color: LEVEL_COLORS_HEADER['Startklar'] },   // 0-59
-    { width: 15, color: LEVEL_COLORS_HEADER['På gång'] },     // 60-74
-    { width: 15, color: LEVEL_COLORS_HEADER['Stark'] },       // 75-89
-    { width: 20, color: LEVEL_COLORS_HEADER['Stabil'] },      // 90-109
-    { width: 20, color: LEVEL_COLORS_HEADER['Imponerande'] }, // 110-129
-    { width: 30, color: LEVEL_COLORS_HEADER['Toppform'] },    // 130+
-  ];
-  const totalWidth = ranges.reduce((acc, r) => acc + r.width, 0);
-  
-  // Calculate marker position percentage
-  const markerPercentage = Math.min(100, Math.max(0, (score / totalWidth) * 100));
-
-  return (
-    <div className="w-full mt-6 mb-2 px-1">
-        {/* The Colored Bar */}
-        <div className="flex h-2.5 w-full rounded-full overflow-hidden shadow-inner ring-1 ring-gray-200/50">
-            {ranges.map((r, i) => (
-                <div key={i} style={{ width: `${(r.width/totalWidth)*100}%`, backgroundColor: r.color }} />
-            ))}
-        </div>
-        
-        {/* The Marker Container */}
-        <div className="relative w-full h-0"> 
-            <div 
-                className="absolute top-[-16px] transform -translate-x-1/2 flex flex-col items-center transition-all duration-1000 ease-out"
-                style={{ left: `${markerPercentage}%` }}
-            >
-                {/* Marker Circle */}
-                <div className="w-3.5 h-3.5 bg-white border-[3px] border-gray-800 rounded-full shadow-md z-10"></div>
-            </div>
-        </div>
-        
-        {/* Optional Labels */}
-        <div className="flex justify-between text-[9px] text-gray-400 font-bold uppercase tracking-wider mt-2 px-1">
-            <span>Start</span>
-            <span>Elit</span>
-        </div>
-    </div>
-  )
-}
-
 export const calculateFlexibelStrengthScoreInternal = (userStats: UserStrengthStat, userProfile: ParticipantProfile): FssScoreOutput | null => {
   const getLevelFromScore = (score: number): StrengthLevel => {
     // Find the last level where the score is greater than or equal to the minimum.
@@ -607,6 +561,15 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
       }
     });
 
+    const levelDescriptions = {
+      'Toppform': 'Elitnivå. Du är exceptionellt stark relativt din kroppsvikt och ålder.',
+      'Imponerande': 'Mycket stark. Kräver dedikerad och långsiktig träning.',
+      'Stabil': 'En solid grundstyrka som tål tuffa tag. Du ligger över snittet.',
+      'Stark': 'Bra jobbat! Du har byggt en tydlig styrka och lyfter regelbundet.',
+      'På gång': 'Du har lämnat startblocken och börjar se resultat.',
+      'Startklar': 'Resan har börjat. Fokus på teknik och vanor.'
+    };
+
     return (
       <>
         <div className="space-y-6">
@@ -635,7 +598,6 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
                     <p className="text-2xl font-bold" style={{ color: fssInterpretation.color }}>
                       {fssInterpretation.label}
                     </p>
-                    <StrengthSpectrum score={fssData?.totalScore ?? 0} />
                     {aggregateStatus === 'verified' && (
                          <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-semibold border border-green-200">
                              ✅ Officiell Poäng
@@ -857,9 +819,27 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
               </ol>
             </div>
 
-            <p><strong>Poängen:</strong><br/>
-            Varje lyft ger poäng baserat på en skala. Totalpoängen avgör din nivå (t.ex. "Stark" eller "Atlet").</p>
-            
+            {/* Added: Level explanations */}
+            <div className="mt-6 space-y-3">
+              <h4 className="font-bold text-gray-800 text-lg">Nivåer</h4>
+              <div className="space-y-2">
+                {[...STRENGTH_LEVEL_ORDER].reverse().map(level => {
+                  const minScore = FSS_CONFIG.fssLevels.find(l => l.label === level)?.min || 0;
+                  return (
+                    <div key={level} className="flex items-start gap-3 p-2 bg-gray-50 rounded-md">
+                        <div className="w-3 h-3 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: LEVEL_COLORS_HEADER[level] }}></div>
+                        <div>
+                            <p className="font-bold text-gray-800 text-base">
+                                {level} <span className="font-normal text-gray-500 text-sm">({minScore}+ p)</span>
+                            </p>
+                            <p className="text-sm text-gray-600">{levelDescriptions[level]}</p>
+                        </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <p><strong>Status:</strong><br/>
             Din FSS är <em>Officiell</em> när alla dina fyra lyft har verifierats av en coach (eller är gamla nog att räknas som verifierade). Innan dess visas den som <em>Preliminär</em>.</p>
           </div>
