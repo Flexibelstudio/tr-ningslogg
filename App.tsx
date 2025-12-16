@@ -250,7 +250,7 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="bg-gray-50 min-h-screen">
-       {auth.user && (
+       {auth.user && !location.pathname.includes('/public/') && (
           <Navbar
             onOpenProfile={handleOpenProfile}
             onOpenLatestUpdate={handleOpenLatestUpdateView}

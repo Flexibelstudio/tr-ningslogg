@@ -40,7 +40,7 @@ export const PublicLeadForm: React.FC = () => {
             email: formData.email.trim().toLowerCase(),
             phone: formData.phone.trim() || undefined,
             locationId: formData.locationId,
-            source: 'Hemsida',
+            source: 'Påbörjad bokning',
             status: 'new',
         };
         
@@ -110,9 +110,7 @@ export const PublicLeadForm: React.FC = () => {
             <main className="flex-grow flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
                 <div className="bg-white p-8 sm:p-12 rounded-3xl shadow-2xl w-full max-w-2xl animate-fade-in-down border border-gray-100">
                     
-                    <div className="text-center mb-10">
-                         <img src="/icon-180x180.png" alt="Flexibel Hälsostudio" className="mx-auto h-24 w-auto mb-6 object-contain" />
-                        
+                    <div className="text-center mb-8">
                         <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4 leading-tight">
                             Välkommen på ett kostnadsfritt introsamtal <br className="hidden sm:block" />
                             <span className="text-flexibel">– låt oss hjälpa dig igång!</span>
