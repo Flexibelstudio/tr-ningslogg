@@ -1,4 +1,5 @@
 
+
 export enum UserRole {
   COACH = 'coach',
   PARTICIPANT = 'participant',
@@ -99,7 +100,7 @@ export interface Lead {
   email: string;
   phone?: string;
   locationId: string;
-  source: 'Hemsida' | 'Meta' | 'Manuell' | 'Rekommendation';
+  source: 'Hemsida' | 'Meta' | 'Manuell' | 'Rekommendation' | 'Påbörjad bokning';
   createdDate: string; // ISO string
   status: LeadStatus;
   contactHistory?: ContactAttempt[];

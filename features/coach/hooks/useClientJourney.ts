@@ -2,6 +2,7 @@
 import { useState, useMemo } from 'react';
 import { useAppContext } from '../../../context/AppContext';
 import { ParticipantProfile, Lead, ProspectIntroCall, StaffMember, ContactAttempt } from '../../../types';
+import * as dateUtils from '../../../utils/dateUtils';
 
 type LeadFilter = 'all' | 'new' | 'contacted' | 'intro_booked' | 'converted' | 'junk';
 type IntroCallFilter = 'actionable' | 'archived';
@@ -365,11 +366,13 @@ Coachanteckningar: ${callToLink.coachSummary || 'Ej angivet'}
         if (lead.status === 'new') {
             newStatus = 'contacted';
         }
-        // Or if outcome is specific
+        
+        // Specific outcome logic
         if (attempt.outcome === 'booked_intro') {
             newStatus = 'intro_booked';
         } else if (attempt.outcome === 'not_interested') {
-            // Could potentially move to junk or keep as contacted but dead lead
+            // AUTOMATION: Move to junk if not interested
+            newStatus = 'junk';
         }
 
         return {

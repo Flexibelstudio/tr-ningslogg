@@ -561,6 +561,15 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
       }
     });
 
+    const levelDescriptions = {
+      'Toppform': 'Elitnivå. Du är exceptionellt stark relativt din kroppsvikt och ålder.',
+      'Imponerande': 'Mycket stark. Kräver dedikerad och långsiktig träning.',
+      'Stabil': 'En solid grundstyrka som tål tuffa tag. Du ligger över snittet.',
+      'Stark': 'Bra jobbat! Du har byggt en tydlig styrka och lyfter regelbundet.',
+      'På gång': 'Du har lämnat startblocken och börjar se resultat.',
+      'Startklar': 'Resan har börjat. Fokus på teknik och vanor.'
+    };
+
     return (
       <>
         <div className="space-y-6">
@@ -810,9 +819,27 @@ export const StrengthComparisonTool = forwardRef<StrengthComparisonToolRef, Stre
               </ol>
             </div>
 
-            <p><strong>Poängen:</strong><br/>
-            Varje lyft ger poäng baserat på en skala. Totalpoängen avgör din nivå (t.ex. "Stark" eller "Atlet").</p>
-            
+            {/* Added: Level explanations */}
+            <div className="mt-6 space-y-3">
+              <h4 className="font-bold text-gray-800 text-lg">Nivåer</h4>
+              <div className="space-y-2">
+                {[...STRENGTH_LEVEL_ORDER].reverse().map(level => {
+                  const minScore = FSS_CONFIG.fssLevels.find(l => l.label === level)?.min || 0;
+                  return (
+                    <div key={level} className="flex items-start gap-3 p-2 bg-gray-50 rounded-md">
+                        <div className="w-3 h-3 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: LEVEL_COLORS_HEADER[level] }}></div>
+                        <div>
+                            <p className="font-bold text-gray-800 text-base">
+                                {level} <span className="font-normal text-gray-500 text-sm">({minScore}+ p)</span>
+                            </p>
+                            <p className="text-sm text-gray-600">{levelDescriptions[level]}</p>
+                        </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <p><strong>Status:</strong><br/>
             Din FSS är <em>Officiell</em> när alla dina fyra lyft har verifierats av en coach (eller är gamla nog att räknas som verifierade). Innan dess visas den som <em>Preliminär</em>.</p>
           </div>

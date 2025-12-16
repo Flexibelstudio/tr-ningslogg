@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Location } from '../../types';
 import { Input, Select } from '../Input';
@@ -6,16 +7,16 @@ import { Button } from '../Button';
 interface LeadCaptureFormProps {
     locations: Location[];
     onSubmit: (formData: { firstName: string; lastName: string; email: string; phone: string; locationId: string; }) => void;
+    isSubmitting: boolean;
 }
 
-export const LeadCaptureForm: React.FC<LeadCaptureFormProps> = ({ locations, onSubmit }) => {
+export const LeadCaptureForm: React.FC<LeadCaptureFormProps> = ({ locations, onSubmit, isSubmitting }) => {
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
     const [locationId, setLocationId] = useState('');
     const [errors, setErrors] = useState<Record<string, string>>({});
-    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const locationOptions = useMemo(() => [
         { value: '', label: 'Välj studio/ort...' },
@@ -23,7 +24,7 @@ export const LeadCaptureForm: React.FC<LeadCaptureFormProps> = ({ locations, onS
     ], [locations]);
     
     useEffect(() => {
-        // If there is only one location, pre-select it.
+        // Om det bara finns en ort, förvälj den.
         if (locations.length === 1) {
             setLocationId(locations[0].id);
         }
@@ -46,16 +47,12 @@ export const LeadCaptureForm: React.FC<LeadCaptureFormProps> = ({ locations, onS
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (validate()) {
-            setIsSubmitting(true);
             onSubmit({ firstName, lastName, email, phone, locationId });
-            // The parent component will handle the state change to show success message.
-            // No need to setIsSubmitting(false) here if the whole component unmounts.
         }
     };
     
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
-            <p className="text-lg text-gray-600">Fyll i dina uppgifter nedan så kontaktar vi dig, eller boka en tid direkt på nästa sida.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <Input
                     label="Förnamn *"
@@ -100,8 +97,19 @@ export const LeadCaptureForm: React.FC<LeadCaptureFormProps> = ({ locations, onS
                 error={errors.locationId}
                 required
             />
-            <Button type="submit" fullWidth size="lg" disabled={isSubmitting}>
-                {isSubmitting ? 'Skickar...' : 'Skicka intresseanmälan'}
+            <Button 
+                type="submit" 
+                fullWidth 
+                size="lg" 
+                disabled={isSubmitting} 
+                className="h-12 text-lg text-white !bg-[#51a1a1] hover:!bg-[#418b8b]"
+            >
+                {isSubmitting ? (
+                    <div className="flex items-center justify-center gap-2">
+                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                         <span>Bearbetar...</span>
+                    </div>
+                ) : 'Nästa'}
             </Button>
         </form>
     );
