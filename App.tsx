@@ -248,9 +248,12 @@ const AppContent: React.FC = () => {
       );
   }
 
+  // Check if we are on a public page
+  const isPublicPage = location.pathname.includes('/public/');
+
   return (
     <div className="bg-gray-50 min-h-screen">
-       {auth.user && !location.pathname.includes('/public/') && (
+       {auth.user && !isPublicPage && (
           <Navbar
             onOpenProfile={handleOpenProfile}
             onOpenLatestUpdate={handleOpenLatestUpdateView}
