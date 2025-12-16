@@ -226,8 +226,20 @@ const AppContent: React.FC = () => {
           }
       }
   }, [auth.user, auth.isLoading, auth.currentRole, navigate, location.pathname]);
+  
+  // Check if we are on a public page
+  const isPublicPage = location.pathname.includes('/public/');
 
   if (auth.isLoading || (!auth.user && appContext.isGlobalDataLoading)) {
+      // Different loader for public pages (cleaner, no logo)
+      if (isPublicPage) {
+           return (
+            <div className="fixed inset-0 flex items-center justify-center bg-white z-50">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-t-2 border-[#51a1a1]" />
+            </div>
+           );
+      }
+      
       const logo = cachedLogo;
       return (
         <div className="fixed inset-0 flex items-center justify-center bg-gray-100 bg-dotted-pattern bg-dotted-size z-50">
@@ -247,9 +259,6 @@ const AppContent: React.FC = () => {
         </div>
       );
   }
-
-  // Check if we are on a public page
-  const isPublicPage = location.pathname.includes('/public/');
 
   return (
     <div className="bg-gray-50 min-h-screen">
