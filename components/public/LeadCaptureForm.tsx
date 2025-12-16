@@ -97,7 +97,13 @@ export const LeadCaptureForm: React.FC<LeadCaptureFormProps> = ({ locations, onS
                 error={errors.locationId}
                 required
             />
-            <Button type="submit" fullWidth size="lg" disabled={isSubmitting} className="h-12 text-lg">
+            <Button 
+                type="submit" 
+                fullWidth 
+                size="lg" 
+                disabled={isSubmitting} 
+                className="h-12 text-lg text-white !bg-[#51a1a1] hover:!bg-[#418b8b]"
+            >
                 {isSubmitting ? (
                     <div className="flex items-center justify-center gap-2">
                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>

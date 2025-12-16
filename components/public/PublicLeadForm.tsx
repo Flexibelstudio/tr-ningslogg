@@ -88,7 +88,7 @@ export const PublicLeadForm: React.FC = () => {
     if (isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-t-2 border-flexibel"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-t-2 border-[#51a1a1]"></div>
             </div>
         );
     }
@@ -115,7 +115,7 @@ export const PublicLeadForm: React.FC = () => {
                     <div className="text-center mb-8">
                         <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4 leading-tight">
                             Välkommen på ett kostnadsfritt introsamtal <br className="hidden sm:block" />
-                            <span className="text-flexibel">– låt oss hjälpa dig igång!</span>
+                            <span className="text-[#51a1a1]">– låt oss hjälpa dig igång!</span>
                         </h1>
                         
                         <p className="text-lg sm:text-xl text-gray-600 leading-relaxed max-w-xl mx-auto">
