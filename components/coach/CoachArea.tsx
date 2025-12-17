@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { OneOnOneSession, ParticipantProfile } from '../../types';
+import { OneOnOneSession, ParticipantProfile, GroupClassSchedule } from '../../types';
 import { MemberManagement } from './MemberManagement';
 import { WorkoutManagement } from '../../features/workouts/components/WorkoutManagement';
 import { LeaderboardManagement } from './LeaderboardManagement';
@@ -212,6 +212,8 @@ export const CoachArea: React.FC = () => {
   const [initialDateForSchedule, setInitialDateForSchedule] = useState<string | null>(null);
   const [managedClassInfo, setManagedClassInfo] = useState<{ scheduleId: string; date: string } | null>(null);
   const [isCreateScheduleModalOpen, setIsCreateScheduleModalOpen] = useState(false);
+  const [scheduleToEdit, setScheduleToEdit] = useState<GroupClassSchedule | null>(null);
+
   const [calendarFilters, setCalendarFilters] = useState({
     showMySessionsOnly: false,
     showGroupClasses: true,
@@ -313,8 +315,20 @@ export const CoachArea: React.FC = () => {
   const handleDayClick = useCallback((date: Date) => {
     // Logic updated: Click on a day opens Schedule Modal (Add new Class) instead of 1-on-1
     setInitialDateForSchedule(date.toISOString().split('T')[0]);
+    setScheduleToEdit(null);
     setIsCreateScheduleModalOpen(true);
   }, []);
+
+  const handleEditScheduleFromModal = useCallback(() => {
+    if (!managedClassInfo) return;
+    const schedule = groupClassSchedules.find(s => s.id === managedClassInfo.scheduleId);
+    if (schedule) {
+        setManagedClassInfo(null);
+        setScheduleToEdit(schedule);
+        setInitialDateForSchedule(null);
+        setIsCreateScheduleModalOpen(true);
+    }
+  }, [managedClassInfo, groupClassSchedules]);
 
   if (orgDataError) {
     return (
@@ -558,7 +572,7 @@ export const CoachArea: React.FC = () => {
                 <h3 className="text-2xl font-bold text-gray-800">Kalenderöversikt</h3>
                 <div className="flex gap-2">
                     <Button variant="outline" onClick={() => { setSessionToEdit(null); setIsBookingModalOpen(true); }}>Boka 1-on-1</Button>
-                    <Button onClick={() => { setInitialDateForSchedule(null); setIsCreateScheduleModalOpen(true); }}>Lägg ut nytt pass</Button>
+                    <Button onClick={() => { setScheduleToEdit(null); setInitialDateForSchedule(null); setIsCreateScheduleModalOpen(true); }}>Lägg ut nytt pass</Button>
                 </div>
               </div>
               <div className="p-4 bg-gray-50 rounded-lg border mb-4 space-y-4">
@@ -660,9 +674,10 @@ export const CoachArea: React.FC = () => {
                 onClose={() => {
                     setIsCreateScheduleModalOpen(false);
                     setInitialDateForSchedule(null);
+                    setScheduleToEdit(null);
                 }}
                 onSave={ops.handleSaveSchedule}
-                scheduleToEdit={null}
+                scheduleToEdit={scheduleToEdit}
                 classDefinitions={groupClassDefinitions}
                 locations={locations}
                 coaches={staffMembers}
@@ -794,6 +809,7 @@ export const CoachArea: React.FC = () => {
           onCancelBooking={onCancelBooking}
           onPromoteFromWaitlist={onPromoteFromWaitlist}
           onCancelClassInstance={onCancelClassInstance}
+          onEditSchedule={handleEditScheduleFromModal}
         />
       )}
     </div>

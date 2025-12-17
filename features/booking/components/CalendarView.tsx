@@ -225,10 +225,9 @@ const CalendarViewFC: React.FC<CalendarViewProps> = ({
   }, [sessionsByDay, groupClassesByDay, participants, onSessionClick, onGroupClassClick, loggedInCoachId]);
   
   const getDayProps = useCallback((day: Date) => {
-    const dayStr = day.toDateString();
-    const hasContent = (sessionsByDay.get(dayStr)?.length || 0) > 0 || (groupClassesByDay.get(dayStr)?.length || 0) > 0;
-    return { hasContent };
-  }, [sessionsByDay, groupClassesByDay]);
+    // Always return true for Coach View to allow scheduling on empty days
+    return { hasContent: true };
+  }, []);
 
   return (
     <div>

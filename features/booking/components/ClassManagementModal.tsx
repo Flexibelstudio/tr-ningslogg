@@ -29,10 +29,11 @@ interface ClassManagementModalProps {
   onCancelBooking: (bookingId: string) => void;
   onPromoteFromWaitlist: (bookingId: string) => void;
   onCancelClassInstance: (scheduleId: string, classDate: string, status: 'CANCELLED' | 'DELETED') => void;
+  onEditSchedule?: () => void;
 }
 
 export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({ 
-    isOpen, onClose, classInstance, participants, groupClassScheduleExceptions, onCheckIn, onUnCheckIn, onBookClass, onCancelBooking, onPromoteFromWaitlist, onCancelClassInstance 
+    isOpen, onClose, classInstance, participants, groupClassScheduleExceptions, onCheckIn, onUnCheckIn, onBookClass, onCancelBooking, onPromoteFromWaitlist, onCancelClassInstance, onEditSchedule
 }) => {
     const [participantToAdd, setParticipantToAdd] = useState('');
     const [bookingToCancel, setBookingToCancel] = useState<ParticipantBooking | null>(null);
@@ -163,28 +164,39 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
 
                     <div className="pt-4 border-t border-red-200">
                         <h3 className="text-lg font-semibold text-red-700 mb-2">Administrera pass</h3>
-                        <div className="flex flex-col gap-2 sm:flex-row">
-                            <Button 
-                                variant={isCancelled ? 'secondary' : 'danger'} 
-                                onClick={() => setIsCancelConfirmOpen(true)}
-                                disabled={isPast || isCancelled}
-                                className="flex-1"
-                                title={isPast ? "Kan inte ställa in ett pass som redan har varit" : (isCancelled ? "Detta pass är redan inställt" : "Ställer in passet och meddelar alla deltagare")}
-                            >
-                                {isCancelled ? 'Passet är Inställt' : 'Ställ in (meddela deltagare)'}
-                            </Button>
-                            
-                            {!isCancelled && (
-                                <Button
+                        <div className="flex flex-col gap-2">
+                            {onEditSchedule && (
+                                <Button 
                                     variant="outline"
-                                    className="flex-1 !text-red-600 !border-red-200 hover:!bg-red-50"
-                                    onClick={() => setIsDeleteConfirmOpen(true)}
-                                    disabled={!canDelete || isPast}
-                                    title={!canDelete ? "Kan inte tas bort då det finns bokningar. Ställ in passet istället." : "Tar bort passet helt från kalendern."}
+                                    onClick={onEditSchedule}
+                                    className="w-full text-center justify-center !text-blue-600 !border-blue-200 hover:!bg-blue-50"
                                 >
-                                    Ta bort pass (om tomt)
+                                    Redigera Schema (Tid, Dag, Coach)
                                 </Button>
                             )}
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                                <Button 
+                                    variant={isCancelled ? 'secondary' : 'danger'} 
+                                    onClick={() => setIsCancelConfirmOpen(true)}
+                                    disabled={isPast || isCancelled}
+                                    className="flex-1"
+                                    title={isPast ? "Kan inte ställa in ett pass som redan har varit" : (isCancelled ? "Detta pass är redan inställt" : "Ställer in passet och meddelar alla deltagare")}
+                                >
+                                    {isCancelled ? 'Passet är Inställt' : 'Ställ in (meddela deltagare)'}
+                                </Button>
+                                
+                                {!isCancelled && (
+                                    <Button
+                                        variant="outline"
+                                        className="flex-1 !text-red-600 !border-red-200 hover:!bg-red-50"
+                                        onClick={() => setIsDeleteConfirmOpen(true)}
+                                        disabled={!canDelete || isPast}
+                                        title={!canDelete ? "Kan inte tas bort då det finns bokningar. Ställ in passet istället." : "Tar bort passet helt från kalendern."}
+                                    >
+                                        Ta bort pass (om tomt)
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                         <p className="text-xs text-gray-500 mt-2">
                             "Ställ in" meddelar deltagare och visar passet som struket. "Ta bort" tar bort det helt från schemat, men går bara om inga är bokade.
