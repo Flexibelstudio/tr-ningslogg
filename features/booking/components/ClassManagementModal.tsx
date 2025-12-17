@@ -37,6 +37,7 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
     const [participantToAdd, setParticipantToAdd] = useState('');
     const [bookingToCancel, setBookingToCancel] = useState<ParticipantBooking | null>(null);
     const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+    const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
     const { booked, waitlisted, availableSpots, checkedInCount } = useMemo(() => {
         const b = classInstance.allBookingsForInstance.filter(b => b.status === 'BOOKED' || b.status === 'CHECKED-IN');
@@ -51,10 +52,17 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
     }, [groupClassScheduleExceptions, classInstance]);
 
     const isPast = useMemo(() => classInstance.startDateTime < new Date(), [classInstance.startDateTime]);
+    const canDelete = booked.length === 0;
 
     const handleConfirmCancellation = () => {
         onCancelClassInstance(classInstance.scheduleId, classInstance.date, 'CANCELLED');
         setIsCancelConfirmOpen(false);
+        onClose();
+    };
+
+    const handleConfirmDeletion = () => {
+        onCancelClassInstance(classInstance.scheduleId, classInstance.date, 'DELETED');
+        setIsDeleteConfirmOpen(false);
         onClose();
     };
 
@@ -154,19 +162,33 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                     </div>
 
                     <div className="pt-4 border-t border-red-200">
-                        <h3 className="text-lg font-semibold text-red-700 mb-2">Inställning av pass</h3>
-                        <p className="text-sm text-gray-600 mb-3">
-                            Att ställa in ett pass kommer att meddela alla bokade deltagare och de på kölistan. Eventuella klippkortsklipp kommer att återbetalas. Detta kan inte ångras.
+                        <h3 className="text-lg font-semibold text-red-700 mb-2">Administrera pass</h3>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                            <Button 
+                                variant={isCancelled ? 'secondary' : 'danger'} 
+                                onClick={() => setIsCancelConfirmOpen(true)}
+                                disabled={isPast || isCancelled}
+                                className="flex-1"
+                                title={isPast ? "Kan inte ställa in ett pass som redan har varit" : (isCancelled ? "Detta pass är redan inställt" : "Ställer in passet och meddelar alla deltagare")}
+                            >
+                                {isCancelled ? 'Passet är Inställt' : 'Ställ in (meddela deltagare)'}
+                            </Button>
+                            
+                            {!isCancelled && (
+                                <Button
+                                    variant="outline"
+                                    className="flex-1 !text-red-600 !border-red-200 hover:!bg-red-50"
+                                    onClick={() => setIsDeleteConfirmOpen(true)}
+                                    disabled={!canDelete || isPast}
+                                    title={!canDelete ? "Kan inte tas bort då det finns bokningar. Ställ in passet istället." : "Tar bort passet helt från kalendern."}
+                                >
+                                    Ta bort pass (om tomt)
+                                </Button>
+                            )}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                            "Ställ in" meddelar deltagare och visar passet som struket. "Ta bort" tar bort det helt från schemat, men går bara om inga är bokade.
                         </p>
-                        <Button 
-                            variant={isCancelled ? 'secondary' : 'danger'} 
-                            onClick={() => setIsCancelConfirmOpen(true)}
-                            disabled={isPast || isCancelled}
-                            fullWidth
-                            title={isPast ? "Kan inte ställa in ett pass som redan har varit" : (isCancelled ? "Detta pass är redan inställt" : "Ställ in detta pass")}
-                        >
-                            {isCancelled ? 'Passet är Inställt' : 'Ställ in detta pass'}
-                        </Button>
                     </div>
                 </div>
             </Modal>
@@ -178,6 +200,16 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                 title="Ställ in pass?"
                 message={`Är du säker på att du vill ställa in ${classInstance.className}? Alla ${booked.length} bokade medlemmar och ${waitlisted.length} på kölistan kommer att meddelas. Eventuella klipp återbetalas. Detta kan inte ångras.`}
                 confirmButtonText="Ja, ställ in passet"
+                confirmButtonVariant="danger"
+            />
+
+             <ConfirmationModal
+                isOpen={isDeleteConfirmOpen}
+                onClose={() => setIsDeleteConfirmOpen(false)}
+                onConfirm={handleConfirmDeletion}
+                title="Ta bort pass?"
+                message={`Är du säker på att du vill ta bort ${classInstance.className} helt från kalendern? Detta kan inte ångras.`}
+                confirmButtonText="Ja, ta bort"
                 confirmButtonVariant="danger"
             />
 
