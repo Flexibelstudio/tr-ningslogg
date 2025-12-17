@@ -15,6 +15,7 @@ interface CreateScheduleModalProps {
   classDefinitions: GroupClassDefinition[];
   locations: Location[];
   coaches: StaffMember[];
+  initialDate?: string | null;
 }
 
 const WEEK_DAYS = [
@@ -41,22 +42,36 @@ const DayOfWeekSelector: React.FC<{ selectedDays: number[]; onToggleDay: (day: n
     );
 };
 
-export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen, onClose, onSave, scheduleToEdit, classDefinitions, locations, coaches }) => {
+export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen, onClose, onSave, scheduleToEdit, classDefinitions, locations, coaches, initialDate }) => {
     const getInitialState = useCallback(() => {
         const initialClassDef = classDefinitions[0];
+        
+        let initialDays: number[] = [];
+        let initialStart = '';
+        let initialEnd = '';
+
+        if (initialDate) {
+            initialStart = initialDate;
+            initialEnd = initialDate; // Default to single day instance
+            const dateObj = new Date(initialDate);
+            const day = dateObj.getDay();
+            // Convert JS day (0=Sun) to App day (1=Mon, 7=Sun)
+            initialDays = [day === 0 ? 7 : day];
+        }
+
         return {
             locationId: locations[0]?.id || '',
             groupClassId: initialClassDef?.id || '',
             coachId: coaches.filter(c => c.isActive)[0]?.id || '',
-            daysOfWeek: [],
+            daysOfWeek: initialDays,
             startTime: '',
             durationMinutes: initialClassDef?.defaultDurationMinutes || 45,
             maxParticipants: 12,
-            startDate: '',
-            endDate: '',
+            startDate: initialStart,
+            endDate: initialEnd,
             hasWaitlist: initialClassDef?.hasWaitlist ?? true,
         };
-    }, [locations, classDefinitions, coaches]);
+    }, [locations, classDefinitions, coaches, initialDate]);
 
     const [formState, setFormState] = useState(getInitialState());
     const [initialFormState, setInitialFormState] = useState(getInitialState());
@@ -160,6 +175,13 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen
         } else {
             const savedStartTime = formState.startTime;
             const initialState = getInitialState();
+            // Preserve the start/end date and days if user is mass-creating for a specific day context
+            if (initialDate) {
+                 initialState.startDate = initialDate;
+                 initialState.endDate = initialDate;
+                 // daysOfWeek is already set correctly by getInitialState via initialDate
+            }
+            
             setFormState(initialState);
             setInitialFormState(initialState);
             setSaveAndCopySuccess(`Passet kl ${savedStartTime} sparat!`);

@@ -362,6 +362,7 @@ Coachanteckningar: ${callToLink.coachSummary || 'Ej angivet'}
         const updatedHistory = [...(lead.contactHistory || []), fullAttempt];
         
         let newStatus = lead.status;
+        
         // Auto-update status from 'new' to 'contacted' if contact is made
         if (lead.status === 'new') {
             newStatus = 'contacted';
@@ -373,6 +374,13 @@ Coachanteckningar: ${callToLink.coachSummary || 'Ej angivet'}
         } else if (attempt.outcome === 'not_interested') {
             // AUTOMATION: Move to junk if not interested
             newStatus = 'junk';
+        } else if (attempt.outcome === 'follow_up') {
+            // Specific logic: Move to 'contacted' if outcome is 'needs follow-up'.
+            // This handles cases like cancellations (moving from 'intro_booked' back to 'contacted')
+            // Avoid changing status if it's already 'converted'.
+            if (newStatus !== 'converted') {
+                newStatus = 'contacted';
+            }
         }
 
         return {

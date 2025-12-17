@@ -209,6 +209,7 @@ export const CoachArea: React.FC = () => {
   const [sessionToEdit, setSessionToEdit] = useState<OneOnOneSession | null>(null);
   const [sessionToDelete, setSessionToDelete] = useState<OneOnOneSession | null>(null);
   const [initialDateForBooking, setInitialDateForBooking] = useState<string | null>(null);
+  const [initialDateForSchedule, setInitialDateForSchedule] = useState<string | null>(null);
   const [managedClassInfo, setManagedClassInfo] = useState<{ scheduleId: string; date: string } | null>(null);
   const [isCreateScheduleModalOpen, setIsCreateScheduleModalOpen] = useState(false);
   const [calendarFilters, setCalendarFilters] = useState({
@@ -310,9 +311,9 @@ export const CoachArea: React.FC = () => {
   }, []);
 
   const handleDayClick = useCallback((date: Date) => {
-    setSessionToEdit(null);
-    setInitialDateForBooking(date.toISOString().split('T')[0]);
-    setIsBookingModalOpen(true);
+    // Logic updated: Click on a day opens Schedule Modal (Add new Class) instead of 1-on-1
+    setInitialDateForSchedule(date.toISOString().split('T')[0]);
+    setIsCreateScheduleModalOpen(true);
   }, []);
 
   if (orgDataError) {
@@ -555,7 +556,10 @@ export const CoachArea: React.FC = () => {
             <div>
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-2xl font-bold text-gray-800">Kalenderöversikt</h3>
-                <Button onClick={() => setIsCreateScheduleModalOpen(true)}>Lägg ut nytt pass</Button>
+                <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => { setSessionToEdit(null); setIsBookingModalOpen(true); }}>Boka 1-on-1</Button>
+                    <Button onClick={() => { setInitialDateForSchedule(null); setIsCreateScheduleModalOpen(true); }}>Lägg ut nytt pass</Button>
+                </div>
               </div>
               <div className="p-4 bg-gray-50 rounded-lg border mb-4 space-y-4">
                 <h4 className="text-lg font-semibold text-gray-700">Filter</h4>
@@ -653,12 +657,16 @@ export const CoachArea: React.FC = () => {
               />
               <CreateScheduleModal
                 isOpen={isCreateScheduleModalOpen}
-                onClose={() => setIsCreateScheduleModalOpen(false)}
+                onClose={() => {
+                    setIsCreateScheduleModalOpen(false);
+                    setInitialDateForSchedule(null);
+                }}
                 onSave={ops.handleSaveSchedule}
                 scheduleToEdit={null}
                 classDefinitions={groupClassDefinitions}
                 locations={locations}
                 coaches={staffMembers}
+                initialDate={initialDateForSchedule}
               />
               {selectedSessionForModal && user && (
                 <MeetingDetailsModal
