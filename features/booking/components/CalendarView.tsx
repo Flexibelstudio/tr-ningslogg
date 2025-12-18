@@ -24,6 +24,18 @@ interface EnrichedClassInstance {
     isCancelled: boolean;
 }
 
+interface CalendarEvent {
+    id: string;
+    type: 'session' | 'group';
+    data: OneOnOneSession | EnrichedClassInstance;
+    start: Date;
+    end: Date;
+    duration: number;
+    // Layout properties calculated dynamically
+    column?: number;
+    totalColumns?: number;
+}
+
 interface CalendarViewProps {
   sessions: OneOnOneSession[];
   participants: ParticipantProfile[];
@@ -40,7 +52,7 @@ interface CalendarViewProps {
   loggedInCoachId?: string;
 }
 
-const HOUR_HEIGHT = 80; // Pixels per hour
+const HOUR_HEIGHT = 50; // Minskat från 80 till 50 för att rymma hela dagen 07-20
 const START_HOUR = 7;
 const END_HOUR = 20;
 const HOURS = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
@@ -61,19 +73,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const gridRef = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(new Date());
 
-  // Uppdatera "nu"-klockan varje minut
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
 
-  // Scrolla till 07:00 eller nuvarande tid vid start
   useEffect(() => {
     if (gridRef.current) {
         const currentHour = new Date().getHours();
+        // Om klockan är mitt på dagen, scrolla så nuvarande tid syns bäst, annars börja på 07:00
         const scrollHour = currentHour >= START_HOUR && currentHour <= END_HOUR ? currentHour : START_HOUR;
         const scrollTop = (scrollHour - START_HOUR) * HOUR_HEIGHT;
-        gridRef.current.scrollTop = scrollTop;
+        gridRef.current.scrollTop = Math.max(0, scrollTop - 100); // Ge lite luft ovanför
     }
   }, []);
 
@@ -151,11 +162,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       .filter((i): i is EnrichedClassInstance => i !== null);
   }, [groupClassSchedules, groupClassDefinitions, coaches, bookings, getColorForCategory, groupClassScheduleExceptions]);
 
-  const renderEvent = (event: { type: 'session' | 'group', data: any, start: Date, duration: number }) => {
+  const renderEvent = (event: CalendarEvent) => {
     const startHour = event.start.getHours();
     const startMin = event.start.getMinutes();
     const top = (startHour - START_HOUR + startMin / 60) * HOUR_HEIGHT;
     const height = (event.duration / 60) * HOUR_HEIGHT;
+
+    const colWidth = 100 / (event.totalColumns || 1);
+    const colLeft = (event.column || 0) * colWidth;
 
     if (event.type === 'session') {
         const s = event.data as OneOnOneSession;
@@ -165,11 +179,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <div 
                 key={s.id}
                 onClick={(e) => { e.stopPropagation(); onSessionClick(s); }}
-                className={`absolute left-0 right-0 m-0.5 p-1.5 rounded-lg border-l-4 shadow-sm cursor-pointer z-10 text-xs overflow-hidden hover:shadow-md transition-all ${style.bg} ${style.border} ${style.text}`}
-                style={{ top: `${top}px`, height: `${height}px` }}
+                className={`absolute p-0.5 rounded-lg border-l-4 shadow-sm ring-1 ring-white cursor-pointer z-10 text-[10px] overflow-hidden hover:shadow-md transition-all ${style.bg} ${style.border} ${style.text}`}
+                style={{ 
+                    top: `${top}px`, 
+                    height: `${height}px`,
+                    left: `${colLeft}%`,
+                    width: `${colWidth}%`
+                }}
             >
-                <p className="font-bold truncate">{event.start.toLocaleTimeString('sv-SE', {hour:'2-digit', minute:'2-digit'})} - {s.title}</p>
-                <p className="truncate font-medium">{p?.name || 'Okänd'}</p>
+                <p className="font-bold truncate leading-tight">{event.start.toLocaleTimeString('sv-SE', {hour:'2-digit', minute:'2-digit'})}</p>
+                <p className="truncate font-medium leading-tight">{p?.name || 'Okänd'}</p>
             </div>
         );
     } else {
@@ -179,42 +198,116 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <div 
                 key={instance.instanceId}
                 onClick={(e) => { e.stopPropagation(); onGroupClassClick(instance); }}
-                className={`absolute left-0 right-0 m-0.5 p-1.5 rounded-lg border-l-4 shadow-sm cursor-pointer z-10 text-xs overflow-hidden hover:shadow-md transition-all ${instance.isCancelled ? 'bg-gray-100 border-gray-400 opacity-60' : 'text-white'}`}
+                className={`absolute p-0.5 rounded-lg border-l-4 shadow-sm ring-1 ring-white cursor-pointer z-10 text-[10px] overflow-hidden hover:shadow-md transition-all ${instance.isCancelled ? 'bg-gray-100 border-gray-400 opacity-60' : 'text-white'}`}
                 style={{ 
                     top: `${top}px`, 
                     height: `${height}px`, 
+                    left: `${colLeft}%`,
+                    width: `${colWidth}%`,
                     backgroundColor: instance.isCancelled ? undefined : instance.color,
                     borderColor: instance.isCancelled ? undefined : 'rgba(0,0,0,0.1)'
                 }}
             >
-                <p className={`font-bold truncate ${instance.isCancelled ? 'line-through text-gray-600' : ''}`}>
-                    {isMyClass && '⭐ '}{event.start.toLocaleTimeString('sv-SE', {hour:'2-digit', minute:'2-digit'})} - {instance.className}
+                <p className={`font-bold truncate leading-tight ${instance.isCancelled ? 'line-through text-gray-600' : ''}`}>
+                    {isMyClass && '⭐'}{event.start.toLocaleTimeString('sv-SE', {hour:'2-digit', minute:'2-digit'})} {instance.className}
                 </p>
-                <p className={`truncate font-medium ${instance.isCancelled ? 'text-gray-500' : 'text-white/90'}`}>
-                    {instance.isCancelled ? 'INSTÄLLT' : `${instance.bookedCount}/${instance.maxParticipants} bokade`}
+                <p className={`truncate font-medium leading-tight ${instance.isCancelled ? 'text-gray-500' : 'text-white/90'}`}>
+                    {instance.isCancelled ? 'INSTÄLLT' : `${instance.bookedCount}/${instance.maxParticipants}`}
                 </p>
             </div>
         );
     }
   };
 
-  const DayColumn = ({ date, isMobile }: { date: Date, isMobile?: boolean }) => {
-    const dateStr = dateUtils.toYYYYMMDD(date);
-    const daySessions = sessions.filter(s => dateUtils.isSameDay(new Date(s.startTime), date));
-    const dayClasses = getEnrichedClassesForDay(date);
+  const DayColumn = ({ date }: { date: Date }) => {
     const isToday = dateUtils.isSameDay(date, now);
+
+    const rawEvents: CalendarEvent[] = useMemo(() => {
+        const sessionsForDay = sessions
+            .filter(s => dateUtils.isSameDay(new Date(s.startTime), date))
+            .map(s => {
+                const start = new Date(s.startTime);
+                const end = new Date(s.endTime);
+                return {
+                    id: s.id,
+                    type: 'session' as const,
+                    data: s,
+                    start,
+                    end,
+                    duration: (end.getTime() - start.getTime()) / 60000
+                };
+            });
+
+        const classesForDay = getEnrichedClassesForDay(date).map(c => {
+            const start = c.startDateTime;
+            const end = new Date(start.getTime() + c.duration * 60000);
+            return {
+                id: c.instanceId,
+                type: 'group' as const,
+                data: c,
+                start,
+                end,
+                duration: c.duration
+            };
+        });
+
+        return [...sessionsForDay, ...classesForDay].sort((a, b) => a.start.getTime() - b.start.getTime());
+    }, [date, sessions, getEnrichedClassesForDay]);
+
+    const positionedEvents = useMemo(() => {
+        const events = [...rawEvents];
+        const clusters: CalendarEvent[][] = [];
+
+        events.forEach(event => {
+            let placed = false;
+            for (const cluster of clusters) {
+                if (cluster.some(c => event.start < c.end && c.start < event.end)) {
+                    cluster.push(event);
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) clusters.push([event]);
+        });
+
+        clusters.forEach(cluster => {
+            const columns: CalendarEvent[][] = [];
+            cluster.forEach(event => {
+                let colIndex = 0;
+                while (true) {
+                    if (!columns[colIndex]) {
+                        columns[colIndex] = [event];
+                        event.column = colIndex;
+                        break;
+                    }
+                    const lastInCol = columns[colIndex][columns[colIndex].length - 1];
+                    if (event.start >= lastInCol.end) {
+                        columns[colIndex].push(event);
+                        event.column = colIndex;
+                        break;
+                    }
+                    colIndex++;
+                }
+            });
+            cluster.forEach(event => {
+                event.totalColumns = columns.length;
+            });
+        });
+
+        return events;
+    }, [rawEvents]);
 
     return (
         <div className={`relative flex-1 border-r border-gray-200 min-w-0 ${isToday ? 'bg-flexibel/5' : ''}`}>
-            {/* Hour Grid Lines */}
+            {/* Grid Lines */}
             {HOURS.map((h, i) => (
                 <React.Fragment key={h}>
                     <div className="absolute w-full border-t border-gray-100" style={{ top: `${i * HOUR_HEIGHT}px`, height: '1px' }} />
-                    <div className="absolute w-full border-t border-gray-50 border-dashed" style={{ top: `${i * HOUR_HEIGHT + HOUR_HEIGHT/2}px`, height: '1px' }} />
+                    <div className="absolute w-full border-t border-gray-50 border-dashed opacity-50" style={{ top: `${i * HOUR_HEIGHT + HOUR_HEIGHT/2}px`, height: '1px' }} />
                 </React.Fragment>
             ))}
 
-            {/* Clickable Area for creating new events */}
+            {/* Area klickbar för nya pass */}
             <div 
                 className="absolute inset-0 z-0 cursor-crosshair" 
                 onClick={(e) => {
@@ -227,17 +320,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 }}
             />
 
-            {/* Events */}
-            {daySessions.map(s => renderEvent({ type: 'session', data: s, start: new Date(s.startTime), duration: (new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / 60000 }))}
-            {dayClasses.map(c => renderEvent({ type: 'group', data: c, start: c.startDateTime, duration: c.duration }))}
+            {positionedEvents.map(renderEvent)}
 
-            {/* Now Indicator Line */}
+            {/* Nu-linje */}
             {isToday && now.getHours() >= START_HOUR && now.getHours() <= END_HOUR && (
                 <div 
-                    className="absolute w-full border-t-2 border-red-500 z-20 pointer-events-none flex items-center"
+                    className="absolute w-full border-t border-red-500 z-20 pointer-events-none flex items-center"
                     style={{ top: `${(now.getHours() - START_HOUR + now.getMinutes() / 60) * HOUR_HEIGHT}px` }}
                 >
-                    <div className="w-2 h-2 bg-red-500 rounded-full -ml-1" />
+                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full -ml-0.5" />
                 </div>
             )}
         </div>
@@ -246,7 +337,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
-        {/* Navigation Header */}
+        {/* Navigering */}
         <header className="p-4 border-b border-gray-200 bg-white flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-4">
                 <h2 className="text-xl font-bold text-gray-800">
@@ -263,65 +354,59 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </div>
             
             <div className="hidden md:flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
-                <Button variant="ghost" size="sm" onClick={() => handleNavigate(-1, 'week')}>Föregående vecka</Button>
-                <Button variant="ghost" size="sm" onClick={() => handleNavigate(1, 'week')}>Nästa vecka</Button>
+                <Button variant="ghost" size="sm" onClick={() => handleNavigate(-1, 'week')}>&lt; Föregående</Button>
+                <Button variant="ghost" size="sm" onClick={() => handleNavigate(1, 'week')}>Nästa &gt;</Button>
             </div>
         </header>
 
-        {/* Calendar Body */}
         <div className="flex flex-col flex-grow overflow-hidden">
-            {/* Days Header */}
+            {/* Dagshuvuden */}
             <div className="flex border-b border-gray-200 bg-gray-50/50">
-                <div className="w-16 flex-shrink-0" /> {/* Time axis padding */}
+                <div className="w-12 flex-shrink-0" />
                 <div className="flex flex-grow">
-                    {/* Desktop Headers */}
                     <div className="hidden md:flex flex-grow">
                         {weekDays.map(day => (
-                            <div key={day.toISOString()} className={`flex-1 py-3 text-center border-r border-gray-200 last:border-r-0 ${dateUtils.isSameDay(day, now) ? 'bg-flexibel/10' : ''}`}>
-                                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{day.toLocaleDateString('sv-SE', { weekday: 'short' })}</p>
-                                <p className={`text-lg font-extrabold ${dateUtils.isSameDay(day, now) ? 'text-flexibel' : 'text-gray-700'}`}>{day.getDate()}</p>
+                            <div key={day.toISOString()} className={`flex-1 py-2 text-center border-r border-gray-200 last:border-r-0 ${dateUtils.isSameDay(day, now) ? 'bg-flexibel/10' : ''}`}>
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{day.toLocaleDateString('sv-SE', { weekday: 'short' })}</p>
+                                <p className={`text-base font-extrabold ${dateUtils.isSameDay(day, now) ? 'text-flexibel' : 'text-gray-700'}`}>{day.getDate()}</p>
                             </div>
                         ))}
                     </div>
-                    {/* Mobile Header (single day) */}
-                    <div className="md:hidden flex-grow py-3 text-center bg-flexibel/5">
-                         <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{viewDate.toLocaleDateString('sv-SE', { weekday: 'short' })}</p>
-                         <p className="text-lg font-extrabold text-flexibel">{viewDate.getDate()}</p>
+                    <div className="md:hidden flex-grow py-2 text-center bg-flexibel/5">
+                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{viewDate.toLocaleDateString('sv-SE', { weekday: 'short' })}</p>
+                         <p className="text-base font-extrabold text-flexibel">{viewDate.getDate()}</p>
                     </div>
                 </div>
             </div>
 
-            {/* Scrollable Grid Area */}
+            {/* Scroll-yta för grid */}
             <div ref={gridRef} className="flex-grow overflow-y-auto relative bg-dotted-pattern bg-[length:20px_20px]">
                 <div className="flex min-h-full" style={{ height: `${HOURS.length * HOUR_HEIGHT}px` }}>
-                    {/* Time Axis */}
-                    <div className="w-16 flex-shrink-0 bg-white border-r border-gray-200 sticky left-0 z-30">
+                    {/* Tidsaxel */}
+                    <div className="w-12 flex-shrink-0 bg-white border-r border-gray-200 sticky left-0 z-30">
                         {HOURS.map((h, i) => (
-                            <div key={h} className="relative h-20 text-right pr-2 text-xs font-bold text-gray-400" style={{ height: `${HOUR_HEIGHT}px` }}>
-                                <span className="absolute -top-2 right-2">{String(h).padStart(2, '0')}:00</span>
+                            <div key={h} className="relative text-right pr-1.5 text-[10px] font-bold text-gray-400" style={{ height: `${HOUR_HEIGHT}px` }}>
+                                <span className="absolute -top-2 right-1.5">{String(h).padStart(2, '0')}:00</span>
                             </div>
                         ))}
                     </div>
 
-                    {/* Content Columns */}
+                    {/* Innehållskolumner */}
                     <div className="flex flex-grow relative">
-                        {/* Desktop: 7 cols */}
                         <div className="hidden md:flex flex-grow">
                             {weekDays.map(day => (
                                 <DayColumn key={day.toISOString()} date={day} />
                             ))}
                         </div>
-                        {/* Mobile: 1 col */}
                         <div className="md:hidden flex flex-grow">
-                            <DayColumn date={viewDate} isMobile />
+                            <DayColumn date={viewDate} />
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        {/* Footer info */}
-        <footer className="p-3 border-t border-gray-200 bg-gray-50 text-xs text-gray-500 flex flex-wrap gap-4">
+        <footer className="p-2 border-t border-gray-200 bg-gray-50 text-[10px] text-gray-500 flex flex-wrap gap-x-4 gap-y-1">
             <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500" /> PT-pass</span>
             <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500" /> Avstämning</span>
             <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-purple-500" /> InBody</span>
