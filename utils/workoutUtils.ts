@@ -7,7 +7,8 @@ export const calculateEstimated1RM = (weightStr?: number | string, repsStr?: num
         return null;
     }
     
-    if (reps > 12) {
+    // Uppdaterat från 12 till 5 reps enligt nya regler för säkerhet/precision
+    if (reps > 5) {
         return null;
     }
 

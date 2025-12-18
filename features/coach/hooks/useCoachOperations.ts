@@ -1,4 +1,3 @@
-
 import { useCallback } from 'react';
 import { useAppContext } from '../../../context/AppContext';
 import { useAuth } from '../../../context/AuthContext';
@@ -33,7 +32,6 @@ export const useCoachOperations = () => {
     setUserConditioningStatsHistoryData,
     setUserNotificationsData,
     updateParticipantProfile,
-    // Data needed for logic
     participantBookings,
     groupClassSchedules,
     groupClassDefinitions
@@ -42,7 +40,6 @@ export const useCoachOperations = () => {
   const { addNotification } = useNotifications();
   const { user } = useAuth();
 
-  // --- Notes Operations ---
   const handleAddNote = useCallback((participantId: string, noteText: string, noteType: 'check-in' | 'intro-session') => {
     const newNote: CoachNote = {
       id: crypto.randomUUID(),
@@ -64,7 +61,6 @@ export const useCoachOperations = () => {
     setCoachNotesData((prev) => prev.filter((note) => note.id !== noteId));
   }, [setCoachNotesData]);
 
-  // --- 1-on-1 Session Operations ---
   const handleSaveOrUpdateSession = useCallback((session: OneOnOneSession) => {
     setOneOnOneSessionsData((prev) => {
       const index = prev.findIndex((s) => s.id === session.id);
@@ -82,7 +78,6 @@ export const useCoachOperations = () => {
     setOneOnOneSessionsData((prev) => prev.filter((s) => s.id !== sessionId));
   }, [setOneOnOneSessionsData]);
 
-  // --- Schedule Operations ---
   const handleSaveSchedule = useCallback((schedule: GroupClassSchedule) => {
     setGroupClassSchedulesData(prev => {
         const exists = prev.some(s => s.id === schedule.id);
@@ -97,7 +92,6 @@ export const useCoachOperations = () => {
       setGroupClassSchedulesData(prev => prev.filter(s => s.id !== scheduleId));
   }, [setGroupClassSchedulesData]);
 
-  // --- Booking Operations ---
   const handleCheckInParticipant = useCallback((bookingId: string) => {
       setParticipantBookingsData(prev => prev.map(b => (b.id === bookingId ? { ...b, status: 'CHECKED-IN' as const } : b)));
   }, [setParticipantBookingsData]);
@@ -126,7 +120,6 @@ export const useCoachOperations = () => {
       addNotification({ type: 'SUCCESS', title: 'Uppflyttad', message: 'Medlemmen har flyttats från kön till bokad.' });
   }, [setParticipantBookingsData, addNotification]);
 
-  // --- Class Instance Management ---
   const handleCancelClassInstance = useCallback((scheduleId: string, classDate: string, status: 'CANCELLED' | 'DELETED') => {
     setGroupClassScheduleExceptionsData(prev => [...prev, {
         id: crypto.randomUUID(),
@@ -143,7 +136,6 @@ export const useCoachOperations = () => {
         const className = classDef?.name || 'Passet';
         const time = schedule?.startTime || '';
         
-        // Find affected bookings (Booked, Checked-in, Waitlisted)
         const affectedBookings = participantBookings.filter(b => 
             b.scheduleId === scheduleId && 
             b.classDate === classDate && 
@@ -201,7 +193,6 @@ export const useCoachOperations = () => {
     addNotification({ type: 'SUCCESS', title: 'Pass uppdaterat', message: notify ? 'Ändringar sparade och deltagare meddelas.' : 'Ändringar sparade.' });
   }, [setGroupClassScheduleExceptionsData, setParticipantBookingsData, addNotification]);
 
-  // --- Comment & Reaction Operations ---
   const handleAddComment = useCallback((logId: string, logType: FlowItemLogType, text: string) => {
     const authorId = user?.id;
     const authorName = user?.name || 'Coach';
@@ -263,7 +254,6 @@ export const useCoachOperations = () => {
     }));
   }, [user, setWorkoutLogsData, setGeneralActivityLogsData, setCoachEventsData, setOneOnOneSessionsData, setGoalCompletionLogsData, setClubMembershipsData, setUserStrengthStatsData, setParticipantPhysiqueHistoryData, setParticipantGoalsData, setUserConditioningStatsHistoryData]);
 
-  // --- Strength Verification ---
   const handleVerifyStat = useCallback((statId: string, lift: LiftType, status: 'verified' | 'rejected' | 'unverified', coachName: string) => {
     let participantId = '';
     setUserStrengthStatsData(prev => prev.map(stat => {
@@ -288,14 +278,13 @@ export const useCoachOperations = () => {
         return { ...stat, ...updates };
     }));
     
-    // Handle notifications for the user
     if (participantId) {
          const notificationType = status === 'verified' ? 'VERIFICATION_APPROVED' : (status === 'rejected' ? 'VERIFICATION_REJECTED' : null);
          
          if (notificationType) {
              const title = status === 'verified' ? 'PB Verifierat! 🎉' : 'PB Avfärdat';
              const body = status === 'verified' 
-                ? `Ditt PB i ${lift} har verifierats av ${coachName}!`
+                ? `Coach ${coachName} har verifierat ditt lyft i ${lift}! Din FSS är nu verifierad.`
                 : `Ditt registrerade PB i ${lift} kunde inte verifieras. Prata med din coach för detaljer.`;
 
              const notification: UserNotification = {
@@ -315,7 +304,6 @@ export const useCoachOperations = () => {
     addNotification({ type: 'SUCCESS', title: 'Statistik uppdaterad', message: `Lyftet har markerats som ${actionText}.` });
   }, [setUserStrengthStatsData, addNotification, setUserNotificationsData]);
   
-  // --- Contract / Binding Operations ---
   const handleContractAction = useCallback(async (action: 'renew' | 'terminate' | 'rolling' | 'custom', participantId: string, customDate?: string) => {
       let update: Partial<ParticipantProfile> = {};
       let noteText = '';
@@ -330,20 +318,12 @@ export const useCoachOperations = () => {
               noteText = `System: Bindningstid förlängd 12 månader t.o.m. ${renewDate}.`;
               break;
           case 'terminate':
-              // Default termination logic: 3 months notice? Or just allow setting date.
-              // For now, let's assume termination sets an End Date.
               const terminationDate = customDate || addMonths(today, 3).toISOString().split('T')[0];
               update = { endDate: terminationDate };
               noteText = `System: Medlemskap uppsagt. Sista giltighetsdag satt till ${terminationDate}.`;
               break;
           case 'rolling':
-              // Clear binding end date
-              // We need to explicitly set it to undefined or empty string to "remove" it in our update logic
-              // Note: Firestore might need FieldValue.delete() but our wrapper handles undefined/null sometimes, 
-              // or we pass empty string if the type allows. Type says string | undefined.
-              // Let's pass null/undefined via 'as any' trick or ensure service handles it.
-              // In this codebase, usually empty string is treated as "no value" in UI forms.
-              update = { bindingEndDate: '' }; // Assuming empty string clears it visually
+              update = { bindingEndDate: '' }; 
               noteText = `System: Övergick till löpande avtal (bindningstid borttagen).`;
               break;
           case 'custom':
@@ -357,13 +337,12 @@ export const useCoachOperations = () => {
       if (Object.keys(update).length > 0) {
           await updateParticipantProfile(participantId, update);
           
-          // Add system note
           const newNote: CoachNote = {
               id: crypto.randomUUID(),
               participantId,
               noteText,
               createdDate: new Date().toISOString(),
-              noteType: 'check-in' // Using check-in type as generic system note for now
+              noteType: 'check-in' 
           };
           setCoachNotesData(prev => [...prev, newNote]);
           
@@ -389,12 +368,10 @@ export const useCoachOperations = () => {
     handleVerifyStat,
     handleContractAction,
     
-    // Comment/Reaction operations
     handleAddComment,
     handleDeleteComment,
     handleToggleCommentReaction,
     
-    // Pass through other updaters needed by sub-components
     setEvents: setCoachEventsData,
     setWeeklyHighlightSettings: setWeeklyHighlightSettingsData,
     setStaff: setStaffMembersData,
