@@ -1,4 +1,4 @@
-
+// components/coach/CoachArea.tsx
 import React, { useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { OneOnOneSession, ParticipantProfile, GroupClassSchedule } from '../../types';
@@ -25,7 +25,6 @@ import { ToggleSwitch } from '../ToggleSwitch';
 import { Select } from '../Input';
 import { useCoachData } from '../../features/coach/hooks/useCoachData';
 import { useCoachOperations } from '../../features/coach/hooks/useCoachOperations';
-import { VerificationRequests } from '../../features/coach'; 
 import * as dateUtils from '../../utils/dateUtils';
 
 const AnalyticsDashboard = lazy(() => import('./AnalyticsDashboard'));
@@ -490,11 +489,10 @@ export const CoachArea: React.FC = () => {
                         )}
 
                         <div className="mt-4 pt-4 border-t border-gray-100">
-                             <VerificationRequests 
-                                userStrengthStats={userStrengthStatsForView}
-                                participants={participantsForView}
-                                onVerify={(statId, lift, status) => handleVerifyStat(statId, lift, status, loggedInStaff?.name || 'Coach')}
-                            />
+                             {/* VERIFICATION REQUESTS COMPONENT REMOVED FROM DASHBOARD AS REQUESTED */}
+                             <p className="text-xs text-gray-500 italic">
+                                Verifiering av PB sker nu direkt i medlemmarnas klientkort under fliken 'Styrka'.
+                             </p>
                         </div>
                     </div>
                 </div>
@@ -663,7 +661,7 @@ export const CoachArea: React.FC = () => {
                   setSessionToEdit(null);
                 }}
                 sessionToEdit={sessionToEdit}
-                participants={participantsForView}
+                participants={participants}
                 coaches={staffMembers}
                 loggedInCoachId={loggedInStaff.id}
                 initialDate={initialDateForBooking}

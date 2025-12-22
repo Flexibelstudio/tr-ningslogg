@@ -1,3 +1,4 @@
+// features/coach/hooks/useCoachOperations.ts
 import { useCallback } from 'react';
 import { useAppContext } from '../../../context/AppContext';
 import { useAuth } from '../../../context/AuthContext';
@@ -278,29 +279,24 @@ export const useCoachOperations = () => {
         return { ...stat, ...updates };
     }));
     
-    if (participantId) {
-         const notificationType = status === 'verified' ? 'VERIFICATION_APPROVED' : (status === 'rejected' ? 'VERIFICATION_REJECTED' : null);
-         
-         if (notificationType) {
-             const title = status === 'verified' ? 'PB Verifierat! 🎉' : 'PB Avfärdat';
-             const body = status === 'verified' 
-                ? `Coach ${coachName} har verifierat ditt lyft i ${lift}! Din FSS är nu verifierad.`
-                : `Ditt registrerade PB i ${lift} kunde inte verifieras. Prata med din coach för detaljer.`;
+    if (participantId && status === 'verified') {
+         const title = 'PB Verifierat! 🎉';
+         // Begärd ordalydelse för verifieringsnotisen
+         const body = `Coach ${coachName} har verifierat ditt lyft i ${lift}! Din FSS är nu verifierad.`;
 
-             const notification: UserNotification = {
-                id: crypto.randomUUID(),
-                recipientId: participantId,
-                type: notificationType,
-                title,
-                body,
-                createdAt: new Date().toISOString(),
-                read: false
-             };
-             setUserNotificationsData(prev => [...prev, notification]);
-         }
+         const notification: UserNotification = {
+            id: crypto.randomUUID(),
+            recipientId: participantId,
+            type: 'VERIFICATION_APPROVED',
+            title,
+            body,
+            createdAt: new Date().toISOString(),
+            read: false
+         };
+         setUserNotificationsData(prev => [...prev, notification]);
     }
 
-    const actionText = status === 'verified' ? 'verifierat' : status === 'rejected' ? 'avfärdat' : 'uppdaterat';
+    const actionText = status === 'verified' ? 'verifierat' : 'uppdaterat';
     addNotification({ type: 'SUCCESS', title: 'Statistik uppdaterad', message: `Lyftet har markerats som ${actionText}.` });
   }, [setUserStrengthStatsData, addNotification, setUserNotificationsData]);
   
