@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import { GroupClassSchedule, GroupClassDefinition, ParticipantBooking, StaffMember, GroupClassScheduleException } from '../../../types';
 import { useAppContext } from '../../../context/AppContext';
 import { Button } from '../../../components/Button';
+import * as dateUtils from '../../../utils/dateUtils';
 
 interface EnrichedClassInstance {
   instanceId: string;
@@ -41,23 +42,19 @@ export const TodaysClassesView: React.FC<TodaysClassesViewProps> = ({ schedules,
     
     const today = new Date();
     const dayOfWeek = today.getDay() === 0 ? 7 : today.getDay();
-    const dateStr = today.toISOString().split('T')[0];
+    const dateStr = dateUtils.toYYYYMMDD(today);
 
     return schedules
       .filter((schedule) => {
         if (schedule.coachId !== loggedInStaff.id) return false;
-
-        const startDate = new Date(schedule.startDate);
-        const endDate = new Date(schedule.endDate);
-        endDate.setHours(23, 59, 59, 999);
-        return schedule.daysOfWeek.includes(dayOfWeek) && today >= startDate && today <= endDate;
+        // String comparison is safe for YYYY-MM-DD
+        return schedule.daysOfWeek.includes(dayOfWeek) && dateStr >= schedule.startDate && dateStr <= schedule.endDate;
       })
       .map((schedule) => {
         const exception = groupClassScheduleExceptions.find(ex => ex.scheduleId === schedule.id && ex.date === dateStr);
         if (exception && (exception.status === 'CANCELLED' || exception.status === 'DELETED')) return null;
 
         const classDef = definitions.find((d) => d.id === schedule.groupClassId);
-        // We already know the coach is the loggedInStaff, so we can simplify.
         if (!classDef) return null;
 
         const [hour, minute] = schedule.startTime.split(':').map(Number);

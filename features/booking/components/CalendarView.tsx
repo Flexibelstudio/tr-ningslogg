@@ -54,7 +54,7 @@ interface CalendarViewProps {
   loggedInCoachId?: string;
 }
 
-const HOUR_HEIGHT = 50; // Minskat från 80 till 50 för att rymma hela dagen 07-20
+const HOUR_HEIGHT = 50; 
 const START_HOUR = 7;
 const END_HOUR = 20;
 const HOURS = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
@@ -83,10 +83,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   useEffect(() => {
     if (gridRef.current) {
         const currentHour = new Date().getHours();
-        // Om klockan är mitt på dagen, scrolla så nuvarande tid syns bäst, annars börja på 07:00
         const scrollHour = currentHour >= START_HOUR && currentHour <= END_HOUR ? currentHour : START_HOUR;
         const scrollTop = (scrollHour - START_HOUR) * HOUR_HEIGHT;
-        gridRef.current.scrollTop = Math.max(0, scrollTop - 100); // Ge lite luft ovanför
+        gridRef.current.scrollTop = Math.max(0, scrollTop - 100); 
     }
   }, []);
 
@@ -118,10 +117,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         const exception = groupClassScheduleExceptions.find(ex => ex.scheduleId === schedule.id && ex.date === dateStr);
         if (exception && exception.status === 'DELETED') return false;
 
-        const startDate = new Date(schedule.startDate);
-        const endDate = new Date(schedule.endDate);
-        endDate.setHours(23, 59, 59, 999);
-        return schedule.daysOfWeek.includes(dayOfWeek) && day >= startDate && day <= endDate;
+        // String comparison is timezone-safe for YYYY-MM-DD
+        return schedule.daysOfWeek.includes(dayOfWeek) && dateStr >= schedule.startDate && dateStr <= schedule.endDate;
       })
       .map(schedule => {
         const exception = groupClassScheduleExceptions.find(ex => ex.scheduleId === schedule.id && ex.date === dateStr);
@@ -267,7 +264,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         events.forEach(event => {
             let placed = false;
             for (const cluster of clusters) {
-                if (cluster.some(c => event.start < c.end && c.start < event.end)) {
+                if (cluster.some(c => event.start < c.end && event.start < event.end)) {
                     cluster.push(event);
                     placed = true;
                     break;
@@ -305,7 +302,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
     return (
         <div className={`relative flex-1 border-r border-gray-200 min-w-0 ${isToday ? 'bg-flexibel/5' : ''}`}>
-            {/* Grid Lines */}
             {HOURS.map((h, i) => (
                 <React.Fragment key={h}>
                     <div className="absolute w-full border-t border-gray-100" style={{ top: `${i * HOUR_HEIGHT}px`, height: '1px' }} />
@@ -313,7 +309,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </React.Fragment>
             ))}
 
-            {/* Area klickbar för nya pass */}
             <div 
                 className="absolute inset-0 z-0 cursor-crosshair" 
                 onClick={(e) => {
@@ -328,7 +323,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
             {positionedEvents.map(renderEvent)}
 
-            {/* Nu-linje */}
             {isToday && now.getHours() >= START_HOUR && now.getHours() <= END_HOUR && (
                 <div 
                     className="absolute w-full border-t border-red-500 z-20 pointer-events-none flex items-center"
@@ -343,7 +337,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
-        {/* Navigering */}
         <header className="p-4 border-b border-gray-200 bg-white flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-4">
                 <h2 className="text-xl font-bold text-gray-800">
@@ -366,7 +359,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </header>
 
         <div className="flex flex-col flex-grow overflow-hidden">
-            {/* Dagshuvuden */}
             <div className="flex border-b border-gray-200 bg-gray-50/50">
                 <div className="w-12 flex-shrink-0" />
                 <div className="flex flex-grow">
@@ -385,10 +377,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
             </div>
 
-            {/* Scroll-yta för grid */}
             <div ref={gridRef} className="flex-grow overflow-y-auto relative bg-dotted-pattern bg-[length:20px_20px]">
                 <div className="flex min-h-full" style={{ height: `${HOURS.length * HOUR_HEIGHT}px` }}>
-                    {/* Tidsaxel */}
                     <div className="w-12 flex-shrink-0 bg-white border-r border-gray-200 sticky left-0 z-30">
                         {HOURS.map((h, i) => (
                             <div key={h} className="relative text-right pr-1.5 text-[10px] font-bold text-gray-400" style={{ height: `${HOUR_HEIGHT}px` }}>
@@ -397,14 +387,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         ))}
                     </div>
 
-                    {/* Innehållskolumner */}
                     <div className="flex flex-grow relative">
                         <div className="hidden md:flex flex-grow">
                             {weekDays.map(day => (
                                 <DayColumn key={day.toISOString()} date={day} />
                             ))}
                         </div>
-                        <div className="md:hidden flex flex-grow">
+                        <div className="md:hidden flex-grow">
                             <DayColumn date={viewDate} />
                         </div>
                     </div>

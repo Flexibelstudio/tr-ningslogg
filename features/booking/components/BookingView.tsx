@@ -83,22 +83,19 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
     const [bookingToCancel, setBookingToCancel] = useState<EnrichedClassInstance | null>(null);
     const [isSubModalOpen, setIsSubModalOpen] = useState(false);
 
-    // Construct a mock URL for the preview environment. Safely access env.
     const projectId = (import.meta as any).env?.VITE_FB_PROJECT_ID || 'YOUR_PROJECT';
     const calendarUrl = `https://europe-west1-${projectId}.cloudfunctions.net/calendarFeed?userId=${currentParticipantId}&type=participant`;
 
     const enrichedInstances = useMemo(() => {
         const instances: EnrichedClassInstance[] = [];
-        if (!participantProfile?.locationId) return [];
+        const todayStr = dateUtils.toYYYYMMDD(today);
+        const memberLocationId = participantProfile?.locationId;
 
-        const memberLocationId = participantProfile.locationId;
-        
         const relevantSchedules = schedules.filter(s => {
-            if (s.locationId !== memberLocationId) return false;
-            const [endYear, endMonth, endDay] = s.endDate.split('-').map(Number);
-            const endDate = new Date(endYear, endMonth - 1, endDay);
-            endDate.setHours(23, 59, 59, 999);
-            return endDate >= today;
+            // Filter by location if member has one, otherwise show all
+            if (memberLocationId && s.locationId !== memberLocationId) return false;
+            // Compare as strings to avoid timezone bugs
+            return s.endDate >= todayStr;
         });
         
         const bookingLeadTimeWeeks = integrationSettings.bookingLeadTimeWeeks || 2;
@@ -116,17 +113,11 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                     return;
                 }
 
-                const [startYear, startMonth, startDay] = schedule.startDate.split('-').map(Number);
-                const startDate = new Date(startYear, startMonth - 1, startDay);
-                
-                const [endYear, endMonth, endDay] = schedule.endDate.split('-').map(Number);
-                const endDate = new Date(endYear, endMonth - 1, endDay);
-                endDate.setHours(23, 59, 59, 999);
-                
+                // String comparison for YYYY-MM-DD is safe and timezone-independent
                 if (
                     schedule.daysOfWeek.includes(dayOfWeek) &&
-                    currentDate >= startDate &&
-                    currentDate <= endDate
+                    currentDateStr >= schedule.startDate &&
+                    currentDateStr <= schedule.endDate
                 ) {
                     const overriddenSchedule = {
                         ...schedule,
@@ -150,9 +141,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                         }
 
                         const allBookingsForInstance = bookings.filter(b => b.scheduleId === schedule.id && b.classDate === currentDateStr);
-                        
                         const myBooking = allBookingsForInstance.find(b => b.participantId === currentParticipantId && b.status !== 'CANCELLED');
-                        
                         const activeBookingsForInstance = allBookingsForInstance.filter(b => b.status !== 'CANCELLED');
                         const bookedUsers = activeBookingsForInstance.filter(b => b.status === 'BOOKED' || b.status === 'CHECKED-IN');
                         const waitlistedUsers = activeBookingsForInstance.filter(b => b.status === 'WAITLISTED').sort((a,b) => new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime());
@@ -165,19 +154,13 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                         let isRestricted = false;
                         if (membership?.restrictedCategories) {
                             const categoryName = classDef.name;
-                            
                             const restrictionKey = Object.keys(membership.restrictedCategories).find(
                                 key => key.toLowerCase() === categoryName.toLowerCase()
                             );
-
                             if (restrictionKey) {
                                 const behavior = membership.restrictedCategories[restrictionKey];
-                                if (behavior === 'hide') {
-                                    return; // Skip adding this instance if hidden
-                                }
-                                if (behavior === 'show_lock') {
-                                    isRestricted = true;
-                                }
+                                if (behavior === 'hide') return;
+                                if (behavior === 'show_lock') isRestricted = true;
                             }
                         }
     
@@ -219,7 +202,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
             }
             groups.get(instance.date)!.push(instance);
         });
-        return Array.from(groups.entries()).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
+        return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
     }, [enrichedInstances]);
     
     useEffect(() => {
@@ -232,7 +215,6 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
             }
         }
     }, [isOpen, selectedDate, groupedInstances]);
-
 
     const weeks = useMemo(() => {
         const result = [];
