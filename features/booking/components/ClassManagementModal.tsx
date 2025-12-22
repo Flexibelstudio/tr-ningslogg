@@ -15,6 +15,7 @@ interface EnrichedClassInstance {
     coachName: string;
     maxParticipants: number;
     allBookingsForInstance: ParticipantBooking[];
+    specialLabel?: string;
 }
 
 interface ClassManagementModalProps {
@@ -27,13 +28,12 @@ interface ClassManagementModalProps {
   onUnCheckIn: (bookingId: string) => void;
   onBookClass: (participantId: string, scheduleId: string, classDate: string) => void;
   onCancelBooking: (bookingId: string) => void;
-  onPromoteFromWaitlist: (bookingId: string) => void;
   onCancelClassInstance: (scheduleId: string, classDate: string, status: 'CANCELLED' | 'DELETED') => void;
   onEditSchedule?: () => void;
 }
 
 export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({ 
-    isOpen, onClose, classInstance, participants, groupClassScheduleExceptions, onCheckIn, onUnCheckIn, onBookClass, onCancelBooking, onPromoteFromWaitlist, onCancelClassInstance, onEditSchedule
+    isOpen, onClose, classInstance, participants, groupClassScheduleExceptions, onCheckIn, onUnCheckIn, onBookClass, onCancelBooking, onCancelClassInstance, onEditSchedule
 }) => {
     const [participantToAdd, setParticipantToAdd] = useState('');
     const [bookingToCancel, setBookingToCancel] = useState<ParticipantBooking | null>(null);
@@ -81,7 +81,8 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
         setParticipantToAdd('');
     };
     
-    const modalTitle = `Hantera: ${classInstance.className}`;
+    const displayClassName = classInstance.className + (classInstance.specialLabel ? ` - ${classInstance.specialLabel}` : '');
+    const modalTitle = `Hantera: ${displayClassName}`;
     const formattedStartTime = classInstance.startDateTime.toLocaleString('sv-SE', {
         weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
     });
@@ -210,7 +211,7 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                 onClose={() => setIsCancelConfirmOpen(false)}
                 onConfirm={handleConfirmCancellation}
                 title="Ställ in pass?"
-                message={`Är du säker på att du vill ställa in ${classInstance.className}? Alla ${booked.length} bokade medlemmar och ${waitlisted.length} på kölistan kommer att meddelas. Eventuella klipp återbetalas. Detta kan inte ångras.`}
+                message={`Är du säker på att du vill ställa in ${displayClassName}? Alla ${booked.length} bokade medlemmar och ${waitlisted.length} på kölistan kommer att meddelas. Eventuella klipp återbetalas. Detta kan inte ångras.`}
                 confirmButtonText="Ja, ställ in passet"
                 confirmButtonVariant="danger"
             />
@@ -220,7 +221,7 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                 onClose={() => setIsDeleteConfirmOpen(false)}
                 onConfirm={handleConfirmDeletion}
                 title="Ta bort pass?"
-                message={`Är du säker på att du vill ta bort ${classInstance.className} helt från kalendern? Detta kan inte ångras.`}
+                message={`Är du säker på att du vill ta bort ${displayClassName} helt från kalendern? Detta kan inte ångras.`}
                 confirmButtonText="Ja, ta bort"
                 confirmButtonVariant="danger"
             />

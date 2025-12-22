@@ -16,6 +16,7 @@ interface CreateScheduleModalProps {
   locations: Location[];
   coaches: StaffMember[];
   initialDate?: string | null;
+  initialLocationId?: string | null;
 }
 
 const WEEK_DAYS = [
@@ -42,7 +43,7 @@ const DayOfWeekSelector: React.FC<{ selectedDays: number[]; onToggleDay: (day: n
     );
 };
 
-export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen, onClose, onSave, scheduleToEdit, classDefinitions, locations, coaches, initialDate }) => {
+export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen, onClose, onSave, scheduleToEdit, classDefinitions, locations, coaches, initialDate, initialLocationId }) => {
     const getInitialState = useCallback(() => {
         const initialClassDef = classDefinitions[0];
         
@@ -59,8 +60,13 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen
             initialDays = [day === 0 ? 7 : day];
         }
 
+        // Use initialLocationId if it matches an existing location, otherwise use first location
+        const defaultLocationId = (initialLocationId && locations.some(l => l.id === initialLocationId))
+            ? initialLocationId
+            : (locations[0]?.id || '');
+
         return {
-            locationId: locations[0]?.id || '',
+            locationId: defaultLocationId,
             groupClassId: initialClassDef?.id || '',
             coachId: coaches.filter(c => c.isActive)[0]?.id || '',
             daysOfWeek: initialDays,
@@ -70,8 +76,9 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen
             startDate: initialStart,
             endDate: initialEnd,
             hasWaitlist: initialClassDef?.hasWaitlist ?? true,
+            specialLabel: '',
         };
-    }, [locations, classDefinitions, coaches, initialDate]);
+    }, [locations, classDefinitions, coaches, initialDate, initialLocationId]);
 
     const [formState, setFormState] = useState(getInitialState());
     const [initialFormState, setInitialFormState] = useState(getInitialState());
@@ -83,7 +90,13 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen
     useEffect(() => {
         if (isOpen) {
             // Ensure hasWaitlist is always boolean, defaulting to true if undefined in scheduleToEdit
-            const initialState = scheduleToEdit ? { ...scheduleToEdit, hasWaitlist: scheduleToEdit.hasWaitlist ?? true } : getInitialState();
+            const initialState = scheduleToEdit 
+                ? { 
+                    ...scheduleToEdit, 
+                    hasWaitlist: scheduleToEdit.hasWaitlist ?? true,
+                    specialLabel: scheduleToEdit.specialLabel || ''
+                } 
+                : getInitialState();
             setFormState(initialState);
             setInitialFormState(initialState);
             setErrors({});
@@ -166,6 +179,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen
             durationMinutes: Number(formState.durationMinutes),
             maxParticipants: Number(formState.maxParticipants),
             hasWaitlist: formState.hasWaitlist ?? false,
+            specialLabel: formState.specialLabel?.trim() || undefined,
         };
         
         onSave(scheduleData);
@@ -210,6 +224,13 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ isOpen
                     <Select label="Typ av pass *" value={formState.groupClassId} onChange={e => handleInputChange('groupClassId', e.target.value)} options={classOptions} error={errors.groupClassId} />
                 </div>
                 
+                <Input 
+                    label="Special-etikett (valfri)" 
+                    value={formState.specialLabel} 
+                    onChange={e => handleInputChange('specialLabel', e.target.value)} 
+                    placeholder="T.ex. Julspecial, Teknikfokus, Testvecka..." 
+                />
+
                 <div>
                     <label className="block text-xl font-medium text-gray-700 mb-1">Veckodag(ar) *</label>
                     <DayOfWeekSelector selectedDays={formState.daysOfWeek || []} onToggleDay={handleDayToggle} />

@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { OneOnOneSession, ParticipantProfile, StaffMember, GroupClassSchedule, GroupClassDefinition, ParticipantBooking, GroupClassScheduleException } from '../../../types';
 import * as dateUtils from '../../../utils/dateUtils';
@@ -22,6 +23,7 @@ interface EnrichedClassInstance {
     allBookingsForInstance: ParticipantBooking[];
     color: string;
     isCancelled: boolean;
+    specialLabel?: string;
 }
 
 interface CalendarEvent {
@@ -130,6 +132,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             durationMinutes: exception?.newDurationMinutes || schedule.durationMinutes,
             coachId: exception?.newCoachId || schedule.coachId,
             maxParticipants: exception?.newMaxParticipants || schedule.maxParticipants,
+            specialLabel: exception?.specialLabel || schedule.specialLabel,
         };
         const classDef = groupClassDefinitions.find(d => d.id === overriddenSchedule.groupClassId);
         const coach = coaches.find(c => c.id === overriddenSchedule.coachId);
@@ -157,6 +160,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           allBookingsForInstance: allBookings,
           color: classDef.color || getColorForCategory(classDef.name),
           isCancelled,
+          specialLabel: overriddenSchedule.specialLabel,
         };
       })
       .filter((i): i is EnrichedClassInstance => i !== null);
@@ -194,6 +198,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     } else {
         const instance = event.data as EnrichedClassInstance;
         const isMyClass = instance.coachId === loggedInCoachId;
+        const displayClassName = instance.className + (instance.specialLabel ? ` - ${instance.specialLabel}` : '');
+
         return (
             <div 
                 key={instance.instanceId}
@@ -202,14 +208,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 style={{ 
                     top: `${top}px`, 
                     height: `${height}px`, 
-                    left: `${colLeft}%`,
+                    left: `${colLeft}%`, 
                     width: `${colWidth}%`,
                     backgroundColor: instance.isCancelled ? undefined : instance.color,
                     borderColor: instance.isCancelled ? undefined : 'rgba(0,0,0,0.1)'
                 }}
             >
                 <p className={`font-bold truncate leading-tight ${instance.isCancelled ? 'line-through text-gray-600' : ''}`}>
-                    {isMyClass && '⭐'}{event.start.toLocaleTimeString('sv-SE', {hour:'2-digit', minute:'2-digit'})} {instance.className}
+                    {isMyClass && '⭐'}{event.start.toLocaleTimeString('sv-SE', {hour:'2-digit', minute:'2-digit'})} {displayClassName}
                 </p>
                 <p className={`truncate font-medium leading-tight ${instance.isCancelled ? 'text-gray-500' : 'text-white/90'}`}>
                     {instance.isCancelled ? 'INSTÄLLT' : `${instance.bookedCount}/${instance.maxParticipants}`}

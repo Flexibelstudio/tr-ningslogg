@@ -30,6 +30,7 @@ interface EnrichedClassInstance {
     isRestricted: boolean;
     hasWaitlist: boolean;
     color: string;
+    specialLabel?: string;
 }
 
 interface BookingViewProps {
@@ -133,6 +134,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                         durationMinutes: exception?.newDurationMinutes || schedule.durationMinutes,
                         coachId: exception?.newCoachId || schedule.coachId,
                         maxParticipants: exception?.newMaxParticipants || schedule.maxParticipants,
+                        specialLabel: exception?.specialLabel || schedule.specialLabel,
                     };
 
                     const classDef = definitions.find(d => d.id === overriddenSchedule.groupClassId);
@@ -200,6 +202,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                             isRestricted: isRestricted,
                             hasWaitlist: schedule.hasWaitlist ?? classDef.hasWaitlist ?? true,
                             color: classDef.color || getColorForCategory(classDef.name),
+                            specialLabel: overriddenSchedule.specialLabel,
                         });
                     }
                 }
@@ -401,7 +404,9 @@ export const BookingView: React.FC<BookingViewProps> = ({ isOpen, onClose, sched
                                                     <p className="text-sm">{instance.duration} min</p>
                                                 </div>
                                                 <div className="flex-grow z-20">
-                                                    <p className={`font-bold text-lg ${isRestricted ? 'text-gray-500' : ''}`}>{instance.className}</p>
+                                                    <p className={`font-bold text-lg ${isRestricted ? 'text-gray-500' : ''}`}>
+                                                        {instance.className}{instance.specialLabel ? ` - ${instance.specialLabel}` : ''}
+                                                    </p>
                                                     <div className={`flex items-center gap-2 text-sm ${isRestricted ? 'text-gray-500' : 'text-gray-600'}`}>
                                                         <Avatar name={instance.coachName} size="sm" className="!w-6 !h-6 !text-xs" />
                                                         <span>{instance.coachName}</span>

@@ -679,6 +679,7 @@ export const CoachArea: React.FC = () => {
                 locations={locations}
                 coaches={staffMembers}
                 initialDate={initialDateForSchedule}
+                initialLocationId={selectedLocationTabId !== 'all' ? selectedLocationTabId : undefined}
               />
               {selectedSessionForModal && user && (
                 <MeetingDetailsModal

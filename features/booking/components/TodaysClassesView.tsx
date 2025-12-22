@@ -20,6 +20,7 @@ interface EnrichedClassInstance {
   isFull: boolean;
   allBookingsForInstance: ParticipantBooking[];
   color: string;
+  specialLabel?: string;
 }
 
 interface TodaysClassesViewProps {
@@ -52,8 +53,8 @@ export const TodaysClassesView: React.FC<TodaysClassesViewProps> = ({ schedules,
         return schedule.daysOfWeek.includes(dayOfWeek) && today >= startDate && today <= endDate;
       })
       .map((schedule) => {
-        const isCancelled = groupClassScheduleExceptions.some(ex => ex.scheduleId === schedule.id && ex.date === dateStr);
-        if (isCancelled) return null;
+        const exception = groupClassScheduleExceptions.find(ex => ex.scheduleId === schedule.id && ex.date === dateStr);
+        if (exception && (exception.status === 'CANCELLED' || exception.status === 'DELETED')) return null;
 
         const classDef = definitions.find((d) => d.id === schedule.groupClassId);
         // We already know the coach is the loggedInStaff, so we can simplify.
@@ -83,6 +84,7 @@ export const TodaysClassesView: React.FC<TodaysClassesViewProps> = ({ schedules,
           isFull: bookedUsers.length >= schedule.maxParticipants,
           allBookingsForInstance,
           color: classDef.color || getColorForCategory(classDef.name),
+          specialLabel: exception?.specialLabel || schedule.specialLabel,
         };
       })
       .filter((i): i is EnrichedClassInstance => i !== null)
@@ -100,7 +102,7 @@ export const TodaysClassesView: React.FC<TodaysClassesViewProps> = ({ schedules,
         {todaysInstances.map((instance) => (
           <div key={instance.instanceId} className="bg-white p-4 rounded-lg shadow-md border flex flex-col">
             <p className="font-bold text-xl text-gray-800">
-              {instance.startDateTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })} - {instance.className}
+              {instance.startDateTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })} - {instance.className}{instance.specialLabel ? ` - ${instance.specialLabel}` : ''}
             </p>
             <p className="text-sm text-gray-500">
               {instance.bookedCount}/{instance.maxParticipants} bokade {instance.waitlistCount > 0 ? `(${instance.waitlistCount} i kö)` : ''}
