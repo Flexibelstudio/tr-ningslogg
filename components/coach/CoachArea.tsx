@@ -1,3 +1,4 @@
+
 // components/coach/CoachArea.tsx
 import React, { useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -83,7 +84,7 @@ const ActionItem = ({ title, count, type, onClick }: { title: string, count: num
 
 type CoachTab =
   | 'overview'
-  | 'members' // New separate tab for list
+  | 'members' 
   | 'klientresan'
   | 'programs'
   | 'bookings'
@@ -126,7 +127,7 @@ export const CoachArea: React.FC = () => {
     participantBookings,
     orgDataError,
     getClassInstanceDetails,
-    participantDirectory, 
+    participantDirectory: allParticipants, // Alias to avoid confusion and define correctly
     leads,
     prospectIntroCalls,
   } = useCoachData();
@@ -139,7 +140,7 @@ export const CoachArea: React.FC = () => {
   const onCancelBooking = ops.handleCancelBooking;
   const onPromoteFromWaitlist = ops.handlePromoteFromWaitlist;
   const onCancelClassInstance = ops.handleCancelClassInstance;
-  const { handleAddComment, handleDeleteComment, handleToggleCommentReaction, handleVerifyStat } = ops;
+  const { handleAddComment, handleDeleteComment, handleToggleCommentReaction } = ops;
 
   const { user } = useAuth();
   const { isOnline } = useNetworkStatus();
@@ -312,7 +313,6 @@ export const CoachArea: React.FC = () => {
   }, []);
 
   const handleDayClick = useCallback((date: Date) => {
-    // Logic updated: Click on a day opens Schedule Modal (Add new Class) instead of 1-on-1
     setInitialDateForSchedule(date.toISOString().split('T')[0]);
     setScheduleToEdit(null);
     setIsCreateScheduleModalOpen(true);
@@ -489,7 +489,6 @@ export const CoachArea: React.FC = () => {
                         )}
 
                         <div className="mt-4 pt-4 border-t border-gray-100">
-                             {/* VERIFICATION REQUESTS COMPONENT REMOVED FROM DASHBOARD AS REQUESTED */}
                              <p className="text-xs text-gray-500 italic">
                                 Verifiering av PB sker nu direkt i medlemmarnas klientkort under fliken 'Styrka'.
                              </p>
@@ -631,7 +630,7 @@ export const CoachArea: React.FC = () => {
               </div>
               <CalendarView
                 sessions={filteredSessions}
-                participants={participantDirectory || []}
+                participants={allParticipants || []}
                 coaches={staffMembers}
                 onSessionClick={handleOpenMeetingModal}
                 onDayClick={handleDayClick}
@@ -661,7 +660,7 @@ export const CoachArea: React.FC = () => {
                   setSessionToEdit(null);
                 }}
                 sessionToEdit={sessionToEdit}
-                participants={participants}
+                participants={allParticipants}
                 coaches={staffMembers}
                 loggedInCoachId={loggedInStaff.id}
                 initialDate={initialDateForBooking}
@@ -799,7 +798,7 @@ export const CoachArea: React.FC = () => {
           isOpen={!!classInstanceForManagement}
           onClose={() => setManagedClassInfo(null)}
           classInstance={classInstanceForManagement}
-          participants={participantDirectory || []}
+          participants={allParticipants || []}
           groupClassScheduleExceptions={groupClassScheduleExceptions}
           onCheckIn={onCheckInParticipant}
           onUnCheckIn={onUnCheckInParticipant}
