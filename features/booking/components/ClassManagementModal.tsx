@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Modal } from '../../../components/Modal';
 import { Button } from '../../../components/Button';
@@ -28,12 +27,15 @@ interface ClassManagementModalProps {
   onUnCheckIn: (bookingId: string) => void;
   onBookClass: (participantId: string, scheduleId: string, classDate: string) => void;
   onCancelBooking: (bookingId: string) => void;
+  // FIX: Added missing onPromoteFromWaitlist prop to the interface to resolve the error in CoachArea.tsx
+  onPromoteFromWaitlist: (bookingId: string) => void;
   onCancelClassInstance: (scheduleId: string, classDate: string, status: 'CANCELLED' | 'DELETED') => void;
   onEditSchedule?: () => void;
 }
 
 export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({ 
-    isOpen, onClose, classInstance, participants, groupClassScheduleExceptions, onCheckIn, onUnCheckIn, onBookClass, onCancelBooking, onCancelClassInstance, onEditSchedule
+    // FIX: Added onPromoteFromWaitlist to the destructured props
+    isOpen, onClose, classInstance, participants, groupClassScheduleExceptions, onCheckIn, onUnCheckIn, onBookClass, onCancelBooking, onPromoteFromWaitlist, onCancelClassInstance, onEditSchedule
 }) => {
     const [participantToAdd, setParticipantToAdd] = useState('');
     const [bookingToCancel, setBookingToCancel] = useState<ParticipantBooking | null>(null);
@@ -138,6 +140,7 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                                         <div key={booking.id} className="flex items-center justify-between p-2 bg-yellow-50 rounded-md border">
                                             <span className="font-medium text-gray-800">{index + 1}. {participant?.name || 'Okänd Medlem'}</span>
                                             <div className="flex items-center gap-2">
+                                                {/* FIX: onPromoteFromWaitlist is now correctly available in props */}
                                                 <Button size="sm" variant="primary" onClick={() => onPromoteFromWaitlist(booking.id)} disabled={availableSpots <= 0}>Flytta till bokad</Button>
                                                 <Button size="sm" variant="danger" onClick={() => setBookingToCancel(booking)}>Ta bort</Button>
                                             </div>
@@ -172,7 +175,7 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                                     onClick={onEditSchedule}
                                     className="w-full text-center justify-center !text-blue-600 !border-blue-200 hover:!bg-blue-50"
                                 >
-                                    Redigera Schema (Tid, Dag, Coach)
+                                    Redigera Schema
                                 </Button>
                             )}
                             <div className="flex flex-col gap-2 sm:flex-row">
@@ -183,7 +186,7 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                                     className="flex-1"
                                     title={isPast ? "Kan inte ställa in ett pass som redan har varit" : (isCancelled ? "Detta pass är redan inställt" : "Ställer in passet och meddelar alla deltagare")}
                                 >
-                                    {isCancelled ? 'Passet är Inställt' : 'Ställ in (meddela deltagare)'}
+                                    {isCancelled ? 'Passet är Inställt' : 'Ställ in'}
                                 </Button>
                                 
                                 {!isCancelled && (
@@ -194,7 +197,7 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                                         disabled={!canDelete || isPast}
                                         title={!canDelete ? "Kan inte tas bort då det finns bokningar. Ställ in passet istället." : "Tar bort passet helt från kalendern."}
                                     >
-                                        Ta bort pass (om tomt)
+                                        Ta bort pass
                                     </Button>
                                 )}
                             </div>
