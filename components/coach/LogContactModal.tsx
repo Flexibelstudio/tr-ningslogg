@@ -1,8 +1,7 @@
-
 import React, { useState } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
-import { Select } from '../Input';
+import { Select, Input } from '../Input';
 import { Textarea } from '../Textarea';
 import { ContactAttempt, ContactAttemptMethod, ContactAttemptOutcome, Lead } from '../../types';
 import { CONTACT_ATTEMPT_METHOD_OPTIONS, CONTACT_ATTEMPT_OUTCOME_OPTIONS } from '../../constants';
@@ -15,18 +14,20 @@ interface LogContactModalProps {
 }
 
 export const LogContactModal: React.FC<LogContactModalProps> = ({ isOpen, onClose, lead, onSave }) => {
-  const [method, setMethod] = useState<ContactAttemptMethod>('phone');
+  const [method, setMethod] = useState<ContactAttemptMethod | 'other'>('phone');
+  const [customMethod, setCustomMethod] = useState('');
   const [outcome, setOutcome] = useState<ContactAttemptOutcome>('no_answer');
   const [notes, setNotes] = useState('');
 
   const handleSave = () => {
     onSave({
-        method,
+        method: method === 'other' ? (customMethod.trim() || 'Övrigt') : method,
         outcome,
         notes: notes.trim() || undefined
     });
     // Reset and close
     setMethod('phone');
+    setCustomMethod('');
     setOutcome('no_answer');
     setNotes('');
     onClose();
@@ -45,6 +46,19 @@ export const LogContactModal: React.FC<LogContactModalProps> = ({ isOpen, onClos
                   options={CONTACT_ATTEMPT_METHOD_OPTIONS}
               />
           </div>
+          
+          {method === 'other' && (
+              <div className="animate-fade-in-down">
+                <Input 
+                    label="Beskriv metod"
+                    value={customMethod}
+                    onChange={(e) => setCustomMethod(e.target.value)}
+                    placeholder="T.ex. Messenger, via anhörig..."
+                    required
+                />
+              </div>
+          )}
+
           <div>
               <Select
                   label="Utfall"
@@ -64,7 +78,7 @@ export const LogContactModal: React.FC<LogContactModalProps> = ({ isOpen, onClos
           </div>
           <div className="flex justify-end gap-2 pt-4 border-t">
               <Button variant="secondary" onClick={onClose}>Avbryt</Button>
-              <Button onClick={handleSave}>Spara logg</Button>
+              <Button onClick={handleSave} disabled={method === 'other' && !customMethod.trim()}>Spara logg</Button>
           </div>
       </div>
     </Modal>
