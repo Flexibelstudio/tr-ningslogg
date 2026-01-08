@@ -24,6 +24,7 @@ export interface GroupClassSchedule {
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
   hasWaitlist?: boolean;
+  specialLabel?: string; // New: optional label like "Julspecial"
 }
 
 export interface GroupClassScheduleException {
@@ -37,6 +38,7 @@ export interface GroupClassScheduleException {
   newDurationMinutes?: number;
   newCoachId?: string;
   newMaxParticipants?: number;
+  specialLabel?: string; // New: optional override label
 
   createdBy?: { uid: string; name: string };
   createdAt: string; // ISO string

@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
 import { Textarea } from '../Textarea';
-import { ParticipantProfile, ParticipantGoalData, ActivityLog, CoachNote, OneOnOneSession, StaffMember, GoalCompletionLog, Workout, WorkoutCategoryDefinition, StaffAvailability, UserStrengthStat, ParticipantConditioningStat, ParticipantPhysiqueStat, ParticipantClubMembership, WorkoutLog, GeneralActivityLog, Lead, Location } from '../../types';
+import { ParticipantProfile, ParticipantGoalData, ActivityLog, CoachNote, OneOnOneSession, StaffMember, GoalCompletionLog, Workout, WorkoutCategoryDefinition, StaffAvailability, UserStrengthStat, ParticipantConditioningStat, ParticipantPhysiqueStat, ParticipantClubMembership, WorkoutLog, GeneralActivityLog, Lead, Location, LiftType } from '../../types';
 import * as dateUtils from '../../utils/dateUtils';
 import { BookOneOnOneModal } from '../../features/booking/components/BookOneOnOneModal';
 import { GoalForm, GoalFormRef } from '../participant/GoalForm';
@@ -17,6 +16,7 @@ import { PhysiqueManagerModal } from '../participant/PhysiqueManagerModal';
 import { Select, Input } from '../Input';
 import { callGeminiApiFn } from '../../firebaseClient';
 import { renderMarkdown } from '../../utils/textUtils';
+import { useCoachOperations } from '../../features/coach/hooks/useCoachOperations';
 
 interface MemberNotesModalProps {
   isOpen: boolean;
@@ -27,7 +27,6 @@ interface MemberNotesModalProps {
   setParticipantGoals: (goals: ParticipantGoalData[] | ((prev: ParticipantGoalData[]) => ParticipantGoalData[])) => void;
   allActivityLogs: ActivityLog[];
   setGoalCompletionLogs: (logs: GoalCompletionLog[] | ((prev: GoalCompletionLog[]) => GoalCompletionLog[])) => void;
-  // simplified props as many actions come from hooks or context now
   onAddNote: (noteText: string) => void;
   onUpdateNote: (noteId: string, newText: string) => void;
   onDeleteNote: (noteId: string) => void;
@@ -44,8 +43,6 @@ interface MemberNotesModalProps {
   staffAvailability: StaffAvailability[];
   isOnline: boolean;
 }
-
-// ... (Type MemberNotesTab and AddLeadFromRecommendationModal remain same)
 
 type MemberNotesTab = 'notes' | 'goals' | 'sessions' | 'program';
 
@@ -84,7 +81,7 @@ const AddLeadFromRecommendationModal: React.FC<AddLeadFromRecommendationModalPro
             id: crypto.randomUUID(),
             firstName: firstName.trim(),
             lastName: lastName.trim(),
-            email: '', // Email is not mandatory for this flow
+            email: '', 
             phone: phone.trim() || undefined,
             locationId: referringParticipant.locationId || locations[0]?.id,
             source: 'Rekommendation',
@@ -122,7 +119,6 @@ const AddLeadFromRecommendationModal: React.FC<AddLeadFromRecommendationModalPro
                             <span className="text-base font-medium text-gray-800">
                                 Jag bekräftar att {referringParticipant.name} har fått ett godkännande från sin vän att vi får kontakta dem.
                             </span>
-                            <p className="text-sm text-gray-600 mt-1">Lämna rutan tom om du behöver invänta samtycke. Du kan uppdatera detta senare från "Klientresan".</p>
                         </div>
                     </label>
                 </div>
@@ -160,7 +156,6 @@ export const MemberNotesModal: React.FC<MemberNotesModalProps> = ({
   staffAvailability,
   isOnline,
 }) => {
-    // ... (State and hooks remain same)
     const { 
         userStrengthStats, setUserStrengthStatsData, 
         userConditioningStatsHistory, setUserConditioningStatsHistoryData,
@@ -169,7 +164,11 @@ export const MemberNotesModal: React.FC<MemberNotesModalProps> = ({
         updateParticipantProfile,
         locations,
         setLeadsData,
+        staffMembers: allStaff,
     } = useAppContext();
+
+  const coachOps = useCoachOperations();
+  const loggedInCoach = allStaff.find(s => s.id === loggedInCoachId);
 
   const [activeTab, setActiveTab] = useState<MemberNotesTab>('notes');
   const [newNote, setNewNote] = useState('');
@@ -238,7 +237,6 @@ export const MemberNotesModal: React.FC<MemberNotesModalProps> = ({
     [workouts, participant.id]
 );
 
-// ... (Handlers for program modals remain same)
 const handleOpenNewProgramModal = () => {
     setProgramToEdit(null);
     setIsProgramModalOpen(true);
@@ -269,7 +267,6 @@ const handleConfirmDeleteProgram = () => {
   };
 
   const handleInsertTemplate = () => {
-      // ... (Implementation same as before)
       const today = new Date().toISOString().split('T')[0];
       const template = `Avstämning [Datum: ${today}]
 
@@ -312,10 +309,8 @@ Ny kund? (GDPR!)
     setIsLoadingAiSummary(true);
     setAiSummary(null);
     
-    // 1. Total stats (Lifetime)
     const totalAllTimeCount = myActivityLogs.length;
 
-    // 2. Determine period (Since last checkin or 30 days ago)
     const lastCheckinNote = notes
         .filter(n => n.noteType === 'check-in')
         .sort((a,b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime())[0];
@@ -337,7 +332,6 @@ Ny kund? (GDPR!)
         
         const totalCountPeriod = logsSinceLastCheckin.length;
         
-        // Calculate period duration in days
         const now = new Date();
         const timeDiff = Math.abs(now.getTime() - sinceDate.getTime());
         const periodDays = Math.ceil(timeDiff / (1000 * 3600 * 24)) || 1;
@@ -395,14 +389,11 @@ STATISTIK:
     }
   };
 
-  // ... (Remaining handlers and JSX remain largely unchanged)
-
   const handleSaveGoal = async (
     goalData: { fitnessGoals: string; workoutsPerWeekTarget: number; preferences?: string; targetDate?: string; coachPrescription?: string; },
     markLatestGoalAsCompleted: boolean,
     noGoalAdviseOptOut: boolean,
   ) => {
-      // ... (Existing implementation)
     const myOldGoals = allParticipantGoals.filter(g => g.participantId !== participant.id);
     let myNewGoals = allParticipantGoals.filter(g => g.participantId === participant.id);
     
@@ -432,7 +423,6 @@ STATISTIK:
   };
   
   const handleSaveOrUpdateSession = (session: OneOnOneSession) => {
-    // ... (Existing implementation)
     setOneOnOneSessions(prev => {
         const index = prev.findIndex(s => s.id === session.id);
         if (index > -1) {
@@ -453,7 +443,6 @@ STATISTIK:
   };
 
   const handleAssignExistingTemplate = () => {
-      // ... (Existing implementation)
     if (!templateToAssign) return;
     const workoutTemplate = workouts.find(w => w.id === templateToAssign);
     if (!workoutTemplate) return;
@@ -465,7 +454,7 @@ STATISTIK:
         assignedToParticipantId: participant.id,
     };
     addWorkout(assignedWorkout);
-    setTemplateToAssign(''); // Reset dropdown
+    setTemplateToAssign(''); 
     setAssignSuccessMessage(`'${workoutTemplate.title}' har tilldelats.`);
     setTimeout(() => setAssignSuccessMessage(''), 3000);
   };
@@ -489,7 +478,6 @@ STATISTIK:
     <>
       <Modal isOpen={isOpen} onClose={onClose} title={`Klientkort: ${participant.name}`} size="6xl">
         <div className="flex flex-col md:flex-row gap-6 text-gray-800">
-            {/* ... (Left Panel and Right Panel structure remains same) */}
             <div className="md:w-2/5 flex-shrink-0 space-y-4">
               <ParticipantDashboardView 
                   participant={participant}
@@ -499,7 +487,6 @@ STATISTIK:
               />
           </div>
 
-          {/* RIGHT PANEL: COACH NOTES & TOOLS */}
           <div className="md:w-3/5 flex-1 space-y-4">
              <div className="border-b border-gray-200">
                 <nav className="-mb-px flex space-x-4 overflow-x-auto" aria-label="Tabs">
@@ -521,7 +508,6 @@ STATISTIK:
                         </div>
                       
                       <div className="space-y-2">
-                        {/* ... (Notes inputs and list remain same) */}
                         <div className="flex items-end justify-between">
                             <label className="text-lg font-semibold text-gray-800">{editingNote ? 'Redigera anteckning' : 'Ny anteckning'}</label>
                         </div>
@@ -597,7 +583,6 @@ STATISTIK:
             </div>
 
             <div role="tabpanel" hidden={activeTab !== 'goals'}>
-                {/* ... (Goal form integration remains same) */}
                  {activeTab === 'goals' && (
                     <div className="max-h-[60vh] overflow-y-auto pr-2">
                       <GoalForm
@@ -605,7 +590,6 @@ STATISTIK:
                           currentGoalForForm={latestGoal}
                           allParticipantGoals={myGoals}
                           onSave={handleSaveGoal}
-                          onTriggerAiGoalPrognosis={async () => { /* Handled by GoalForm internally for coach view, wait no, GoalForm logic needs backend update too if it called there. */ }}
                           showCoachFields={true}
                           isOnline={isOnline}
                       />
@@ -617,7 +601,6 @@ STATISTIK:
             </div>
 
              <div role="tabpanel" hidden={activeTab !== 'sessions'}>
-                 {/* ... (Session management remains same) */}
                  {activeTab === 'sessions' && (() => {
                     const now = new Date();
                     const participantSessions = oneOnOneSessions.filter(s => s.participantId === participant.id);
@@ -676,7 +659,6 @@ STATISTIK:
                 })()}
             </div>
              <div role="tabpanel" hidden={activeTab !== 'program'}>
-                 {/* ... (Program management remains same) */}
                  {activeTab === 'program' && (
                     <div className="space-y-6">
                         <div className="p-4 border rounded-lg bg-gray-50 space-y-3">
@@ -726,7 +708,7 @@ STATISTIK:
                         
                         <div className="p-4 border rounded-lg bg-gray-50 space-y-3">
                             <h4 className="text-lg font-semibold text-gray-800">Skapa nytt program</h4>
-                            <p className="text-sm text-gray-600">Skapa ett helt nytt, anpassat program från grunden och tilldela det direkt till ${participant.name}.</p>
+                            <p className="text-sm text-gray-600">Skapa ett helt nytt, anpassat program från grunden och tilldela det direkt till {participant.name}.</p>
                             <Button onClick={handleOpenNewProgramModal}>
                                 Skapa & Tilldela Nytt Program
                             </Button>
@@ -785,7 +767,6 @@ STATISTIK:
           isOnline={isOnline}
       />
       
-      {/* ... (Other modals) */}
        <ConfirmationModal
           isOpen={!!programToDelete}
           onClose={() => setProgramToDelete(null)}
@@ -796,7 +777,6 @@ STATISTIK:
           confirmButtonVariant="danger"
       />
 
-      {/* Modals for dashboard view */}
       <StrengthComparisonModal
         isOpen={isStrengthModalOpen}
         onClose={() => setIsStrengthModalOpen(false)}
@@ -806,6 +786,7 @@ STATISTIK:
         clubMemberships={myClubMemberships}
         onSaveStrengthStats={(stats) => setUserStrengthStatsData(prev => [...prev.filter(s => s.participantId !== participant.id), stats])}
         onOpenPhysiqueModal={() => { setIsStrengthModalOpen(false); setTimeout(() => setIsPhysiqueModalOpen(true), 150); }}
+        onVerify={(statId, lift, status) => coachOps.handleVerifyStat(statId, lift, status, loggedInCoach?.name || 'Coach')}
       />
       <ConditioningStatsModal
         isOpen={isConditioningModalOpen}

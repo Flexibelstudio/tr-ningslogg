@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Modal } from '../../../components/Modal';
 import { Button } from '../../../components/Button';
@@ -15,6 +14,7 @@ interface EnrichedClassInstance {
     coachName: string;
     maxParticipants: number;
     allBookingsForInstance: ParticipantBooking[];
+    specialLabel?: string;
 }
 
 interface ClassManagementModalProps {
@@ -27,16 +27,20 @@ interface ClassManagementModalProps {
   onUnCheckIn: (bookingId: string) => void;
   onBookClass: (participantId: string, scheduleId: string, classDate: string) => void;
   onCancelBooking: (bookingId: string) => void;
+  // FIX: Added missing onPromoteFromWaitlist prop to the interface to resolve the error in CoachArea.tsx
   onPromoteFromWaitlist: (bookingId: string) => void;
   onCancelClassInstance: (scheduleId: string, classDate: string, status: 'CANCELLED' | 'DELETED') => void;
+  onEditSchedule?: () => void;
 }
 
 export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({ 
-    isOpen, onClose, classInstance, participants, groupClassScheduleExceptions, onCheckIn, onUnCheckIn, onBookClass, onCancelBooking, onPromoteFromWaitlist, onCancelClassInstance 
+    // FIX: Added onPromoteFromWaitlist to the destructured props
+    isOpen, onClose, classInstance, participants, groupClassScheduleExceptions, onCheckIn, onUnCheckIn, onBookClass, onCancelBooking, onPromoteFromWaitlist, onCancelClassInstance, onEditSchedule
 }) => {
     const [participantToAdd, setParticipantToAdd] = useState('');
     const [bookingToCancel, setBookingToCancel] = useState<ParticipantBooking | null>(null);
     const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+    const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
     const { booked, waitlisted, availableSpots, checkedInCount } = useMemo(() => {
         const b = classInstance.allBookingsForInstance.filter(b => b.status === 'BOOKED' || b.status === 'CHECKED-IN');
@@ -51,10 +55,17 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
     }, [groupClassScheduleExceptions, classInstance]);
 
     const isPast = useMemo(() => classInstance.startDateTime < new Date(), [classInstance.startDateTime]);
+    const canDelete = booked.length === 0;
 
     const handleConfirmCancellation = () => {
         onCancelClassInstance(classInstance.scheduleId, classInstance.date, 'CANCELLED');
         setIsCancelConfirmOpen(false);
+        onClose();
+    };
+
+    const handleConfirmDeletion = () => {
+        onCancelClassInstance(classInstance.scheduleId, classInstance.date, 'DELETED');
+        setIsDeleteConfirmOpen(false);
         onClose();
     };
 
@@ -72,7 +83,8 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
         setParticipantToAdd('');
     };
     
-    const modalTitle = `Hantera: ${classInstance.className}`;
+    const displayClassName = classInstance.className + (classInstance.specialLabel ? ` - ${classInstance.specialLabel}` : '');
+    const modalTitle = `Hantera: ${displayClassName}`;
     const formattedStartTime = classInstance.startDateTime.toLocaleString('sv-SE', {
         weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
     });
@@ -128,6 +140,7 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                                         <div key={booking.id} className="flex items-center justify-between p-2 bg-yellow-50 rounded-md border">
                                             <span className="font-medium text-gray-800">{index + 1}. {participant?.name || 'Okänd Medlem'}</span>
                                             <div className="flex items-center gap-2">
+                                                {/* FIX: onPromoteFromWaitlist is now correctly available in props */}
                                                 <Button size="sm" variant="primary" onClick={() => onPromoteFromWaitlist(booking.id)} disabled={availableSpots <= 0}>Flytta till bokad</Button>
                                                 <Button size="sm" variant="danger" onClick={() => setBookingToCancel(booking)}>Ta bort</Button>
                                             </div>
@@ -154,19 +167,44 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                     </div>
 
                     <div className="pt-4 border-t border-red-200">
-                        <h3 className="text-lg font-semibold text-red-700 mb-2">Inställning av pass</h3>
-                        <p className="text-sm text-gray-600 mb-3">
-                            Att ställa in ett pass kommer att meddela alla bokade deltagare och de på kölistan. Eventuella klippkortsklipp kommer att återbetalas. Detta kan inte ångras.
+                        <h3 className="text-lg font-semibold text-red-700 mb-2">Administrera pass</h3>
+                        <div className="flex flex-col gap-2">
+                            {onEditSchedule && (
+                                <Button 
+                                    variant="outline"
+                                    onClick={onEditSchedule}
+                                    className="w-full text-center justify-center !text-blue-600 !border-blue-200 hover:!bg-blue-50"
+                                >
+                                    Redigera Schema
+                                </Button>
+                            )}
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                                <Button 
+                                    variant={isCancelled ? 'secondary' : 'danger'} 
+                                    onClick={() => setIsCancelConfirmOpen(true)}
+                                    disabled={isPast || isCancelled}
+                                    className="flex-1"
+                                    title={isPast ? "Kan inte ställa in ett pass som redan har varit" : (isCancelled ? "Detta pass är redan inställt" : "Ställer in passet och meddelar alla deltagare")}
+                                >
+                                    {isCancelled ? 'Passet är Inställt' : 'Ställ in'}
+                                </Button>
+                                
+                                {!isCancelled && (
+                                    <Button
+                                        variant="outline"
+                                        className="flex-1 !text-red-600 !border-red-200 hover:!bg-red-50"
+                                        onClick={() => setIsDeleteConfirmOpen(true)}
+                                        disabled={!canDelete || isPast}
+                                        title={!canDelete ? "Kan inte tas bort då det finns bokningar. Ställ in passet istället." : "Tar bort passet helt från kalendern."}
+                                    >
+                                        Ta bort pass
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                            "Ställ in" meddelar deltagare och visar passet som struket. "Ta bort" tar bort det helt från schemat, men går bara om inga är bokade.
                         </p>
-                        <Button 
-                            variant={isCancelled ? 'secondary' : 'danger'} 
-                            onClick={() => setIsCancelConfirmOpen(true)}
-                            disabled={isPast || isCancelled}
-                            fullWidth
-                            title={isPast ? "Kan inte ställa in ett pass som redan har varit" : (isCancelled ? "Detta pass är redan inställt" : "Ställ in detta pass")}
-                        >
-                            {isCancelled ? 'Passet är Inställt' : 'Ställ in detta pass'}
-                        </Button>
                     </div>
                 </div>
             </Modal>
@@ -176,8 +214,18 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                 onClose={() => setIsCancelConfirmOpen(false)}
                 onConfirm={handleConfirmCancellation}
                 title="Ställ in pass?"
-                message={`Är du säker på att du vill ställa in ${classInstance.className}? Alla ${booked.length} bokade medlemmar och ${waitlisted.length} på kölistan kommer att meddelas. Eventuella klipp återbetalas. Detta kan inte ångras.`}
+                message={`Är du säker på att du vill ställa in ${displayClassName}? Alla ${booked.length} bokade medlemmar och ${waitlisted.length} på kölistan kommer att meddelas. Eventuella klipp återbetalas. Detta kan inte ångras.`}
                 confirmButtonText="Ja, ställ in passet"
+                confirmButtonVariant="danger"
+            />
+
+             <ConfirmationModal
+                isOpen={isDeleteConfirmOpen}
+                onClose={() => setIsDeleteConfirmOpen(false)}
+                onConfirm={handleConfirmDeletion}
+                title="Ta bort pass?"
+                message={`Är du säker på att du vill ta bort ${displayClassName} helt från kalendern? Detta kan inte ångras.`}
+                confirmButtonText="Ja, ta bort"
                 confirmButtonVariant="danger"
             />
 

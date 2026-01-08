@@ -1,10 +1,8 @@
-
-
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
 import { StrengthComparisonTool, StrengthComparisonToolRef } from './StrengthComparisonTool';
-import { ParticipantProfile, UserStrengthStat, ParticipantGoalData, ParticipantClubMembership } from '../../types';
+import { ParticipantProfile, UserStrengthStat, ParticipantGoalData, ParticipantClubMembership, LiftType } from '../../types';
 
 interface StrengthComparisonModalProps {
   isOpen: boolean;
@@ -15,6 +13,7 @@ interface StrengthComparisonModalProps {
   clubMemberships: ParticipantClubMembership[];
   onSaveStrengthStats: (stats: UserStrengthStat) => void;
   onOpenPhysiqueModal: () => void;
+  onVerify?: (statId: string, lift: LiftType, status: 'verified' | 'rejected') => void; // Prop for coach actions
 }
 
 export const StrengthComparisonModal: React.FC<StrengthComparisonModalProps> = ({
@@ -26,6 +25,7 @@ export const StrengthComparisonModal: React.FC<StrengthComparisonModalProps> = (
   clubMemberships,
   onSaveStrengthStats,
   onOpenPhysiqueModal,
+  onVerify,
 }) => {
   const formRef = useRef<StrengthComparisonToolRef>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -76,6 +76,7 @@ export const StrengthComparisonModal: React.FC<StrengthComparisonModalProps> = (
             onSaveStrengthStats={onSaveStrengthStats}
             isEmbedded={true}
             onOpenPhysiqueModal={onOpenPhysiqueModal}
+            onVerify={onVerify}
           />
         </div>
         <div className="flex justify-end space-x-3 pt-4 border-t mt-auto">

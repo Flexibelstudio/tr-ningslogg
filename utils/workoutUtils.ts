@@ -7,7 +7,8 @@ export const calculateEstimated1RM = (weightStr?: number | string, repsStr?: num
         return null;
     }
     
-    if (reps > 12) {
+    // Begränsat till max 5 reps för att PB ska vara baserat på tung styrka
+    if (reps > 5) {
         return null;
     }
 

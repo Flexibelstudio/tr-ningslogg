@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useMemo } from 'react';
 import { ParticipantProfile, WorkoutLog, OneOnOneSession } from '../../types';
 import { Button } from '../Button';
@@ -41,7 +40,7 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
     return participants.filter(p => {
         if (!p.isActive || !p.bindingEndDate) return false;
         
-        // Exclude those with a set termination date (endDate) unless it's very far in future (which shouldn't happen if properly terminated)
+        // Exclude those with a set termination date (endDate) unless it's very far in future
         if (p.endDate && new Date(p.endDate) < thresholdDate) return false; 
 
         const bindingEnd = new Date(p.bindingEndDate);
@@ -74,7 +73,7 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
     const candidates = memberStats.filter(m => m.logCount >= 4 && m.reactionCount <= 2);
 
     if (candidates.length === 0) {
-      setErrorHeroes("Hittade inga medlemmar som matchade kriterierna (minst 4 pass och max 2 reaktioner senaste 3 veckorna).");
+      setErrorHeroes("Inga kandidater hittades (minst 4 pass och max 2 reaktioner senaste 3 veckorna).");
       setIsLoadingHeroes(false);
       return;
     }
@@ -94,7 +93,7 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
         setSilentHeroes(parsedHeroes);
     } catch (err) {
       console.error("Error finding silent heroes:", err);
-      setErrorHeroes("Kunde inte analysera data med AI. Försök igen.");
+      setErrorHeroes("Kunde inte analysera data med AI.");
     } finally {
       setIsLoadingHeroes(false);
     }
@@ -145,7 +144,7 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
     );
     
     if (candidates.length === 0) {
-        setErrorChurn("Ingen relevant medlemsdata hittades att analysera.");
+        setErrorChurn("Ingen relevant data att analysera.");
         setIsLoadingChurn(false);
         return;
     }
@@ -165,7 +164,7 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
         setChurnRisks(parsedRisks);
     } catch (err) {
         console.error("Error finding churn risks:", err);
-        setErrorChurn("Kunde inte analysera data med AI. Försök igen.");
+        setErrorChurn("Kunde inte analysera data med AI.");
     } finally {
         setIsLoadingChurn(false);
     }
@@ -192,68 +191,80 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
     const results = activeAnalysis === 'heroes' ? silentHeroes : churnRisks;
     const title = activeAnalysis === 'heroes' ? 'Tysta Hjältar' : 'Risk för Churn';
     const icon = activeAnalysis === 'heroes' ? '🦸' : '⚠️';
+    const color = activeAnalysis === 'heroes' ? 'bg-green-50' : 'bg-orange-50';
 
     return (
-        <div className="mt-4 animate-fade-in-down">
-            <h4 className="text-lg font-bold text-gray-800 mb-2">{icon} {title}</h4>
-            {isLoading && <p className="text-gray-600">Analyserar data...</p>}
-            {error && <p className="text-sm text-red-600 bg-red-100 p-2 rounded">{error}</p>}
+        <div className={`mt-4 p-4 rounded-xl border ${color} border-opacity-50 animate-fade-in-down`}>
+            <h4 className="text-base font-bold text-gray-800 mb-3 flex items-center gap-2">
+                <span>{icon}</span> {title}
+            </h4>
+            {isLoading && (
+                 <div className="flex items-center gap-2 text-sm text-gray-500 italic">
+                    <div className="animate-spin h-4 w-4 border-2 border-flexibel border-t-transparent rounded-full"></div>
+                    Analyserar medlemmar...
+                </div>
+            )}
+            {error && <p className="text-xs text-red-600 bg-red-50 p-2 rounded">{error}</p>}
             {results.length > 0 && (
                 <ul className="space-y-2">
                     {results.map(item => (
-                        <li key={item.participantId} className="p-3 bg-white rounded-md shadow-sm border">
-                            <p className="font-bold text-gray-900">{item.name}</p>
-                            <p className="text-sm text-gray-700 italic">💡 {item.reason}</p>
+                        <li key={item.participantId} className="p-2.5 bg-white rounded-lg shadow-sm border border-gray-100">
+                            <p className="font-bold text-sm text-gray-900">{item.name}</p>
+                            <p className="text-xs text-gray-600 italic mt-0.5">{item.reason}</p>
                         </li>
                     ))}
                 </ul>
+            )}
+            {!isLoading && !error && results.length === 0 && (
+                <p className="text-sm text-gray-500 italic">Hittade inga medlemmar i denna kategori just nu.</p>
             )}
         </div>
     );
   };
 
   return (
-    <div className="grid grid-cols-1 gap-6 h-full">
-        {/* CONTRACT EXPIRATION SECTION (Always visible if data exists) */}
+    <div className="grid grid-cols-1 gap-6">
+        {/* CONTRACT EXPIRATION SECTION */}
         {expiringContracts.length > 0 && (
-            <div className="p-4 sm:p-6 bg-orange-50 rounded-lg shadow-xl border border-orange-200">
-                <summary className="text-xl font-bold tracking-tight text-orange-900 flex items-center gap-2 mb-4">
-                    <span>⏳ Utgående avtal ({expiringContracts.length})</span>
-                </summary>
-                <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <span className="w-2 h-6 bg-orange-500 rounded-full"></span>
+                    Utgående avtal ({expiringContracts.length})
+                </h3>
+                <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
                     {expiringContracts.map(p => {
                         const daysLeft = Math.ceil((new Date(p.bindingEndDate!).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
                         const isCustomDateOpen = customDateIds.has(p.id);
 
                         return (
-                            <div key={p.id} className="p-4 bg-white rounded-lg border shadow-sm">
+                            <div key={p.id} className="p-3 bg-gray-50 rounded-xl border border-gray-100">
                                 <div className="flex justify-between items-start mb-2">
                                     <div>
-                                        <p className="font-bold text-gray-900">{p.name}</p>
-                                        <p className="text-sm text-gray-600">Går ut: {new Date(p.bindingEndDate!).toLocaleDateString('sv-SE')}</p>
+                                        <p className="font-bold text-gray-900 text-sm">{p.name}</p>
+                                        <p className="text-xs text-gray-500">Slutdatum: {new Date(p.bindingEndDate!).toLocaleDateString('sv-SE')}</p>
                                     </div>
-                                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${daysLeft < 14 ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                                        {daysLeft} dagar kvar
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${daysLeft < 14 ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                        {daysLeft} dgr kvar
                                     </span>
                                 </div>
-                                <div className="flex flex-wrap gap-2 mt-2">
+                                <div className="flex flex-wrap gap-1.5 mt-2">
                                     {!isCustomDateOpen ? (
                                         <>
-                                            <Button size="sm" variant="primary" onClick={() => handleContractAction('renew', p.id)}>
-                                                ✅ Bind om (12 mån)
+                                            <Button size="sm" variant="primary" className="!text-[10px] !py-1" onClick={() => handleContractAction('renew', p.id)}>
+                                                Bind om
                                             </Button>
-                                            <Button size="sm" variant="outline" onClick={() => toggleCustomDate(p.id)}>
-                                                📅 Välj datum
+                                            <Button size="sm" variant="outline" className="!text-[10px] !py-1" onClick={() => toggleCustomDate(p.id)}>
+                                                Välj datum
                                             </Button>
-                                            <Button size="sm" variant="secondary" onClick={() => handleContractAction('rolling', p.id)}>
-                                                🔄 Låt löpa
+                                            <Button size="sm" variant="ghost" className="!text-[10px] !py-1 !text-orange-600" onClick={() => handleContractAction('rolling', p.id)}>
+                                                Låt löpa
                                             </Button>
-                                            <Button size="sm" variant="danger" onClick={() => handleContractAction('terminate', p.id)}>
-                                                ❌ Säg upp
+                                            <Button size="sm" variant="ghost" className="!text-[10px] !py-1 !text-red-600" onClick={() => handleContractAction('terminate', p.id)}>
+                                                Säg upp
                                             </Button>
                                         </>
                                     ) : (
-                                        <div className="flex items-center gap-2 w-full animate-fade-in-down">
+                                        <div className="flex items-center gap-1.5 w-full animate-fade-in-down">
                                             <Input 
                                                 type="date" 
                                                 value={customDates[p.id] || ''} 
@@ -261,11 +272,11 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
                                                 inputSize="sm"
                                                 containerClassName="flex-grow"
                                             />
-                                            <Button size="sm" variant="primary" onClick={() => { handleContractAction('custom', p.id, customDates[p.id]); toggleCustomDate(p.id); }} disabled={!customDates[p.id]}>
+                                            <Button size="sm" variant="primary" className="!py-1" onClick={() => { handleContractAction('custom', p.id, customDates[p.id]); toggleCustomDate(p.id); }} disabled={!customDates[p.id]}>
                                                 Spara
                                             </Button>
-                                            <Button size="sm" variant="ghost" onClick={() => toggleCustomDate(p.id)}>
-                                                Avbryt
+                                            <Button size="sm" variant="ghost" className="!py-1" onClick={() => toggleCustomDate(p.id)}>
+                                                X
                                             </Button>
                                         </div>
                                     )}
@@ -277,33 +288,37 @@ export const EngagementOpportunities: React.FC<EngagementOpportunitiesProps> = (
             </div>
         )}
 
-        <details className="p-4 sm:p-6 bg-gray-50 rounded-lg shadow-xl border" open>
-        <summary className="text-xl font-bold tracking-tight text-gray-800 cursor-pointer select-none">
-            AI Engagemangsmöjligheter
-        </summary>
-        <div className="mt-4 pt-4 border-t">
-            <p className="text-base text-gray-600 mb-4">
-            Använd AI för att proaktivt identifiera medlemmar som behöver extra uppmärksamhet.
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <span className="w-2 h-6 bg-flexibel rounded-full"></span>
+                AI Engagemangsmöjligheter
+            </h3>
+            
+            <p className="text-xs text-gray-500 mb-5 leading-relaxed">
+                Använd AI för att analysera träningsmönster och proaktivt nå ut till medlemmar.
             </p>
-            <div className="flex flex-wrap gap-4">
-            <Button 
-                onClick={findSilentHeroes} 
-                disabled={isLoadingHeroes || !isOnline} 
-                variant="outline"
-            >
-                {isLoadingHeroes ? 'Söker...' : (isOnline ? 'Hitta Tysta Hjältar' : 'AI Offline')}
-            </Button>
-            <Button 
-                onClick={findChurnRisks} 
-                disabled={isLoadingChurn || !isOnline} 
-                variant="secondary"
-            >
-                {isLoadingChurn ? 'Analyserar...' : (isOnline ? 'Identifiera Risk för Churn' : 'AI Offline')}
-            </Button>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Button 
+                    onClick={findSilentHeroes} 
+                    disabled={isLoadingHeroes || !isOnline} 
+                    variant="outline"
+                    className="w-full !text-xs !py-2.5"
+                >
+                    <span className="mr-1.5">🦸</span> {isLoadingHeroes ? 'Söker...' : 'Hitta Tysta Hjältar'}
+                </Button>
+                <Button 
+                    onClick={findChurnRisks} 
+                    disabled={isLoadingChurn || !isOnline} 
+                    variant="secondary"
+                    className="w-full !text-xs !py-2.5"
+                >
+                    <span className="mr-1.5">⚠️</span> {isLoadingChurn ? 'Analyserar...' : 'Identifiera Churn-risk'}
+                </Button>
             </div>
+
             {renderAIResults()}
         </div>
-        </details>
     </div>
   );
 };

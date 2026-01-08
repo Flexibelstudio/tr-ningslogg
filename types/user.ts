@@ -1,5 +1,3 @@
-
-
 export enum UserRole {
   COACH = 'coach',
   PARTICIPANT = 'participant',
@@ -81,13 +79,13 @@ export interface StaffMember {
 }
 
 export type LeadStatus = 'new' | 'contacted' | 'intro_booked' | 'converted' | 'junk';
-export type ContactAttemptMethod = 'phone' | 'email' | 'sms';
+export type ContactAttemptMethod = 'phone' | 'email' | 'sms' | 'studio' | 'self' | 'other';
 export type ContactAttemptOutcome = 'booked_intro' | 'not_interested' | 'no_answer' | 'left_voicemail' | 'follow_up';
 
 export interface ContactAttempt {
   id: string;
   timestamp: string; // ISO-datum
-  method: ContactAttemptMethod;
+  method: ContactAttemptMethod | string; // Allow custom strings for 'other'
   outcome: ContactAttemptOutcome;
   notes?: string; // Fritext för coachen
   coachId: string;

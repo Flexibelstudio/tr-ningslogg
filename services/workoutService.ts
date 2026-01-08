@@ -1,8 +1,62 @@
-
 // services/workoutService.ts
 import { WorkoutLog, Workout, UserStrengthStat, PostWorkoutSummaryData, NewPB, NewBaseline, Exercise, LiftType } from '../types';
 import { WEIGHT_COMPARISONS } from '../constants';
 import { calculateEstimated1RM } from '../utils/workoutUtils';
+
+/**
+ * Calculates the "Effective" strength stats.
+ */
+export const calculateEffectiveStrengthStats = (history: UserStrengthStat[]): UserStrengthStat | null => {
+    if (!history || history.length === 0) return null;
+
+    const sortedHistory = [...history].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime());
+    const effectiveStats: UserStrengthStat = { ...sortedHistory[0] };
+
+    const lifts: Array<{ valKey: keyof UserStrengthStat, statusKey: keyof UserStrengthStat }> = [
+        { valKey: 'squat1RMaxKg', statusKey: 'squatVerificationStatus' },
+        { valKey: 'benchPress1RMaxKg', statusKey: 'benchPressVerificationStatus' },
+        { valKey: 'deadlift1RMaxKg', statusKey: 'deadliftVerificationStatus' },
+        { valKey: 'overheadPress1RMaxKg', statusKey: 'overheadPressVerificationStatus' },
+    ];
+
+    for (const lift of lifts) {
+        const validEntry = sortedHistory.find(stat => {
+            const val = stat[lift.valKey];
+            const status = stat[lift.statusKey] as string | undefined;
+            if (val === undefined || val === null) return false;
+            // Valid if: Legacy (no status), Verified OR Unverified (used for score but not marked with checkmark)
+            if (!status || status === 'verified' || status === 'unverified') return true;
+            return false;
+        });
+
+        if (validEntry) {
+            (effectiveStats as any)[lift.valKey] = validEntry[lift.valKey];
+            (effectiveStats as any)[lift.statusKey] = validEntry[lift.statusKey];
+            
+            if (lift.valKey === 'squat1RMaxKg') {
+                effectiveStats.squatVerifiedBy = validEntry.squatVerifiedBy;
+                effectiveStats.squatVerifiedDate = validEntry.squatVerifiedDate;
+            }
+            if (lift.valKey === 'benchPress1RMaxKg') {
+                effectiveStats.benchPressVerifiedBy = validEntry.benchPressVerifiedBy;
+                effectiveStats.benchPressVerifiedDate = validEntry.benchPressVerifiedDate;
+            }
+            if (lift.valKey === 'deadlift1RMaxKg') {
+                effectiveStats.deadliftVerifiedBy = validEntry.deadliftVerifiedBy;
+                effectiveStats.deadliftVerifiedDate = validEntry.deadliftVerifiedDate;
+            }
+            if (lift.valKey === 'overheadPress1RMaxKg') {
+                effectiveStats.overheadPressVerifiedBy = validEntry.overheadPressVerifiedBy;
+                effectiveStats.overheadPressVerifiedDate = validEntry.overheadPressVerifiedDate;
+            }
+        } else {
+            (effectiveStats as any)[lift.valKey] = undefined;
+            (effectiveStats as any)[lift.statusKey] = undefined;
+        }
+    }
+
+    return effectiveStats;
+};
 
 export const calculatePostWorkoutSummary = (
     log: WorkoutLog,
@@ -52,7 +106,6 @@ export const calculatePostWorkoutSummary = (
       let bestE1RMForExercise = 0;
       
       const isBodyweightExercise = exerciseDetail.isBodyweight;
-      // Determine if this exercise should be treated as "weight-only" for the summary
       const isWeightOnlyExercise = entry.loggedSets.some(set => set.isCompleted && (Number(set.weight || 0)) > 0 && (Number(set.reps || 0) === 0));
       let maxWeightForWeightOnly = 0;
 
@@ -76,7 +129,6 @@ export const calculatePostWorkoutSummary = (
             totalDurationSeconds += duration;
             totalCaloriesKcal += calories;
 
-            // PBs for weight/reps
             if (weight > maxWeightForExercise) {
                 maxWeightForExercise = weight;
                 maxRepsAtMaxWeight = reps;
@@ -90,11 +142,9 @@ export const calculatePostWorkoutSummary = (
                 weightAtMaxRepsOverall = weight;
             }
 
-            // PBs for new metrics
             if (distance > maxDistance) maxDistance = distance;
             if (calories > maxCalories) maxCalories = calories;
             
-             // E1RM calculation for main lifts
             if (['Knäböj', 'Bänkpress', 'Marklyft', 'Axelpress'].includes(exerciseDetail.name)) {
                 const e1RM = calculateEstimated1RM(set.weight, set.reps);
                 if (e1RM && e1RM > bestE1RMForExercise) {
@@ -106,20 +156,13 @@ export const calculatePostWorkoutSummary = (
       });
 
       if (isWeightOnlyExercise && maxWeightForWeightOnly > 0) {
-        weightOnlyAchievements.push({
-            exerciseName: exerciseDetail.name,
-            weight: maxWeightForWeightOnly,
-        });
+        weightOnlyAchievements.push({ exerciseName: exerciseDetail.name, weight: maxWeightForWeightOnly });
       }
 
       if (isBodyweightExercise && totalRepsForThisBodyweightExercise > 0) {
-        bodyweightRepsSummary.push({
-            exerciseName: exerciseDetail.name,
-            totalReps: totalRepsForThisBodyweightExercise,
-        });
+        bodyweightRepsSummary.push({ exerciseName: exerciseDetail.name, totalReps: totalRepsForThisBodyweightExercise });
       }
 
-      // Find historic 1RM from Strength page using all-time PBs
       let historic1RMFromStrengthPage = 0;
       if (allTimePBs && exerciseDetail.name) {
           const liftName = exerciseDetail.name as LiftType;
@@ -131,7 +174,6 @@ export const calculatePostWorkoutSummary = (
           }
       }
 
-      // Find historic max from previous workout LOGS
       const previousLogsForThisExercise = myWorkoutLogs
         .filter(prevLog => prevLog.id !== log.id && new Date(prevLog.completedDate) < new Date(log.completedDate))
         .flatMap(prevLog => {
@@ -187,21 +229,13 @@ export const calculatePostWorkoutSummary = (
 
       if (!hasHistory) {
         let baselineValue = '';
-        if (maxWeightForExercise > 0) {
-            baselineValue = `${maxWeightForExercise} kg x ${maxRepsAtMaxWeight} reps`;
-        } else if (maxRepsOverall > 0) {
-            baselineValue = `${maxRepsOverall} reps @ ${weightAtMaxRepsOverall > 0 ? `${weightAtMaxRepsOverall} kg` : 'kroppsvikt'}`;
-        } else if (maxDistance > 0) {
-            baselineValue = `${maxDistance} m`;
-        } else if (maxCalories > 0) {
-            baselineValue = `${maxCalories} kcal`;
-        }
+        if (maxWeightForExercise > 0) baselineValue = `${maxWeightForExercise} kg x ${maxRepsAtMaxWeight} reps`;
+        else if (maxRepsOverall > 0) baselineValue = `${maxRepsOverall} reps @ ${weightAtMaxRepsOverall > 0 ? `${weightAtMaxRepsOverall} kg` : 'kroppsvikt'}`;
+        else if (maxDistance > 0) baselineValue = `${maxDistance} m`;
+        else if (maxCalories > 0) baselineValue = `${maxCalories} kcal`;
 
         if (baselineValue) {
-          newBaselines.push({
-            exerciseName: exerciseDetail.name,
-            value: baselineValue
-          });
+          newBaselines.push({ exerciseName: exerciseDetail.name, value: baselineValue });
         }
       } else {
           const trueHistoricBestE1RM = Math.max(historicE1RMFromLogs, historic1RMFromStrengthPage);
@@ -216,7 +250,7 @@ export const calculatePostWorkoutSummary = (
           }
           
           if (maxRepsOverall > 0 && maxRepsOverall > historicMaxRepsOverall && 
-              !newPBs.some(pb => pb.exerciseName === exerciseDetail.name)) { // Avoid duplicate PBs for the same exercise
+              !newPBs.some(pb => pb.exerciseName === exerciseDetail.name)) {
             newPBs.push({ 
               exerciseName: exerciseDetail.name, 
               achievement: "Nytt PB i reps!", 
@@ -227,102 +261,34 @@ export const calculatePostWorkoutSummary = (
           }
 
           if (maxDistance > 0 && maxDistance > historicMaxDistance) {
-            newPBs.push({ 
-              exerciseName: exerciseDetail.name, 
-              achievement: "Nytt PB i distans!", 
-              value: `${maxDistance} m`,
-              previousBest: historicMaxDistance > 0 ? `(tidigare ${historicMaxDistance} m)` : undefined,
-              baseLiftType: exerciseDetail.baseLiftType
-            });
+            newPBs.push({ exerciseName: exerciseDetail.name, achievement: "Nytt PB i distans!", value: `${maxDistance} m`, previousBest: historicMaxDistance > 0 ? `(tidigare ${historicMaxDistance} m)` : undefined, baseLiftType: exerciseDetail.baseLiftType });
           }
           if (maxCalories > 0 && maxCalories > historicMaxCalories) {
-            newPBs.push({ 
-              exerciseName: exerciseDetail.name, 
-              achievement: "Nytt PB i kalorier!", 
-              value: `${maxCalories} kcal`,
-              previousBest: historicMaxCalories > 0 ? `(tidigare ${historicMaxCalories} kcal)` : undefined,
-              baseLiftType: exerciseDetail.baseLiftType
-            });
+            newPBs.push({ exerciseName: exerciseDetail.name, achievement: "Nytt PB i kalorier!", value: `${maxCalories} kcal`, previousBest: historicMaxCalories > 0 ? `(tidigare ${historicMaxCalories} kcal)` : undefined, baseLiftType: exerciseDetail.baseLiftType });
           }
       }
     });
 
     let animalEquivalent;
-    const maxCount = 150;
-    const minWeightKgForItem = totalWeightLifted > 0 ? totalWeightLifted / maxCount : 0;
-
-    const candidateComparisons = WEIGHT_COMPARISONS.filter(item =>
-        item.weightKg > 0 &&
-        totalWeightLifted >= item.weightKg &&
-        item.weightKg >= minWeightKgForItem
-    );
+    const candidateComparisons = WEIGHT_COMPARISONS.filter(item => item.weightKg > 0 && totalWeightLifted >= item.weightKg && item.weightKg >= (totalWeightLifted / 150));
 
     if (candidateComparisons.length > 0) {
         const randomItem = candidateComparisons[Math.floor(Math.random() * candidateComparisons.length)];
         const count = Math.floor(totalWeightLifted / randomItem.weightKg);
-
         if (count > 0) {
-          animalEquivalent = {
-              name: randomItem.name,
-              count: count,
-              unitName: count === 1 ? randomItem.name : (randomItem.pluralName || randomItem.name),
-              emoji: randomItem.emoji,
-              article: randomItem.article,
-          };
-        }
-    } else if (totalWeightLifted > 0) {
-        const sortedWeightComparisons = [...WEIGHT_COMPARISONS].sort((a, b) => a.weightKg - b.weightKg);
-        for (let i = sortedWeightComparisons.length - 1; i >= 0; i--) {
-            const item = sortedWeightComparisons[i];
-            if (totalWeightLifted >= item.weightKg && item.weightKg > 0) {
-                const count = Math.floor(totalWeightLifted / item.weightKg);
-                 if (count > 0) {
-                    animalEquivalent = {
-                        name: item.name,
-                        count: count,
-                        unitName: count === 1 ? item.name : (item.pluralName || item.name),
-                        emoji: item.emoji,
-                        article: item.article,
-                    };
-                    break;
-                 }
-            }
+          animalEquivalent = { name: randomItem.name, count: count, unitName: count === 1 ? randomItem.name : (randomItem.pluralName || randomItem.name), emoji: randomItem.emoji, article: randomItem.article };
         }
     }
 
-    const previousLogsForThisWorkout = myWorkoutLogs
-        .filter(prevLog =>
-            prevLog.workoutId === log.workoutId &&
-            prevLog.id !== log.id &&
-            new Date(prevLog.completedDate) < new Date(log.completedDate)
-        )
-        .sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime());
-
-    const previousLog = previousLogsForThisWorkout[0];
+    const previousLog = myWorkoutLogs.filter(prevLog => prevLog.workoutId === log.workoutId && prevLog.id !== log.id && new Date(prevLog.completedDate) < new Date(log.completedDate)).sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime())[0];
     let volumeDifferenceVsPrevious: number | undefined = undefined;
     const isFirstTimeLoggingWorkout = !previousLog || !previousLog.postWorkoutSummary;
 
     if (previousLog && previousLog.postWorkoutSummary) {
-        const currentVolume = totalWeightLifted;
-        const previousVolume = previousLog.postWorkoutSummary.totalWeightLifted;
-        if (typeof previousVolume === 'number' && typeof currentVolume === 'number') {
-            volumeDifferenceVsPrevious = currentVolume - previousVolume;
-        }
+        volumeDifferenceVsPrevious = totalWeightLifted - previousLog.postWorkoutSummary.totalWeightLifted;
     }
 
-    return { 
-        totalWeightLifted, 
-        newPBs, 
-        newBaselines, 
-        animalEquivalent, 
-        bodyweightRepsSummary, 
-        totalDistanceMeters, 
-        totalDurationSeconds, 
-        totalCaloriesKcal, 
-        weightOnlyAchievements,
-        volumeDifferenceVsPrevious,
-        isFirstTimeLoggingWorkout
-    };
+    return { totalWeightLifted, newPBs, newBaselines, animalEquivalent, bodyweightRepsSummary, totalDistanceMeters, totalDurationSeconds, totalCaloriesKcal, weightOnlyAchievements, volumeDifferenceVsPrevious, isFirstTimeLoggingWorkout };
 };
 
 export const findAndUpdateStrengthStats = (
@@ -331,7 +297,6 @@ export const findAndUpdateStrengthStats = (
     strengthStatsHistory: UserStrengthStat[]
 ): { needsUpdate: boolean, updatedStats: Partial<UserStrengthStat> } => {
     
-    // 1. Find the LATEST strength stat record for the user to use as the current baseline.
     const latestStat = strengthStatsHistory.length > 0 
         ? [...strengthStatsHistory].sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())[0]
         : null;
@@ -341,24 +306,20 @@ export const findAndUpdateStrengthStats = (
         squatVerificationStatus: latestStat?.squatVerificationStatus,
         squatVerifiedBy: latestStat?.squatVerifiedBy,
         squatVerifiedDate: latestStat?.squatVerifiedDate,
-
         benchPress1RMaxKg: latestStat?.benchPress1RMaxKg || 0,
         benchPressVerificationStatus: latestStat?.benchPressVerificationStatus,
         benchPressVerifiedBy: latestStat?.benchPressVerifiedBy,
         benchPressVerifiedDate: latestStat?.benchPressVerifiedDate,
-
         deadlift1RMaxKg: latestStat?.deadlift1RMaxKg || 0,
         deadliftVerificationStatus: latestStat?.deadliftVerificationStatus,
         deadliftVerifiedBy: latestStat?.deadliftVerifiedBy,
         deadliftVerifiedDate: latestStat?.deadliftVerifiedDate,
-
         overheadPress1RMaxKg: latestStat?.overheadPress1RMaxKg || 0,
         overheadPressVerificationStatus: latestStat?.overheadPressVerificationStatus,
         overheadPressVerifiedBy: latestStat?.overheadPressVerifiedBy,
         overheadPressVerifiedDate: latestStat?.overheadPressVerifiedDate,
     };
     
-    // 2. Calculate potential new PBs from the current workout log.
     const newPBsFromLog: Partial<UserStrengthStat> = {};
     let needsUpdate = false;
 
@@ -392,8 +353,8 @@ export const findAndUpdateStrengthStats = (
             ) => {
                 if (bestE1RMInLog > (currentPBs[key] || 0)) {
                     newPBsFromLog[key] = bestE1RMInLog;
-                    // IMPORTANT: Reset verification status to pending on new PB
-                    newPBsFromLog[verificationKey] = 'pending';
+                    // Standardstatus för nya rekord är nu 'unverified'
+                    newPBsFromLog[verificationKey] = 'unverified';
                     needsUpdate = true;
                 }
             };
@@ -405,8 +366,6 @@ export const findAndUpdateStrengthStats = (
         }
     });
     
-    // 3. Merge the current PBs with any new PBs. 
-    // newPBsFromLog will override currentPBs, including resetting verification status.
     const updatedStats = { ...currentPBs, ...newPBsFromLog };
 
     return { needsUpdate, updatedStats };

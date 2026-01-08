@@ -1,7 +1,8 @@
 
+// components/coach/CoachArea.tsx
 import React, { useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { OneOnOneSession, ParticipantProfile } from '../../types';
+import { OneOnOneSession, ParticipantProfile, GroupClassSchedule } from '../../types';
 import { MemberManagement } from './MemberManagement';
 import { WorkoutManagement } from '../../features/workouts/components/WorkoutManagement';
 import { LeaderboardManagement } from './LeaderboardManagement';
@@ -25,7 +26,6 @@ import { ToggleSwitch } from '../ToggleSwitch';
 import { Select } from '../Input';
 import { useCoachData } from '../../features/coach/hooks/useCoachData';
 import { useCoachOperations } from '../../features/coach/hooks/useCoachOperations';
-import { VerificationRequests } from '../../features/coach'; 
 import * as dateUtils from '../../utils/dateUtils';
 
 const AnalyticsDashboard = lazy(() => import('./AnalyticsDashboard'));
@@ -84,7 +84,7 @@ const ActionItem = ({ title, count, type, onClick }: { title: string, count: num
 
 type CoachTab =
   | 'overview'
-  | 'members' // New separate tab for list
+  | 'members' 
   | 'klientresan'
   | 'programs'
   | 'bookings'
@@ -127,7 +127,7 @@ export const CoachArea: React.FC = () => {
     participantBookings,
     orgDataError,
     getClassInstanceDetails,
-    participantDirectory, 
+    participantDirectory: allParticipants, // Alias to avoid confusion and define correctly
     leads,
     prospectIntroCalls,
   } = useCoachData();
@@ -140,7 +140,7 @@ export const CoachArea: React.FC = () => {
   const onCancelBooking = ops.handleCancelBooking;
   const onPromoteFromWaitlist = ops.handlePromoteFromWaitlist;
   const onCancelClassInstance = ops.handleCancelClassInstance;
-  const { handleAddComment, handleDeleteComment, handleToggleCommentReaction, handleVerifyStat } = ops;
+  const { handleAddComment, handleDeleteComment, handleToggleCommentReaction } = ops;
 
   const { user } = useAuth();
   const { isOnline } = useNetworkStatus();
@@ -209,8 +209,11 @@ export const CoachArea: React.FC = () => {
   const [sessionToEdit, setSessionToEdit] = useState<OneOnOneSession | null>(null);
   const [sessionToDelete, setSessionToDelete] = useState<OneOnOneSession | null>(null);
   const [initialDateForBooking, setInitialDateForBooking] = useState<string | null>(null);
+  const [initialDateForSchedule, setInitialDateForSchedule] = useState<string | null>(null);
   const [managedClassInfo, setManagedClassInfo] = useState<{ scheduleId: string; date: string } | null>(null);
   const [isCreateScheduleModalOpen, setIsCreateScheduleModalOpen] = useState(false);
+  const [scheduleToEdit, setScheduleToEdit] = useState<GroupClassSchedule | null>(null);
+
   const [calendarFilters, setCalendarFilters] = useState({
     showMySessionsOnly: false,
     showGroupClasses: true,
@@ -310,10 +313,21 @@ export const CoachArea: React.FC = () => {
   }, []);
 
   const handleDayClick = useCallback((date: Date) => {
-    setSessionToEdit(null);
-    setInitialDateForBooking(date.toISOString().split('T')[0]);
-    setIsBookingModalOpen(true);
+    setInitialDateForSchedule(date.toISOString().split('T')[0]);
+    setScheduleToEdit(null);
+    setIsCreateScheduleModalOpen(true);
   }, []);
+
+  const handleEditScheduleFromModal = useCallback(() => {
+    if (!managedClassInfo) return;
+    const schedule = groupClassSchedules.find(s => s.id === managedClassInfo.scheduleId);
+    if (schedule) {
+        setManagedClassInfo(null);
+        setScheduleToEdit(schedule);
+        setInitialDateForSchedule(null);
+        setIsCreateScheduleModalOpen(true);
+    }
+  }, [managedClassInfo, groupClassSchedules]);
 
   if (orgDataError) {
     return (
@@ -475,11 +489,9 @@ export const CoachArea: React.FC = () => {
                         )}
 
                         <div className="mt-4 pt-4 border-t border-gray-100">
-                             <VerificationRequests 
-                                userStrengthStats={userStrengthStatsForView}
-                                participants={participantsForView}
-                                onVerify={(statId, lift, status) => handleVerifyStat(statId, lift, status, loggedInStaff?.name || 'Coach')}
-                            />
+                             <p className="text-xs text-gray-500 italic">
+                                Verifiering av PB sker nu direkt i medlemmarnas klientkort under fliken 'Styrka'.
+                             </p>
                         </div>
                     </div>
                 </div>
@@ -555,7 +567,10 @@ export const CoachArea: React.FC = () => {
             <div>
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-2xl font-bold text-gray-800">Kalenderöversikt</h3>
-                <Button onClick={() => setIsCreateScheduleModalOpen(true)}>Lägg ut nytt pass</Button>
+                <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => { setSessionToEdit(null); setIsBookingModalOpen(true); }}>Boka 1-on-1</Button>
+                    <Button onClick={() => { setScheduleToEdit(null); setInitialDateForSchedule(null); setIsCreateScheduleModalOpen(true); }}>Lägg ut nytt pass</Button>
+                </div>
               </div>
               <div className="p-4 bg-gray-50 rounded-lg border mb-4 space-y-4">
                 <h4 className="text-lg font-semibold text-gray-700">Filter</h4>
@@ -615,7 +630,7 @@ export const CoachArea: React.FC = () => {
               </div>
               <CalendarView
                 sessions={filteredSessions}
-                participants={participantDirectory || []}
+                participants={allParticipants || []}
                 coaches={staffMembers}
                 onSessionClick={handleOpenMeetingModal}
                 onDayClick={handleDayClick}
@@ -645,7 +660,7 @@ export const CoachArea: React.FC = () => {
                   setSessionToEdit(null);
                 }}
                 sessionToEdit={sessionToEdit}
-                participants={participantsForView}
+                participants={allParticipants}
                 coaches={staffMembers}
                 loggedInCoachId={loggedInStaff.id}
                 initialDate={initialDateForBooking}
@@ -653,12 +668,18 @@ export const CoachArea: React.FC = () => {
               />
               <CreateScheduleModal
                 isOpen={isCreateScheduleModalOpen}
-                onClose={() => setIsCreateScheduleModalOpen(false)}
+                onClose={() => {
+                    setIsCreateScheduleModalOpen(false);
+                    setInitialDateForSchedule(null);
+                    setScheduleToEdit(null);
+                }}
                 onSave={ops.handleSaveSchedule}
-                scheduleToEdit={null}
+                scheduleToEdit={scheduleToEdit}
                 classDefinitions={groupClassDefinitions}
                 locations={locations}
                 coaches={staffMembers}
+                initialDate={initialDateForSchedule}
+                initialLocationId={selectedLocationTabId !== 'all' ? selectedLocationTabId : undefined}
               />
               {selectedSessionForModal && user && (
                 <MeetingDetailsModal
@@ -778,7 +799,7 @@ export const CoachArea: React.FC = () => {
           isOpen={!!classInstanceForManagement}
           onClose={() => setManagedClassInfo(null)}
           classInstance={classInstanceForManagement}
-          participants={participantDirectory || []}
+          participants={allParticipants || []}
           groupClassScheduleExceptions={groupClassScheduleExceptions}
           onCheckIn={onCheckInParticipant}
           onUnCheckIn={onUnCheckInParticipant}
@@ -786,6 +807,7 @@ export const CoachArea: React.FC = () => {
           onCancelBooking={onCancelBooking}
           onPromoteFromWaitlist={onPromoteFromWaitlist}
           onCancelClassInstance={onCancelClassInstance}
+          onEditSchedule={handleEditScheduleFromModal}
         />
       )}
     </div>

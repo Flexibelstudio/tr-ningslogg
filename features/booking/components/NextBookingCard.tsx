@@ -25,7 +25,12 @@ export const NextBookingCard: React.FC<NextBookingCardProps> = ({ nextBooking })
     );
 
     if (nextBooking) {
-        const { classDef, coach, startDateTime, booking } = nextBooking;
+        const { classDef, coach, startDateTime, booking, schedule } = nextBooking;
+        // In a real scenario, we might want to check for an exception here too, 
+        // but nextBooking already contains an 'enriched' version or we can assume 
+        // the schedule.specialLabel is a good fallback.
+        const displayClassName = classDef.name + (schedule.specialLabel ? ` - ${schedule.specialLabel}` : '');
+
         return (
             <div className="bg-white p-3 sm:p-4 rounded-xl shadow-lg border border-gray-200 flex items-center h-full">
                 <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-lg bg-flexibel/10 text-flexibel mr-3 sm:mr-4">
@@ -34,7 +39,7 @@ export const NextBookingCard: React.FC<NextBookingCardProps> = ({ nextBooking })
                 <div className="flex-grow flex justify-between items-center">
                     <div>
                         <p className="text-sm sm:text-base font-medium text-gray-500">Nästa pass</p>
-                        <p className="text-base sm:text-xl font-bold text-gray-800">{classDef.name}</p>
+                        <p className="text-base sm:text-xl font-bold text-gray-800">{displayClassName}</p>
                         {booking.status === 'WAITLISTED' && (
                             <p className="text-sm font-semibold text-amber-600 mt-1">Du är på kölistan.</p>
                         )}

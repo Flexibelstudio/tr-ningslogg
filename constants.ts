@@ -1,4 +1,3 @@
-
 import { WeightComparisonItem, GenderOption, StrengthStandard, StrengthLevel, LiftType, AllUserProvidedStrengthMultipliers, StrengthStandardDetail, UserProvidedLiftMultipliers, WorkoutCategory, ClubDefinition, UserStrengthStat, StaffRole, Membership, OneOnOneSessionType, WorkoutCategoryDefinition, GroupClassDefinition, ConditioningMetric, WorkoutFocusTag, ContactAttemptMethod, ContactAttemptOutcome } from './types'; // Updated import type from AnimalWeight
 
 export const FLEXIBEL_PRIMARY_COLOR = '#3bab5a'; // Updated color
@@ -141,6 +140,9 @@ export const CONTACT_ATTEMPT_METHOD_OPTIONS: { value: ContactAttemptMethod; labe
     { value: 'phone', label: 'Telefon' },
     { value: 'email', label: 'E-post' },
     { value: 'sms', label: 'SMS' },
+    { value: 'studio', label: 'I studion' },
+    { value: 'self', label: 'Självbokning' },
+    { value: 'other', label: 'Annat...' },
 ];
 
 export const CONTACT_ATTEMPT_OUTCOME_OPTIONS: { value: ContactAttemptOutcome; label: string }[] = [
@@ -359,7 +361,7 @@ export const CLUB_DEFINITIONS: ClubDefinition[] = [
   // --- BENCH PRESS (Bänkpress) CLUBS ---
   { id: 'bench-30kg', name: '30kg Bänkpressklubben', description: 'Du har lyft 30 kg i bänkpress!', icon: '💪', type: 'LIFT', liftType: 'Bänkpress', threshold: 30, comparison: 'GREATER_OR_EQUAL' },
   { id: 'bench-40kg', name: '40kg Bänkpressklubben', description: 'Du har lyft 40 kg i bänkpress!', icon: '💪', type: 'LIFT', liftType: 'Bänkpress', threshold: 40, comparison: 'GREATER_OR_EQUAL' },
-  { id: 'bench-50kg', name: '50kg Bänkpressklubben', description: 'Du har lyft 50 kg i bänkpress!', icon: '💪', type: 'LIFT', liftType: 'Bänkpress', threshold: 50, comparison: 'GREATER_OR_EQUAL' },
+  { id: 'bench-50kg', name: '50kg Bänkpressklubben', description: 'Du har lyft 50 kg i bänkpress!', icon: '💪', type: 'LIFT', liftType: 'Bänkpress', threshold: 30, comparison: 'GREATER_OR_EQUAL' },
   { id: 'bench-60kg', name: '60kg Bänkpressklubben', description: 'Du har lyft 60 kg i bänkpress!', icon: '💪', type: 'LIFT', liftType: 'Bänkpress', threshold: 60, comparison: 'GREATER_OR_EQUAL' },
   { id: 'bench-75kg', name: '75kg Bänkpressklubben', description: 'Du har lyft 75 kg i bänkpress!', icon: '🎯', type: 'LIFT', liftType: 'Bänkpress', threshold: 75, comparison: 'GREATER_OR_EQUAL' },
   { id: 'bench-100kg', name: '100kg Bänkpressklubben', description: 'Du har lyft 100 kg i bänkpress!', icon: '🔥', type: 'LIFT', liftType: 'Bänkpress', threshold: 100, comparison: 'GREATER_OR_EQUAL' },
