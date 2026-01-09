@@ -1,9 +1,8 @@
-
 import { Reaction, Comment } from './shared';
 import { ParticipantProfile, StaffMember, Lead, ProspectIntroCall, Connection, UserPushSubscription, UserNotification } from './user';
 import { Workout, WorkoutLog, GeneralActivityLog, GoalCompletionLog, CoachNote, UserStrengthStat, ParticipantConditioningStat, ParticipantPhysiqueStat, ParticipantMentalWellbeing, WorkoutCategoryDefinition } from './workout';
 import { ParticipantGamificationStats, ParticipantClubMembership, LeaderboardSettings, ParticipantGoalData } from './gamification';
-import { Location, Membership, WeeklyHighlightSettings, StaffAvailability, IntegrationSettings, BrandingSettings } from './settings';
+import { Location, Membership, WeeklyHighlightSettings, StaffAvailability, IntegrationSettings, BrandingSettings, SmsTemplate } from './settings';
 import { GroupClassDefinition, GroupClassSchedule, GroupClassScheduleException, ParticipantBooking, OneOnOneSession } from './booking';
 
 export type FlowItemLogType = 'workout' | 'general' | 'coach_event' | 'one_on_one_session' | 'goal_completion' | 'participant_club_membership' | 'user_strength_stat' | 'participant_physique_stat' | 'participant_goal_data' | 'participant_conditioning_stat' | 'user_notification';
@@ -59,6 +58,7 @@ export interface OrganizationData {
   userPushSubscriptions: UserPushSubscription[];
   branding?: BrandingSettings;
   userNotifications: UserNotification[]; // Collection of all notifications for all users in the org
+  smsTemplates: SmsTemplate[];
 }
 
 export type AppData = OrganizationData;

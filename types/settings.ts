@@ -1,9 +1,9 @@
-
 import { WorkoutCategory } from './workout';
 
 export interface Location {
   id: string;
   name: string;
+  phone?: string; // Studions officiella nummer
 }
 
 export interface Membership {
@@ -24,6 +24,12 @@ export interface Membership {
   restrictedCategories?: Record<WorkoutCategory, 'show_lock' | 'hide'>;
 }
 
+export interface SmsTemplate {
+  id: string;
+  name: string;
+  content: string; // Stödjer {{namn}}, {{coach}}, {{studio}}
+}
+
 export interface IntegrationSettings {
   enableQRCodeScanning: boolean;
   isBookingEnabled: boolean;
@@ -37,6 +43,11 @@ export interface IntegrationSettings {
   enableSessionReminders?: boolean;
   sessionReminderHoursBefore?: number;
   commonGeneralActivities?: string[];
+
+  // 46elks settings
+  elksApiId?: string;
+  elksApiSecret?: string;
+  verifiedCallerIds?: string[]; // Lista på godkända nummer att visa (t.ex. studionummer)
 }
 
 export interface StaffAvailability {

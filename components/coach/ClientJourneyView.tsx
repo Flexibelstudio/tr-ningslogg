@@ -1,6 +1,5 @@
-
-import React, { useState, useMemo, useEffect } from 'react';
-import { ParticipantProfile, OneOnOneSession, ActivityLog, StaffMember, CoachNote, ParticipantGoalData, WorkoutLog, Membership, ProspectIntroCall, Lead, Location, ContactAttempt } from '../../types';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { ParticipantProfile, OneOnOneSession, ActivityLog, StaffMember, CoachNote, ParticipantGoalData, WorkoutLog, Membership, ProspectIntroCall, Lead, Location, ContactAttempt, ContactAttemptMethod } from '../../types';
 import { GoogleGenAI } from '@google/genai';
 import { Button } from '../Button';
 import { MemberNotesModal } from '../coach/MemberNotesModal';
@@ -15,6 +14,8 @@ import { ConfirmationModal } from '../ConfirmationModal';
 import { useClientJourney } from '../../features/coach/hooks/useClientJourney';
 import { LogContactModal } from './LogContactModal';
 import { CONTACT_ATTEMPT_OUTCOME_OPTIONS, CONTACT_ATTEMPT_METHOD_OPTIONS } from '../../constants';
+import { CallSelectorModal } from './CallSelectorModal';
+import { SmsTemplateModal } from './SmsTemplateModal';
 
 interface ClientJourneyViewProps {
   participants: ParticipantProfile[];
@@ -129,6 +130,8 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
     const {
         locations,
         staffMembers,
+        integrationSettings,
+        smsTemplates,
     } = useAppContext();
 
     // Use the custom hook
@@ -172,6 +175,8 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   
   // New state for contact logging
   const [leadToLogContact, setLeadToLogContact] = useState<Lead | null>(null);
+  const [leadToCall, setLeadToCall] = useState<Lead | null>(null);
+  const [leadToSms, setLeadToSms] = useState<Lead | null>(null);
   const [expandedLeadHistoryIds, setExpandedLeadHistoryIds] = useState<Set<string>>(new Set());
 
   const handleOpenNotesModal = (participant: ParticipantProfile) => {
@@ -199,6 +204,33 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
           return newSet;
       });
   };
+
+  const executeCall = useCallback(async (callerId: string) => {
+      if (!leadToCall || !loggedInStaff?.phone) return;
+      
+      console.log(`SIMULATING 46ELKS CALL: From ${loggedInStaff.phone} to ${leadToCall.phone} showing ${callerId}`);
+      
+      // Auto-open contact logger for the user
+      setLeadToCall(null);
+      setLeadToLogContact(leadToCall);
+      
+      // Logic would be: fetch('https://api.46elks.com/v1/calls', { method: 'POST', ... })
+  }, [leadToCall, loggedInStaff]);
+
+  const executeSms = useCallback(async (content: string, templateName: string) => {
+    if (!leadToSms || !leadToSms.phone) return;
+
+    console.log(`SIMULATING 46ELKS SMS: To ${leadToSms.phone} Content: ${content}`);
+
+    // Auto-log the SMS contact
+    handleSaveContactAttempt(leadToSms.id, {
+        method: 'sms',
+        outcome: 'follow_up',
+        notes: `Automatiskt SMS: ${templateName}`
+    });
+
+    setLeadToSms(null);
+  }, [leadToSms, handleSaveContactAttempt]);
 
   if (!loggedInStaff) return <div>Laddar...</div>;
 
@@ -349,6 +381,28 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                                         </>
                                     ) : (
                                         <>
+                                            {lead.phone && (
+                                                <div className="flex gap-1 mr-2">
+                                                    <Button 
+                                                        size="sm" 
+                                                        variant="ghost" 
+                                                        className="!text-green-600 !bg-green-50 hover:!bg-green-100" 
+                                                        onClick={() => setLeadToCall(lead)}
+                                                        title="Ring via 46elks"
+                                                    >
+                                                        📞 Ring
+                                                    </Button>
+                                                    <Button 
+                                                        size="sm" 
+                                                        variant="ghost" 
+                                                        className="!text-blue-600 !bg-blue-50 hover:!bg-blue-100" 
+                                                        onClick={() => setLeadToSms(lead)}
+                                                        title="Skicka SMS-mall"
+                                                    >
+                                                        💬 SMS
+                                                    </Button>
+                                                </div>
+                                            )}
                                             <Button size="sm" variant="outline" onClick={() => setLeadToLogContact(lead)}>Logga kontakt</Button>
                                             <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => setLeadToMarkAsJunk(lead)}>Skräp</Button>
                                             {lead.status !== 'converted' && (
@@ -368,12 +422,12 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                                             <div key={attempt.id} className="text-sm bg-gray-50 p-2 rounded-md">
                                                 <div className="flex justify-between">
                                                     <span className="font-medium text-gray-800">
-                                                        {CONTACT_ATTEMPT_METHOD_OPTIONS.find(m => m.value === attempt.method)?.label}
+                                                        {CONTACT_ATTEMPT_METHOD_OPTIONS.find(m => m.value === attempt.method)?.label || attempt.method}
                                                     </span>
                                                     <span className="text-gray-500 text-xs">{new Date(attempt.timestamp).toLocaleString('sv-SE')}</span>
                                                 </div>
                                                 <p className="text-gray-600">
-                                                    {CONTACT_ATTEMPT_OUTCOME_OPTIONS.find(o => o.value === attempt.outcome)?.label}
+                                                    {CONTACT_ATTEMPT_OUTCOME_OPTIONS.find(o => o.value === attempt.outcome)?.label || attempt.outcome}
                                                 </p>
                                                 {attempt.notes && <p className="text-gray-500 italic mt-1">"{attempt.notes}"</p>}
                                             </div>
@@ -642,6 +696,26 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         onClose={() => setLeadToLogContact(null)} 
         lead={leadToLogContact}
         onSave={(attempt) => leadToLogContact && handleSaveContactAttempt(leadToLogContact.id, attempt)}
+      />
+
+      <CallSelectorModal
+        isOpen={!!leadToCall}
+        onClose={() => setLeadToCall(null)}
+        lead={leadToCall}
+        coach={loggedInStaff}
+        locations={locations}
+        settings={integrationSettings}
+        onConfirm={executeCall}
+      />
+
+      <SmsTemplateModal
+        isOpen={!!leadToSms}
+        onClose={() => setLeadToSms(null)}
+        lead={leadToSms}
+        coach={loggedInStaff}
+        templates={smsTemplates}
+        locations={locations}
+        onConfirm={executeSms}
       />
 
       <ConfirmationModal

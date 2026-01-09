@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { StaffMember, IntegrationSettings, Location, Membership, WorkoutCategoryDefinition, GroupClassDefinition } from '../../types';
+import { StaffMember, IntegrationSettings, Location, Membership, WorkoutCategoryDefinition, GroupClassDefinition, SmsTemplate } from '../../types';
 import { Input, Select } from '../Input';
 import { useAppContext } from '../../context/AppContext';
 import { ToggleSwitch } from '../ToggleSwitch';
@@ -17,6 +16,165 @@ const Card: React.FC<{ title: string; children: React.ReactNode; className?: str
         {children}
     </div>
 );
+
+const ElksSettingsManager: React.FC = () => {
+    const { integrationSettings, setIntegrationSettingsData } = useAppContext();
+    const [newCallerId, setNewCallerId] = useState('');
+
+    const handleSettingChange = (field: keyof IntegrationSettings, value: any) => {
+        setIntegrationSettingsData(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleAddCallerId = () => {
+        if (!newCallerId.trim()) return;
+        const current = integrationSettings.verifiedCallerIds || [];
+        if (!current.includes(newCallerId.trim())) {
+            handleSettingChange('verifiedCallerIds', [...current, newCallerId.trim()]);
+        }
+        setNewCallerId('');
+    };
+
+    const handleRemoveCallerId = (id: string) => {
+        const current = integrationSettings.verifiedCallerIds || [];
+        handleSettingChange('verifiedCallerIds', current.filter(c => c !== id));
+    };
+
+    return (
+        <Card title="46elks Integration">
+            <p className="text-sm text-gray-600 mb-4">Används för Click-to-Call och SMS direkt från appen. Du behöver ett konto på 46elks.com.</p>
+            <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input 
+                        label="API ID" 
+                        value={integrationSettings.elksApiId || ''} 
+                        onChange={e => handleSettingChange('elksApiId', e.target.value)} 
+                        placeholder="T.ex. a123..."
+                    />
+                    <Input 
+                        label="API Secret" 
+                        type="password"
+                        value={integrationSettings.elksApiSecret || ''} 
+                        onChange={e => handleSettingChange('elksApiSecret', e.target.value)} 
+                        placeholder="••••••••"
+                    />
+                </div>
+                
+                <div className="pt-4 border-t">
+                    <h4 className="font-semibold text-gray-700 mb-2">Verifierade Caller IDs (studionummer)</h4>
+                    <p className="text-xs text-gray-500 mb-2">Lägg till nummer som ni äger och som har verifierats hos 46elks.</p>
+                    <div className="flex gap-2 mb-3">
+                        <Input 
+                            value={newCallerId} 
+                            onChange={e => setNewCallerId(e.target.value)} 
+                            placeholder="T.ex. +468123456" 
+                        />
+                        <Button onClick={handleAddCallerId}>Lägg till</Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {integrationSettings.verifiedCallerIds?.map(id => (
+                            <div key={id} className="flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-full border border-gray-200">
+                                <span className="text-gray-800 text-sm">{id}</span>
+                                <button onClick={() => handleRemoveCallerId(id)} className="text-gray-400 hover:text-red-500">×</button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </Card>
+    );
+};
+
+const SmsTemplatesManager: React.FC = () => {
+    const { smsTemplates, setSmsTemplatesData } = useAppContext();
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingTemplate, setEditingTemplate] = useState<SmsTemplate | null>(null);
+    const [templateToDelete, setTemplateToDelete] = useState<SmsTemplate | null>(null);
+
+    const [name, setName] = useState('');
+    const [content, setContent] = useState('');
+
+    useEffect(() => {
+        if (editingTemplate) {
+            setName(editingTemplate.name);
+            setContent(editingTemplate.content);
+        } else {
+            setName('');
+            setContent('');
+        }
+    }, [editingTemplate, isModalOpen]);
+
+    const handleSave = () => {
+        if (!name.trim() || !content.trim()) return;
+        const newTemplate = {
+            id: editingTemplate?.id || crypto.randomUUID(),
+            name: name.trim(),
+            content: content.trim()
+        };
+        setSmsTemplatesData(prev => {
+            const index = prev.findIndex(t => t.id === newTemplate.id);
+            if (index > -1) {
+                const copy = [...prev];
+                copy[index] = newTemplate;
+                return copy;
+            }
+            return [...prev, newTemplate];
+        });
+        setIsModalOpen(false);
+    };
+
+    return (
+        <Card title="SMS-mallar">
+            <p className="text-sm text-gray-600 mb-4">Skapa snabbmallar för att kontakta leads. Använd <code>{"{{namn}}"}</code>, <code>{"{{coach}}"}</code> eller <code>{"{{studio}}"}</code> för att auto-fylla information.</p>
+            <div className="flex justify-end mb-4">
+                <Button onClick={() => { setEditingTemplate(null); setIsModalOpen(true); }}>Ny mall</Button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {smsTemplates.map(t => (
+                    <div key={t.id} className="p-4 border rounded-lg hover:border-flexibel transition-colors bg-white">
+                        <div className="flex justify-between items-start mb-2">
+                            <h4 className="font-bold text-gray-800">{t.name}</h4>
+                            <div className="flex gap-1">
+                                <Button variant="ghost" size="sm" onClick={() => { setEditingTemplate(t); setIsModalOpen(true); }}>Redigera</Button>
+                                <Button variant="ghost" size="sm" className="!text-red-500" onClick={() => setTemplateToDelete(t)}>Radera</Button>
+                            </div>
+                        </div>
+                        <p className="text-sm text-gray-500 line-clamp-3 italic">"{t.content}"</p>
+                    </div>
+                ))}
+                {smsTemplates.length === 0 && <p className="text-center text-gray-500 py-4 col-span-2">Inga mallar skapade än.</p>}
+            </div>
+
+            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingTemplate ? "Redigera mall" : "Ny SMS-mall"}>
+                <div className="space-y-4">
+                    <Input label="Namn på mall" value={name} onChange={e => setName(e.target.value)} placeholder="T.ex. Sökt dig (missat samtal)" />
+                    <Textarea label="Innehåll" value={content} onChange={e => setContent(e.target.value)} rows={5} placeholder="Hej {{namn}}! Jag sökte dig precis..." />
+                    <div className="p-3 bg-blue-50 rounded text-xs text-blue-800 flex flex-wrap gap-x-4">
+                        <span><code>{"{{namn}}"}</code> = Leadets namn</span>
+                        <span><code>{"{{coach}}"}</code> = Ditt namn</span>
+                        <span><code>{"{{studio}}"}</code> = Din studio</span>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-4 border-t">
+                        <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Avbryt</Button>
+                        <Button onClick={handleSave}>Spara mall</Button>
+                    </div>
+                </div>
+            </Modal>
+
+            <ConfirmationModal 
+                isOpen={!!templateToDelete}
+                onClose={() => setTemplateToDelete(null)}
+                onConfirm={() => {
+                    if (templateToDelete) setSmsTemplatesData(prev => prev.filter(t => t.id !== templateToDelete.id));
+                    setTemplateToDelete(null);
+                }}
+                title="Radera mall?"
+                message={`Är du säker på att du vill radera mallen "${templateToDelete?.name}"?`}
+                confirmButtonText="Ja, radera"
+                confirmButtonVariant="danger"
+            />
+        </Card>
+    );
+};
 
 const BrandingManager: React.FC = () => {
     const { branding, setBrandingData } = useAppContext();
@@ -835,7 +993,7 @@ const MembershipManager: React.FC = () => {
                                     </div>
                                     <div className="flex gap-2 flex-shrink-0">
                                         <Button variant="outline" size="sm" onClick={() => {setEditingMembership(mem); setIsModalOpen(true);}}>Redigera</Button>
-                                        <Button variant="danger" size="sm" className="!p-1.5" onClick={() => handleDelete(mem)}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg></Button>
+                                        <Button variant="danger" size="sm" className="!p-1.5" onClick={() => handleDelete(mem)}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg></Button>
                                     </div>
                                 </div>
                             </div>
@@ -866,6 +1024,8 @@ export const SettingsManagement: React.FC<{ loggedInStaff: StaffMember | null }>
             <BrandingManager />
             <ModuleSettingsManager />
             <ReminderSettingsManager />
+            <ElksSettingsManager />
+            <SmsTemplatesManager />
             <GeneralActivitySettingsManager />
             <LocationManager />
             <MembershipManager />

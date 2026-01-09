@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, createContext, useContext, ReactNode, useEffect, useMemo, useRef } from 'react';
 import { 
     Organization, User,
@@ -9,7 +8,7 @@ import {
     CoachEvent, Connection, Location, StaffMember, Membership, 
     WeeklyHighlightSettings, OneOnOneSession, WorkoutCategoryDefinition, 
     StaffAvailability, IntegrationSettings, GroupClassDefinition, 
-    GroupClassSchedule, ParticipantBooking, AppData, BrandingSettings, ProspectIntroCall, Lead, UserPushSubscription, GroupClassScheduleException, UserNotification
+    GroupClassSchedule, ParticipantBooking, AppData, BrandingSettings, ProspectIntroCall, Lead, UserPushSubscription, GroupClassScheduleException, UserNotification, SmsTemplate
 } from '../types';
 import firebaseService from '../services/firebaseService'; // Use the new service
 import { useAuth } from './AuthContext';
@@ -86,6 +85,7 @@ interface AppContextType extends OrganizationData {
   setUserPushSubscriptionsData: (updater: React.SetStateAction<AppData['userPushSubscriptions']>) => void;
   setBrandingData: (updater: React.SetStateAction<AppData['branding']>) => void;
   setUserNotificationsData: (updater: React.SetStateAction<AppData['userNotifications']>) => void;
+  setSmsTemplatesData: (updater: React.SetStateAction<AppData['smsTemplates']>) => void;
 }
 
 // 2. Create the context with a default value (or undefined and check for it)
@@ -132,6 +132,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [userPushSubscriptions, setUserPushSubscriptions] = useState<UserPushSubscription[]>([]);
     const [branding, setBranding] = useState<BrandingSettings | undefined>(undefined);
     const [userNotifications, setUserNotifications] = useState<UserNotification[]>([]);
+    const [smsTemplates, setSmsTemplates] = useState<SmsTemplate[]>([]);
 
     const [isGlobalDataLoading, setIsGlobalDataLoading] = useState(true);
     const [isOrgDataLoading, setIsOrgDataLoading] = useState(true);
@@ -225,6 +226,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     setUserPushSubscriptions(data.userPushSubscriptions || []);
                     setBranding(data.branding || undefined);
                     setUserNotifications(data.userNotifications || []);
+                    setSmsTemplates(data.smsTemplates || []);
 
                     if (data.branding?.logoBase64) {
                         localStorage.setItem(`flexibel_logo_${organizationId}`, data.branding.logoBase64);
@@ -259,7 +261,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setOneOnOneSessions([]); setWorkoutCategories([]); setStaffAvailability([]);
             setIntegrationSettings({ enableQRCodeScanning: false, isBookingEnabled: false, isClientJourneyEnabled: true, isScheduleEnabled: true });
             setGroupClassDefinitions([]); setGroupClassSchedules([]); setGroupClassScheduleExceptions([]); setParticipantBookings([]);
-            setLeads([]); setProspectIntroCalls([]); setUserPushSubscriptions([]); setBranding(undefined); setUserNotifications([]);
+            setLeads([]); setProspectIntroCalls([]); setUserPushSubscriptions([]); setBranding(undefined); setUserNotifications([]); setSmsTemplates([]);
         }
     }, [organizationId]);
   
@@ -386,6 +388,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const smartSetUserPushSubscriptions = createSmartCollectionUpdater('userPushSubscriptions', setUserPushSubscriptions);
     const smartSetBranding = createSingleDocUpdater('branding', setBranding);
     const smartSetUserNotifications = createSmartCollectionUpdater('userNotifications', setUserNotifications);
+    const smartSetSmsTemplates = createSmartCollectionUpdater('smsTemplates', setSmsTemplates);
 
     const addParticipant = useCallback(async (participant: ParticipantProfile) => {
         smartSetParticipantDirectory(prev => [...prev, participant]);
@@ -488,7 +491,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     connections, lastFlowViewTimestamp, locations, staffMembers, memberships,
     weeklyHighlightSettings, oneOnOneSessions, workoutCategories, staffAvailability,
     integrationSettings, groupClassDefinitions, groupClassSchedules, groupClassScheduleExceptions, participantBookings,
-    leads, prospectIntroCalls, userPushSubscriptions, branding, userNotifications, isOrgDataLoading, isGlobalDataLoading,
+    leads, prospectIntroCalls, userPushSubscriptions, branding, userNotifications, smsTemplates, isOrgDataLoading, isGlobalDataLoading,
     isOrgDataFromFallback, orgDataError, getColorForCategory, addParticipant, updateParticipantProfile,
     updateUser, addWorkout, updateWorkout, deleteWorkout, markNotificationAsRead, markAllNotificationsAsRead,
     setParticipantDirectoryData: smartSetParticipantDirectory,
@@ -528,6 +531,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setUserPushSubscriptionsData: smartSetUserPushSubscriptions,
     setBrandingData: smartSetBranding,
     setUserNotificationsData: smartSetUserNotifications,
+    setSmsTemplatesData: smartSetSmsTemplates,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
