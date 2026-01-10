@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { ParticipantProfile, OneOnOneSession, ActivityLog, StaffMember, CoachNote, ParticipantGoalData, WorkoutLog, Membership, ProspectIntroCall, Lead, Location, ContactAttempt, ContactAttemptMethod } from '../../types';
-import { GoogleGenAI } from '@google/genai';
 import { Button } from '../Button';
 import { MemberNotesModal } from '../coach/MemberNotesModal';
 import * as dateUtils from '../../utils/dateUtils';
@@ -16,6 +15,7 @@ import { LogContactModal } from './LogContactModal';
 import { CONTACT_ATTEMPT_OUTCOME_OPTIONS, CONTACT_ATTEMPT_METHOD_OPTIONS } from '../../constants';
 import { CallSelectorModal } from './CallSelectorModal';
 import { SmsTemplateModal } from './SmsTemplateModal';
+import { useNotifications } from '../../context/NotificationsContext';
 
 interface ClientJourneyViewProps {
   participants: ParticipantProfile[];
@@ -38,85 +38,15 @@ const EngagementIndicator: React.FC<{ level: 'green' | 'yellow' | 'red' | 'neutr
     return <span className={`inline-block h-3 w-3 rounded-full ${color}`} title={tooltip}></span>;
 };
 
-interface AddLeadModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (newLeadData: Pick<Lead, 'firstName' | 'lastName' | 'email' | 'phone' | 'locationId'>) => void;
-  locations: Location[];
-}
-
-const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onSave, locations }) => {
-    const [firstName, setFirstName] = useState('');
-    const [lastName, setLastName] = useState('');
-    const [email, setEmail] = useState('');
-    const [phone, setPhone] = useState('');
-    const [locationId, setLocationId] = useState('');
-    const [errors, setErrors] = useState<Record<string, string>>({});
-
-    const locationOptions = useMemo(() => [
-        { value: '', label: 'Välj studio/ort...' },
-        ...locations.map(loc => ({ value: loc.id, label: loc.name }))
-    ], [locations]);
-    
-    useEffect(() => {
-        if (isOpen) {
-            setFirstName('');
-            setLastName('');
-            setEmail('');
-            setPhone('');
-            setLocationId(locations.length > 0 ? locations[0].id : '');
-            setErrors({});
-        }
-    }, [isOpen, locations]);
-
-    const validate = () => {
-        const newErrors: Record<string, string> = {};
-        if (!firstName.trim()) newErrors.firstName = "Förnamn är obligatoriskt.";
-        if (!lastName.trim()) newErrors.lastName = "Efternamn är obligatoriskt.";
-        if (!email.trim()) {
-            newErrors.email = "E-post är obligatoriskt.";
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-            newErrors.email = "Ogiltig e-postadress.";
-        }
-        if (!locationId) newErrors.locationId = "Du måste välja en studio/ort.";
-        
-        setErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
-    };
-
-    const handleSave = () => {
-        if (validate()) {
-            onSave({ 
-                firstName: firstName.trim(), 
-                lastName: lastName.trim(), 
-                email: email.trim(), 
-                phone: phone.trim() || undefined, 
-                locationId 
-            });
-            onClose();
-        }
-    };
-
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Lägg till Lead Manuellt">
-            <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Input label="Förnamn *" value={firstName} onChange={e => setFirstName(e.target.value)} error={errors.firstName} required />
-                    <Input label="Efternamn *" value={lastName} onChange={e => setLastName(e.target.value)} error={errors.lastName} required />
-                </div>
-                <Input label="E-post *" type="email" value={email} onChange={e => setEmail(e.target.value)} error={errors.email} required />
-                <Input label="Mobilnummer" type="tel" value={phone} onChange={e => setPhone(e.target.value)} />
-                <Select label="Studio/Ort *" value={locationId} onChange={e => setLocationId(e.target.value)} options={locationOptions} error={errors.locationId} required />
-
-                <div className="flex justify-end space-x-3 pt-4 border-t">
-                    <Button onClick={onClose} variant="secondary">Avbryt</Button>
-                    <Button onClick={handleSave}>Spara Lead</Button>
-                </div>
-            </div>
-        </Modal>
-    );
+const cleanNumber = (num: string | undefined): string => {
+    if (!num) return '';
+    let cleaned = num.replace(/\s+/g, '').replace(/-/g, '');
+    if (cleaned.startsWith('00')) cleaned = '+' + cleaned.substring(2);
+    if (cleaned.startsWith('0')) cleaned = '+46' + cleaned.substring(1);
+    if (cleaned.startsWith('+460')) cleaned = '+46' + cleaned.substring(4);
+    if (!cleaned.startsWith('+')) cleaned = '+46' + cleaned;
+    return cleaned;
 };
-
 
 export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   participants,
@@ -134,7 +64,8 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         smsTemplates,
     } = useAppContext();
 
-    // Use the custom hook
+    const { addNotification } = useNotifications();
+
     const {
         activeTab,
         setActiveTab,
@@ -173,11 +104,91 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   const [leadToDeletePermanent, setLeadToDeletePermanent] = useState<Lead | null>(null);
   const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
   
-  // New state for contact logging
   const [leadToLogContact, setLeadToLogContact] = useState<Lead | null>(null);
   const [leadToCall, setLeadToCall] = useState<Lead | null>(null);
   const [leadToSms, setLeadToSms] = useState<Lead | null>(null);
   const [expandedLeadHistoryIds, setExpandedLeadHistoryIds] = useState<Set<string>>(new Set());
+
+  const executeCall = useCallback(async (callerId: string) => {
+      if (!leadToCall || !loggedInStaff?.phone || !integrationSettings.elksApiId || !integrationSettings.elksApiSecret) {
+          addNotification({ type: 'ERROR', title: 'Kunde inte ringa', message: 'Kontrollera att du angett ditt mottagningsnummer och att API-nycklar är sparade.' });
+          return;
+      }
+      
+      const from = cleanNumber(loggedInStaff.phone);
+      const to = cleanNumber(leadToCall.phone);
+      const displayId = cleanNumber(callerId);
+
+      addNotification({ type: 'INFO', title: 'Ringer upp...', message: `Vi ringer din mobil ${from} först. Svara för att kopplas till kunden.` });
+
+      try {
+          const auth = btoa(`${integrationSettings.elksApiId}:${integrationSettings.elksApiSecret}`);
+          const formData = new URLSearchParams();
+          formData.append('from', from);
+          formData.append('to', to);
+          formData.append('voice_start', JSON.stringify({ connect: to, callerid: displayId }));
+
+          const response = await fetch('https://api.46elks.com/v1/calls', {
+              method: 'POST',
+              headers: {
+                  'Authorization': `Basic ${auth}`,
+                  'Content-Type': 'application/x-www-form-urlencoded'
+              },
+              body: formData
+          });
+
+          if (!response.ok) throw new Error('API-fel från 46elks');
+
+          addNotification({ type: 'SUCCESS', title: 'Samtal startat', message: 'Håll telefonen redo!' });
+          setLeadToCall(null);
+          setLeadToLogContact(leadToCall);
+      } catch (err) {
+          console.error("46elks Call Error:", err);
+          addNotification({ type: 'ERROR', title: 'Koppling misslyckades', message: 'Kunde inte nå 46elks. Detta kan bero på nätverksfel eller att webbläsaren blockerar anropet (CORS).' });
+      }
+  }, [leadToCall, loggedInStaff, integrationSettings, addNotification]);
+
+  const executeSms = useCallback(async (content: string, templateName: string) => {
+    if (!leadToSms || !leadToSms.phone || !integrationSettings.elksApiId || !integrationSettings.elksApiSecret) {
+        addNotification({ type: 'ERROR', title: 'Kunde inte skicka SMS', message: 'API-uppgifter saknas.' });
+        return;
+    }
+
+    const to = cleanNumber(leadToSms.phone);
+    const from = "Flexibel"; // Eller välj ett verifierat nummer
+
+    try {
+        const auth = btoa(`${integrationSettings.elksApiId}:${integrationSettings.elksApiSecret}`);
+        const formData = new URLSearchParams();
+        formData.append('from', from);
+        formData.append('to', to);
+        formData.append('message', content);
+
+        const response = await fetch('https://api.46elks.com/v1/sms', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Basic ${auth}`,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: formData
+        });
+
+        if (!response.ok) throw new Error('SMS API-fel');
+
+        addNotification({ type: 'SUCCESS', title: 'SMS Skickat!', message: `Meddelande skickat till ${leadToSms.firstName}.` });
+        
+        handleSaveContactAttempt(leadToSms.id, {
+            method: 'sms',
+            outcome: 'follow_up',
+            notes: `Automatiskt SMS: ${templateName}`
+        });
+
+        setLeadToSms(null);
+    } catch (err) {
+        console.error("46elks SMS Error:", err);
+        addNotification({ type: 'ERROR', title: 'Kunde inte skicka', message: 'Ett fel uppstod vid sändning.' });
+    }
+  }, [leadToSms, integrationSettings, handleSaveContactAttempt, addNotification]);
 
   const handleOpenNotesModal = (participant: ParticipantProfile) => {
     setSelectedParticipant(participant);
@@ -204,33 +215,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
           return newSet;
       });
   };
-
-  const executeCall = useCallback(async (callerId: string) => {
-      if (!leadToCall || !loggedInStaff?.phone) return;
-      
-      console.log(`SIMULATING 46ELKS CALL: From ${loggedInStaff.phone} to ${leadToCall.phone} showing ${callerId}`);
-      
-      // Auto-open contact logger for the user
-      setLeadToCall(null);
-      setLeadToLogContact(leadToCall);
-      
-      // Logic would be: fetch('https://api.46elks.com/v1/calls', { method: 'POST', ... })
-  }, [leadToCall, loggedInStaff]);
-
-  const executeSms = useCallback(async (content: string, templateName: string) => {
-    if (!leadToSms || !leadToSms.phone) return;
-
-    console.log(`SIMULATING 46ELKS SMS: To ${leadToSms.phone} Content: ${content}`);
-
-    // Auto-log the SMS contact
-    handleSaveContactAttempt(leadToSms.id, {
-        method: 'sms',
-        outcome: 'follow_up',
-        notes: `Automatiskt SMS: ${templateName}`
-    });
-
-    setLeadToSms(null);
-  }, [leadToSms, handleSaveContactAttempt]);
 
   if (!loggedInStaff) return <div>Laddar...</div>;
 
@@ -270,7 +254,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   );
   
   const participantOptionsForLinking = participants
-    .filter(p => p.isActive || p.isProspect) // Link to active members or prospects
+    .filter(p => p.isActive || p.isProspect)
     .map(p => ({ value: p.id, label: p.name || 'Okänd' }))
     .sort((a,b) => a.label.localeCompare(b.label));
     
@@ -316,7 +300,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
             </nav>
         </div>
       
-      {/* Leads Tab */}
       <div role="tabpanel" hidden={activeTab !== 'leads'} className="animate-fade-in space-y-6">
         <div className="flex flex-col gap-4">
              <div className="flex justify-between items-center">
@@ -327,7 +310,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                 </Button>
             </div>
             
-            {/* Filter Chips */}
             <div className="flex flex-wrap gap-2">
                 <FilterChip label="Nya" count={leadCounts.new} active={activeLeadFilter === 'new'} onClick={() => setActiveLeadFilter('new')} />
                 <FilterChip label="Kontaktade" count={leadCounts.contacted} active={activeLeadFilter === 'contacted'} onClick={() => setActiveLeadFilter('contacted')} />
@@ -358,7 +340,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                                     <div className="flex flex-col gap-1 mt-1">
                                         <p className="text-sm text-gray-600">{lead.email} {lead.phone ? `• ${lead.phone}` : ''}</p>
                                         
-                                        {/* Contact Status Summary */}
                                         <button onClick={() => toggleHistory(lead.id)} className="text-left focus:outline-none group">
                                             <p className={`text-sm font-medium ${contactSummary.colorClass} flex items-center gap-1 group-hover:underline`}>
                                                 {contactSummary.text}
@@ -413,7 +394,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                                 </div>
                             </div>
                             
-                            {/* Expanded History */}
                             {isExpanded && lead.contactHistory && lead.contactHistory.length > 0 && (
                                 <div className="mt-2 pt-2 border-t border-gray-100 animate-fade-in">
                                     <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">Kontaktlogg</h4>
@@ -446,7 +426,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         )}
       </div>
 
-      {/* Introsamtal Tab */}
       <div role="tabpanel" hidden={activeTab !== 'introCalls'} className="animate-fade-in space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
             <div className="flex p-1 bg-gray-100 rounded-lg">
@@ -507,7 +486,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                                     <div className="flex gap-2 self-start sm:self-center flex-shrink-0">
                                         <Button size="sm" variant="outline" onClick={() => { setCallToEdit(call); setIsIntroCallModalOpen(true); }}>Redigera</Button>
                                         {isArchived ? (
-                                            <Button size="sm" variant="secondary" onClick={() => { /* Implement reactive if needed */ }}>Återaktivera</Button>
+                                            <Button size="sm" variant="secondary" onClick={() => {}}>Återaktivera</Button>
                                         ) : (
                                             <Button size="sm" variant="primary" onClick={() => { setCallToLink(call); setParticipantToLinkId(''); }}>Länka</Button>
                                         )}
@@ -527,7 +506,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         )}
       </div>
 
-      {/* Medlemsresa Tab */}
       <div role="tabpanel" hidden={activeTab !== 'memberJourney'} className="animate-fade-in space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4 bg-gray-50 rounded-lg border">
             <div>
@@ -557,11 +535,9 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                 <tbody className="bg-white divide-y divide-gray-200">
                     {filteredAndSortedData.map(p => {
                         const { relative: relativeDate } = dateUtils.formatRelativeTime(p.lastActivityDate);
-                        // Calculate days until binding ends if applicable
                         const today = new Date();
                         const bindingEnd = p.bindingEndDate ? new Date(p.bindingEndDate) : null;
                         const daysToBindingEnd = bindingEnd ? Math.ceil((bindingEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : Infinity;
-                        
                         const isExpiringSoon = bindingEnd && daysToBindingEnd <= 35 && daysToBindingEnd >= 0;
 
                         return (
@@ -619,7 +595,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
             notes={coachNotes.filter(n => n.participantId === selectedParticipant.id)}
             allParticipantGoals={allParticipantGoals}
             allActivityLogs={allActivityLogs.filter(l => l.participantId === selectedParticipant.id)}
-            // ... handled internally
             setParticipantGoals={() => {}} 
             setGoalCompletionLogs={() => {}} 
             onAddNote={() => {}} 
@@ -737,7 +712,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
             <>
                 Är du säker på att du vill radera leadet för <strong>{leadToDeletePermanent?.firstName} {leadToDeletePermanent?.lastName}</strong> permanent? 
                 <br /><br />
-                Detta går inte att ångra.
+                Detta går inte att ångras.
             </>
         }
         confirmButtonText="Ja, radera permanent"
