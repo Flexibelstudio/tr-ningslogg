@@ -50,6 +50,8 @@ export const CallSelectorModal: React.FC<CallSelectorModalProps> = ({ isOpen, on
 
   if (!isOpen || !lead) return null;
 
+  const hasCoachPhone = !!coach?.phone;
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Ring upp ${lead.firstName}`}>
       <div className="space-y-6">
@@ -58,6 +60,17 @@ export const CallSelectorModal: React.FC<CallSelectorModalProps> = ({ isOpen, on
             <p className="text-xl font-bold text-gray-800">{lead.firstName} {lead.lastName}</p>
             <p className="text-lg text-flexibel">{lead.phone}</p>
         </div>
+
+        {!hasCoachPhone && (
+            <div className="p-4 bg-orange-50 border-l-4 border-orange-500 rounded-r-lg animate-pulse">
+                <p className="text-sm font-bold text-orange-800 flex items-center gap-2">
+                    <span>⚠️ Mottagningsnummer saknas</span>
+                </p>
+                <p className="text-xs text-orange-700 mt-1">
+                    Du måste lägga till ditt eget telefonnummer under <strong>Personal</strong> (Mottagningsnummer) för att systemet ska veta vilken telefon 46elks ska ringa upp först.
+                </p>
+            </div>
+        )}
 
         <div>
             <label className="block text-sm font-bold text-gray-700 mb-3">Vilket nummer ska visas för kunden?</label>
@@ -84,13 +97,15 @@ export const CallSelectorModal: React.FC<CallSelectorModalProps> = ({ isOpen, on
         </div>
 
         <div className="pt-4 border-t space-y-4">
-            <p className="text-xs text-gray-500 italic">
+            <p className="text-xs text-gray-500 italic leading-relaxed">
                 När du klickar på ring kommer 46elks först ringa din mobil ({coach?.phone || 'ej angivet'}). 
-                När du svarar kopplas du till kunden.
+                När du svarar kopplas du automatiskt till kunden.
             </p>
             <div className="flex justify-end gap-2">
                 <Button variant="secondary" onClick={onClose}>Avbryt</Button>
-                <Button onClick={() => onConfirm(selectedId)} disabled={!coach?.phone}>Starta samtal via 46elks</Button>
+                <Button onClick={() => onConfirm(selectedId)} disabled={!hasCoachPhone}>
+                    {hasCoachPhone ? 'Starta samtal via 46elks' : 'Ange mottagningsnummer först'}
+                </Button>
             </div>
         </div>
       </div>
