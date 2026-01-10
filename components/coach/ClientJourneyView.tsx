@@ -11,21 +11,11 @@ import { Modal } from '../Modal';
 import { Select, Input } from '../Input';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { useClientJourney } from '../../features/coach/hooks/useClientJourney';
-import { LogContactModal } from './LogContactModal';
+import { LogContactModal } from '../coach/LogContactModal';
 import { CONTACT_ATTEMPT_OUTCOME_OPTIONS, CONTACT_ATTEMPT_METHOD_OPTIONS } from '../../constants';
-import { CallSelectorModal } from './CallSelectorModal';
-import { SmsTemplateModal } from './SmsTemplateModal';
+import { CallSelectorModal } from '../coach/CallSelectorModal';
+import { SmsTemplateModal } from '../coach/SmsTemplateModal';
 import { useNotifications } from '../../context/NotificationsContext';
-
-interface ClientJourneyViewProps {
-  participants: ParticipantProfile[];
-  oneOnOneSessions: OneOnOneSession[];
-  allActivityLogs: ActivityLog[];
-  loggedInStaff: StaffMember | null;
-  allParticipantGoals: ParticipantGoalData[];
-  coachNotes: CoachNote[];
-  isOnline: boolean;
-}
 
 const EngagementIndicator: React.FC<{ level: 'green' | 'yellow' | 'red' | 'neutral' }> = ({ level }) => {
     const levelConfig = {
@@ -36,6 +26,44 @@ const EngagementIndicator: React.FC<{ level: 'green' | 'yellow' | 'red' | 'neutr
     };
     const { color, tooltip } = levelConfig[level];
     return <span className={`inline-block h-3 w-3 rounded-full ${color}`} title={tooltip}></span>;
+};
+
+const AddLeadModal: React.FC<{ isOpen: boolean; onClose: () => void; onSave: (data: any) => void; locations: Location[] }> = ({ isOpen, onClose, onSave, locations }) => {
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
+    const [email, setEmail] = useState('');
+    const [phone, setPhone] = useState('');
+    const [locationId, setLocationId] = useState('');
+
+    useEffect(() => {
+        if (isOpen) {
+            setFirstName(''); setLastName(''); setEmail(''); setPhone(''); setLocationId(locations[0]?.id || '');
+        }
+    }, [isOpen, locations]);
+
+    const handleSave = () => {
+        if (!firstName || !lastName || !email) return;
+        onSave({ firstName, lastName, email, phone, locationId });
+        onClose();
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Lägg till lead">
+            <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <Input label="Förnamn" value={firstName} onChange={e => setFirstName(e.target.value)} />
+                    <Input label="Efternamn" value={lastName} onChange={e => setLastName(e.target.value)} />
+                </div>
+                <Input label="E-post" value={email} onChange={e => setEmail(e.target.value)} />
+                <Input label="Telefon" value={phone} onChange={e => setPhone(e.target.value)} />
+                <Select label="Studio" value={locationId} onChange={e => setLocationId(e.target.value)} options={locations.map(l => ({ value: l.id, label: l.name }))} />
+                <div className="flex justify-end gap-2 pt-4 border-t">
+                    <Button variant="secondary" onClick={onClose}>Avbryt</Button>
+                    <Button onClick={handleSave}>Spara</Button>
+                </div>
+            </div>
+        </Modal>
+    );
 };
 
 const cleanNumber = (num: string | undefined): string => {
@@ -122,7 +150,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
       addNotification({ type: 'INFO', title: 'Ringer upp...', message: `Vi ringer din mobil ${from} först. Svara för att kopplas till kunden.` });
 
       try {
-          const auth = btoa(`${integrationSettings.elksApiId}:${integrationSettings.elksApiSecret}`);
+          const authString = btoa(`${integrationSettings.elksApiId}:${integrationSettings.elksApiSecret}`);
           const formData = new URLSearchParams();
           formData.append('from', from);
           formData.append('to', to);
@@ -131,7 +159,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
           const response = await fetch('https://api.46elks.com/v1/calls', {
               method: 'POST',
               headers: {
-                  'Authorization': `Basic ${auth}`,
+                  'Authorization': `Basic ${authString}`,
                   'Content-Type': 'application/x-www-form-urlencoded'
               },
               body: formData
@@ -144,7 +172,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
           setLeadToLogContact(leadToCall);
       } catch (err) {
           console.error("46elks Call Error:", err);
-          addNotification({ type: 'ERROR', title: 'Koppling misslyckades', message: 'Kunde inte nå 46elks. Detta kan bero på nätverksfel eller att webbläsaren blockerar anropet (CORS).' });
+          addNotification({ type: 'ERROR', title: 'Koppling misslyckades', message: 'Kunde inte nå 46elks API. Detta beror ofta på att webbläsaren blockerar direktanrop (CORS). I produktion krävs en proxy.' });
       }
   }, [leadToCall, loggedInStaff, integrationSettings, addNotification]);
 
@@ -155,10 +183,10 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
     }
 
     const to = cleanNumber(leadToSms.phone);
-    const from = "Flexibel"; // Eller välj ett verifierat nummer
+    const from = "Flexibel";
 
     try {
-        const auth = btoa(`${integrationSettings.elksApiId}:${integrationSettings.elksApiSecret}`);
+        const authString = btoa(`${integrationSettings.elksApiId}:${integrationSettings.elksApiSecret}`);
         const formData = new URLSearchParams();
         formData.append('from', from);
         formData.append('to', to);
@@ -167,7 +195,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         const response = await fetch('https://api.46elks.com/v1/sms', {
             method: 'POST',
             headers: {
-                'Authorization': `Basic ${auth}`,
+                'Authorization': `Basic ${authString}`,
                 'Content-Type': 'application/x-www-form-urlencoded'
             },
             body: formData
@@ -186,7 +214,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         setLeadToSms(null);
     } catch (err) {
         console.error("46elks SMS Error:", err);
-        addNotification({ type: 'ERROR', title: 'Kunde inte skicka', message: 'Ett fel uppstod vid sändning.' });
+        addNotification({ type: 'ERROR', title: 'Kunde inte skicka', message: 'Ett tekniskt fel uppstod vid sändning.' });
     }
   }, [leadToSms, integrationSettings, handleSaveContactAttempt, addNotification]);
 
@@ -700,22 +728,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         title="Ta bort lead?"
         message={`Är du säker på att du vill ta bort leadet för ${leadToMarkAsJunk?.firstName} ${leadToMarkAsJunk?.lastName}? Detta markerar det som 'skräp' och döljer det från listan.`}
         confirmButtonText="Ja, ta bort"
-        confirmButtonVariant="danger"
-      />
-
-      <ConfirmationModal
-        isOpen={!!leadToDeletePermanent}
-        onClose={() => setLeadToDeletePermanent(null)}
-        onConfirm={handleConfirmDeletePermanent}
-        title="Radera permanent?"
-        message={
-            <>
-                Är du säker på att du vill radera leadet för <strong>{leadToDeletePermanent?.firstName} {leadToDeletePermanent?.lastName}</strong> permanent? 
-                <br /><br />
-                Detta går inte att ångras.
-            </>
-        }
-        confirmButtonText="Ja, radera permanent"
         confirmButtonVariant="danger"
       />
 
