@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { ParticipantProfile, OneOnOneSession, ActivityLog, StaffMember, CoachNote, ParticipantGoalData, WorkoutLog, Membership, ProspectIntroCall, Lead, Location, ContactAttempt, ContactAttemptMethod } from '../../types';
 import { Button } from '../Button';
@@ -16,6 +17,7 @@ import { CONTACT_ATTEMPT_OUTCOME_OPTIONS, CONTACT_ATTEMPT_METHOD_OPTIONS } from 
 import { CallSelectorModal } from './CallSelectorModal';
 import { SmsTemplateModal } from './SmsTemplateModal';
 import { useNotifications } from '../../context/NotificationsContext';
+import { trigger46elksActionFn } from '../../firebaseClient';
 
 interface ClientJourneyViewProps {
   participants: ParticipantProfile[];
@@ -27,7 +29,7 @@ interface ClientJourneyViewProps {
   isOnline: boolean;
 }
 
-const EngagementIndicator: React.FC<{ level: 'green' | 'yellow' | 'red' | 'neutral' }> = ({ level }) => {
+function EngagementIndicator({ level }: { level: 'green' | 'yellow' | 'red' | 'neutral' }) {
     const levelConfig = {
         green: { color: 'bg-green-500', tooltip: 'Aktiv nyligen' },
         yellow: { color: 'bg-yellow-500', tooltip: 'Minskad aktivitet' },
@@ -36,7 +38,45 @@ const EngagementIndicator: React.FC<{ level: 'green' | 'yellow' | 'red' | 'neutr
     };
     const { color, tooltip } = levelConfig[level];
     return <span className={`inline-block h-3 w-3 rounded-full ${color}`} title={tooltip}></span>;
-};
+}
+
+function AddLeadModal({ isOpen, onClose, onSave, locations }: { isOpen: boolean; onClose: () => void; onSave: (data: any) => void; locations: Location[] }) {
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
+    const [email, setEmail] = useState('');
+    const [phone, setPhone] = useState('');
+    const [locationId, setLocationId] = useState('');
+
+    useEffect(() => {
+        if (isOpen) {
+            setFirstName(''); setLastName(''); setEmail(''); setPhone(''); setLocationId(locations[0]?.id || '');
+        }
+    }, [isOpen, locations]);
+
+    const handleSave = () => {
+        if (!firstName || !lastName || !email) return;
+        onSave({ firstName, lastName, email, phone, locationId });
+        onClose();
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Lägg till lead">
+            <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <Input label="Förnamn" value={firstName} onChange={e => setFirstName(e.target.value)} />
+                    <Input label="Efternamn" value={lastName} onChange={e => setLastName(e.target.value)} />
+                </div>
+                <Input label="E-post" value={email} onChange={e => setEmail(e.target.value)} />
+                <Input label="Telefon" value={phone} onChange={e => setPhone(e.target.value)} />
+                <Select label="Studio" value={locationId} onChange={e => setLocationId(e.target.value)} options={locations.map(l => ({ value: l.id, label: l.name }))} />
+                <div className="flex justify-end gap-2 pt-4 border-t">
+                    <Button variant="secondary" onClick={onClose}>Avbryt</Button>
+                    <Button onClick={handleSave}>Spara</Button>
+                </div>
+            </div>
+        </Modal>
+    );
+}
 
 const cleanNumber = (num: string | undefined): string => {
     if (!num) return '';
@@ -48,7 +88,7 @@ const cleanNumber = (num: string | undefined): string => {
     return cleaned;
 };
 
-export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
+export function ClientJourneyView({
   participants,
   oneOnOneSessions,
   allActivityLogs,
@@ -56,7 +96,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   allParticipantGoals,
   coachNotes,
   isOnline,
-}) => {
+}: ClientJourneyViewProps) {
     const {
         locations,
         staffMembers,
@@ -122,29 +162,23 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
       addNotification({ type: 'INFO', title: 'Ringer upp...', message: `Vi ringer din mobil ${from} först. Svara för att kopplas till kunden.` });
 
       try {
-          const auth = btoa(`${integrationSettings.elksApiId}:${integrationSettings.elksApiSecret}`);
-          const formData = new URLSearchParams();
-          formData.append('from', from);
-          formData.append('to', to);
-          formData.append('voice_start', JSON.stringify({ connect: to, callerid: displayId }));
-
-          const response = await fetch('https://api.46elks.com/v1/calls', {
-              method: 'POST',
-              headers: {
-                  'Authorization': `Basic ${auth}`,
-                  'Content-Type': 'application/x-www-form-urlencoded'
-              },
-              body: formData
+          const result = await trigger46elksActionFn({
+              action: 'call',
+              from,
+              to,
+              voice_start: JSON.stringify({ connect: to, callerid: displayId }),
+              elksApiId: integrationSettings.elksApiId,
+              elksApiSecret: integrationSettings.elksApiSecret
           });
 
-          if (!response.ok) throw new Error('API-fel från 46elks');
+          if (result.data?.error) throw new Error(result.data.error);
 
           addNotification({ type: 'SUCCESS', title: 'Samtal startat', message: 'Håll telefonen redo!' });
           setLeadToCall(null);
           setLeadToLogContact(leadToCall);
       } catch (err) {
           console.error("46elks Call Error:", err);
-          addNotification({ type: 'ERROR', title: 'Koppling misslyckades', message: 'Kunde inte nå 46elks. Detta kan bero på nätverksfel eller att webbläsaren blockerar anropet (CORS).' });
+          addNotification({ type: 'ERROR', title: 'Koppling misslyckades', message: 'Kunde inte starta samtalet via server-proxyn. Kontrollera dina inställningar.' });
       }
   }, [leadToCall, loggedInStaff, integrationSettings, addNotification]);
 
@@ -155,25 +189,19 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
     }
 
     const to = cleanNumber(leadToSms.phone);
-    const from = "Flexibel"; // Eller välj ett verifierat nummer
+    const from = "Flexibel";
 
     try {
-        const auth = btoa(`${integrationSettings.elksApiId}:${integrationSettings.elksApiSecret}`);
-        const formData = new URLSearchParams();
-        formData.append('from', from);
-        formData.append('to', to);
-        formData.append('message', content);
-
-        const response = await fetch('https://api.46elks.com/v1/sms', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Basic ${auth}`,
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: formData
+        const result = await trigger46elksActionFn({
+            action: 'sms',
+            from,
+            to,
+            message: content,
+            elksApiId: integrationSettings.elksApiId,
+            elksApiSecret: integrationSettings.elksApiSecret
         });
 
-        if (!response.ok) throw new Error('SMS API-fel');
+        if (result.data?.error) throw new Error(result.data.error);
 
         addNotification({ type: 'SUCCESS', title: 'SMS Skickat!', message: `Meddelande skickat till ${leadToSms.firstName}.` });
         
@@ -186,7 +214,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         setLeadToSms(null);
     } catch (err) {
         console.error("46elks SMS Error:", err);
-        addNotification({ type: 'ERROR', title: 'Kunde inte skicka', message: 'Ett fel uppstod vid sändning.' });
+        addNotification({ type: 'ERROR', title: 'Kunde inte skicka', message: 'Ett tekniskt fel uppstod vid sändning via server-proxyn.' });
     }
   }, [leadToSms, integrationSettings, handleSaveContactAttempt, addNotification]);
 
@@ -224,7 +252,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
     low: 'border-green-500 bg-green-50 text-green-700',
   };
 
-  const StatCard: React.FC<{ title: string; value: number; icon: string; onClick: () => void; isActive: boolean }> = ({ title, value, icon, onClick, isActive }) => (
+  const StatCard = ({ title, value, icon, onClick, isActive }: { title: string; value: number; icon: string; onClick: () => void; isActive: boolean }) => (
     <button onClick={onClick} className={`p-4 rounded-xl shadow-md flex items-start text-left transition-all duration-200 border-2 ${isActive ? 'bg-flexibel/10 border-flexibel' : 'bg-white border-transparent hover:border-gray-300'}`}>
         <div className="text-3xl mr-4">{icon}</div>
         <div>
@@ -265,7 +293,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
           return { text: "⚪️ Ej kontaktad än", colorClass: "text-gray-500" };
       }
       const last = contactHistory[contactHistory.length - 1];
-      const dateStr = dateUtils.formatRelativeTime(new Date(last.timestamp)).relative;
+      const { relative: dateStr } = dateUtils.formatRelativeTime(new Date(last.timestamp));
       const methodIcon = last.method === 'email' ? '✉️' : last.method === 'sms' ? '💬' : '📞';
       const outcomeLabel = CONTACT_ATTEMPT_OUTCOME_OPTIONS.find(o => o.value === last.outcome)?.label || last.outcome;
       
@@ -343,7 +371,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                                         <button onClick={() => toggleHistory(lead.id)} className="text-left focus:outline-none group">
                                             <p className={`text-sm font-medium ${contactSummary.colorClass} flex items-center gap-1 group-hover:underline`}>
                                                 {contactSummary.text}
-                                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                                             </p>
                                         </button>
                                     </div>
@@ -661,6 +689,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                 />
                 <div className="flex justify-end gap-3 pt-4 border-t">
                     <Button variant="secondary" onClick={() => setCallToLink(null)}>Avbryt</Button>
+                    {/* FIX: Wrap handleConfirmLink in an arrow function to prevent immediate execution returning void */}
                     <Button onClick={() => handleConfirmLink(callToLink!, participantToLinkId)} disabled={!participantToLinkId}>Länka och skapa anteckning</Button>
                 </div>
             </div>
@@ -703,22 +732,6 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         confirmButtonVariant="danger"
       />
 
-      <ConfirmationModal
-        isOpen={!!leadToDeletePermanent}
-        onClose={() => setLeadToDeletePermanent(null)}
-        onConfirm={handleConfirmDeletePermanent}
-        title="Radera permanent?"
-        message={
-            <>
-                Är du säker på att du vill radera leadet för <strong>{leadToDeletePermanent?.firstName} {leadToDeletePermanent?.lastName}</strong> permanent? 
-                <br /><br />
-                Detta går inte att ångras.
-            </>
-        }
-        confirmButtonText="Ja, radera permanent"
-        confirmButtonVariant="danger"
-      />
-
        <AddLeadModal
             isOpen={isAddLeadModalOpen}
             onClose={() => setIsAddLeadModalOpen(false)}
@@ -727,4 +740,4 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         />
     </div>
   );
-};
+}
