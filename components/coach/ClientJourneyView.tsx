@@ -16,7 +16,6 @@ import { CONTACT_ATTEMPT_OUTCOME_OPTIONS, CONTACT_ATTEMPT_METHOD_OPTIONS } from 
 import { CallSelectorModal } from './CallSelectorModal';
 import { SmsTemplateModal } from './SmsTemplateModal';
 import { useNotifications } from '../../context/NotificationsContext';
-import { trigger46elksActionFn } from '../../firebaseClient';
 
 interface ClientJourneyViewProps {
   participants: ParticipantProfile[];
@@ -37,44 +36,6 @@ const EngagementIndicator: React.FC<{ level: 'green' | 'yellow' | 'red' | 'neutr
     };
     const { color, tooltip } = levelConfig[level];
     return <span className={`inline-block h-3 w-3 rounded-full ${color}`} title={tooltip}></span>;
-};
-
-const AddLeadModal: React.FC<{ isOpen: boolean; onClose: () => void; onSave: (data: any) => void; locations: Location[] }> = ({ isOpen, onClose, onSave, locations }) => {
-    const [firstName, setFirstName] = useState('');
-    const [lastName, setLastName] = useState('');
-    const [email, setEmail] = useState('');
-    const [phone, setPhone] = useState('');
-    const [locationId, setLocationId] = useState('');
-
-    useEffect(() => {
-        if (isOpen) {
-            setFirstName(''); setLastName(''); setEmail(''); setPhone(''); setLocationId(locations[0]?.id || '');
-        }
-    }, [isOpen, locations]);
-
-    const handleSave = () => {
-        if (!firstName || !lastName || !email) return;
-        onSave({ firstName, lastName, email, phone, locationId });
-        onClose();
-    };
-
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Lägg till lead">
-            <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                    <Input label="Förnamn" value={firstName} onChange={e => setFirstName(e.target.value)} />
-                    <Input label="Efternamn" value={lastName} onChange={e => setLastName(e.target.value)} />
-                </div>
-                <Input label="E-post" value={email} onChange={e => setEmail(e.target.value)} />
-                <Input label="Telefon" value={phone} onChange={e => setPhone(e.target.value)} />
-                <Select label="Studio" value={locationId} onChange={e => setLocationId(e.target.value)} options={locations.map(l => ({ value: l.id, label: l.name }))} />
-                <div className="flex justify-end gap-2 pt-4 border-t">
-                    <Button variant="secondary" onClick={onClose}>Avbryt</Button>
-                    <Button onClick={handleSave}>Spara</Button>
-                </div>
-            </div>
-        </Modal>
-    );
 };
 
 const cleanNumber = (num: string | undefined): string => {
@@ -161,23 +122,29 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
       addNotification({ type: 'INFO', title: 'Ringer upp...', message: `Vi ringer din mobil ${from} först. Svara för att kopplas till kunden.` });
 
       try {
-          const result = await trigger46elksActionFn({
-              action: 'call',
-              from,
-              to,
-              voice_start: JSON.stringify({ connect: to, callerid: displayId }),
-              elksApiId: integrationSettings.elksApiId,
-              elksApiSecret: integrationSettings.elksApiSecret
+          const auth = btoa(`${integrationSettings.elksApiId}:${integrationSettings.elksApiSecret}`);
+          const formData = new URLSearchParams();
+          formData.append('from', from);
+          formData.append('to', to);
+          formData.append('voice_start', JSON.stringify({ connect: to, callerid: displayId }));
+
+          const response = await fetch('https://api.46elks.com/v1/calls', {
+              method: 'POST',
+              headers: {
+                  'Authorization': `Basic ${auth}`,
+                  'Content-Type': 'application/x-www-form-urlencoded'
+              },
+              body: formData
           });
 
-          if (result.data?.error) throw new Error(result.data.error);
+          if (!response.ok) throw new Error('API-fel från 46elks');
 
           addNotification({ type: 'SUCCESS', title: 'Samtal startat', message: 'Håll telefonen redo!' });
           setLeadToCall(null);
           setLeadToLogContact(leadToCall);
       } catch (err) {
           console.error("46elks Call Error:", err);
-          addNotification({ type: 'ERROR', title: 'Koppling misslyckades', message: 'Kunde inte starta samtalet via server-proxyn. Kontrollera dina inställningar.' });
+          addNotification({ type: 'ERROR', title: 'Koppling misslyckades', message: 'Kunde inte nå 46elks. Detta kan bero på nätverksfel eller att webbläsaren blockerar anropet (CORS).' });
       }
   }, [leadToCall, loggedInStaff, integrationSettings, addNotification]);
 
@@ -188,19 +155,25 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
     }
 
     const to = cleanNumber(leadToSms.phone);
-    const from = "Flexibel";
+    const from = "Flexibel"; // Eller välj ett verifierat nummer
 
     try {
-        const result = await trigger46elksActionFn({
-            action: 'sms',
-            from,
-            to,
-            message: content,
-            elksApiId: integrationSettings.elksApiId,
-            elksApiSecret: integrationSettings.elksApiSecret
+        const auth = btoa(`${integrationSettings.elksApiId}:${integrationSettings.elksApiSecret}`);
+        const formData = new URLSearchParams();
+        formData.append('from', from);
+        formData.append('to', to);
+        formData.append('message', content);
+
+        const response = await fetch('https://api.46elks.com/v1/sms', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Basic ${auth}`,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: formData
         });
 
-        if (result.data?.error) throw new Error(result.data.error);
+        if (!response.ok) throw new Error('SMS API-fel');
 
         addNotification({ type: 'SUCCESS', title: 'SMS Skickat!', message: `Meddelande skickat till ${leadToSms.firstName}.` });
         
@@ -213,7 +186,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         setLeadToSms(null);
     } catch (err) {
         console.error("46elks SMS Error:", err);
-        addNotification({ type: 'ERROR', title: 'Kunde inte skicka', message: 'Ett tekniskt fel uppstod vid sändning via server-proxyn.' });
+        addNotification({ type: 'ERROR', title: 'Kunde inte skicka', message: 'Ett fel uppstod vid sändning.' });
     }
   }, [leadToSms, integrationSettings, handleSaveContactAttempt, addNotification]);
 
@@ -688,7 +661,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                 />
                 <div className="flex justify-end gap-3 pt-4 border-t">
                     <Button variant="secondary" onClick={() => setCallToLink(null)}>Avbryt</Button>
-                    <Button onClick={handleConfirmLink(callToLink!, participantToLinkId)} disabled={!participantToLinkId}>Länka och skapa anteckning</Button>
+                    <Button onClick={() => handleConfirmLink(callToLink!, participantToLinkId)} disabled={!participantToLinkId}>Länka och skapa anteckning</Button>
                 </div>
             </div>
       </Modal>
