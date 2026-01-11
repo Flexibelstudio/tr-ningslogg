@@ -160,14 +160,14 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
               elksApiSecret: integrationSettings.elksApiSecret
           });
 
-          if (result.data.error) throw new Error(result.data.error);
+          if (result.data?.error) throw new Error(result.data.error);
 
           addNotification({ type: 'SUCCESS', title: 'Samtal startat', message: 'Håll telefonen redo!' });
           setLeadToCall(null);
           setLeadToLogContact(leadToCall);
       } catch (err) {
           console.error("46elks Call Error:", err);
-          addNotification({ type: 'ERROR', title: 'Koppling misslyckades', message: 'Kunde inte starta samtalet via servern. Kontrollera API-inställningar.' });
+          addNotification({ type: 'ERROR', title: 'Koppling misslyckades', message: 'Kunde inte starta samtalet via server-proxyn. Kontrollera dina inställningar.' });
       }
   }, [leadToCall, loggedInStaff, integrationSettings, addNotification]);
 
@@ -190,7 +190,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
             elksApiSecret: integrationSettings.elksApiSecret
         });
 
-        if (result.data.error) throw new Error(result.data.error);
+        if (result.data?.error) throw new Error(result.data.error);
 
         addNotification({ type: 'SUCCESS', title: 'SMS Skickat!', message: `Meddelande skickat till ${leadToSms.firstName}.` });
         
@@ -203,7 +203,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         setLeadToSms(null);
     } catch (err) {
         console.error("46elks SMS Error:", err);
-        addNotification({ type: 'ERROR', title: 'Kunde inte skicka', message: 'Ett tekniskt fel uppstod vid sändning via servern.' });
+        addNotification({ type: 'ERROR', title: 'Kunde inte skicka', message: 'Ett tekniskt fel uppstod vid sändning via server-proxyn.' });
     }
   }, [leadToSms, integrationSettings, handleSaveContactAttempt, addNotification]);
 
@@ -717,6 +717,22 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         title="Ta bort lead?"
         message={`Är du säker på att du vill ta bort leadet för ${leadToMarkAsJunk?.firstName} ${leadToMarkAsJunk?.lastName}? Detta markerar det som 'skräp' och döljer det från listan.`}
         confirmButtonText="Ja, ta bort"
+        confirmButtonVariant="danger"
+      />
+
+      <ConfirmationModal
+        isOpen={!!leadToDeletePermanent}
+        onClose={() => setLeadToDeletePermanent(null)}
+        onConfirm={handleConfirmDeletePermanent}
+        title="Radera permanent?"
+        message={
+            <>
+                Är du säker på att du vill radera leadet för <strong>{leadToDeletePermanent?.firstName} {leadToDeletePermanent?.lastName}</strong> permanent? 
+                <br /><br />
+                Detta går inte att ångras.
+            </>
+        }
+        confirmButtonText="Ja, radera permanent"
         confirmButtonVariant="danger"
       />
 

@@ -11,11 +11,22 @@ import { Modal } from '../Modal';
 import { Select, Input } from '../Input';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { useClientJourney } from '../../features/coach/hooks/useClientJourney';
-import { LogContactModal } from '../coach/LogContactModal';
+import { LogContactModal } from './LogContactModal';
 import { CONTACT_ATTEMPT_OUTCOME_OPTIONS, CONTACT_ATTEMPT_METHOD_OPTIONS } from '../../constants';
-import { CallSelectorModal } from '../coach/CallSelectorModal';
-import { SmsTemplateModal } from '../coach/SmsTemplateModal';
+import { CallSelectorModal } from './CallSelectorModal';
+import { SmsTemplateModal } from './SmsTemplateModal';
 import { useNotifications } from '../../context/NotificationsContext';
+import { trigger46elksActionFn } from '../../firebaseClient';
+
+interface ClientJourneyViewProps {
+  participants: ParticipantProfile[];
+  oneOnOneSessions: OneOnOneSession[];
+  allActivityLogs: ActivityLog[];
+  loggedInStaff: StaffMember | null;
+  allParticipantGoals: ParticipantGoalData[];
+  coachNotes: CoachNote[];
+  isOnline: boolean;
+}
 
 const EngagementIndicator: React.FC<{ level: 'green' | 'yellow' | 'red' | 'neutral' }> = ({ level }) => {
     const levelConfig = {
@@ -150,29 +161,23 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
       addNotification({ type: 'INFO', title: 'Ringer upp...', message: `Vi ringer din mobil ${from} först. Svara för att kopplas till kunden.` });
 
       try {
-          const authString = btoa(`${integrationSettings.elksApiId}:${integrationSettings.elksApiSecret}`);
-          const formData = new URLSearchParams();
-          formData.append('from', from);
-          formData.append('to', to);
-          formData.append('voice_start', JSON.stringify({ connect: to, callerid: displayId }));
-
-          const response = await fetch('https://api.46elks.com/v1/calls', {
-              method: 'POST',
-              headers: {
-                  'Authorization': `Basic ${authString}`,
-                  'Content-Type': 'application/x-www-form-urlencoded'
-              },
-              body: formData
+          const result = await trigger46elksActionFn({
+              action: 'call',
+              from,
+              to,
+              voice_start: JSON.stringify({ connect: to, callerid: displayId }),
+              elksApiId: integrationSettings.elksApiId,
+              elksApiSecret: integrationSettings.elksApiSecret
           });
 
-          if (!response.ok) throw new Error('API-fel från 46elks');
+          if (result.data?.error) throw new Error(result.data.error);
 
           addNotification({ type: 'SUCCESS', title: 'Samtal startat', message: 'Håll telefonen redo!' });
           setLeadToCall(null);
           setLeadToLogContact(leadToCall);
       } catch (err) {
           console.error("46elks Call Error:", err);
-          addNotification({ type: 'ERROR', title: 'Koppling misslyckades', message: 'Kunde inte nå 46elks API. Detta beror ofta på att webbläsaren blockerar direktanrop (CORS). I produktion krävs en proxy.' });
+          addNotification({ type: 'ERROR', title: 'Koppling misslyckades', message: 'Kunde inte starta samtalet via server-proxyn. Kontrollera dina inställningar.' });
       }
   }, [leadToCall, loggedInStaff, integrationSettings, addNotification]);
 
@@ -186,22 +191,16 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
     const from = "Flexibel";
 
     try {
-        const authString = btoa(`${integrationSettings.elksApiId}:${integrationSettings.elksApiSecret}`);
-        const formData = new URLSearchParams();
-        formData.append('from', from);
-        formData.append('to', to);
-        formData.append('message', content);
-
-        const response = await fetch('https://api.46elks.com/v1/sms', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Basic ${authString}`,
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: formData
+        const result = await trigger46elksActionFn({
+            action: 'sms',
+            from,
+            to,
+            message: content,
+            elksApiId: integrationSettings.elksApiId,
+            elksApiSecret: integrationSettings.elksApiSecret
         });
 
-        if (!response.ok) throw new Error('SMS API-fel');
+        if (result.data?.error) throw new Error(result.data.error);
 
         addNotification({ type: 'SUCCESS', title: 'SMS Skickat!', message: `Meddelande skickat till ${leadToSms.firstName}.` });
         
@@ -214,7 +213,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         setLeadToSms(null);
     } catch (err) {
         console.error("46elks SMS Error:", err);
-        addNotification({ type: 'ERROR', title: 'Kunde inte skicka', message: 'Ett tekniskt fel uppstod vid sändning.' });
+        addNotification({ type: 'ERROR', title: 'Kunde inte skicka', message: 'Ett tekniskt fel uppstod vid sändning via server-proxyn.' });
     }
   }, [leadToSms, integrationSettings, handleSaveContactAttempt, addNotification]);
 
@@ -689,7 +688,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                 />
                 <div className="flex justify-end gap-3 pt-4 border-t">
                     <Button variant="secondary" onClick={() => setCallToLink(null)}>Avbryt</Button>
-                    <Button onClick={() => handleConfirmLink(callToLink!, participantToLinkId)} disabled={!participantToLinkId}>Länka och skapa anteckning</Button>
+                    <Button onClick={handleConfirmLink(callToLink!, participantToLinkId)} disabled={!participantToLinkId}>Länka och skapa anteckning</Button>
                 </div>
             </div>
       </Modal>
@@ -728,6 +727,22 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         title="Ta bort lead?"
         message={`Är du säker på att du vill ta bort leadet för ${leadToMarkAsJunk?.firstName} ${leadToMarkAsJunk?.lastName}? Detta markerar det som 'skräp' och döljer det från listan.`}
         confirmButtonText="Ja, ta bort"
+        confirmButtonVariant="danger"
+      />
+
+      <ConfirmationModal
+        isOpen={!!leadToDeletePermanent}
+        onClose={() => setLeadToDeletePermanent(null)}
+        onConfirm={handleConfirmDeletePermanent}
+        title="Radera permanent?"
+        message={
+            <>
+                Är du säker på att du vill radera leadet för <strong>{leadToDeletePermanent?.firstName} {leadToDeletePermanent?.lastName}</strong> permanent? 
+                <br /><br />
+                Detta går inte att ångras.
+            </>
+        }
+        confirmButtonText="Ja, radera permanent"
         confirmButtonVariant="danger"
       />
 
