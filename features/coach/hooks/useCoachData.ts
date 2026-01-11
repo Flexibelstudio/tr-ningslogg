@@ -12,35 +12,58 @@ import {
 
 export const useCoachData = () => {
   const {
-    participantDirectory,
-    staffMembers,
-    workouts,
-    workoutLogs,
-    participantGoals,
-    generalActivityLogs,
-    goalCompletionLogs,
-    userStrengthStats,
-    userConditioningStatsHistory,
-    clubMemberships,
+    participantDirectory: rawParticipantDirectory,
+    staffMembers: rawStaffMembers,
+    workouts: rawWorkouts,
+    workoutLogs: rawWorkoutLogs,
+    participantGoals: rawParticipantGoals,
+    generalActivityLogs: rawGeneralActivityLogs,
+    goalCompletionLogs: rawGoalCompletionLogs,
+    userStrengthStats: rawUserStrengthStats,
+    userConditioningStatsHistory: rawUserConditioningStatsHistory,
+    clubMemberships: rawClubMemberships,
     leaderboardSettings,
-    coachEvents,
-    locations,
-    coachNotes,
+    coachEvents: rawCoachEvents,
+    locations: rawLocations,
+    coachNotes: rawCoachNotes,
     weeklyHighlightSettings,
-    oneOnOneSessions,
-    staffAvailability,
+    oneOnOneSessions: rawOneOnOneSessions,
+    staffAvailability: rawStaffAvailability,
     integrationSettings,
-    groupClassDefinitions,
-    groupClassSchedules,
-    groupClassScheduleExceptions,
-    participantBookings,
+    groupClassDefinitions: rawGroupClassDefinitions,
+    groupClassSchedules: rawGroupClassSchedules,
+    groupClassScheduleExceptions: rawGroupClassScheduleExceptions,
+    participantBookings: rawParticipantBookings,
     orgDataError,
     getColorForCategory,
-    leads,
-    prospectIntroCalls,
+    leads: rawLeads,
+    prospectIntroCalls: rawProspectIntroCalls,
   } = useAppContext();
 
   const { user, isImpersonating } = useAuth();
+
+  // Defensive: Filter out any null/undefined entries that might have sneaked in from DB/Mock
+  const participantDirectory = useMemo(() => (rawParticipantDirectory || []).filter(Boolean), [rawParticipantDirectory]);
+  const staffMembers = useMemo(() => (rawStaffMembers || []).filter(Boolean), [rawStaffMembers]);
+  const workouts = useMemo(() => (rawWorkouts || []).filter(Boolean), [rawWorkouts]);
+  const workoutLogs = useMemo(() => (rawWorkoutLogs || []).filter(Boolean), [rawWorkoutLogs]);
+  const participantGoals = useMemo(() => (rawParticipantGoals || []).filter(Boolean), [rawParticipantGoals]);
+  const generalActivityLogs = useMemo(() => (rawGeneralActivityLogs || []).filter(Boolean), [rawGeneralActivityLogs]);
+  const goalCompletionLogs = useMemo(() => (rawGoalCompletionLogs || []).filter(Boolean), [rawGoalCompletionLogs]);
+  const userStrengthStats = useMemo(() => (rawUserStrengthStats || []).filter(Boolean), [rawUserStrengthStats]);
+  const userConditioningStatsHistory = useMemo(() => (rawUserConditioningStatsHistory || []).filter(Boolean), [rawUserConditioningStatsHistory]);
+  const clubMemberships = useMemo(() => (rawClubMemberships || []).filter(Boolean), [rawClubMemberships]);
+  const coachEvents = useMemo(() => (rawCoachEvents || []).filter(Boolean), [rawCoachEvents]);
+  const locations = useMemo(() => (rawLocations || []).filter(Boolean), [rawLocations]);
+  const coachNotes = useMemo(() => (rawCoachNotes || []).filter(Boolean), [rawCoachNotes]);
+  const oneOnOneSessions = useMemo(() => (rawOneOnOneSessions || []).filter(Boolean), [rawOneOnOneSessions]);
+  const staffAvailability = useMemo(() => (rawStaffAvailability || []).filter(Boolean), [rawStaffAvailability]);
+  const groupClassDefinitions = useMemo(() => (rawGroupClassDefinitions || []).filter(Boolean), [rawGroupClassDefinitions]);
+  const groupClassSchedules = useMemo(() => (rawGroupClassSchedules || []).filter(Boolean), [rawGroupClassSchedules]);
+  const groupClassScheduleExceptions = useMemo(() => (rawGroupClassScheduleExceptions || []).filter(Boolean), [rawGroupClassScheduleExceptions]);
+  const participantBookings = useMemo(() => (rawParticipantBookings || []).filter(Boolean), [rawParticipantBookings]);
+  const leads = useMemo(() => (rawLeads || []).filter(Boolean), [rawLeads]);
+  const prospectIntroCalls = useMemo(() => (rawProspectIntroCalls || []).filter(Boolean), [rawProspectIntroCalls]);
 
   // Bestäm vilken coach/staff som är "inloggad" utifrån Auth
   const loggedInStaff = useMemo<StaffMember | null>(() => {
