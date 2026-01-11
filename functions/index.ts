@@ -119,7 +119,7 @@ export const sendSessionReminder = onRequest(
     region: "europe-west1",
     secrets: ["VAPID_PRIVATE_KEY"],
   },
-  async (request: HttpsRequest, response: any) => {
+  async (request: any, response: any) => {
     if (!request.headers["x-cloudtasks-queuename"]) {
       logger.error("Unauthorized: Missing Cloud Tasks header.");
       response.status(403).send("Unauthorized");
@@ -453,7 +453,7 @@ export const cancelClassInstance = onCall(
 /* -----------------------------------------------------------------------------
  * HTTP: Calendar Feed (iCal)
  * ---------------------------------------------------------------------------*/
-export const calendarFeed = onRequest({ region: "europe-west1" }, async (req: HttpsRequest, res: any) => {
+export const calendarFeed = onRequest({ region: "europe-west1" }, async (req: any, res: any) => {
   const { userId, type } = req.query;
   if (!userId || typeof userId !== "string") { res.status(400).send("Missing userId."); return; }
 
@@ -477,7 +477,7 @@ export const calendarFeed = onRequest({ region: "europe-west1" }, async (req: Ht
 /* -----------------------------------------------------------------------------
  * Callable: 46elks Proxy (Säkrare anrop)
  * ---------------------------------------------------------------------------*/
-export const trigger46elksAction = onCall({ region: "europe-west1" }, async (request) => {
+export const trigger46elksAction = onCall({ region: "europe-west1", cors: true }, async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Logga in först.");
     
     const { action, from, to, message, voice_start, elksApiId, elksApiSecret } = (request.data ?? {}) as any;
@@ -485,7 +485,9 @@ export const trigger46elksAction = onCall({ region: "europe-west1" }, async (req
     if (!elksApiId || !elksApiSecret) throw new HttpsError("invalid-argument", "API-uppgifter saknas.");
 
     const endpoint = action === 'sms' ? 'https://api.46elks.com/v1/sms' : 'https://api.46elks.com/v1/calls';
-    const authString = btoa(`${elksApiId}:${elksApiSecret}`);
+    
+    // FIX: Node.js does not have btoa, use Buffer instead.
+    const authString = Buffer.from(`${elksApiId}:${elksApiSecret}`).toString("base64");
     const formData = new URLSearchParams();
     
     formData.append('from', from);
@@ -505,6 +507,7 @@ export const trigger46elksAction = onCall({ region: "europe-west1" }, async (req
 
         if (!response.ok) {
             const errText = await response.text();
+            logger.error(`46elks API error (${response.status}): ${errText}`);
             throw new Error(`46elks API error: ${errText}`);
         }
 
@@ -522,6 +525,7 @@ export const callGeminiApi = onCall(
   {
     region: "europe-west1",
     secrets: ["GEMINI_API_KEY"],
+    cors: true,
   },
   async (request) => {
     try {
