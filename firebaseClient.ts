@@ -32,3 +32,10 @@ export const notifyFriendsOnBookingFn = functions
         console.error("Firebase is not initialized. Cannot call cloud function 'notifyFriendsOnBooking'.");
         return Promise.resolve({ data: { error: "Firebase är inte konfigurerad korrekt. Funktionen kan inte anropas." } });
     };
+
+export const trigger46elksActionFn = functions
+    ? functions.httpsCallable('trigger46elksAction')
+    : () => {
+        console.error("Firebase is not initialized. Cannot call cloud function 'trigger46elksAction'.");
+        return Promise.resolve({ data: { error: "Firebase är inte konfigurerad korrekt." } });
+    };

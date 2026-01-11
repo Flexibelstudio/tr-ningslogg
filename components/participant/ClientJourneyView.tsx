@@ -1,27 +1,22 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { ParticipantProfile, OneOnOneSession, ActivityLog, StaffMember, CoachNote, ParticipantGoalData, WorkoutLog, Membership, ProspectIntroCall, Lead, Location } from '../../types';
-import { GoogleGenAI } from '@google/genai';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { ParticipantProfile, OneOnOneSession, ActivityLog, StaffMember, CoachNote, ParticipantGoalData, WorkoutLog, Membership, ProspectIntroCall, Lead, Location, ContactAttempt, ContactAttemptMethod } from '../../types';
 import { Button } from '../Button';
 import { MemberNotesModal } from '../coach/MemberNotesModal';
 import * as dateUtils from '../../utils/dateUtils';
 import { InfoModal } from '../participant/InfoModal';
 import { useAppContext } from '../../context/AppContext';
 import { IntroCallModal } from '../coach/IntroCallModal';
-// FIX: Corrected import path for useAuth
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../Modal';
 import { Select, Input } from '../Input';
 import { ConfirmationModal } from '../ConfirmationModal';
-
-interface ClientJourneyViewProps {
-  participants: ParticipantProfile[];
-  oneOnOneSessions: OneOnOneSession[];
-  allActivityLogs: ActivityLog[];
-  loggedInStaff: StaffMember | null;
-  allParticipantGoals: ParticipantGoalData[];
-  coachNotes: CoachNote[];
-  isOnline: boolean;
-}
+import { useClientJourney } from '../../features/coach/hooks/useClientJourney';
+import { LogContactModal } from '../coach/LogContactModal';
+import { CONTACT_ATTEMPT_OUTCOME_OPTIONS, CONTACT_ATTEMPT_METHOD_OPTIONS } from '../../constants';
+import { CallSelectorModal } from '../coach/CallSelectorModal';
+import { SmsTemplateModal } from '../coach/SmsTemplateModal';
+import { useNotifications } from '../../context/NotificationsContext';
+import { trigger46elksActionFn } from '../../firebaseClient';
 
 const EngagementIndicator: React.FC<{ level: 'green' | 'yellow' | 'red' | 'neutral' }> = ({ level }) => {
     const levelConfig = {
@@ -34,97 +29,53 @@ const EngagementIndicator: React.FC<{ level: 'green' | 'yellow' | 'red' | 'neutr
     return <span className={`inline-block h-3 w-3 rounded-full ${color}`} title={tooltip}></span>;
 };
 
-interface ClientJourneyEntry extends ParticipantProfile {
-  phase: 'Startprogram' | 'Medlem' | 'Riskzon';
-  phaseColorClass: string;
-  progressText: string;
-  nextActionText: string;
-  nextActionPriority: 'high' | 'medium' | 'low';
-  lastActivityDate: Date | null;
-  engagementLevel: 'green' | 'yellow' | 'red' | 'neutral';
-}
-
-type ClientJourneyTab = 'leads' | 'introCalls' | 'memberJourney';
-
-interface AddLeadModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (newLeadData: Pick<Lead, 'firstName' | 'lastName' | 'email' | 'phone' | 'locationId'>) => void;
-  locations: Location[];
-}
-
-const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onSave, locations }) => {
+const AddLeadModal: React.FC<{ isOpen: boolean; onClose: () => void; onSave: (data: any) => void; locations: Location[] }> = ({ isOpen, onClose, onSave, locations }) => {
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
     const [locationId, setLocationId] = useState('');
-    const [errors, setErrors] = useState<Record<string, string>>({});
 
-    const locationOptions = useMemo(() => [
-        { value: '', label: 'Välj studio/ort...' },
-        ...locations.map(loc => ({ value: loc.id, label: loc.name }))
-    ], [locations]);
-    
     useEffect(() => {
         if (isOpen) {
-            setFirstName('');
-            setLastName('');
-            setEmail('');
-            setPhone('');
-            setLocationId(locations.length > 0 ? locations[0].id : '');
-            setErrors({});
+            setFirstName(''); setLastName(''); setEmail(''); setPhone(''); setLocationId(locations[0]?.id || '');
         }
     }, [isOpen, locations]);
 
-    const validate = () => {
-        const newErrors: Record<string, string> = {};
-        if (!firstName.trim()) newErrors.firstName = "Förnamn är obligatoriskt.";
-        if (!lastName.trim()) newErrors.lastName = "Efternamn är obligatoriskt.";
-        if (!email.trim()) {
-            newErrors.email = "E-post är obligatoriskt.";
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-            newErrors.email = "Ogiltig e-postadress.";
-        }
-        if (!locationId) newErrors.locationId = "Du måste välja en studio/ort.";
-        
-        setErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
-    };
-
     const handleSave = () => {
-        if (validate()) {
-            onSave({ 
-                firstName: firstName.trim(), 
-                lastName: lastName.trim(), 
-                email: email.trim(), 
-                phone: phone.trim() || undefined, 
-                locationId 
-            });
-            onClose();
-        }
+        if (!firstName || !lastName || !email) return;
+        onSave({ firstName, lastName, email, phone, locationId });
+        onClose();
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Lägg till Lead Manuellt">
+        <Modal isOpen={isOpen} onClose={onClose} title="Lägg till lead">
             <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Input label="Förnamn *" value={firstName} onChange={e => setFirstName(e.target.value)} error={errors.firstName} required />
-                    <Input label="Efternamn *" value={lastName} onChange={e => setLastName(e.target.value)} error={errors.lastName} required />
+                <div className="grid grid-cols-2 gap-4">
+                    <Input label="Förnamn" value={firstName} onChange={e => setFirstName(e.target.value)} />
+                    <Input label="Efternamn" value={lastName} onChange={e => setLastName(e.target.value)} />
                 </div>
-                <Input label="E-post *" type="email" value={email} onChange={e => setEmail(e.target.value)} error={errors.email} required />
-                <Input label="Mobilnummer" type="tel" value={phone} onChange={e => setPhone(e.target.value)} />
-                <Select label="Studio/Ort *" value={locationId} onChange={e => setLocationId(e.target.value)} options={locationOptions} error={errors.locationId} required />
-
-                <div className="flex justify-end space-x-3 pt-4 border-t">
-                    <Button onClick={onClose} variant="secondary">Avbryt</Button>
-                    <Button onClick={handleSave}>Spara Lead</Button>
+                <Input label="E-post" value={email} onChange={e => setEmail(e.target.value)} />
+                <Input label="Telefon" value={phone} onChange={e => setPhone(e.target.value)} />
+                <Select label="Studio" value={locationId} onChange={e => setLocationId(e.target.value)} options={locations.map(l => ({ value: l.id, label: l.name }))} />
+                <div className="flex justify-end gap-2 pt-4 border-t">
+                    <Button variant="secondary" onClick={onClose}>Avbryt</Button>
+                    <Button onClick={handleSave}>Spara</Button>
                 </div>
             </div>
         </Modal>
     );
 };
 
+const cleanNumber = (num: string | undefined): string => {
+    if (!num) return '';
+    let cleaned = num.replace(/\s+/g, '').replace(/-/g, '');
+    if (cleaned.startsWith('00')) cleaned = '+' + cleaned.substring(2);
+    if (cleaned.startsWith('0')) cleaned = '+46' + cleaned.substring(1);
+    if (cleaned.startsWith('+460')) cleaned = '+46' + cleaned.substring(4);
+    if (!cleaned.startsWith('+')) cleaned = '+46' + cleaned;
+    return cleaned;
+};
 
 export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   participants,
@@ -136,29 +87,40 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   isOnline,
 }) => {
     const {
-        memberships,
-        integrationSettings,
-        workoutLogs,
-        setParticipantGoalsData,
-        setGoalCompletionLogsData,
-        setCoachNotesData,
-        setOneOnOneSessionsData,
-        workouts,
-        addWorkout,
-        updateWorkout,
-        deleteWorkout,
-        workoutCategories,
-        staffAvailability,
-        staffMembers,
-        leads,
-        setLeadsData,
-        prospectIntroCalls,
-        setProspectIntroCallsData,
         locations,
-        addParticipant,
+        staffMembers,
+        integrationSettings,
+        smsTemplates,
     } = useAppContext();
+
+    const { addNotification } = useNotifications();
+
+    const {
+        activeTab,
+        setActiveTab,
+        activeLeadFilter,
+        setActiveLeadFilter,
+        activeFilter,
+        setActiveFilter,
+        introCallView,
+        setIntroCallView,
+        filteredAndSortedData,
+        leadCounts,
+        filteredLeads,
+        newLeadsList,
+        actionableIntroCalls,
+        archivedIntroCalls,
+        counts,
+        handleSaveLead,
+        handleSaveIntroCall,
+        handleUpdateIntroCall,
+        handleConfirmLink,
+        handleConfirmMarkAsJunk,
+        handleRestoreLead,
+        handlePermanentDeleteLead,
+        handleSaveContactAttempt,
+    } = useClientJourney(loggedInStaff);
     
-  const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
   const [selectedParticipant, setSelectedParticipant] = useState<ParticipantProfile | null>(null);
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
@@ -166,224 +128,88 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   const [callToEdit, setCallToEdit] = useState<ProspectIntroCall | null>(null);
   const [callToLink, setCallToLink] = useState<ProspectIntroCall | null>(null);
   const [participantToLinkId, setParticipantToLinkId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<ClientJourneyTab>('leads');
   const [leadBeingConverted, setLeadBeingConverted] = useState<Lead | null>(null);
   const [leadToMarkAsJunk, setLeadToMarkAsJunk] = useState<Lead | null>(null);
+  const [leadToDeletePermanent, setLeadToDeletePermanent] = useState<Lead | null>(null);
   const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
+  
+  const [leadToLogContact, setLeadToLogContact] = useState<Lead | null>(null);
+  const [leadToCall, setLeadToCall] = useState<Lead | null>(null);
+  const [leadToSms, setLeadToSms] = useState<Lead | null>(null);
+  const [expandedLeadHistoryIds, setExpandedLeadHistoryIds] = useState<Set<string>>(new Set());
 
-  const journeyData = useMemo<ClientJourneyEntry[]>(() => {
-    return participants
-      .filter(p => p.isActive || p.isProspect)
-      .map(p => {
-        const today = new Date();
-        const referenceDateString = p.startDate || p.creationDate;
-        if (!referenceDateString) return null; // Skip participants without a start/creation date
-        const referenceDate = new Date(referenceDateString);
-        const daysSinceStart = Math.floor((today.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24));
+  const executeCall = useCallback(async (callerId: string) => {
+      if (!leadToCall || !loggedInStaff?.phone || !integrationSettings.elksApiId || !integrationSettings.elksApiSecret) {
+          addNotification({ type: 'ERROR', title: 'Kunde inte ringa', message: 'Kontrollera att du angett ditt mottagningsnummer och att API-nycklar är sparade.' });
+          return;
+      }
+      
+      const from = cleanNumber(loggedInStaff.phone);
+      const to = cleanNumber(leadToCall.phone);
+      const displayId = cleanNumber(callerId);
 
-        const myLogs = allActivityLogs.filter(l => l.participantId === p.id).sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime());
-        const myWorkoutLogs = workoutLogs.filter(l => l.participantId === p.id);
-        const logsLast21Days = myLogs.filter(l => new Date(l.completedDate) > new Date(Date.now() - 21 * 24 * 60 * 60 * 1000)).length;
-        
-        const lastActivityDate = myLogs[0] ? new Date(myLogs[0].completedDate) : null;
-        const daysSinceLastActivity = lastActivityDate ? Math.floor((today.getTime() - lastActivityDate.getTime()) / (1000 * 60 * 60 * 24)) : Infinity;
+      addNotification({ type: 'INFO', title: 'Ringer upp...', message: `Vi ringer din mobil ${from} först. Svara för att kopplas till kunden.` });
 
-        let engagementLevel: 'green' | 'yellow' | 'red' | 'neutral' = 'neutral';
-        if (p.isProspect) {
-            // Prospects don't have an engagement level in the same way
-            engagementLevel = 'neutral';
-        } else if (p.isActive === false) {
-            engagementLevel = 'red';
-        } else if (lastActivityDate) {
-            if (daysSinceLastActivity > 14) engagementLevel = 'red';
-            else if (daysSinceLastActivity > 7) engagementLevel = 'yellow';
-            else engagementLevel = 'green';
-        }
+      try {
+          const result = await trigger46elksActionFn({
+              action: 'call',
+              from,
+              to,
+              voice_start: JSON.stringify({ connect: to, callerid: displayId }),
+              elksApiId: integrationSettings.elksApiId,
+              elksApiSecret: integrationSettings.elksApiSecret
+          });
 
-        let finalEntry: Omit<ClientJourneyEntry, keyof ParticipantProfile>;
-        
-        // 1. Riskzon (highest priority)
-        if (!p.isProspect && logsLast21Days < 4 && daysSinceStart > 14) {
-            finalEntry = {
-                phase: 'Riskzon',
-                phaseColorClass: 'bg-red-100 text-red-800',
-                progressText: `${logsLast21Days} pass/21d`,
-                nextActionText: 'Kontakta - låg aktivitet',
-                nextActionPriority: 'high',
-                lastActivityDate,
-                engagementLevel,
-            };
-        }
-        // 2. Startprogram
-        else if (p.isProspect) {
-            const { startProgramCategoryId, startProgramSessionsRequired } = integrationSettings;
-            const startProgramCategory = workoutCategories.find(c => c.id === startProgramCategoryId);
-            
-            let progressText = 'Startprogram (ej konf.)';
-            let nextActionText = 'Konfigurera startprogram';
-            let nextActionPriority: 'high' | 'medium' | 'low' = 'high';
+          if (result.data.error) throw new Error(result.data.error);
 
-            if (startProgramCategory && startProgramSessionsRequired && startProgramSessionsRequired > 0) {
-                const completedCount = myWorkoutLogs.filter(log => {
-                    const workout = workouts.find(w => w.id === log.workoutId);
-                    return workout?.category === startProgramCategory.name;
-                }).length;
-                
-                progressText = `${completedCount}/${startProgramSessionsRequired} startpass`;
-                
-                if (completedCount >= startProgramSessionsRequired) {
-                    nextActionText = 'Konvertera till medlem!';
-                    nextActionPriority = 'high';
-                } else {
-                    nextActionText = `Följ upp startpass #${completedCount + 1}`;
-                    nextActionPriority = 'medium';
-                }
-            }
-            
-            finalEntry = {
-                phase: 'Startprogram',
-                phaseColorClass: 'bg-blue-100 text-blue-800',
-                progressText: progressText,
-                nextActionText: nextActionText,
-                nextActionPriority: nextActionPriority,
-                lastActivityDate,
-                engagementLevel,
-            };
-        }
-        // 3. Medlem
-        else {
-            const membership = memberships.find(m => m.id === p.membershipId);
-            const checkInSessions = oneOnOneSessions.filter(s => s.participantId === p.id && s.title === 'Avstämningssamtal' && s.status === 'completed').sort((a,b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-            const daysSinceLastCheckin = checkInSessions[0] ? Math.floor((today.getTime() - new Date(checkInSessions[0].startTime).getTime()) / (1000 * 60 * 60 * 24)) : daysSinceStart;
+          addNotification({ type: 'SUCCESS', title: 'Samtal startat', message: 'Håll telefonen redo!' });
+          setLeadToCall(null);
+          setLeadToLogContact(leadToCall);
+      } catch (err) {
+          console.error("46elks Call Error:", err);
+          addNotification({ type: 'ERROR', title: 'Koppling misslyckades', message: 'Kunde inte starta samtalet via servern. Kontrollera API-inställningar.' });
+      }
+  }, [leadToCall, loggedInStaff, integrationSettings, addNotification]);
 
-            let nextActionText = 'Fortsätt peppa!';
-            let nextActionPriority: 'high' | 'medium' | 'low' = 'low';
-
-            if (daysSinceLastCheckin > 120) {
-                nextActionText = 'Dags för avstämning!';
-                nextActionPriority = 'high';
-            } else if (daysSinceLastCheckin > 90) {
-                nextActionText = 'Boka in avstämning snart';
-                nextActionPriority = 'medium';
-            }
-
-            finalEntry = {
-                phase: 'Medlem',
-                phaseColorClass: 'bg-green-100 text-green-800',
-                progressText: membership?.name || 'Aktiv',
-                nextActionText,
-                nextActionPriority,
-                lastActivityDate,
-                engagementLevel,
-            };
-        }
-        
-        return { ...p, ...finalEntry };
-      }).filter((p): p is ClientJourneyEntry => p !== null);
-  }, [participants, oneOnOneSessions, allActivityLogs, memberships, integrationSettings, workoutLogs, workouts, workoutCategories]);
-
-  const newLeads = useMemo(() => {
-    return leads
-      .filter(l => l.status === 'new')
-      .sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
-  }, [leads]);
-
-  const unlinkedCalls = useMemo(() => {
-    return prospectIntroCalls
-        .filter(c => c.status === 'unlinked')
-        .sort((a,b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
-  }, [prospectIntroCalls]);
-
-  const filteredAndSortedData = useMemo(() => {
-    let data = journeyData;
-    if (activeFilter === 'riskzon') {
-        data = data.filter(p => p.phase === 'Riskzon');
-    } else if (activeFilter === 'startprogram') {
-        data = data.filter(p => p.phase === 'Startprogram');
-    } else if (activeFilter === 'checkin') {
-        data = data.filter(p => p.phase === 'Medlem' && p.nextActionPriority !== 'low');
+  const executeSms = useCallback(async (content: string, templateName: string) => {
+    if (!leadToSms || !leadToSms.phone || !integrationSettings.elksApiId || !integrationSettings.elksApiSecret) {
+        addNotification({ type: 'ERROR', title: 'Kunde inte skicka SMS', message: 'API-uppgifter saknas.' });
+        return;
     }
 
-    return data.sort((a, b) => {
-        const priorityOrder = { high: 1, medium: 2, low: 3 };
-        return priorityOrder[a.nextActionPriority] - priorityOrder[b.nextActionPriority];
-    });
-  }, [journeyData, activeFilter]);
-  
-  const counts = useMemo(() => {
-    const riskzon = journeyData.filter(p => p.phase === 'Riskzon').length;
-    const startprogram = journeyData.filter(p => p.phase === 'Startprogram').length;
-    const checkin = journeyData.filter(p => p.phase === 'Medlem' && p.nextActionPriority !== 'low').length;
-    return { riskzon, startprogram, checkin };
-  }, [journeyData]);
+    const to = cleanNumber(leadToSms.phone);
+    const from = "Flexibel";
+
+    try {
+        const result = await trigger46elksActionFn({
+            action: 'sms',
+            from,
+            to,
+            message: content,
+            elksApiId: integrationSettings.elksApiId,
+            elksApiSecret: integrationSettings.elksApiSecret
+        });
+
+        if (result.data.error) throw new Error(result.data.error);
+
+        addNotification({ type: 'SUCCESS', title: 'SMS Skickat!', message: `Meddelande skickat till ${leadToSms.firstName}.` });
+        
+        handleSaveContactAttempt(leadToSms.id, {
+            method: 'sms',
+            outcome: 'follow_up',
+            notes: `Automatiskt SMS: ${templateName}`
+        });
+
+        setLeadToSms(null);
+    } catch (err) {
+        console.error("46elks SMS Error:", err);
+        addNotification({ type: 'ERROR', title: 'Kunde inte skicka', message: 'Ett tekniskt fel uppstod vid sändning via servern.' });
+    }
+  }, [leadToSms, integrationSettings, handleSaveContactAttempt, addNotification]);
 
   const handleOpenNotesModal = (participant: ParticipantProfile) => {
     setSelectedParticipant(participant);
     setIsNotesModalOpen(true);
-  };
-  
-  const handleSaveIntroCall = (introCallData: Omit<ProspectIntroCall, 'id' | 'createdDate' | 'status' | 'coachId'>) => {
-    if (!loggedInStaff) return;
-    const newIntroCall: ProspectIntroCall = {
-        ...introCallData,
-        id: crypto.randomUUID(),
-        createdDate: new Date().toISOString(),
-        coachId: loggedInStaff.id,
-        status: 'unlinked',
-    };
-    setProspectIntroCallsData(prev => [...prev, newIntroCall]);
-
-    if (leadBeingConverted) {
-        const updatedLead = { ...leadBeingConverted, status: 'converted' as const };
-        setLeadsData(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-        setLeadBeingConverted(null);
-    }
-  };
-
-  const handleUpdateIntroCall = (updatedCall: ProspectIntroCall) => {
-    setProspectIntroCallsData(prev => prev.map(c => c.id === updatedCall.id ? updatedCall : c));
-  };
-  
-  const handleConfirmLink = () => {
-    if (!callToLink || !participantToLinkId) return;
-    
-    // 1. Update the ProspectIntroCall
-    const updatedCall = { ...callToLink, status: 'linked' as const, linkedParticipantId: participantToLinkId };
-    setProspectIntroCallsData(prev => prev.map(c => c.id === callToLink.id ? updatedCall : c));
-
-    // 2. Create a CoachNote from the intro call data
-    const noteText = `
---- INTROSAMTALSAMMANFATTNING ---
-Datum: ${new Date(callToLink.createdDate).toLocaleDateString('sv-SE')}
-
-Träningsmål & 'Varför':
-${callToLink.trainingGoals || 'Ej angivet.'}
-
-Timing - 'Varför just nu?':
-${callToLink.timingNotes || 'Ej angivet.'}
-
-Sömn & Stress:
-${callToLink.sleepAndStress || 'Ej angivet.'}
-
-Skador/Hälsoproblem:
-${callToLink.healthIssues || 'Ej angivet.'}
-
-Coachanteckningar & Nästa Steg:
-${callToLink.coachSummary || 'Ej angivet.'}
-    `.trim();
-
-    const newNote: CoachNote = {
-        id: crypto.randomUUID(),
-        participantId: participantToLinkId,
-        noteText: noteText,
-        createdDate: new Date().toISOString(),
-        noteType: 'intro-session'
-    };
-    setCoachNotesData(prev => [...prev, newNote]);
-
-    // 3. Reset state
-    setCallToLink(null);
-    setParticipantToLinkId('');
   };
   
   const handleCreateIntroCallFromLead = (lead: Lead) => {
@@ -391,21 +217,20 @@ ${callToLink.coachSummary || 'Ej angivet.'}
     setIsIntroCallModalOpen(true);
   };
 
-  const handleConfirmMarkAsJunk = () => {
-    if (!leadToMarkAsJunk) return;
-    setLeadsData(prev => prev.map(l => l.id === leadToMarkAsJunk.id ? { ...l, status: 'junk' } : l));
-    setLeadToMarkAsJunk(null);
+  const handleConfirmDeletePermanent = () => {
+    if (leadToDeletePermanent) {
+        handlePermanentDeleteLead(leadToDeletePermanent);
+        setLeadToDeletePermanent(null);
+    }
   };
-  
-  const handleSaveLead = (newLeadData: Pick<Lead, 'firstName' | 'lastName' | 'email' | 'phone' | 'locationId'>) => {
-    const newLead: Lead = {
-        id: crypto.randomUUID(),
-        ...newLeadData,
-        source: 'Manuell',
-        status: 'new',
-        createdDate: new Date().toISOString(),
-    };
-    setLeadsData(prev => [...prev, newLead]);
+
+  const toggleHistory = (leadId: string) => {
+      setExpandedLeadHistoryIds(prev => {
+          const newSet = new Set(prev);
+          if (newSet.has(leadId)) newSet.delete(leadId);
+          else newSet.add(leadId);
+          return newSet;
+      });
   };
 
   if (!loggedInStaff) return <div>Laddar...</div>;
@@ -426,16 +251,46 @@ ${callToLink.coachSummary || 'Ej angivet.'}
     </button>
   );
   
-  const getTabButtonStyle = (tab: ClientJourneyTab) => {
+  const getTabButtonStyle = (tab: any) => {
     return activeTab === tab
         ? 'border-flexibel text-flexibel bg-flexibel/10'
         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300';
   };
+
+  const FilterChip = ({ label, count, active, onClick }: { label: string, count: number, active: boolean, onClick: () => void }) => (
+      <button
+          onClick={onClick}
+          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors border ${
+              active
+                  ? 'bg-flexibel text-white border-flexibel'
+                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+          }`}
+      >
+          {label} ({count})
+      </button>
+  );
   
   const participantOptionsForLinking = participants
-    .filter(p => p.isActive || p.isProspect) // Link to active members or prospects
+    .filter(p => p.isActive || p.isProspect)
     .map(p => ({ value: p.id, label: p.name || 'Okänd' }))
     .sort((a,b) => a.label.localeCompare(b.label));
+    
+  const callsToDisplay = introCallView === 'actionable' ? actionableIntroCalls : archivedIntroCalls;
+
+  const getContactSummary = (contactHistory?: ContactAttempt[]) => {
+      if (!contactHistory || contactHistory.length === 0) {
+          return { text: "⚪️ Ej kontaktad än", colorClass: "text-gray-500" };
+      }
+      const last = contactHistory[contactHistory.length - 1];
+      const dateStr = dateUtils.formatRelativeTime(new Date(last.timestamp)).relative;
+      const methodIcon = last.method === 'email' ? '✉️' : last.method === 'sms' ? '💬' : '📞';
+      const outcomeLabel = CONTACT_ATTEMPT_OUTCOME_OPTIONS.find(o => o.value === last.outcome)?.label || last.outcome;
+      
+      return {
+          text: `${methodIcon} ${dateStr}: ${outcomeLabel}`,
+          colorClass: "text-gray-700"
+      };
+  };
 
   return (
     <div className="space-y-6">
@@ -450,11 +305,11 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             <nav className="-mb-px flex space-x-4" aria-label="Tabs">
                 <button onClick={() => setActiveTab('leads')} className={`relative whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('leads')}`}>
                     Leads
-                    {newLeads.length > 0 && <span className="ml-2 inline-block bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">{newLeads.length}</span>}
+                    {newLeadsList.length > 0 && <span className="ml-2 inline-block bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">{newLeadsList.length}</span>}
                 </button>
                 <button onClick={() => setActiveTab('introCalls')} className={`relative whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('introCalls')}`}>
                     Introsamtal
-                    {unlinkedCalls.length > 0 && <span className="ml-2 inline-block bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">{unlinkedCalls.length}</span>}
+                    {actionableIntroCalls.length > 0 && <span className="ml-2 inline-block bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">{actionableIntroCalls.length}</span>}
                 </button>
                 <button onClick={() => setActiveTab('memberJourney')} className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-lg rounded-t-lg ${getTabButtonStyle('memberJourney')}`}>
                     Medlemsresan
@@ -462,65 +317,183 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             </nav>
         </div>
       
-      {/* Leads Tab */}
       <div role="tabpanel" hidden={activeTab !== 'leads'} className="animate-fade-in space-y-6">
-        <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-bold text-gray-800">Leads ({newLeads.length})</h3>
-            <Button onClick={() => setIsAddLeadModalOpen(true)}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
-                Lägg till lead manuellt
-            </Button>
+        <div className="flex flex-col gap-4">
+             <div className="flex justify-between items-center">
+                <h3 className="text-xl font-bold text-gray-800">Leads</h3>
+                <Button onClick={() => setIsAddLeadModalOpen(true)}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
+                    Lägg till lead manuellt
+                </Button>
+            </div>
+            
+            <div className="flex flex-wrap gap-2">
+                <FilterChip label="Nya" count={leadCounts.new} active={activeLeadFilter === 'new'} onClick={() => setActiveLeadFilter('new')} />
+                <FilterChip label="Kontaktade" count={leadCounts.contacted} active={activeLeadFilter === 'contacted'} onClick={() => setActiveLeadFilter('contacted')} />
+                <FilterChip label="Bokade Intro" count={leadCounts.intro_booked} active={activeLeadFilter === 'intro_booked'} onClick={() => setActiveLeadFilter('intro_booked')} />
+                <FilterChip label="Konverterade" count={leadCounts.converted} active={activeLeadFilter === 'converted'} onClick={() => setActiveLeadFilter('converted')} />
+                <FilterChip label="Skräp" count={leadCounts.junk} active={activeLeadFilter === 'junk'} onClick={() => setActiveLeadFilter('junk')} />
+                <FilterChip label="Alla" count={leadCounts.all} active={activeLeadFilter === 'all'} onClick={() => setActiveLeadFilter('all')} />
+            </div>
         </div>
-        {newLeads.length > 0 ? (
+
+        {filteredLeads.length > 0 ? (
             <div className="space-y-3">
-                {newLeads.map(lead => {
+                {filteredLeads.map(lead => {
                     const location = locations.find(l => l.id === lead.locationId);
+                    const isJunk = lead.status === 'junk';
+                    const contactSummary = getContactSummary(lead.contactHistory);
+                    const isExpanded = expandedLeadHistoryIds.has(lead.id);
+                    
                     return (
-                        <div key={lead.id} className="p-4 bg-white rounded-lg border shadow-sm flex flex-col sm:flex-row justify-between items-start gap-3">
-                            <div>
-                                <p className="font-bold text-lg text-gray-900">{lead.firstName} {lead.lastName}</p>
-                                <p className="text-sm text-gray-600">{lead.email}</p>
-                                {lead.phone && <p className="text-sm text-gray-600">{lead.phone}</p>}
-                                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                                    <span className="font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{lead.source}</span>
-                                    {location && <span className="font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{location.name}</span>}
-                                    <span className="text-gray-400">{new Date(lead.createdDate).toLocaleString('sv-SE')}</span>
+                        <div key={lead.id} className="p-4 bg-white rounded-lg border shadow-sm flex flex-col gap-3">
+                            <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <p className="font-bold text-lg text-gray-900">{lead.firstName} {lead.lastName}</p>
+                                        {isJunk && <span className="text-xs font-bold bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">Skräp</span>}
+                                        {lead.status === 'converted' && <span className="text-xs font-bold bg-green-200 text-green-800 px-2 py-0.5 rounded-full">Konverterad</span>}
+                                    </div>
+                                    <div className="flex flex-col gap-1 mt-1">
+                                        <p className="text-sm text-gray-600">{lead.email} {lead.phone ? `• ${lead.phone}` : ''}</p>
+                                        
+                                        <button onClick={() => toggleHistory(lead.id)} className="text-left focus:outline-none group">
+                                            <p className={`text-sm font-medium ${contactSummary.colorClass} flex items-center gap-1 group-hover:underline`}>
+                                                {contactSummary.text}
+                                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                                            </p>
+                                        </button>
+                                    </div>
+
+                                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                                        <span className="font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{lead.source}</span>
+                                        {location && <span className="font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{location.name}</span>}
+                                        <span className="text-gray-400">{new Date(lead.createdDate).toLocaleString('sv-SE')}</span>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2 self-start sm:self-center flex-shrink-0 flex-wrap">
+                                    {isJunk ? (
+                                        <>
+                                            <Button size="sm" variant="secondary" onClick={() => handleRestoreLead(lead)}>Återställ</Button>
+                                            <Button size="sm" variant="danger" onClick={() => setLeadToDeletePermanent(lead)}>Radera permanent</Button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            {lead.phone && (
+                                                <div className="flex gap-1 mr-2">
+                                                    <Button 
+                                                        size="sm" 
+                                                        variant="ghost" 
+                                                        className="!text-green-600 !bg-green-50 hover:!bg-green-100" 
+                                                        onClick={() => setLeadToCall(lead)}
+                                                        title="Ring via 46elks"
+                                                    >
+                                                        📞 Ring
+                                                    </Button>
+                                                    <Button 
+                                                        size="sm" 
+                                                        variant="ghost" 
+                                                        className="!text-blue-600 !bg-blue-50 hover:!bg-blue-100" 
+                                                        onClick={() => setLeadToSms(lead)}
+                                                        title="Skicka SMS-mall"
+                                                    >
+                                                        💬 SMS
+                                                    </Button>
+                                                </div>
+                                            )}
+                                            <Button size="sm" variant="outline" onClick={() => setLeadToLogContact(lead)}>Logga kontakt</Button>
+                                            <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => setLeadToMarkAsJunk(lead)}>Skräp</Button>
+                                            {lead.status !== 'converted' && (
+                                                <Button size="sm" variant="primary" onClick={() => handleCreateIntroCallFromLead(lead)}>Skapa Introsamtal</Button>
+                                            )}
+                                        </>
+                                    )}
                                 </div>
                             </div>
-                            <div className="flex gap-2 self-start sm:self-center flex-shrink-0">
-                                <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => setLeadToMarkAsJunk(lead)}>Skräp</Button>
-                                <Button size="sm" variant="primary" onClick={() => handleCreateIntroCallFromLead(lead)}>Skapa Introsamtal</Button>
-                            </div>
+                            
+                            {isExpanded && lead.contactHistory && lead.contactHistory.length > 0 && (
+                                <div className="mt-2 pt-2 border-t border-gray-100 animate-fade-in">
+                                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">Kontaktlogg</h4>
+                                    <div className="space-y-2">
+                                        {lead.contactHistory.map(attempt => (
+                                            <div key={attempt.id} className="text-sm bg-gray-50 p-2 rounded-md">
+                                                <div className="flex justify-between">
+                                                    <span className="font-medium text-gray-800">
+                                                        {CONTACT_ATTEMPT_METHOD_OPTIONS.find(m => m.value === attempt.method)?.label || attempt.method}
+                                                    </span>
+                                                    <span className="text-gray-500 text-xs">{new Date(attempt.timestamp).toLocaleString('sv-SE')}</span>
+                                                </div>
+                                                <p className="text-gray-600">
+                                                    {CONTACT_ATTEMPT_OUTCOME_OPTIONS.find(o => o.value === attempt.outcome)?.label || attempt.outcome}
+                                                </p>
+                                                {attempt.notes && <p className="text-gray-500 italic mt-1">"{attempt.notes}"</p>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     );
                 })}
             </div>
         ) : (
             <div className="text-center p-8 bg-gray-50 rounded-lg">
-                <p className="text-lg text-gray-500">Inga leads att hantera. Bra jobbat!</p>
+                <p className="text-lg text-gray-500">Inga leads i denna kategori.</p>
             </div>
         )}
       </div>
 
-      {/* Introsamtal Tab */}
       <div role="tabpanel" hidden={activeTab !== 'introCalls'} className="animate-fade-in space-y-6">
-        <div className="flex justify-end">
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
+            <div className="flex p-1 bg-gray-100 rounded-lg">
+                <button
+                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${introCallView === 'actionable' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    onClick={() => setIntroCallView('actionable')}
+                >
+                    Aktuella ({actionableIntroCalls.length})
+                </button>
+                <button
+                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${introCallView === 'archived' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    onClick={() => setIntroCallView('archived')}
+                >
+                    Historik ({archivedIntroCalls.length})
+                </button>
+            </div>
             <Button onClick={() => { setLeadBeingConverted(null); setCallToEdit(null); setIsIntroCallModalOpen(true); }}>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
                 Lägg till nytt introsamtal
             </Button>
         </div>
-        {unlinkedCalls.length > 0 ? (
-             <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 space-y-4">
-                 <h3 className="text-xl font-bold text-gray-800">Okopplade Introsamtal ({unlinkedCalls.length})</h3>
+        
+        {callsToDisplay.length > 0 ? (
+             <div className={`p-4 rounded-lg border ${introCallView === 'actionable' ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'} space-y-4`}>
+                 <h3 className={`text-xl font-bold ${introCallView === 'actionable' ? 'text-gray-800' : 'text-gray-600'}`}>
+                     {introCallView === 'actionable' ? 'Att göra' : 'Tidigare samtal'}
+                 </h3>
                  <div className="space-y-3 max-h-96 overflow-y-auto pr-2 -mr-2">
-                     {unlinkedCalls.map(call => {
+                     {callsToDisplay.map(call => {
                          const coach = staffMembers.find(s => s.id === call.coachId);
+                         const isArchived = introCallView === 'archived';
+                         
+                         let statusBadge = null;
+                         if (call.status === 'linked') {
+                             statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">✅ Medlem</span>;
+                         } else if (call.outcome === 'not_interested') {
+                              statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-800">⛔️ Ej intresserad</span>;
+                         } else if (call.status === 'archived') {
+                              statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-600">🗄 Arkiverad</span>;
+                         } else if (call.outcome === 'thinking') {
+                              statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">🤔 Tänker på saken</span>;
+                         }
+
                          return (
-                             <div key={call.id} className="p-3 bg-white rounded-md border shadow-sm">
+                             <div key={call.id} className={`p-3 bg-white rounded-md border shadow-sm ${isArchived ? 'opacity-80' : ''}`}>
                                 <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
                                     <div>
-                                        <p className="font-bold text-lg text-gray-900">{call.prospectName}</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="font-bold text-lg text-gray-900">{call.prospectName}</p>
+                                            {statusBadge}
+                                        </div>
                                         <p className="text-sm text-gray-600">{call.prospectEmail}</p>
                                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                                             <span className="text-gray-500">Coach: {coach?.name || 'Okänd'}</span>
@@ -529,7 +502,11 @@ ${callToLink.coachSummary || 'Ej angivet.'}
                                     </div>
                                     <div className="flex gap-2 self-start sm:self-center flex-shrink-0">
                                         <Button size="sm" variant="outline" onClick={() => { setCallToEdit(call); setIsIntroCallModalOpen(true); }}>Redigera</Button>
-                                        <Button size="sm" variant="primary" onClick={() => { setCallToLink(call); setParticipantToLinkId(''); }}>Länka</Button>
+                                        {isArchived ? (
+                                            <Button size="sm" variant="secondary" onClick={() => {}}>Återaktivera</Button>
+                                        ) : (
+                                            <Button size="sm" variant="primary" onClick={() => { setCallToLink(call); setParticipantToLinkId(''); }}>Länka</Button>
+                                        )}
                                     </div>
                                 </div>
                              </div>
@@ -539,12 +516,13 @@ ${callToLink.coachSummary || 'Ej angivet.'}
              </div>
         ) : (
              <div className="text-center p-8 bg-gray-50 rounded-lg">
-                <p className="text-lg text-gray-500">Inga okopplade introsamtal.</p>
+                <p className="text-lg text-gray-500">
+                    {introCallView === 'actionable' ? 'Inga samtal att hantera just nu.' : 'Ingen historik att visa.'}
+                </p>
             </div>
         )}
       </div>
 
-      {/* Medlemsresa Tab */}
       <div role="tabpanel" hidden={activeTab !== 'memberJourney'} className="animate-fade-in space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4 bg-gray-50 rounded-lg border">
             <div>
@@ -574,13 +552,29 @@ ${callToLink.coachSummary || 'Ej angivet.'}
                 <tbody className="bg-white divide-y divide-gray-200">
                     {filteredAndSortedData.map(p => {
                         const { relative: relativeDate } = dateUtils.formatRelativeTime(p.lastActivityDate);
+                        const today = new Date();
+                        const bindingEnd = p.bindingEndDate ? new Date(p.bindingEndDate) : null;
+                        const daysToBindingEnd = bindingEnd ? Math.ceil((bindingEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : Infinity;
+                        const isExpiringSoon = bindingEnd && daysToBindingEnd <= 35 && daysToBindingEnd >= 0;
+
                         return (
                             <tr key={p.id} className="hover:bg-gray-50">
                                 <td className="px-4 py-4 whitespace-nowrap">
                                     <button onClick={() => handleOpenNotesModal(p)} className="text-left w-full">
                                         <div className="flex items-center gap-2">
                                             <EngagementIndicator level={p.engagementLevel} />
-                                            <div className="text-sm font-medium text-gray-900">{p.name}</div>
+                                            <div className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                                                {p.name}
+                                                {bindingEnd && (
+                                                    <span 
+                                                        title={isExpiringSoon ? `Bindningstid går ut ${bindingEnd.toLocaleDateString('sv-SE')} (${daysToBindingEnd} dagar kvar)` : `Bunden t.o.m. ${bindingEnd.toLocaleDateString('sv-SE')}`} 
+                                                        className={`cursor-help text-base ${isExpiringSoon ? 'animate-pulse' : 'opacity-60'}`}
+                                                        style={{ transform: 'scale(0.8)' }}
+                                                    >
+                                                        {isExpiringSoon ? '🔒⏳' : '🔒'}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="text-xs text-gray-500">{p.email}</div>
                                     </button>
@@ -617,31 +611,23 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             participant={selectedParticipant}
             notes={coachNotes.filter(n => n.participantId === selectedParticipant.id)}
             allParticipantGoals={allParticipantGoals}
-            setParticipantGoals={setParticipantGoalsData}
             allActivityLogs={allActivityLogs.filter(l => l.participantId === selectedParticipant.id)}
-            setGoalCompletionLogs={setGoalCompletionLogsData}
-            onAddNote={(noteText) => setCoachNotesData(prev => [...prev, { id: crypto.randomUUID(), participantId: selectedParticipant.id, noteText, createdDate: new Date().toISOString(), noteType: 'check-in' }])}
-            onUpdateNote={(noteId, newText) => {
-                setCoachNotesData(prev => prev.map(note => 
-                    note.id === noteId 
-                    ? { ...note, noteText: newText, createdDate: new Date().toISOString() } 
-                    : note
-                ));
-            }}
-            onDeleteNote={(noteId) => {
-                setCoachNotesData(prev => prev.filter(note => note.id !== noteId));
-            }}
+            setParticipantGoals={() => {}} 
+            setGoalCompletionLogs={() => {}} 
+            onAddNote={() => {}} 
+            onUpdateNote={() => {}} 
+            onDeleteNote={() => {}} 
             oneOnOneSessions={oneOnOneSessions}
-            setOneOnOneSessions={setOneOnOneSessionsData}
+            setOneOnOneSessions={() => {}} 
             coaches={staffMembers}
             loggedInCoachId={loggedInStaff!.id}
-            workouts={workouts}
-            addWorkout={addWorkout}
-            updateWorkout={updateWorkout}
-            deleteWorkout={deleteWorkout}
-            workoutCategories={workoutCategories}
+            workouts={[]} 
+            addWorkout={async () => {}} 
+            updateWorkout={async () => {}} 
+            deleteWorkout={async () => {}} 
+            workoutCategories={[]} 
             participants={participants}
-            staffAvailability={staffAvailability}
+            staffAvailability={[]} 
             isOnline={isOnline}
         />
       )}
@@ -670,7 +656,7 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             setLeadBeingConverted(null);
             setCallToEdit(null);
           }}
-          onSave={handleSaveIntroCall}
+          onSave={(data) => handleSaveIntroCall(data, leadBeingConverted)}
           introCallToEdit={callToEdit}
           onUpdate={handleUpdateIntroCall}
           initialData={leadBeingConverted ? {
@@ -678,6 +664,7 @@ ${callToLink.coachSummary || 'Ej angivet.'}
             prospectEmail: leadBeingConverted.email,
             prospectPhone: leadBeingConverted.phone,
           } : undefined}
+          leadId={leadBeingConverted?.id}
       />
 
       <Modal isOpen={!!callToLink} onClose={() => setCallToLink(null)} title={`Länka samtal med ${callToLink?.prospectName}`}>
@@ -691,20 +678,48 @@ ${callToLink.coachSummary || 'Ej angivet.'}
                 />
                 <div className="flex justify-end gap-3 pt-4 border-t">
                     <Button variant="secondary" onClick={() => setCallToLink(null)}>Avbryt</Button>
-                    <Button onClick={handleConfirmLink} disabled={!participantToLinkId}>Länka och skapa anteckning</Button>
+                    <Button onClick={handleConfirmLink(callToLink!, participantToLinkId)} disabled={!participantToLinkId}>Länka och skapa anteckning</Button>
                 </div>
             </div>
       </Modal>
+      
+      <LogContactModal 
+        isOpen={!!leadToLogContact} 
+        onClose={() => setLeadToLogContact(null)} 
+        lead={leadToLogContact}
+        onSave={(attempt) => leadToLogContact && handleSaveContactAttempt(leadToLogContact.id, attempt)}
+      />
+
+      <CallSelectorModal
+        isOpen={!!leadToCall}
+        onClose={() => setLeadToCall(null)}
+        lead={leadToCall}
+        coach={loggedInStaff}
+        locations={locations}
+        settings={integrationSettings}
+        onConfirm={executeCall}
+      />
+
+      <SmsTemplateModal
+        isOpen={!!leadToSms}
+        onClose={() => setLeadToSms(null)}
+        lead={leadToSms}
+        coach={loggedInStaff}
+        templates={smsTemplates}
+        locations={locations}
+        onConfirm={executeSms}
+      />
 
       <ConfirmationModal
         isOpen={!!leadToMarkAsJunk}
         onClose={() => setLeadToMarkAsJunk(null)}
-        onConfirm={handleConfirmMarkAsJunk}
+        onConfirm={() => handleConfirmMarkAsJunk(leadToMarkAsJunk!)}
         title="Ta bort lead?"
         message={`Är du säker på att du vill ta bort leadet för ${leadToMarkAsJunk?.firstName} ${leadToMarkAsJunk?.lastName}? Detta markerar det som 'skräp' och döljer det från listan.`}
         confirmButtonText="Ja, ta bort"
         confirmButtonVariant="danger"
       />
+
        <AddLeadModal
             isOpen={isAddLeadModalOpen}
             onClose={() => setIsAddLeadModalOpen(false)}
