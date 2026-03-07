@@ -116,6 +116,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         handleRestoreLead,
         handlePermanentDeleteLead,
         handleSaveContactAttempt,
+        handleArchiveIntroCall,
     } = useClientJourney(loggedInStaff);
     
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
@@ -126,6 +127,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   const [callToLink, setCallToLink] = useState<ProspectIntroCall | null>(null);
   const [targetId, setTargetId] = useState<string>('');
   const [targetType, setTargetType] = useState<'participant' | 'lead'>('participant');
+  const [searchTerm, setSearchTerm] = useState('');
   const [leadBeingConverted, setLeadBeingConverted] = useState<Lead | null>(null);
   const [leadToMarkAsJunk, setLeadToMarkAsJunk] = useState<Lead | null>(null);
   const [leadToDeletePermanent, setLeadToDeletePermanent] = useState<Lead | null>(null);
@@ -415,7 +417,10 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                                         {isArchived ? (
                                             <Button size="sm" variant="secondary" onClick={() => {}}>Återaktivera</Button>
                                         ) : (
-                                            <Button size="sm" variant="primary" onClick={() => { setCallToLink(call); setParticipantToLinkId(''); }}>Länka</Button>
+                                            <>
+                                                <Button size="sm" variant="primary" onClick={() => { setCallToLink(call); setTargetId(''); }}>Länka</Button>
+                                                <Button size="sm" variant="ghost" className="!text-gray-600" onClick={() => handleArchiveIntroCall(call.id)}>Arkivera</Button>
+                                            </>
                                         )}
                                     </div>
                                 </div>
@@ -577,30 +582,40 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
           leadId={leadBeingConverted?.id}
       />
 
-      <Modal isOpen={!!callToLink} onClose={() => setCallToLink(null)} title={`Länka samtal med ${callToLink?.prospectName}`}>
+      <Modal isOpen={!!callToLink} onClose={() => { setCallToLink(null); setSearchTerm(''); }} title={`Länka samtal med ${callToLink?.prospectName}`}>
             <div className="space-y-4">
                 <p>Välj om detta introsamtal ska kopplas till en befintlig medlem eller ett lead.</p>
                 
                 <div className="flex gap-4">
                     <label className="flex items-center gap-2">
-                        <input type="radio" name="targetType" value="participant" checked={targetType === 'participant'} onChange={() => { setTargetType('participant'); setTargetId(''); }} />
+                        <input type="radio" name="targetType" value="participant" checked={targetType === 'participant'} onChange={() => { setTargetType('participant'); setTargetId(''); setSearchTerm(''); }} />
                         Medlem
                     </label>
                     <label className="flex items-center gap-2">
-                        <input type="radio" name="targetType" value="lead" checked={targetType === 'lead'} onChange={() => { setTargetType('lead'); setTargetId(''); }} />
+                        <input type="radio" name="targetType" value="lead" checked={targetType === 'lead'} onChange={() => { setTargetType('lead'); setTargetId(''); setSearchTerm(''); }} />
                         Lead
                     </label>
                 </div>
+
+                <Input
+                    label="Sök namn"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Börja skriva för att filtrera..."
+                />
 
                 <Select
                     label={`Välj ${targetType === 'participant' ? 'medlem' : 'lead'} *`}
                     value={targetId}
                     onChange={(e) => setTargetId(e.target.value)}
-                    options={[{ value: '', label: `Välj en ${targetType === 'participant' ? 'medlem' : 'lead'}...` }, ...(targetType === 'participant' ? participantOptionsForLinking : leadOptionsForLinking)]}
+                    options={[{ value: '', label: `Välj en ${targetType === 'participant' ? 'medlem' : 'lead'}...` }, 
+                        ...(targetType === 'participant' ? participantOptionsForLinking : leadOptionsForLinking)
+                        .filter(o => o.label.toLowerCase().includes(searchTerm.toLowerCase()))
+                    ]}
                 />
                 <div className="flex justify-end gap-3 pt-4 border-t">
-                    <Button variant="secondary" onClick={() => setCallToLink(null)}>Avbryt</Button>
-                    <Button onClick={() => { handleConfirmLink(callToLink!, targetId, targetType); setCallToLink(null); }} disabled={!targetId}>Länka och skapa anteckning</Button>
+                    <Button variant="secondary" onClick={() => { setCallToLink(null); setSearchTerm(''); }}>Avbryt</Button>
+                    <Button onClick={() => { handleConfirmLink(callToLink!, targetId, targetType); setCallToLink(null); setSearchTerm(''); }} disabled={!targetId}>Länka och skapa anteckning</Button>
                 </div>
             </div>
       </Modal>
