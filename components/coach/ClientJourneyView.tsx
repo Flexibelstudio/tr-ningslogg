@@ -124,7 +124,8 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   const [isIntroCallModalOpen, setIsIntroCallModalOpen] = useState(false);
   const [callToEdit, setCallToEdit] = useState<ProspectIntroCall | null>(null);
   const [callToLink, setCallToLink] = useState<ProspectIntroCall | null>(null);
-  const [participantToLinkId, setParticipantToLinkId] = useState<string>('');
+  const [targetId, setTargetId] = useState<string>('');
+  const [targetType, setTargetType] = useState<'participant' | 'lead'>('participant');
   const [leadBeingConverted, setLeadBeingConverted] = useState<Lead | null>(null);
   const [leadToMarkAsJunk, setLeadToMarkAsJunk] = useState<Lead | null>(null);
   const [leadToDeletePermanent, setLeadToDeletePermanent] = useState<Lead | null>(null);
@@ -199,6 +200,11 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   const participantOptionsForLinking = participants
     .filter(p => p.isActive || p.isProspect)
     .map(p => ({ value: p.id, label: p.name || 'Okänd' }))
+    .sort((a,b) => a.label.localeCompare(b.label));
+
+  const leadOptionsForLinking = filteredLeads
+    .filter(l => l.status !== 'junk' && l.status !== 'converted')
+    .map(l => ({ value: l.id, label: `${l.firstName} ${l.lastName}` }))
     .sort((a,b) => a.label.localeCompare(b.label));
     
   const callsToDisplay = introCallView === 'actionable' ? actionableIntroCalls : archivedIntroCalls;
@@ -573,16 +579,28 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
 
       <Modal isOpen={!!callToLink} onClose={() => setCallToLink(null)} title={`Länka samtal med ${callToLink?.prospectName}`}>
             <div className="space-y-4">
-                <p>Välj den medlemsprofil som detta introsamtal ska kopplas till. En sammanfattning av samtalet kommer att läggas till som en anteckning i medlemmens klientkort.</p>
+                <p>Välj om detta introsamtal ska kopplas till en befintlig medlem eller ett lead.</p>
+                
+                <div className="flex gap-4">
+                    <label className="flex items-center gap-2">
+                        <input type="radio" name="targetType" value="participant" checked={targetType === 'participant'} onChange={() => { setTargetType('participant'); setTargetId(''); }} />
+                        Medlem
+                    </label>
+                    <label className="flex items-center gap-2">
+                        <input type="radio" name="targetType" value="lead" checked={targetType === 'lead'} onChange={() => { setTargetType('lead'); setTargetId(''); }} />
+                        Lead
+                    </label>
+                </div>
+
                 <Select
-                    label="Välj medlem *"
-                    value={participantToLinkId}
-                    onChange={(e) => setParticipantToLinkId(e.target.value)}
-                    options={[{ value: '', label: 'Välj en medlem...' }, ...participantOptionsForLinking]}
+                    label={`Välj ${targetType === 'participant' ? 'medlem' : 'lead'} *`}
+                    value={targetId}
+                    onChange={(e) => setTargetId(e.target.value)}
+                    options={[{ value: '', label: `Välj en ${targetType === 'participant' ? 'medlem' : 'lead'}...` }, ...(targetType === 'participant' ? participantOptionsForLinking : leadOptionsForLinking)]}
                 />
                 <div className="flex justify-end gap-3 pt-4 border-t">
                     <Button variant="secondary" onClick={() => setCallToLink(null)}>Avbryt</Button>
-                    <Button onClick={() => handleConfirmLink(callToLink!, participantToLinkId)} disabled={!participantToLinkId}>Länka och skapa anteckning</Button>
+                    <Button onClick={() => handleConfirmLink(callToLink!, targetId, targetType)} disabled={!targetId}>Länka och skapa anteckning</Button>
                 </div>
             </div>
       </Modal>

@@ -305,27 +305,47 @@ export const useClientJourney = (loggedInStaff: StaffMember | null) => {
     setProspectIntroCallsData((prev) => prev.map((c) => (c.id === updatedCall.id ? updatedCall : c)));
   };
   
-  const handleConfirmLink = (callToLink: ProspectIntroCall, participantToLinkId: string) => {
-    const updatedCall = { ...callToLink, status: 'linked' as const, linkedParticipantId: participantToLinkId };
+  const handleConfirmLink = (callToLink: ProspectIntroCall, targetId: string, targetType: 'participant' | 'lead') => {
+    const updatedCall = { 
+        ...callToLink, 
+        status: 'linked' as const, 
+        linkedParticipantId: targetType === 'participant' ? targetId : undefined,
+        linkedLeadId: targetType === 'lead' ? targetId : undefined
+    };
     setProspectIntroCallsData((prev) => prev.map((c) => (c.id === callToLink.id ? updatedCall : c)));
 
-    const noteText = `
+    if (targetType === 'lead') {
+        setLeadsData((prev) => prev.map((l) => (l.id === targetId ? { ...l, status: 'converted' } : l)));
+        
+        // Lägg till kontaktförsök på leadet
+        const newAttempt: ContactAttempt = {
+            id: crypto.randomUUID(),
+            timestamp: new Date().toISOString(),
+            coachId: callToLink.coachId,
+            method: 'studio',
+            outcome: 'booked_intro',
+            notes: `Introsamtal länkat: ${callToLink.coachSummary || 'Ingen sammanfattning'}`
+        };
+        setLeadsData(prev => prev.map(l => l.id === targetId ? { ...l, contactHistory: [...(l.contactHistory || []), newAttempt] } : l));
+    } else {
+        const noteText = `
 --- INTROSAMTALSAMMANFATTNING ---
 Datum: ${new Date(callToLink.createdDate).toLocaleDateString('sv-SE')}
 Träningsmål: ${callToLink.trainingGoals || 'Ej angivet'}
 Coachanteckningar: ${callToLink.coachSummary || 'Ej angivet'}
-    `.trim();
+        `.trim();
 
-    setCoachNotesData((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        participantId: participantToLinkId,
-        noteText: noteText,
-        createdDate: new Date().toISOString(),
-        noteType: 'intro-session',
-      },
-    ]);
+        setCoachNotesData((prev) => [
+        ...prev,
+        {
+            id: crypto.randomUUID(),
+            participantId: targetId,
+            noteText: noteText,
+            createdDate: new Date().toISOString(),
+            noteType: 'intro-session',
+        },
+        ]);
+    }
   };
 
   const handleConfirmMarkAsJunk = (leadToMarkAsJunk: Lead) => {
