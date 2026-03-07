@@ -14,10 +14,7 @@ import { ConfirmationModal } from '../ConfirmationModal';
 import { useClientJourney } from '../../features/coach/hooks/useClientJourney';
 import { LogContactModal } from './LogContactModal';
 import { CONTACT_ATTEMPT_OUTCOME_OPTIONS, CONTACT_ATTEMPT_METHOD_OPTIONS } from '../../constants';
-import { CallSelectorModal } from './CallSelectorModal';
-import { SmsTemplateModal } from './SmsTemplateModal';
 import { useNotifications } from '../../context/NotificationsContext';
-import { trigger46elksActionFn } from '../../firebaseClient';
 
 interface ClientJourneyViewProps {
   participants: ParticipantProfile[];
@@ -78,17 +75,7 @@ function AddLeadModal({ isOpen, onClose, onSave, locations }: { isOpen: boolean;
     );
 }
 
-const cleanNumber = (num: string | undefined): string => {
-    if (!num) return '';
-    let cleaned = num.replace(/\s+/g, '').replace(/-/g, '');
-    if (cleaned.startsWith('00')) cleaned = '+' + cleaned.substring(2);
-    if (cleaned.startsWith('0')) cleaned = '+46' + cleaned.substring(1);
-    if (cleaned.startsWith('+460')) cleaned = '+46' + cleaned.substring(4);
-    if (!cleaned.startsWith('+')) cleaned = '+46' + cleaned;
-    return cleaned;
-};
-
-export function ClientJourneyView({
+export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
   participants,
   oneOnOneSessions,
   allActivityLogs,
@@ -96,12 +83,11 @@ export function ClientJourneyView({
   allParticipantGoals,
   coachNotes,
   isOnline,
-}: ClientJourneyViewProps) {
+}) => {
     const {
         locations,
         staffMembers,
         integrationSettings,
-        smsTemplates,
     } = useAppContext();
 
     const { addNotification } = useNotifications();
@@ -145,78 +131,7 @@ export function ClientJourneyView({
   const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
   
   const [leadToLogContact, setLeadToLogContact] = useState<Lead | null>(null);
-  const [leadToCall, setLeadToCall] = useState<Lead | null>(null);
-  const [leadToSms, setLeadToSms] = useState<Lead | null>(null);
   const [expandedLeadHistoryIds, setExpandedLeadHistoryIds] = useState<Set<string>>(new Set());
-
-  const executeCall = useCallback(async (callerId: string) => {
-      if (!leadToCall || !loggedInStaff?.phone || !integrationSettings.elksApiId || !integrationSettings.elksApiSecret) {
-          addNotification({ type: 'ERROR', title: 'Kunde inte ringa', message: 'Kontrollera att du angett ditt mottagningsnummer och att API-nycklar är sparade.' });
-          return;
-      }
-      
-      const from = cleanNumber(loggedInStaff.phone);
-      const to = cleanNumber(leadToCall.phone);
-      const displayId = cleanNumber(callerId);
-
-      addNotification({ type: 'INFO', title: 'Ringer upp...', message: `Vi ringer din mobil ${from} först. Svara för att kopplas till kunden.` });
-
-      try {
-          const result = await trigger46elksActionFn({
-              action: 'call',
-              from,
-              to,
-              voice_start: JSON.stringify({ connect: to, callerid: displayId }),
-              elksApiId: integrationSettings.elksApiId,
-              elksApiSecret: integrationSettings.elksApiSecret
-          });
-
-          if (result.data?.error) throw new Error(result.data.error);
-
-          addNotification({ type: 'SUCCESS', title: 'Samtal startat', message: 'Håll telefonen redo!' });
-          setLeadToCall(null);
-          setLeadToLogContact(leadToCall);
-      } catch (err) {
-          console.error("46elks Call Error:", err);
-          addNotification({ type: 'ERROR', title: 'Koppling misslyckades', message: 'Kunde inte starta samtalet via server-proxyn. Kontrollera dina inställningar.' });
-      }
-  }, [leadToCall, loggedInStaff, integrationSettings, addNotification]);
-
-  const executeSms = useCallback(async (content: string, templateName: string) => {
-    if (!leadToSms || !leadToSms.phone || !integrationSettings.elksApiId || !integrationSettings.elksApiSecret) {
-        addNotification({ type: 'ERROR', title: 'Kunde inte skicka SMS', message: 'API-uppgifter saknas.' });
-        return;
-    }
-
-    const to = cleanNumber(leadToSms.phone);
-    const from = "Flexibel";
-
-    try {
-        const result = await trigger46elksActionFn({
-            action: 'sms',
-            from,
-            to,
-            message: content,
-            elksApiId: integrationSettings.elksApiId,
-            elksApiSecret: integrationSettings.elksApiSecret
-        });
-
-        if (result.data?.error) throw new Error(result.data.error);
-
-        addNotification({ type: 'SUCCESS', title: 'SMS Skickat!', message: `Meddelande skickat till ${leadToSms.firstName}.` });
-        
-        handleSaveContactAttempt(leadToSms.id, {
-            method: 'sms',
-            outcome: 'follow_up',
-            notes: `Automatiskt SMS: ${templateName}`
-        });
-
-        setLeadToSms(null);
-    } catch (err) {
-        console.error("46elks SMS Error:", err);
-        addNotification({ type: 'ERROR', title: 'Kunde inte skicka', message: 'Ett tekniskt fel uppstod vid sändning via server-proxyn.' });
-    }
-  }, [leadToSms, integrationSettings, handleSaveContactAttempt, addNotification]);
 
   const handleOpenNotesModal = (participant: ParticipantProfile) => {
     setSelectedParticipant(participant);
@@ -252,7 +167,7 @@ export function ClientJourneyView({
     low: 'border-green-500 bg-green-50 text-green-700',
   };
 
-  const StatCard = ({ title, value, icon, onClick, isActive }: { title: string; value: number; icon: string; onClick: () => void; isActive: boolean }) => (
+  const StatCard: React.FC<{ title: string; value: number; icon: string; onClick: () => void; isActive: boolean }> = ({ title, value, icon, onClick, isActive }) => (
     <button onClick={onClick} className={`p-4 rounded-xl shadow-md flex items-start text-left transition-all duration-200 border-2 ${isActive ? 'bg-flexibel/10 border-flexibel' : 'bg-white border-transparent hover:border-gray-300'}`}>
         <div className="text-3xl mr-4">{icon}</div>
         <div>
@@ -390,28 +305,6 @@ export function ClientJourneyView({
                                         </>
                                     ) : (
                                         <>
-                                            {lead.phone && (
-                                                <div className="flex gap-1 mr-2">
-                                                    <Button 
-                                                        size="sm" 
-                                                        variant="ghost" 
-                                                        className="!text-green-600 !bg-green-50 hover:!bg-green-100" 
-                                                        onClick={() => setLeadToCall(lead)}
-                                                        title="Ring via 46elks"
-                                                    >
-                                                        📞 Ring
-                                                    </Button>
-                                                    <Button 
-                                                        size="sm" 
-                                                        variant="ghost" 
-                                                        className="!text-blue-600 !bg-blue-50 hover:!bg-blue-100" 
-                                                        onClick={() => setLeadToSms(lead)}
-                                                        title="Skicka SMS-mall"
-                                                    >
-                                                        💬 SMS
-                                                    </Button>
-                                                </div>
-                                            )}
                                             <Button size="sm" variant="outline" onClick={() => setLeadToLogContact(lead)}>Logga kontakt</Button>
                                             <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => setLeadToMarkAsJunk(lead)}>Skräp</Button>
                                             {lead.status !== 'converted' && (
@@ -689,7 +582,6 @@ export function ClientJourneyView({
                 />
                 <div className="flex justify-end gap-3 pt-4 border-t">
                     <Button variant="secondary" onClick={() => setCallToLink(null)}>Avbryt</Button>
-                    {/* FIX: Wrap handleConfirmLink in an arrow function to prevent immediate execution returning void */}
                     <Button onClick={() => handleConfirmLink(callToLink!, participantToLinkId)} disabled={!participantToLinkId}>Länka och skapa anteckning</Button>
                 </div>
             </div>
@@ -700,26 +592,6 @@ export function ClientJourneyView({
         onClose={() => setLeadToLogContact(null)} 
         lead={leadToLogContact}
         onSave={(attempt) => leadToLogContact && handleSaveContactAttempt(leadToLogContact.id, attempt)}
-      />
-
-      <CallSelectorModal
-        isOpen={!!leadToCall}
-        onClose={() => setLeadToCall(null)}
-        lead={leadToCall}
-        coach={loggedInStaff}
-        locations={locations}
-        settings={integrationSettings}
-        onConfirm={executeCall}
-      />
-
-      <SmsTemplateModal
-        isOpen={!!leadToSms}
-        onClose={() => setLeadToSms(null)}
-        lead={leadToSms}
-        coach={loggedInStaff}
-        templates={smsTemplates}
-        locations={locations}
-        onConfirm={executeSms}
       />
 
       <ConfirmationModal
