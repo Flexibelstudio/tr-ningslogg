@@ -419,7 +419,11 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                                         {isArchived ? (
                                             <>
                                                 <Button size="sm" variant="secondary" onClick={() => handleRestoreIntroCall(call.id)}>Återaktivera</Button>
-                                                <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => handleDeleteIntroCall(call.id)}>Radera</Button>
+                                                <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => {
+                                                    if (window.confirm('Är du säker på att du vill radera detta arkiverade introsamtal?')) {
+                                                        handleDeleteIntroCall(call.id);
+                                                    }
+                                                }}>Radera</Button>
                                             </>
                                         ) : (
                                             <>
