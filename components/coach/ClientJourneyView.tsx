@@ -600,7 +600,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                 />
                 <div className="flex justify-end gap-3 pt-4 border-t">
                     <Button variant="secondary" onClick={() => setCallToLink(null)}>Avbryt</Button>
-                    <Button onClick={() => handleConfirmLink(callToLink!, targetId, targetType)} disabled={!targetId}>Länka och skapa anteckning</Button>
+                    <Button onClick={() => { handleConfirmLink(callToLink!, targetId, targetType); setCallToLink(null); }} disabled={!targetId}>Länka och skapa anteckning</Button>
                 </div>
             </div>
       </Modal>
