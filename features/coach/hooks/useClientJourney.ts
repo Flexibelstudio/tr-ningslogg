@@ -246,6 +246,7 @@ export const useClientJourney = (loggedInStaff: StaffMember | null) => {
   const actionableIntroCalls = useMemo(() => {
     return prospectIntroCalls
       .filter((c) => {
+        if (c.status === 'archived') return false;
         const isActionableUnlinked =
           c.status === 'unlinked' && (c.outcome === 'bought_starter' || c.outcome === 'bought_other');
         const isFollowUp = c.outcome === 'thinking';
