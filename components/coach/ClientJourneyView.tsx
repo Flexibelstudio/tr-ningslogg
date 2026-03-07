@@ -117,6 +117,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         handlePermanentDeleteLead,
         handleSaveContactAttempt,
         handleArchiveIntroCall,
+        handleRestoreIntroCall,
         handleDeleteIntroCall,
     } = useClientJourney(loggedInStaff);
     
@@ -416,12 +417,14 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                                     <div className="flex gap-2 self-start sm:self-center flex-shrink-0">
                                         <Button size="sm" variant="outline" onClick={() => { setCallToEdit(call); setIsIntroCallModalOpen(true); }}>Redigera</Button>
                                         {isArchived ? (
-                                            <Button size="sm" variant="secondary" onClick={() => {}}>Återaktivera</Button>
+                                            <>
+                                                <Button size="sm" variant="secondary" onClick={() => handleRestoreIntroCall(call.id)}>Återaktivera</Button>
+                                                <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => handleDeleteIntroCall(call.id)}>Radera</Button>
+                                            </>
                                         ) : (
                                             <>
                                                 <Button size="sm" variant="primary" onClick={() => { setCallToLink(call); setTargetId(''); }}>Länka</Button>
                                                 <Button size="sm" variant="ghost" className="!text-gray-600" onClick={() => handleArchiveIntroCall(call.id)}>Arkivera</Button>
-                                                <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => handleDeleteIntroCall(call.id)}>Radera</Button>
                                             </>
                                         )}
                                     </div>

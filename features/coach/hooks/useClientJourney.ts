@@ -416,6 +416,10 @@ Coachanteckningar: ${callToLink.coachSummary || 'Ej angivet'}
     setProspectIntroCallsData((prev) => prev.map(c => c.id === callId ? { ...c, status: 'archived' } : c));
   };
 
+  const handleRestoreIntroCall = (callId: string) => {
+    setProspectIntroCallsData((prev) => prev.map(c => c.id === callId ? { ...c, status: 'unlinked' } : c));
+  };
+
   const handleDeleteIntroCall = (callId: string) => {
     setProspectIntroCallsData(prev => prev.filter(c => c.id !== callId));
   };
@@ -448,6 +452,7 @@ Coachanteckningar: ${callToLink.coachSummary || 'Ej angivet'}
     handleConfirmConsent,
     handleSaveContactAttempt,
     handleArchiveIntroCall,
+    handleRestoreIntroCall,
     handleDeleteIntroCall,
   };
 };
