@@ -1,3 +1,4 @@
+
 import { WorkoutCategory } from './workout';
 
 export interface Location {
@@ -27,7 +28,7 @@ export interface Membership {
 export interface SmsTemplate {
   id: string;
   name: string;
-  content: string; // Stödjer {{namn}}, {{coach}}, {{studio}}
+  content: string;
 }
 
 export interface IntegrationSettings {
@@ -37,17 +38,14 @@ export interface IntegrationSettings {
   cancellationCutoffHours?: number;
   isClientJourneyEnabled?: boolean;
   isScheduleEnabled?: boolean;
-  // FIX: Add missing properties to support the start program feature.
   startProgramCategoryId?: string;
   startProgramSessionsRequired?: number;
   enableSessionReminders?: boolean;
   sessionReminderHoursBefore?: number;
   commonGeneralActivities?: string[];
-
-  // 46elks settings
   elksApiId?: string;
   elksApiSecret?: string;
-  verifiedCallerIds?: string[]; // Lista på godkända nummer att visa (t.ex. studionummer)
+  verifiedCallerIds?: string[];
 }
 
 export interface StaffAvailability {

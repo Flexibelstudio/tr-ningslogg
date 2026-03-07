@@ -1,3 +1,4 @@
+
 // firebaseClient.ts
 import 'firebase/compat/functions';
 import { app } from "./firebaseConfig"; // This will now import the compat app instance
@@ -37,5 +38,5 @@ export const trigger46elksActionFn = functions
     ? functions.httpsCallable('trigger46elksAction')
     : () => {
         console.error("Firebase is not initialized. Cannot call cloud function 'trigger46elksAction'.");
-        return Promise.resolve({ data: { error: "Firebase är inte konfigurerad korrekt." } });
+        return Promise.resolve({ data: { error: "Firebase är inte konfigurerad korrekt. Funktionen kan inte anropas." } });
     };
