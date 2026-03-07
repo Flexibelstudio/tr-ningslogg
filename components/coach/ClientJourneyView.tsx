@@ -117,6 +117,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
         handlePermanentDeleteLead,
         handleSaveContactAttempt,
         handleArchiveIntroCall,
+        handleDeleteIntroCall,
     } = useClientJourney(loggedInStaff);
     
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
@@ -420,6 +421,7 @@ export const ClientJourneyView: React.FC<ClientJourneyViewProps> = ({
                                             <>
                                                 <Button size="sm" variant="primary" onClick={() => { setCallToLink(call); setTargetId(''); }}>Länka</Button>
                                                 <Button size="sm" variant="ghost" className="!text-gray-600" onClick={() => handleArchiveIntroCall(call.id)}>Arkivera</Button>
+                                                <Button size="sm" variant="ghost" className="!text-red-600" onClick={() => handleDeleteIntroCall(call.id)}>Radera</Button>
                                             </>
                                         )}
                                     </div>
