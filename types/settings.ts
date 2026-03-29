@@ -4,6 +4,7 @@ import { WorkoutCategory } from './workout';
 export interface Location {
   id: string;
   name: string;
+  phone?: string; // Studions officiella nummer
 }
 
 export interface Membership {
@@ -24,6 +25,12 @@ export interface Membership {
   restrictedCategories?: Record<WorkoutCategory, 'show_lock' | 'hide'>;
 }
 
+export interface SmsTemplate {
+  id: string;
+  name: string;
+  content: string;
+}
+
 export interface IntegrationSettings {
   enableQRCodeScanning: boolean;
   isBookingEnabled: boolean;
@@ -31,12 +38,14 @@ export interface IntegrationSettings {
   cancellationCutoffHours?: number;
   isClientJourneyEnabled?: boolean;
   isScheduleEnabled?: boolean;
-  // FIX: Add missing properties to support the start program feature.
   startProgramCategoryId?: string;
   startProgramSessionsRequired?: number;
   enableSessionReminders?: boolean;
   sessionReminderHoursBefore?: number;
   commonGeneralActivities?: string[];
+  elksApiId?: string;
+  elksApiSecret?: string;
+  verifiedCallerIds?: string[];
 }
 
 export interface StaffAvailability {

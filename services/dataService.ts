@@ -54,6 +54,9 @@ export const createInitialOrgData = (orgId: string): OrganizationData => {
             enableSessionReminders: false,
             sessionReminderHoursBefore: 2,
             commonGeneralActivities: DEFAULT_GENERAL_ACTIVITIES,
+            elksApiId: '',
+            elksApiSecret: '',
+            verifiedCallerIds: []
         },
         groupClassDefinitions: PREDEFINED_GROUP_CLASSES,
         groupClassSchedules: [],
@@ -64,6 +67,7 @@ export const createInitialOrgData = (orgId: string): OrganizationData => {
         userPushSubscriptions: [],
         branding: { categoryColorMap: {} },
         userNotifications: [],
+        smsTemplates: [],
     };
 
     // Add specific seeded data

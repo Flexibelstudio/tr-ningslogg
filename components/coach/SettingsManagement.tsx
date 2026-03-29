@@ -411,7 +411,7 @@ const WorkoutCategoryManager: React.FC = () => {
                  <div className="bg-blue-50 border border-blue-200 p-3 rounded-md mb-4 text-sm text-blue-800 space-y-1">
                     <p className="font-semibold">Vad används kategorier till?</p>
                     <ul className="list-disc pl-5">
-                        <li><strong>Sortera pass:</strong> Medlemmar hittar pass enklare (t.ex. "PT-grupp" vs "Workout").</li>
+                        <li><strong>Sortera pass:</strong> Medlemmar hittar pass enklare (t.ex. "PT-bas" vs "Workout").</li>
                         <li><strong>"Plus"-menyn:</strong> Kategorier dyker upp som alternativ när en medlem klickar på (+) för att logga.</li>
                         <li><strong>Medlemskap:</strong> Du kan låsa vissa kategorier för specifika medlemskap (t.ex. "Mini").</li>
                         <li><strong>Startprogram:</strong> Du väljer en kategori som utgör startprogrammet för nya medlemmar.</li>
@@ -433,7 +433,7 @@ const WorkoutCategoryManager: React.FC = () => {
                                     <span className="text-gray-800 font-medium">{cat.name}</span>
                                     <div className="flex gap-2">
                                         <Button variant="outline" size="sm" className="!p-1.5" onClick={() => handleEdit(cat)}>Redigera</Button>
-                                        <Button variant="danger" size="sm" className="!p-1.5" onClick={() => handleDelete(cat)}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg></Button>
+                                        <Button variant="danger" size="sm" className="!p-1.5" onClick={() => handleDelete(cat)}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg></Button>
                                     </div>
                                 </div>
                             ))}
@@ -655,19 +655,26 @@ const QRCodeManager: React.FC = () => {
 
     return (
         <Card title="QR-kod för Incheckning">
-            <Select
-                label="Välj ort för QR-kod"
-                value={selectedLocationId}
-                onChange={e => setSelectedLocationId(e.target.value)}
-                options={locations.map(l => ({ value: l.id, label: l.name }))}
-            />
-            {selectedLocationId && (
-                <div className="mt-4 text-center space-y-4">
-                    <p className="font-semibold text-xl">Checka in på ${locationName}</p>
-                    <canvas ref={canvasRef} className="mx-auto" />
-                    <Button onClick={handlePrint}>Skriv ut / Spara som PDF</Button>
-                </div>
-            )}
+            <div className="space-y-4">
+                <Select
+                    label="Välj ort för QR-kod"
+                    value={selectedLocationId}
+                    onChange={e => setSelectedLocationId(e.target.value)}
+                    options={locations.map(l => ({ value: l.id, label: l.name }))}
+                />
+                {selectedLocationId && (
+                    <div className="mt-4 text-center space-y-4 p-4 border rounded-xl bg-gray-50">
+                        <p className="font-bold text-xl text-gray-800">Checka in på {locationName}</p>
+                        <div className="bg-white p-4 rounded-lg inline-block shadow-sm">
+                            <canvas ref={canvasRef} className="mx-auto" />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <Button onClick={handlePrint} fullWidth>Skriv ut / Spara som PDF</Button>
+                            <p className="text-xs text-gray-500 italic">Sätt upp denna kod i studion så kan medlemmar checka in själva via appen.</p>
+                        </div>
+                    </div>
+                )}
+            </div>
         </Card>
     );
 };
@@ -835,7 +842,7 @@ const MembershipManager: React.FC = () => {
                                     </div>
                                     <div className="flex gap-2 flex-shrink-0">
                                         <Button variant="outline" size="sm" onClick={() => {setEditingMembership(mem); setIsModalOpen(true);}}>Redigera</Button>
-                                        <Button variant="danger" size="sm" className="!p-1.5" onClick={() => handleDelete(mem)}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg></Button>
+                                        <Button variant="danger" size="sm" className="!p-1.5" onClick={() => handleDelete(mem)}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg></Button>
                                     </div>
                                 </div>
                             </div>

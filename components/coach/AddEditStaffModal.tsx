@@ -17,6 +17,8 @@ interface AddEditStaffModalProps {
 export const AddEditStaffModal: React.FC<AddEditStaffModalProps> = ({ isOpen, onClose, onSave, staffToEdit, locations, participants }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [callerId, setCallerId] = useState('');
   const [role, setRole] = useState<StaffRole>('Coach');
   const [locationId, setLocationId] = useState('');
   const [isActive, setIsActive] = useState(true);
@@ -29,6 +31,8 @@ export const AddEditStaffModal: React.FC<AddEditStaffModalProps> = ({ isOpen, on
       if (staffToEdit) {
         setName(staffToEdit.name);
         setEmail(staffToEdit.email || '');
+        setPhone(staffToEdit.phone || '');
+        setCallerId(staffToEdit.callerId || '');
         setRole(staffToEdit.role);
         setLocationId(staffToEdit.locationId);
         setIsActive(staffToEdit.isActive);
@@ -38,6 +42,8 @@ export const AddEditStaffModal: React.FC<AddEditStaffModalProps> = ({ isOpen, on
         // Reset for new member
         setName('');
         setEmail('');
+        setPhone('');
+        setCallerId('');
         setRole('Coach');
         setLocationId(locations[0]?.id || ''); // Default to first location if available
         setIsActive(true);
@@ -72,6 +78,8 @@ export const AddEditStaffModal: React.FC<AddEditStaffModalProps> = ({ isOpen, on
       id: staffToEdit?.id || crypto.randomUUID(),
       name: name.trim(),
       email: email.trim() || undefined,
+      phone: phone.trim() || undefined,
+      callerId: callerId.trim() || undefined,
       role,
       locationId,
       isActive,
@@ -86,9 +94,16 @@ export const AddEditStaffModal: React.FC<AddEditStaffModalProps> = ({ isOpen, on
   
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={staffToEdit ? 'Redigera Personal' : 'Lägg till Personal'}>
-      <div className="space-y-4">
+      <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
         <Input label="Namn *" value={name} onChange={e => setName(e.target.value)} required error={errors.name} />
-        <Input label="E-post (för växla till medlemsvy)" type="email" value={email} onChange={e => setEmail(e.target.value)} error={errors.email} />
+        <Input label="E-post" type="email" value={email} onChange={e => setEmail(e.target.value)} error={errors.email} />
+        
+        <div className="grid grid-cols-2 gap-4 border-t pt-4">
+            <Input label="Mottagningsnummer" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+46..." />
+            <Input label="Personligt Caller ID" value={callerId} onChange={e => setCallerId(e.target.value)} placeholder="+46..." />
+        </div>
+        <p className="text-[10px] text-gray-500">Mottagningsnummer används för click-to-call. Caller ID är numret kunden ser.</p>
+
         <Select label="Roll *" value={role} onChange={e => setRole(e.target.value as StaffRole)} options={STAFF_ROLE_OPTIONS} required />
         <Select label="Ort *" value={locationId} onChange={e => setLocationId(e.target.value)} options={[{value: '', label: 'Välj en ort...'}, ...locationOptions]} required error={errors.locationId} />
         

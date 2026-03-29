@@ -70,6 +70,8 @@ export interface StaffMember {
   id: string;
   name: string;
   email?: string;
+  phone?: string; // Nummer coachen nås på (mottagningsnummer)
+  callerId?: string; // Nummer som coachen vill visa (utvisningsnummer)
   role: StaffRole;
   locationId: string; // FK to Location.id
   isActive: boolean;
